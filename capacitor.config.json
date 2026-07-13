@@ -1,0 +1,9 @@
+{
+  "appId": "com.halo.familyhealth",
+  "appName": "HALO",
+  "webDir": "out",
+  "server": {
+    "url": "https://halo-app-topaz.vercel.app",
+    "cleartext": true
+  }
+}
