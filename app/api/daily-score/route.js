@@ -40,10 +40,37 @@ export async function GET(request) {
     const openuvData = await openuvResponse.json();
     const uvIndex = openuvData.result ? openuvData.result.uv : null;
 
+    // --- GOOGLE POLLEN API (Pollen Risk) ---
+    const pollenApiKey = process.env.GOOGLE_POLLEN_API_KEY;
+    const pollenUrl = `https://pollen.googleapis.com/v1/forecast:lookup?key=${pollenApiKey}&location.longitude=${lng}&location.latitude=${lat}&days=1`;
+
+    const pollenResponse = await fetch(pollenUrl);
+
+    if (!pollenResponse.ok) {
+      throw new Error('Failed to fetch data from Google Pollen API');
+    }
+
+    const pollenData = await pollenResponse.json();
+    
+    let pollenRisk = { tree: null, grass: null, weed: null };
+
+    if (pollenData.dailyInfo && pollenData.dailyInfo.length > 0) {
+      const typesInfo = pollenData.dailyInfo[0].pollenTypeInfo;
+      
+      if (typesInfo) {
+        typesInfo.forEach(info => {
+          if (info.code === 'TREE') pollenRisk.tree = info.indexInfo ? info.indexInfo.value : null;
+          if (info.code === 'GRASS') pollenRisk.grass = info.indexInfo ? info.indexInfo.value : null;
+          if (info.code === 'WEED') pollenRisk.weed = info.indexInfo ? info.indexInfo.value : null;
+        });
+      }
+    }
+
     // --- FINAL RESPONSE ---
     return NextResponse.json({ 
       aqi: aqi,
-      uv: uvIndex 
+      uv: uvIndex,
+      pollen: pollenRisk
     });
 
   } catch (error) {
