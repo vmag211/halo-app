@@ -43,7 +43,7 @@ export async function GET(request) {
         aqi: cachedData.aqi,
         uv: cachedData.uv_index,
         pollen: parsedPollen,
-        cached: true // Helping Teammate 3 know where the data came from
+        cached: true // Helping teammates know where the data came from
       });
     }
 
