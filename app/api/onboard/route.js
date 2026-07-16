@@ -53,6 +53,27 @@ export async function POST(request) {
       });
     }
 
+    // --- EPA ENVIROFACTS API (Water Utility) ---
+    let pwsid = null;
+    
+    if (zip) {
+      try {
+        const epaUrl = `https://data.epa.gov/efservice/WATER_SYSTEM/ZIP_CODE/${zip}/JSON`;
+        const epaResponse = await fetch(epaUrl);
+        
+        if (epaResponse.ok) {
+          const epaData = await epaResponse.json();
+          
+          if (epaData && epaData.length > 0) {
+            // FIXED: Using lowercase 'pwsid' to match the EPA's exact data structure
+            pwsid = epaData[0].pwsid;
+          }
+        }
+      } catch (epaError) {
+        console.error("Failed to fetch EPA water data:", epaError.message);
+      }
+    }
+
     // --- UPDATE SUPABASE PROFILES TABLE ---
     const { error: updateError } = await supabase
       .from('profiles')
@@ -60,7 +81,8 @@ export async function POST(request) {
         lat: lat, 
         lng: lng, 
         zip: zip, 
-        county: county 
+        county: county,
+        pwsid: pwsid 
       })
       .eq('id', profileId);
 
@@ -73,7 +95,8 @@ export async function POST(request) {
       lat: lat,
       lng: lng,
       zip: zip,
-      county: county
+      county: county,
+      pwsid: pwsid 
     });
 
   } catch (error) {
