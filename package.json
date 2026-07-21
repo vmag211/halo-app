@@ -9,9 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+<<<<<<< HEAD
+    "@supabase/supabase-js": "^2.110.7",
+=======
     "@supabase/supabase-js": "^2.110.3",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
+>>>>>>> main
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"
