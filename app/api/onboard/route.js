@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { mapboxLimiter } from '@/lib/ratelimit'; // <-- IMPORT THE BOUNCER
+import { mapboxLimiter } from '@/lib/ratelimit'; 
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,8 +17,6 @@ export async function POST(request) {
     }
 
     // --- RATE LIMIT CHECK FOR MAPBOX ---
-    // We use a single global identifier because we want to limit the total calls 
-    // made by the whole app, not just by one specific user.
     const { success } = await mapboxLimiter.limit('global_mapbox_calls');
     
     if (!success) {
@@ -59,19 +57,39 @@ export async function POST(request) {
       });
     }
 
-    // --- EPA ENVIROFACTS API ---
+    // --- ARCGIS FEATURESERVER API (Spatial Query) ---
     let pwsid = null;
-    if (zip) {
-      try {
-        const epaUrl = `https://data.epa.gov/efservice/WATER_SYSTEM/ZIP_CODE/${zip}/JSON`;
-        const epaResponse = await fetch(epaUrl);
-        if (epaResponse.ok) {
-          const epaData = await epaResponse.json();
-          if (epaData && epaData.length > 0) pwsid = epaData[0].pwsid;
+    let serviceAreaStatus = 'outside_known_area'; 
+
+    try {
+      // We use URLSearchParams to neatly build the query string without messing up the formatting
+      const params = new URLSearchParams({
+        geometryType: 'esriGeometryPoint',
+        geometry: `${lng},${lat}`, // Longitude must always come first in ArcGIS
+        inSR: '4326', // Standard GPS coordinates
+        spatialRel: 'esriSpatialRelIntersects', // "Find boundaries touching this pin"
+        outFields: 'PWSID', // Only give us the PWSID to save bandwidth
+        returnGeometry: 'false', // Strip out the massive polygon drawing data
+        f: 'json' // Return readable JavaScript objects
+      });
+
+      const arcgisUrl = `https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/Water_System_Boundaries/FeatureServer/0/query?${params.toString()}`;
+      
+      const arcgisResponse = await fetch(arcgisUrl);
+      
+      if (arcgisResponse.ok) {
+        const arcgisData = await arcgisResponse.json();
+        
+        // Check if the map actually found a boundary polygon for this point
+        if (arcgisData.features && arcgisData.features.length > 0) {
+          // ArcGIS tucks our requested data inside the "attributes" object
+          pwsid = arcgisData.features[0].attributes.PWSID;
+          serviceAreaStatus = 'measured';
         }
-      } catch (epaError) {
-        console.error("Failed to fetch EPA water data:", epaError.message);
       }
+    } catch (arcgisError) {
+      console.error("Failed to fetch ArcGIS water data:", arcgisError.message);
+      // It safely falls back to 'outside_known_area' and null pwsid if this crashes
     }
 
     // --- UPDATE SUPABASE ---
@@ -82,7 +100,15 @@ export async function POST(request) {
 
     if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
 
-    return NextResponse.json({ lat, lng, zip, county, pwsid });
+    // --- FINAL RESPONSE ---
+    return NextResponse.json({ 
+      lat, 
+      lng, 
+      zip, 
+      county, 
+      pwsid,
+      service_area_status: serviceAreaStatus 
+    });
 
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
