@@ -11,11 +11,13 @@ const WATER_SOURCES = ["City utility", "Well", "Spring", "Other"];
    independently from the color field.
 ───────────────────────────────────────────── */
 
-function useAuroraCanvas(ref: React.RefObject<HTMLCanvasElement | null>) {
+function useAuroraCanvas(ref: React.RefObject<HTMLCanvasElement>) {
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     let animId = 0;
     let t = 0;
 
@@ -28,11 +30,11 @@ function useAuroraCanvas(ref: React.RefObject<HTMLCanvasElement | null>) {
 
     // Five liquid-drifting color blobs that mix fluidly
     const blobs = [
-      { baseX: 0.20, baseY: 0.20, r: 0.70, color: [32, 178, 170],  phaseX: 0,    phaseY: 0,    speed: 0.00035 },
-      { baseX: 0.75, baseY: 0.25, r: 0.75, color: [56, 189, 248],  phaseX: 1.2,  phaseY: 2.1,  speed: 0.00032 },
-      { baseX: 0.45, baseY: 0.55, r: 0.65, color: [110, 231, 183], phaseX: 2.4,  phaseY: 0.7,  speed: 0.00028 },
-      { baseX: 0.80, baseY: 0.80, r: 0.60, color: [56, 189, 248],  phaseX: 3.7,  phaseY: 1.5,  speed: 0.00038 },
-      { baseX: 0.25, baseY: 0.75, r: 0.55, color: [52, 211, 153],  phaseX: 0.9,  phaseY: 3.2,  speed: 0.00030 },
+      { baseX: 0.20, baseY: 0.20, r: 0.70, color: [32, 178, 170],  phaseX: 0,   phaseY: 0,   speed: 0.00035 },
+      { baseX: 0.75, baseY: 0.25, r: 0.75, color: [56, 189, 248],  phaseX: 1.2, phaseY: 2.1, speed: 0.00032 },
+      { baseX: 0.45, baseY: 0.55, r: 0.65, color: [110, 231, 183], phaseX: 2.4, phaseY: 0.7, speed: 0.00028 },
+      { baseX: 0.80, baseY: 0.80, r: 0.60, color: [56, 189, 248],  phaseX: 3.7, phaseY: 1.5, speed: 0.00038 },
+      { baseX: 0.25, baseY: 0.75, r: 0.55, color: [52, 211, 153],  phaseX: 0.9, phaseY: 3.2, speed: 0.00030 },
     ];
 
     const draw = () => {
@@ -43,11 +45,10 @@ function useAuroraCanvas(ref: React.RefObject<HTMLCanvasElement | null>) {
       ctx.fillStyle = "#0d4a5e";
       ctx.fillRect(0, 0, w, h);
 
-      // Liquid fluid blending (Screen mode allows soft translucent color mixing)
+      // Liquid fluid blending
       ctx.globalCompositeOperation = "screen";
 
       blobs.forEach((b) => {
-        // Slow water-like movement matching plexus pace
         const driftX = Math.sin(t * b.speed + b.phaseX) * 0.25 + Math.cos(t * b.speed * 0.5 + b.phaseY) * 0.10;
         const driftY = Math.cos(t * b.speed + b.phaseY) * 0.25 + Math.sin(t * b.speed * 0.5 + b.phaseX) * 0.10;
         
@@ -80,11 +81,13 @@ function useAuroraCanvas(ref: React.RefObject<HTMLCanvasElement | null>) {
   }, [ref]);
 }
 
-function usePlexusCanvas(ref: React.RefObject<HTMLCanvasElement | null>) {
+function usePlexusCanvas(ref: React.RefObject<HTMLCanvasElement>) {
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     let animId = 0;
 
     const NODE_COUNT = 25;
@@ -179,11 +182,23 @@ export default function OnboardingScreen() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [gpsPulse, setGpsPulse]       = useState(false);
 
-  const auroraRef  = useRef<HTMLCanvasElement>(null);
-  const plexusRef  = useRef<HTMLCanvasElement>(null);
+  const auroraRef  = useRef<HTMLCanvasElement>(null!);
+  const plexusRef  = useRef<HTMLCanvasElement>(null!);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useAuroraCanvas(auroraRef);
   usePlexusCanvas(plexusRef);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleGPS = () => {
     setGpsPulse(true);
@@ -206,7 +221,7 @@ export default function OnboardingScreen() {
   return (
     <div
       className="size-full min-h-screen flex items-center justify-center bg-slate-900"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: "'Proxima Soft', 'DM Sans', sans-serif" }}
     >
       {/* Phone Shell */}
       <div
@@ -273,7 +288,7 @@ export default function OnboardingScreen() {
               {/* HALO Text with Whitish Glow */}
               <h1
                 style={{
-                  fontFamily: "'Quicksand', sans-serif",
+                  fontFamily: "'Proxima Soft', sans-serif",
                   fontWeight: 700,
                   fontSize: 38,
                   letterSpacing: "0.22em",
@@ -287,10 +302,10 @@ export default function OnboardingScreen() {
                 HALO
               </h1>
 
-              {/* Subtext with Whitish Glow */}
+              {/* Subtext */}
               <p
                 style={{
-                  fontFamily: "'Quicksand', sans-serif",
+                  fontFamily: "'Proxima Soft', sans-serif",
                   fontWeight: 500,
                   color: "rgba(255,255,255,0.92)",
                   fontSize: 13.5,
@@ -319,10 +334,10 @@ export default function OnboardingScreen() {
             >
               <p
                 style={{
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Proxima Soft', sans-serif",
                   color: "rgba(255,255,255,0.92)",
                   fontSize: 15,
-                  fontWeight: 500,
+                  fontWeight: 600,
                   marginBottom: 2,
                 }}
               >
@@ -362,11 +377,12 @@ export default function OnboardingScreen() {
                     style={{
                       color: "white",
                       fontSize: 14,
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Proxima Soft', sans-serif",
                       caretColor: "white",
                     }}
                   />
                   <button
+                    type="button"
                     onClick={handleGPS}
                     className="flex-shrink-0 flex items-center justify-center"
                     style={{
@@ -420,7 +436,7 @@ export default function OnboardingScreen() {
                     style={{
                       color: "white",
                       fontSize: 14,
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Proxima Soft', sans-serif",
                       caretColor: "white",
                     }}
                   />
@@ -433,7 +449,7 @@ export default function OnboardingScreen() {
               </div>
 
               {/* Water Source */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5" ref={dropdownRef}>
                 <label
                   style={{
                     fontSize: 11,
@@ -447,6 +463,7 @@ export default function OnboardingScreen() {
                 </label>
                 <div className="relative">
                   <button
+                    type="button"
                     onClick={() => setDropdownOpen((o) => !o)}
                     className="w-full flex items-center justify-between"
                     style={{
@@ -462,7 +479,7 @@ export default function OnboardingScreen() {
                       style={{
                         color: waterSource ? "white" : "rgba(255,255,255,0.42)",
                         fontSize: 14,
-                        fontFamily: "'DM Sans', sans-serif",
+                        fontFamily: "'Proxima Soft', sans-serif",
                       }}
                     >
                       {waterSource || "Select your water source"}
@@ -494,14 +511,15 @@ export default function OnboardingScreen() {
                       {WATER_SOURCES.map((src, i) => (
                         <button
                           key={src}
+                          type="button"
                           onClick={() => { setWaterSource(src); setDropdownOpen(false); }}
                           className="w-full text-left"
                           style={{
                             padding: "13px 16px",
                             fontSize: 14,
                             color: waterSource === src ? "white" : "rgba(255,255,255,0.80)",
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontWeight: waterSource === src ? 500 : 400,
+                            fontFamily: "'Proxima Soft', sans-serif",
+                            fontWeight: waterSource === src ? 600 : 400,
                             background: waterSource === src ? "rgba(255,255,255,0.14)" : "transparent",
                             borderBottom: i < WATER_SOURCES.length - 1 ? "1px solid rgba(255,255,255,0.12)" : "none",
                             cursor: "pointer",
@@ -519,6 +537,7 @@ export default function OnboardingScreen() {
 
               {/* Submit CTA */}
               <button
+                type="button"
                 onClick={() => setDropdownOpen(false)}
                 className="w-full flex items-center justify-center transition-all active:scale-[0.97]"
                 style={{
@@ -529,7 +548,7 @@ export default function OnboardingScreen() {
                   border: "none",
                   cursor: "pointer",
                   fontFamily: "'Proxima Soft', sans-serif",
-                  fontWeight: 500,
+                  fontWeight: 700,
                   fontSize: 16,
                   color: "white",
                   letterSpacing: "0.01em",
@@ -544,6 +563,7 @@ export default function OnboardingScreen() {
                   fontSize: 11.5,
                   color: "rgba(255,255,255,0.48)",
                   marginTop: 4,
+                  fontFamily: "'Proxima Soft', sans-serif",
                 }}
               >
                 By continuing you agree to our{" "}
