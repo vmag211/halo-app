@@ -1,50 +1,99 @@
 import { NextResponse } from 'next/server';
-import { ncRadonZones } from '@/lib/radonData';
+import { createClient } from '@supabase/supabase-js';
+import { ncRadonZones } from '@/lib/radonData'; // Bring in your local Radon dataset
+
+// 1. Connect to Supabase using your safe, public keys
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function GET(request) {
   try {
-    // 1. Extract query parameters from the incoming URL
+    // 2. Extract parameters from the URL
     const { searchParams } = new URL(request.url);
     const county = searchParams.get('county');
+    const pwsid = searchParams.get('pwsid');
 
-    // 2. Check if the 'county' parameter was provided
+    // 3. Safety check: ONLY require the county.
     if (!county) {
       return NextResponse.json(
-        { error: 'The county query parameter is required (e.g., ?county=Cabarrus County).' },
+        { error: 'The county query parameter is required.' },
         { status: 400 }
       );
     }
 
-    // 3. Look up the radon zone number from our dataset
+    // ==========================================
+    // MODULE 1: RADON RISK LOOKUP (Local Data)
+    // ==========================================
+    let radonData = {};
     const zoneNumber = ncRadonZones[county];
 
-    // 4. Handle cases where the county is not found in our NC lookup object
     if (!zoneNumber) {
-      return NextResponse.json(
-        { error: `County '${county}' not found in North Carolina radon dataset.` },
-        { status: 404 }
-      );
+      radonData = { error: `County '${county}' not found in North Carolina radon dataset.` };
+    } else {
+      let riskLevel = 'Low';
+      if (zoneNumber === 1) riskLevel = 'High';
+      else if (zoneNumber === 2) riskLevel = 'Moderate';
+
+      radonData = {
+        county: county,
+        zone: zoneNumber,
+        risk_level: riskLevel
+      };
     }
 
-    // 5. Map the numeric zone value to a human-readable risk label
-    let riskLevel = 'Low';
-    if (zoneNumber === 1) {
-      riskLevel = 'High';
-    } else if (zoneNumber === 2) {
-      riskLevel = 'Moderate';
-    } else if (zoneNumber === 3) {
-      riskLevel = 'Low';
+    // ==========================================
+    // MODULE 2: PFAS WATER LOOKUP (Supabase)
+    // ==========================================
+    let waterData = {};
+
+    // 4. Check if we actually have a valid PWSID before querying the database
+    // (We check for the strings 'null' and 'undefined' just in case the frontend sent them literally)
+    if (pwsid && pwsid !== 'null' && pwsid !== 'undefined') {
+      const { data, error } = await supabase
+        .from('ucmr5_utilities')
+        .select('pws_name, status, contaminants')
+        .eq('pwsid', pwsid)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          waterData = {
+            status: 'no_data_yet',
+            message: 'UCMR5 testing data is not yet available for this utility. The EPA updates this database quarterly.'
+          };
+        } else {
+          throw error; // Real database crash
+        }
+      } else {
+        waterData = {
+          pws_name: data.pws_name,
+          status: data.status,
+          contaminants: data.contaminants
+        };
+      }
+    } else {
+      // 5. The Graceful Fallback: No PWSID was provided
+      waterData = {
+        status: 'no_pwsid_available',
+        message: 'No water utility could be matched for this address.'
+      };
     }
 
-    // 6. Send back the clean JSON response
+    // ==========================================
+    // FINAL OUTPUT: THE COMBINED PAYLOAD
+    // ==========================================
     return NextResponse.json({
-      county: county,
-      zone: zoneNumber,
-      risk_level: riskLevel
+      success: true,
+      radon: radonData,
+      water: waterData
     });
 
-  } catch (error) {
-    // 7. Catch-all safety net for unexpected crashes
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    console.error('HomeGuard API Error:', err);
+    return NextResponse.json(
+      { error: 'Internal Server Error while fetching HomeGuard data.' },
+      { status: 500 }
+    );
   }
 }
