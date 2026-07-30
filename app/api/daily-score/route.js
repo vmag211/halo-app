@@ -6,6 +6,65 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// ==========================================
+// HELPER FUNCTIONS FOR STATUS CALCULATION
+// ==========================================
+
+function getAirStatus(aqi) {
+  if (aqi === null || aqi === undefined) return 'unknown';
+  if (aqi <= 50) return 'good';
+  if (aqi <= 100) return 'moderate';
+  return 'unhealthy';
+}
+
+function getUvStatus(uvIndex) {
+  if (uvIndex === null || uvIndex === undefined) return 'unknown';
+  if (uvIndex <= 2) return 'low';
+  if (uvIndex <= 5) return 'moderate';
+  if (uvIndex <= 7) return 'high';
+  return 'very_high';
+}
+
+function getPollenStatus(pollenRisk) {
+  const values = [pollenRisk.tree, pollenRisk.grass, pollenRisk.weed].filter(
+    (val) => val !== null && val !== undefined
+  );
+  if (values.length === 0) return 'none';
+
+  const maxVal = Math.max(...values);
+  if (maxVal <= 2) return 'low';
+  if (maxVal <= 3) return 'moderate';
+  return 'high';
+}
+
+function formatResponsePayload({ aqi, uvIndex, pollenRisk, moldRisk, cached }) {
+  return {
+    air: {
+      aqi: aqi,
+      status: getAirStatus(aqi),
+    },
+    uv: {
+      index: uvIndex,
+      status: getUvStatus(uvIndex),
+    },
+    pollen: {
+      tree: pollenRisk.tree ?? null,
+      grass: pollenRisk.grass ?? null,
+      weed: pollenRisk.weed ?? null,
+      status: getPollenStatus(pollenRisk),
+    },
+    mold: {
+      risk: moldRisk || 'low',
+      is_proxy: true,
+    },
+    cached,
+  };
+}
+
+// ==========================================
+// MAIN GET ROUTE
+// ==========================================
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,7 +73,10 @@ export async function GET(request) {
     const profileId = searchParams.get('profile_id');
 
     if (!lat || !lng || !profileId) {
-      return NextResponse.json({ error: 'Latitude, longitude, and profile_id required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Latitude, longitude, and profile_id required' },
+        { status: 400 }
+      );
     }
 
     // --- CACHE CHECK ---
@@ -29,11 +91,24 @@ export async function GET(request) {
       .single();
 
     if (cachedData) {
-      let parsedPollen = null;
-      if (cachedData.pollen_level) parsedPollen = JSON.parse(cachedData.pollen_level);
-      return NextResponse.json({ 
-        aqi: cachedData.aqi, uv: cachedData.uv_index, pollen: parsedPollen, mold_risk: cachedData.mold_risk, cached: true 
-      });
+      let parsedPollen = { tree: null, grass: null, weed: null };
+      if (cachedData.pollen_level) {
+        try {
+          parsedPollen = JSON.parse(cachedData.pollen_level);
+        } catch (e) {
+          console.error('Error parsing cached pollen data:', e);
+        }
+      }
+
+      return NextResponse.json(
+        formatResponsePayload({
+          aqi: cachedData.aqi,
+          uvIndex: cachedData.uv_index,
+          pollenRisk: parsedPollen,
+          moldRisk: cachedData.mold_risk,
+          cached: true,
+        })
+      );
     }
 
     // 1. AIRNOW API
@@ -46,28 +121,27 @@ export async function GET(request) {
 
     // 2. OPENUV API (WITH RATE LIMIT)
     let uvIndex = null;
-    
-    // Check our Upstash bouncer first
     const { success: canCallOpenUV } = await openuvLimiter.limit('global_openuv_calls');
-    
+
     if (canCallOpenUV) {
       try {
         const openuvApiKey = process.env.OPENUV_API_KEY;
         const openuvUrl = `https://api.openuv.io/api/v1/uv?lat=${lat}&lng=${lng}`;
-        const openuvResponse = await fetch(openuvUrl, { headers: { 'x-access-token': openuvApiKey } });
-        
+        const openuvResponse = await fetch(openuvUrl, {
+          headers: { 'x-access-token': openuvApiKey },
+        });
+
         if (openuvResponse.ok) {
           const openuvData = await openuvResponse.json();
           uvIndex = openuvData.result ? openuvData.result.uv : null;
         } else {
-          console.error("OpenUV API failed");
+          console.error('OpenUV API failed');
         }
       } catch (err) {
-        console.error("OpenUV fetch error:", err.message);
+        console.error('OpenUV fetch error:', err.message);
       }
     } else {
-      console.log("OpenUV daily limit reached, skipping fetch.");
-      // uvIndex safely stays null
+      console.log('OpenUV daily limit reached, skipping fetch.');
     }
 
     // 3. GOOGLE POLLEN API
@@ -80,21 +154,30 @@ export async function GET(request) {
     if (pollenData.dailyInfo && pollenData.dailyInfo.length > 0) {
       const typesInfo = pollenData.dailyInfo[0].pollenTypeInfo;
       if (typesInfo) {
-        typesInfo.forEach(info => {
-          if (info.code === 'TREE') pollenRisk.tree = info.indexInfo ? info.indexInfo.value : null;
-          if (info.code === 'GRASS') pollenRisk.grass = info.indexInfo ? info.indexInfo.value : null;
-          if (info.code === 'WEED') pollenRisk.weed = info.indexInfo ? info.indexInfo.value : null;
+        typesInfo.forEach((info) => {
+          if (info.code === 'TREE')
+            pollenRisk.tree = info.indexInfo ? info.indexInfo.value : null;
+          if (info.code === 'GRASS')
+            pollenRisk.grass = info.indexInfo ? info.indexInfo.value : null;
+          if (info.code === 'WEED')
+            pollenRisk.weed = info.indexInfo ? info.indexInfo.value : null;
         });
       }
     }
 
     // 4. NATIONAL WEATHER SERVICE
-    let moldRisk = 'low'; 
+    let moldRisk = 'low';
     try {
-      const pointsResponse = await fetch(`https://api.weather.gov/points/${lat},${lng}`, { headers: { 'User-Agent': 'HALO/1.0' } });
+      const pointsResponse = await fetch(
+        `https://api.weather.gov/points/${lat},${lng}`,
+        { headers: { 'User-Agent': 'HALO/1.0' } }
+      );
       if (pointsResponse.ok) {
         const pointsData = await pointsResponse.json();
-        const forecastResponse = await fetch(pointsData.properties.forecastHourly, { headers: { 'User-Agent': 'HALO/1.0' } });
+        const forecastResponse = await fetch(
+          pointsData.properties.forecastHourly,
+          { headers: { 'User-Agent': 'HALO/1.0' } }
+        );
         if (forecastResponse.ok) {
           const forecastData = await forecastResponse.json();
           const currentHour = forecastData.properties.periods[0];
@@ -105,15 +188,31 @@ export async function GET(request) {
         }
       }
     } catch (nwsError) {
-      console.error("Failed to fetch NWS:", nwsError.message);
+      console.error('Failed to fetch NWS:', nwsError.message);
     }
 
     // --- SAVE TO SUPABASE ---
     const pollenText = JSON.stringify(pollenRisk);
-    await supabase.from('daily_scores').insert([{ profile_id: profileId, aqi: aqi, uv_index: uvIndex, pollen_level: pollenText, mold_risk: moldRisk }]);
+    await supabase.from('daily_scores').insert([
+      {
+        profile_id: profileId,
+        aqi: aqi,
+        uv_index: uvIndex,
+        pollen_level: pollenText,
+        mold_risk: moldRisk,
+      },
+    ]);
 
-    return NextResponse.json({ aqi, uv: uvIndex, pollen: pollenRisk, mold_risk: moldRisk, cached: false });
-
+    // Return restructured payload
+    return NextResponse.json(
+      formatResponsePayload({
+        aqi,
+        uvIndex,
+        pollenRisk,
+        moldRisk,
+        cached: false,
+      })
+    );
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
