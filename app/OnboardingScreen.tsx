@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { MapPin, Navigation, ChevronDown } from "lucide-react";
+import Image from "next/image";
 
 const WATER_SOURCES = ["City utility", "Well", "Spring", "Other"];
 
@@ -275,9 +276,13 @@ export default function OnboardingScreen() {
 
               {/* Logo Icon with Whitish Glow */}
               <div className="relative mb-3 flex items-center justify-center" style={{ width: 115, height: 115 }}>
-                <img
+                {/* NEXT.JS IMAGE COMPONENT INSERTED HERE */}
+                <Image
                   src="/finallogo.png"
                   alt="HALO circular badge"
+                  width={115}
+                  height={115}
+                  priority
                   className="w-full h-full object-contain"
                   style={{
                     filter: "drop-shadow(0 0 16px rgba(255, 255, 255, 0.75)) drop-shadow(0 4px 18px rgba(0,0,0,0.22))"
