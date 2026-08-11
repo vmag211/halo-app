@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ncRadonZones } from '@/lib/radonData'; // Bring in your local Radon dataset
+import { buildWellTestPlan } from '@/lib/wellTestData'; // Private well / spring test recommendations
 
 // 1. Connect to Supabase using your safe, public keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,6 +14,14 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const county = searchParams.get('county');
     const pwsid = searchParams.get('pwsid');
+    // Optional. 'well' or 'spring' switches us off the utility lookup entirely,
+    // because there is no utility to look up. Anything else (or missing) keeps
+    // the original public-water behavior.
+    const waterSource = searchParams.get('water_source');
+    // Optional. Year the home was built. Only used to decide whether lead is
+    // a likely risk. parseInt returns NaN for junk input, so we normalize to null.
+    const rawHomeYear = parseInt(searchParams.get('home_year'), 10);
+    const homeYear = Number.isNaN(rawHomeYear) ? null : rawHomeYear;
 
     // 3. Safety check: ONLY require the county.
     if (!county) {
@@ -47,9 +56,36 @@ export async function GET(request) {
     // ==========================================
     let waterData = {};
 
-    // 4. Check if we actually have a valid PWSID before querying the database
-    // (We check for the strings 'null' and 'undefined' just in case the frontend sent them literally)
-    if (pwsid && pwsid !== 'null' && pwsid !== 'undefined') {
+    // 4. PRIVATE WELL / SPRING SHORT-CIRCUIT
+    // If the user told us during onboarding that they are on a well or a spring,
+    // there is no utility and no PWSID to look up — the Safe Drinking Water Act
+    // does not cover them, so no agency has ever tested this water. Skip the
+    // database entirely and hand back a test plan instead of a measurement.
+    const isPrivateSource = waterSource === 'well' || waterSource === 'spring';
+
+    if (isPrivateSource) {
+      const plan = buildWellTestPlan({
+        radonZone: zoneNumber,
+        homeYear: homeYear,
+        waterSource: waterSource,
+      });
+
+      waterData = {
+        status: 'private_well',
+        source_type: waterSource,
+        is_regulated: false,
+        // Same honesty flag we use on the mold estimate: this is guidance,
+        // not a reading. Nothing here was measured at this address.
+        is_measured: false,
+        message:
+          waterSource === 'spring'
+            ? 'Springs are not covered by the Safe Drinking Water Act, so no agency tests this water. Because a spring is fed by surface water, testing is more urgent here than for a drilled well.'
+            : 'Private wells are not covered by the Safe Drinking Water Act, so no agency tests this water. You are the only person who can find out what is in it.',
+        test_plan: plan,
+      };
+    } else if (pwsid && pwsid !== 'null' && pwsid !== 'undefined') {
+      // 5. Check if we actually have a valid PWSID before querying the database
+      // (We check for the strings 'null' and 'undefined' just in case the frontend sent them literally)
       const { data, error } = await supabase
         .from('ucmr5_utilities')
         .select('pws_name, status, contaminants')
@@ -73,10 +109,16 @@ export async function GET(request) {
         };
       }
     } else {
-      // 5. The Graceful Fallback: No PWSID was provided
+      // 6. The Graceful Fallback: No PWSID was provided and the user did not
+      // tell us they are on a well. Falling outside every mapped utility
+      // service area is itself a hint that this address may be on a well,
+      // so we say so and tell the frontend what to ask.
       waterData = {
         status: 'no_pwsid_available',
-        message: 'No water utility could be matched for this address.'
+        message:
+          'No water utility could be matched for this address. Homes outside a mapped utility service area are often on a private well.',
+        next_step: 'confirm_water_source',
+        hint: 'Re-request this endpoint with water_source=well or water_source=spring to get a testing plan instead.'
       };
     }
 
