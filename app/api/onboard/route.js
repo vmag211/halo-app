@@ -11,6 +11,12 @@ export async function POST(request) {
     const body = await request.json();
     const address = body.address;
     const profileId = body.profile_id;
+    // Optional onboarding answers. Neither is required to geocode, but both
+    // feed HomeGuard later: water_source decides whether we look up a utility
+    // or hand back a private-well testing plan, and home_year drives the
+    // lead-plumbing risk check.
+    const waterSource = body.water_source ?? null;
+    const homeYear = body.home_year ?? null;
 
     if (!address || !profileId) {
       return NextResponse.json({ error: 'Address and profile_id are required' }, { status: 400 });
@@ -93,9 +99,16 @@ export async function POST(request) {
     }
 
     // --- UPDATE SUPABASE ---
+    // Only write the optional columns if the frontend actually sent them.
+    // Otherwise a re-run of onboarding with a bare body would wipe out
+    // answers the user already gave us.
+    const profileUpdate = { lat: lat, lng: lng, zip: zip, county: county, pwsid: pwsid };
+    if (waterSource !== null) profileUpdate.water_source = waterSource;
+    if (homeYear !== null) profileUpdate.home_year = homeYear;
+
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ lat: lat, lng: lng, zip: zip, county: county, pwsid: pwsid })
+      .update(profileUpdate)
       .eq('id', profileId);
 
     if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
@@ -107,7 +120,9 @@ export async function POST(request) {
       zip, 
       county, 
       pwsid,
-      service_area_status: serviceAreaStatus 
+      service_area_status: serviceAreaStatus,
+      water_source: waterSource,
+      home_year: homeYear
     });
 
   } catch (error) {
