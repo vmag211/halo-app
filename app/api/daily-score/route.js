@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { openuvLimiter } from '@/lib/ratelimit'; // <-- IMPORT THE BOUNCER
+import {
+  getAirRisk,
+  getUvRisk,
+  getPollenRisk,
+  getMoldRisk,
+  getDashboardScore,
+} from '@/lib/scoring';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -9,6 +16,18 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // ==========================================
 // HELPER FUNCTIONS FOR STATUS CALCULATION
 // ==========================================
+
+// Postgres reports an unknown column as 42703; PostgREST surfaces the same
+// condition as PGRST204 when its schema cache has no such column.
+function isUndefinedColumnError(error) {
+  if (!error) return false;
+  return (
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    /column .* does not exist/i.test(error.message || '') ||
+    /could not find the .* column/i.test(error.message || '')
+  );
+}
 
 function getAirStatus(aqi) {
   if (aqi === null || aqi === undefined) return 'unknown';
@@ -37,6 +56,47 @@ function getPollenStatus(pollenRisk) {
   return 'high';
 }
 
+// Converts the four raw readings into individual 0-100 risks and the composite
+// dashboard score. Readings that are missing stay missing: they are passed to
+// the scoring layer as null so they are excluded from the composite rather than
+// being scored as a benign zero.
+//
+// Note on mold: the payload below falls back to displaying 'low' when the NWS
+// lookup produced nothing, but the SCORE is built from the raw label. So a
+// response can legitimately show mold 'low' while `score.missing_inputs`
+// includes 'mold' — the display has a default, the score refuses to invent one.
+function buildDashboardScore({ aqi, uvIndex, pollenRisk, moldRisk }) {
+  const airRisk = getAirRisk(aqi);
+  const uvRisk = getUvRisk(uvIndex);
+  const pollenRiskValue = getPollenRisk(
+    pollenRisk.tree ?? null,
+    pollenRisk.grass ?? null,
+    pollenRisk.weed ?? null
+  );
+  const moldRiskValue = getMoldRisk(moldRisk);
+
+  const composite = getDashboardScore({
+    airRisk,
+    uvRisk,
+    pollenRisk: pollenRiskValue,
+    moldRisk: moldRiskValue,
+  });
+
+  return {
+    ...composite,
+    // The composite is derived from measurements, but is not itself a
+    // measurement of anything — and it folds in the mold proxy.
+    is_measured: false,
+    is_estimate: true,
+    inputs: {
+      air: airRisk,
+      uv: uvRisk,
+      pollen: pollenRiskValue,
+      mold: moldRiskValue,
+    },
+  };
+}
+
 function formatResponsePayload({ aqi, uvIndex, pollenRisk, moldRisk, cached }) {
   return {
     air: {
@@ -57,6 +117,7 @@ function formatResponsePayload({ aqi, uvIndex, pollenRisk, moldRisk, cached }) {
       risk: moldRisk || 'low',
       is_proxy: true,
     },
+    score: buildDashboardScore({ aqi, uvIndex, pollenRisk, moldRisk }),
     cached,
   };
 }
@@ -193,15 +254,40 @@ export async function GET(request) {
 
     // --- SAVE TO SUPABASE ---
     const pollenText = JSON.stringify(pollenRisk);
-    await supabase.from('daily_scores').insert([
-      {
-        profile_id: profileId,
-        aqi: aqi,
-        uv_index: uvIndex,
-        pollen_level: pollenText,
-        mold_risk: moldRisk,
-      },
-    ]);
+    const dashboardScore = buildDashboardScore({
+      aqi,
+      uvIndex,
+      pollenRisk,
+      moldRisk,
+    });
+
+    const cacheRow = {
+      profile_id: profileId,
+      aqi: aqi,
+      uv_index: uvIndex,
+      pollen_level: pollenText,
+      mold_risk: moldRisk,
+    };
+
+    // daily_scores.score is an integer column, so it stores the rounded score.
+    // The full-precision value stays in the API response.
+    const { error: insertError } = await supabase
+      .from('daily_scores')
+      .insert([{ ...cacheRow, score: dashboardScore.display_score }]);
+
+    // If the score column is missing from this environment's schema, fall back
+    // to the original insert rather than losing the cache row entirely. Same
+    // graceful-degradation posture as the external API calls above: a missing
+    // column should cost us the score, not the whole response.
+    if (insertError && isUndefinedColumnError(insertError)) {
+      console.warn(
+        'daily_scores.score column not found; caching without score.',
+        insertError.message
+      );
+      await supabase.from('daily_scores').insert([cacheRow]);
+    } else if (insertError) {
+      console.error('Failed to cache daily score:', insertError.message);
+    }
 
     // Return restructured payload
     return NextResponse.json(
