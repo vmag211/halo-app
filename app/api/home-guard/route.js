@@ -38,6 +38,33 @@ function coverageConfidence(coverage) {
   return 'none'; // 'unscoreable', 'no_data', or absent
 }
 
+// UCMR5 sampling ran 2023-2025, so most systems sit in the 1-3 year band and
+// tighter thresholds would mark nearly everything stale.
+const WATER_STALE_DAYS = 1095; // 3 years
+const WATER_AGING_DAYS = 730; // 2 years
+
+function daysSince(dateString) {
+  if (!dateString) return null;
+  const time = Date.parse(dateString);
+  if (Number.isNaN(time)) return null;
+  return Math.round((Date.now() - time) / 86400000);
+}
+
+// Confidence answers "how much should this number be trusted", which age
+// affects just as much as coverage does. A complete evaluation of a
+// three-year-old sample is still a three-year-old sample. Deliberately kept out
+// of the arithmetic: the data WAS evaluated, it is only old, so it belongs here
+// rather than in a third mechanism quietly moving the score.
+function waterConfidence(coverage, ageDays) {
+  const base = coverageConfidence(coverage);
+  if (base === 'none') return 'none'; // nothing evaluated; age is moot
+  if (ageDays !== null && ageDays > WATER_STALE_DAYS) return 'stale';
+  if (ageDays !== null && ageDays > WATER_AGING_DAYS && base === 'full') {
+    return 'limited';
+  }
+  return base;
+}
+
 // One entry per factor the page renders as its own box. `contributes_to_score`
 // is the important field: a box can be present, measured and meaningful while
 // still being deliberately absent from the total (lithium), and the UI must be
@@ -64,9 +91,19 @@ function buildBreakdown({
         ? Math.round(100 - waterRiskDetail.risk)
         : null,
     status: waterRiskDetail ? riskStatus(waterRiskDetail.risk) : 'unknown',
-    confidence: coverageConfidence(waterCoverage),
+    confidence: waterConfidence(
+      waterCoverage,
+      waterRiskDetail ? daysSince(waterRiskDetail.latest_sample_date) : null
+    ),
     is_measured: waterData.is_measured === true,
     coverage: waterCoverage,
+    latest_sample_date: waterRiskDetail
+      ? waterRiskDetail.latest_sample_date
+      : null,
+    data_age_days: waterRiskDetail
+      ? daysSince(waterRiskDetail.latest_sample_date)
+      : null,
+    reading_count: waterRiskDetail ? waterRiskDetail.reading_count : 0,
     detail: waterRiskDetail ? waterRiskDetail.scored : [],
     note: waterData.message || null,
   });
@@ -262,6 +299,10 @@ export async function GET(request) {
           // Preserved so nothing is lost when we override `status` above.
           source_status: data.status,
           coverage: waterRiskDetail.coverage,
+          latest_sample_date: waterRiskDetail.latest_sample_date,
+          earliest_sample_date: waterRiskDetail.earliest_sample_date,
+          data_age_days: daysSince(waterRiskDetail.latest_sample_date),
+          reading_count: waterRiskDetail.reading_count,
           scored_count: waterRiskDetail.scored_count,
           detected_count: waterRiskDetail.detected_count,
           detected_unregulated: unnamed,
