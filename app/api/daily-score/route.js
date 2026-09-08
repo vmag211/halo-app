@@ -178,7 +178,16 @@ export async function GET(request) {
     const airnowResponse = await fetch(airnowUrl);
     if (!airnowResponse.ok) throw new Error('Failed to fetch AirNow');
     const airnowData = await airnowResponse.json();
-    const aqi = airnowData.length > 0 ? airnowData[0].AQI : null;
+    // AirNow returns one entry per pollutant (O3, PM2.5, PM10...). EPA defines
+    // the reported AQI as the MAXIMUM of those sub-indices — taking the first
+    // entry understates air risk whenever the leading pollutant is not the
+    // worst one, which varies day to day.
+    const aqiValues = Array.isArray(airnowData)
+      ? airnowData
+          .map((reading) => reading && reading.AQI)
+          .filter((value) => typeof value === 'number' && Number.isFinite(value))
+      : [];
+    const aqi = aqiValues.length > 0 ? Math.max(...aqiValues) : null;
 
     // 2. OPENUV API (WITH RATE LIMIT)
     let uvIndex = null;

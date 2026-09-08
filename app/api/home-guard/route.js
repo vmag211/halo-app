@@ -252,7 +252,18 @@ export async function GET(request) {
             message: 'UCMR5 testing data is not yet available for this utility. The EPA updates this database quarterly.'
           };
         } else {
-          throw error; // Real database crash
+          // Anything else — the project paused, a network blip, an edge/WAF
+          // block, a rate limit. Previously this threw and took the whole
+          // response down with it, including radon, which is a purely local
+          // lookup that needs no network at all. Degrade the water module only.
+          console.error('UCMR5 lookup failed:', error.message);
+          waterData = {
+            status: 'lookup_failed',
+            is_measured: false,
+            retryable: true,
+            message:
+              'Drinking water data could not be retrieved right now. This is a temporary problem on our side, not a finding about your water. The radon information below is unaffected.'
+          };
         }
       } else {
         waterRiskDetail = getWaterRisk(data.contaminants);
