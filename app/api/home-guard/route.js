@@ -18,6 +18,108 @@ function formatList(names) {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
+// Coarse severity band for a 0-100 risk, so each box can be styled without the
+// frontend re-deriving thresholds. Presentation only — never used in the math.
+function riskStatus(risk) {
+  if (risk === null || risk === undefined) return 'unknown';
+  if (risk <= 20) return 'good';
+  if (risk <= 50) return 'moderate';
+  if (risk < 80) return 'elevated';
+  return 'action_needed';
+}
+
+// How much of what was found could actually be evaluated. Kept separate from
+// `status` (severity) on purpose: a box can be low-severity AND low-confidence
+// at the same time, and collapsing the two is what made a utility with
+// unscoreable detections look identical to a clean one.
+function coverageConfidence(coverage) {
+  if (coverage === 'complete' || coverage === 'no_detections') return 'full';
+  if (coverage === 'partial' || coverage === 'excluded_only') return 'limited';
+  return 'none'; // 'unscoreable', 'no_data', or absent
+}
+
+// One entry per factor the page renders as its own box. `contributes_to_score`
+// is the important field: a box can be present, measured and meaningful while
+// still being deliberately absent from the total (lithium), and the UI must be
+// able to say so rather than implying it was counted.
+function buildBreakdown({
+  radonData,
+  radonRisk,
+  waterData,
+  waterRiskDetail,
+  isPrivateSource
+}) {
+  const boxes = [];
+  const waterCoverage = waterRiskDetail ? waterRiskDetail.coverage : null;
+
+  boxes.push({
+    key: 'water',
+    label: 'Drinking water',
+    // A private well has no measurement, so water is not part of the total at
+    // all — saying otherwise would imply it was weighed and found acceptable.
+    contributes_to_score: !isPrivateSource && waterRiskDetail !== null,
+    risk: waterRiskDetail ? waterRiskDetail.risk : null,
+    score:
+      waterRiskDetail && waterRiskDetail.risk !== null
+        ? Math.round(100 - waterRiskDetail.risk)
+        : null,
+    status: waterRiskDetail ? riskStatus(waterRiskDetail.risk) : 'unknown',
+    confidence: coverageConfidence(waterCoverage),
+    is_measured: waterData.is_measured === true,
+    coverage: waterCoverage,
+    detail: waterRiskDetail ? waterRiskDetail.scored : [],
+    note: waterData.message || null,
+  });
+
+  boxes.push({
+    key: 'radon',
+    label: 'Radon',
+    contributes_to_score: radonRisk !== null,
+    risk: radonRisk,
+    score: radonRisk === null ? null : Math.round(100 - radonRisk),
+    // Derived from the EPA zone rather than the generic thresholds, so this can
+    // never contradict the `risk_level` reported alongside it.
+    status: radonData.error
+      ? 'unknown'
+      : { High: 'action_needed', Moderate: 'moderate', Low: 'good' }[
+          radonData.risk_level
+        ] || 'unknown',
+    confidence: radonData.error ? 'none' : 'full',
+    // A county-level EPA zone map, not a measurement of this home.
+    is_measured: false,
+    is_estimate: true,
+    detail: radonData.error
+      ? []
+      : [{ county: radonData.county, zone: radonData.zone, risk_level: radonData.risk_level }],
+    note: radonData.error || null,
+  });
+
+  // Measured, shown, but deliberately outside the total. One box each.
+  const excluded = waterRiskDetail ? waterRiskDetail.excluded_from_score : [];
+  for (const entry of excluded) {
+    boxes.push({
+      key: entry.contaminant,
+      // Display-ready: contaminant names arrive from the EPA dump in mixed case
+      // ("lithium", "PFOS"). Only touch an all-lowercase name so acronyms are
+      // left alone.
+      label:
+        entry.contaminant === entry.contaminant.toLowerCase()
+          ? entry.contaminant.charAt(0).toUpperCase() + entry.contaminant.slice(1)
+          : entry.contaminant,
+      contributes_to_score: false,
+      risk: null,
+      score: null,
+      status: 'detected_not_scored',
+      confidence: 'full',
+      is_measured: true,
+      detail: [{ value_ppt: entry.value_ppt, date: entry.date }],
+      note: entry.reason,
+    });
+  }
+
+  return boxes;
+}
+
 export async function GET(request) {
   try {
     // 2. Extract parameters from the URL
@@ -279,7 +381,16 @@ export async function GET(request) {
       success: true,
       radon: radonData,
       water: waterData,
-      score: scoreData
+      score: scoreData,
+      // Per-factor boxes for the page. `score` above is the total; every entry
+      // here declares whether it is actually part of that total.
+      breakdown: buildBreakdown({
+        radonData,
+        radonRisk,
+        waterData,
+        waterRiskDetail,
+        isPrivateSource
+      })
     });
 
   } catch (err) {
