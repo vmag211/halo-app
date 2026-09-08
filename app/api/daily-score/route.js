@@ -141,15 +141,46 @@ export async function GET(request) {
     }
 
     // --- CACHE CHECK ---
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data: cachedData } = await supabase
-      .from('daily_scores')
-      .select('*')
-      .eq('profile_id', profileId)
-      .gte('created_at', oneHourAgo)
-      .order('created_at', { ascending: false })
-      .limit(1)
+    // daily_scores rows are keyed on profile_id alone, but every value in one
+    // depends on lat/lng. Without a location check, a user who corrects their
+    // address keeps seeing their previous location's air, UV and pollen for up
+    // to an hour. The table has no lat/lng column, so we compare the request
+    // against the coordinates stored on the profile and treat a mismatch as a
+    // miss. The same gate gets applied to the WRITE below, so a cached row is
+    // always one that was computed for the profile's own location.
+    const requestLat = parseFloat(lat);
+    const requestLng = parseFloat(lng);
+
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('lat, lng')
+      .eq('id', profileId)
       .single();
+
+    // ~0.01 degrees is roughly a kilometer — close enough that the readings
+    // would be identical, coarse enough to ignore geocoder jitter.
+    const isProfileLocation =
+      !!profileRow &&
+      typeof profileRow.lat === 'number' &&
+      typeof profileRow.lng === 'number' &&
+      Number.isFinite(requestLat) &&
+      Number.isFinite(requestLng) &&
+      Math.abs(profileRow.lat - requestLat) < 0.01 &&
+      Math.abs(profileRow.lng - requestLng) < 0.01;
+
+    let cachedData = null;
+    if (isProfileLocation) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('daily_scores')
+        .select('*')
+        .eq('profile_id', profileId)
+        .gte('created_at', oneHourAgo)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      cachedData = data;
+    }
 
     if (cachedData) {
       let parsedPollen = { tree: null, grass: null, weed: null };
@@ -189,30 +220,71 @@ export async function GET(request) {
       : [];
     const aqi = aqiValues.length > 0 ? Math.max(...aqiValues) : null;
 
-    // 2. OPENUV API (WITH RATE LIMIT)
+    // 2. UV INDEX — Open-Meteo first, OpenUV as fallback
+    //
+    // OpenUV's free tier is 45 calls per day GLOBALLY, not per user, so past
+    // the 45th request of the day UV silently vanished from everyone's score.
+    // Open-Meteo needs no API key, has no comparable cap, and returns a value
+    // for locations with no nearby monitor, so it leads and OpenUV backs it up.
     let uvIndex = null;
-    const { success: canCallOpenUV } = await openuvLimiter.limit('global_openuv_calls');
+    let uvSource = null;
 
-    if (canCallOpenUV) {
-      try {
-        const openuvApiKey = process.env.OPENUV_API_KEY;
-        const openuvUrl = `https://api.openuv.io/api/v1/uv?lat=${lat}&lng=${lng}`;
-        const openuvResponse = await fetch(openuvUrl, {
-          headers: { 'x-access-token': openuvApiKey },
-        });
-
-        if (openuvResponse.ok) {
-          const openuvData = await openuvResponse.json();
-          uvIndex = openuvData.result ? openuvData.result.uv : null;
-        } else {
-          console.error('OpenUV API failed');
+    try {
+      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=UTC`;
+      const openMeteoResponse = await fetch(openMeteoUrl);
+      if (openMeteoResponse.ok) {
+        const openMeteoData = await openMeteoResponse.json();
+        const value = openMeteoData.current ? openMeteoData.current.uv_index : null;
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          uvIndex = value;
+          uvSource = 'open-meteo';
         }
-      } catch (err) {
-        console.error('OpenUV fetch error:', err.message);
+      } else {
+        console.error('Open-Meteo UV failed:', openMeteoResponse.status);
       }
-    } else {
-      console.log('OpenUV daily limit reached, skipping fetch.');
+    } catch (err) {
+      console.error('Open-Meteo UV fetch error:', err.message);
     }
+
+    if (uvIndex === null) {
+      let canCallOpenUV = false;
+      try {
+        ({ success: canCallOpenUV } = await openuvLimiter.limit('global_openuv_calls'));
+      } catch (err) {
+        // The rate limiter is a budget guard, not the product. When Upstash is
+        // unreachable this used to throw and take the whole endpoint down with
+        // it; now a limiter outage costs at most the fallback UV reading.
+        console.error('Rate limiter unavailable, skipping OpenUV:', err.message);
+      }
+
+      if (canCallOpenUV) {
+        try {
+          const openuvApiKey = process.env.OPENUV_API_KEY;
+          const openuvUrl = `https://api.openuv.io/api/v1/uv?lat=${lat}&lng=${lng}`;
+          const openuvResponse = await fetch(openuvUrl, {
+            headers: { 'x-access-token': openuvApiKey },
+          });
+
+          if (openuvResponse.ok) {
+            const openuvData = await openuvResponse.json();
+            uvIndex = openuvData.result ? openuvData.result.uv : null;
+            if (uvIndex !== null) uvSource = 'openuv';
+          } else {
+            console.error('OpenUV API failed');
+          }
+        } catch (err) {
+          console.error('OpenUV fetch error:', err.message);
+        }
+      } else {
+        console.log('OpenUV unavailable or daily limit reached, skipping fetch.');
+      }
+    }
+
+    console.log(
+      uvIndex === null
+        ? 'UV unavailable from both providers.'
+        : `UV ${uvIndex} via ${uvSource}.`
+    );
 
     // 3. GOOGLE POLLEN API
     const pollenApiKey = process.env.GOOGLE_POLLEN_API_KEY;
@@ -277,6 +349,16 @@ export async function GET(request) {
       pollen_level: pollenText,
       mold_risk: moldRisk,
     };
+
+    // Only cache a reading taken at the profile's own location. Writing a row
+    // for some other coordinate would let it be served later as though it were
+    // this profile's, which is exactly the bug the read gate above prevents.
+    if (!isProfileLocation) {
+      console.log('Request is not for the profile location; skipping cache write.');
+      return NextResponse.json(
+        formatResponsePayload({ aqi, uvIndex, pollenRisk, moldRisk, cached: false })
+      );
+    }
 
     // daily_scores.score is an integer column, so it stores the rounded score.
     // The full-precision value stays in the API response.
