@@ -97,11 +97,24 @@ function buildDashboardScore({ aqi, uvIndex, pollenRisk, moldRisk }) {
   };
 }
 
-function formatResponsePayload({ aqi, uvIndex, pollenRisk, moldRisk, cached }) {
+function formatResponsePayload({
+  aqi,
+  uvIndex,
+  pollenRisk,
+  moldRisk,
+  cached,
+  // Which provider the AQI came from, and whether it was measured at a monitor
+  // or produced by a model. Null on the cached path: daily_scores has no column
+  // to persist the provenance, so a cached reading cannot assert either.
+  aqiSource = null,
+  aqiIsMeasured = null,
+}) {
   return {
     air: {
       aqi: aqi,
       status: getAirStatus(aqi),
+      source: aqiSource,
+      is_measured: aqiIsMeasured,
     },
     uv: {
       index: uvIndex,
@@ -203,22 +216,70 @@ export async function GET(request) {
       );
     }
 
-    // 1. AIRNOW API
-    const airnowApiKey = process.env.AIRNOW_API_KEY;
-    const airnowUrl = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${lat}&longitude=${lng}&distance=25&API_KEY=${airnowApiKey}`;
-    const airnowResponse = await fetch(airnowUrl);
-    if (!airnowResponse.ok) throw new Error('Failed to fetch AirNow');
-    const airnowData = await airnowResponse.json();
-    // AirNow returns one entry per pollutant (O3, PM2.5, PM10...). EPA defines
-    // the reported AQI as the MAXIMUM of those sub-indices — taking the first
-    // entry understates air risk whenever the leading pollutant is not the
-    // worst one, which varies day to day.
-    const aqiValues = Array.isArray(airnowData)
-      ? airnowData
-          .map((reading) => reading && reading.AQI)
-          .filter((value) => typeof value === 'number' && Number.isFinite(value))
-      : [];
-    const aqi = aqiValues.length > 0 ? Math.max(...aqiValues) : null;
+    // 1. AIR QUALITY — AirNow (measured) first, Open-Meteo (modeled) fallback
+    let aqi = null;
+    let aqiSource = null;
+    let aqiIsMeasured = null;
+
+    try {
+      const airnowApiKey = process.env.AIRNOW_API_KEY;
+      const airnowUrl = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${lat}&longitude=${lng}&distance=25&API_KEY=${airnowApiKey}`;
+      const airnowResponse = await fetch(airnowUrl);
+      if (airnowResponse.ok) {
+        const airnowData = await airnowResponse.json();
+        // AirNow returns one entry per pollutant (O3, PM2.5, PM10...). EPA
+        // defines the reported AQI as the MAXIMUM of those sub-indices —
+        // taking the first entry understates air risk whenever the leading
+        // pollutant is not the worst one, which varies day to day.
+        const aqiValues = Array.isArray(airnowData)
+          ? airnowData
+              .map((reading) => reading && reading.AQI)
+              .filter((value) => typeof value === 'number' && Number.isFinite(value))
+          : [];
+        if (aqiValues.length > 0) {
+          aqi = Math.max(...aqiValues);
+          aqiSource = 'airnow';
+          aqiIsMeasured = true;
+        }
+      } else {
+        console.error('AirNow API failed:', airnowResponse.status);
+      }
+    } catch (err) {
+      // Previously this threw and 500'd the whole route. It now falls through
+      // to the modeled fallback below, which is the entire point of having one.
+      console.error('AirNow fetch error:', err.message);
+    }
+
+    // Roughly half of NC congressional district 8 has no AirNow monitor within
+    // 25 miles, so air simply vanished from those households' scores. Open-Meteo
+    // covers them — but it is a CAMS model output, not a ground measurement, and
+    // the two genuinely disagree (28 vs 55 at the same point, minutes apart).
+    // It is used only when there is no monitor, and it is labelled as modeled.
+    if (aqi === null) {
+      try {
+        const openMeteoAirUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi&timezone=UTC`;
+        const openMeteoAirResponse = await fetch(openMeteoAirUrl);
+        if (openMeteoAirResponse.ok) {
+          const openMeteoAirData = await openMeteoAirResponse.json();
+          const value = openMeteoAirData.current
+            ? openMeteoAirData.current.us_aqi
+            : null;
+          if (typeof value === 'number' && Number.isFinite(value)) {
+            aqi = value;
+            aqiSource = 'open-meteo';
+            aqiIsMeasured = false;
+          }
+        } else {
+          console.error('Open-Meteo AQI failed:', openMeteoAirResponse.status);
+        }
+      } catch (err) {
+        console.error('Open-Meteo AQI fetch error:', err.message);
+      }
+    }
+
+    console.log(
+      aqi === null ? 'AQI unavailable from both providers.' : `AQI ${aqi} via ${aqiSource}.`
+    );
 
     // 2. UV INDEX — Open-Meteo first, OpenUV as fallback
     //
@@ -356,7 +417,15 @@ export async function GET(request) {
     if (!isProfileLocation) {
       console.log('Request is not for the profile location; skipping cache write.');
       return NextResponse.json(
-        formatResponsePayload({ aqi, uvIndex, pollenRisk, moldRisk, cached: false })
+        formatResponsePayload({
+          aqi,
+          uvIndex,
+          pollenRisk,
+          moldRisk,
+          cached: false,
+          aqiSource,
+          aqiIsMeasured,
+        })
       );
     }
 
@@ -388,6 +457,8 @@ export async function GET(request) {
         pollenRisk,
         moldRisk,
         cached: false,
+        aqiSource,
+        aqiIsMeasured,
       })
     );
   } catch (error) {
