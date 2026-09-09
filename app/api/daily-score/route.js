@@ -25,6 +25,16 @@ function isUndefinedColumnError(error) {
   );
 }
 
+// AirNow publishes readings from physical monitors; Open-Meteo returns a model
+// output. The distinction has to survive the cache, because presenting a
+// modelled number as a measurement is the same class of error as presenting
+// "no data" as "safe". A row with no recorded source stays null -- unknown
+// provenance, not assumed-modelled.
+function isMeasuredSource(source) {
+  if (!source) return null;
+  return source === 'airnow';
+}
+
 function getAirStatus(aqi) {
   if (aqi === null || aqi === undefined) return 'unknown';
   if (aqi <= 50) return 'good';
@@ -100,8 +110,8 @@ function formatResponsePayload({
   moldRisk,
   cached,
   // Which provider the AQI came from, and whether it was measured at a monitor
-  // or produced by a model. Null on the cached path: daily_scores has no column
-  // to persist the provenance, so a cached reading cannot assert either.
+  // or produced by a model. Persisted in daily_scores.aqi_source, so a cached
+  // reading reports the same provenance as the fresh one it was taken from.
   aqiSource = null,
   aqiIsMeasured = null,
 }) {
@@ -214,6 +224,8 @@ export async function GET(request) {
           pollenRisk: parsedPollen,
           moldRisk: cachedData.mold_risk,
           cached: true,
+          aqiSource: cachedData.aqi_source ?? null,
+          aqiIsMeasured: isMeasuredSource(cachedData.aqi_source),
         })
       );
     }
@@ -405,12 +417,22 @@ export async function GET(request) {
       moldRisk,
     });
 
+    // Columns every environment is known to have. Anything that might be
+    // missing goes in optionalColumns below, so one absent column costs only
+    // itself rather than the whole cache row.
     const cacheRow = {
       profile_id: profileId,
       aqi: aqi,
       uv_index: uvIndex,
       pollen_level: pollenText,
       mold_risk: moldRisk,
+    };
+
+    const optionalColumns = {
+      // Integer column, so it holds the rounded score. The full-precision
+      // value stays in the API response.
+      score: dashboardScore.display_score,
+      aqi_source: aqiSource,
     };
 
     // Only cache a reading taken at the profile's own location. Writing a row
@@ -431,22 +453,21 @@ export async function GET(request) {
       );
     }
 
-    // daily_scores.score is an integer column, so it stores the rounded score.
-    // The full-precision value stays in the API response.
     const { error: insertError } = await supabaseAdmin
       .from('daily_scores')
-      .insert([{ ...cacheRow, score: dashboardScore.display_score }]);
+      .insert([{ ...cacheRow, ...optionalColumns }]);
 
-    // If the score column is missing from this environment's schema, fall back
-    // to the original insert rather than losing the cache row entirely. Same
-    // graceful-degradation posture as the external API calls above: a missing
-    // column should cost us the score, not the whole response.
+    // If one of the optional columns is missing from this environment's schema,
+    // fall back to the guaranteed columns rather than losing the cache row
+    // entirely. Same graceful-degradation posture as the external API calls
+    // above: a missing column should cost us that field, not the whole write.
     if (insertError && isUndefinedColumnError(insertError)) {
       console.warn(
-        'daily_scores.score column not found; caching without score.',
+        `Optional daily_scores column missing (${Object.keys(optionalColumns).join(', ')}); caching without it.`,
         insertError.message
       );
-      await supabaseAdmin.from('daily_scores').insert([cacheRow]);
+      const { error: retryError } = await supabaseAdmin.from('daily_scores').insert([cacheRow]);
+      if (retryError) console.error('Failed to cache daily score:', retryError.message);
     } else if (insertError) {
       console.error('Failed to cache daily score:', insertError.message);
     }
