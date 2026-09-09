@@ -1,33 +1,61 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { mapboxLimiter } from '@/lib/ratelimit'; 
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { mapboxLimiter, onboardLimiter, checkLimit } from '@/lib/ratelimit';
+import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
+import { normalizeWaterSource } from '@/lib/waterSource';
 
 export async function POST(request) {
   try {
+    // --- IDENTITY ---
+    // The profile id comes from the verified session token, never from the body.
+    // It used to be a plain string the caller supplied, which meant anyone could
+    // pass any UUID and overwrite another household's address and coordinates.
+    const { userId } = await requireUser(request);
+
     const body = await request.json();
     const address = body.address;
-    const profileId = body.profile_id;
+
+    // Older clients still send profile_id. We ignore it for identity, but a
+    // mismatch means the client is confused about who it is, and quietly writing
+    // to the token's profile instead would hide that.
+    assertProfileMatches(body.profile_id, userId);
+
     // Optional onboarding answers. Neither is required to geocode, but both
     // feed HomeGuard later: water_source decides whether we look up a utility
     // or hand back a private-well testing plan, and home_year drives the
     // lead-plumbing risk check.
-    const waterSource = body.water_source ?? null;
+    const waterSource = normalizeWaterSource(body.water_source);
     const homeYear = body.home_year ?? null;
 
-    if (!address || !profileId) {
-      return NextResponse.json({ error: 'Address and profile_id are required' }, { status: 400 });
+    if (!address) {
+      return NextResponse.json({ error: 'Address is required' }, { status: 400 });
     }
 
-    // --- RATE LIMIT CHECK FOR MAPBOX ---
-    const { success } = await mapboxLimiter.limit('global_mapbox_calls');
-    
-    if (!success) {
+    // --- RATE LIMIT CHECKS ---
+    // Per-user first: the Mapbox window below is global, so one abusive client
+    // could otherwise burn the whole day's geocoding budget for everybody.
+    const withinUserQuota = await checkLimit(onboardLimiter, `onboard:${userId}`, {
+      fallback: true,
+      label: 'Per-user onboard limiter',
+    });
+
+    if (!withinUserQuota) {
       return NextResponse.json(
-        { error: 'Daily address search limit reached. Please try again tomorrow.' }, 
+        { error: 'Too many address lookups from this device today. Please try again tomorrow.' },
+        { status: 429 },
+      );
+    }
+
+    // Fails open: a limiter outage costs some geocoding budget, but failing
+    // closed would shut the front door on every new user. Upstash has gone away
+    // on this project before, and this call used to be unwrapped.
+    const withinGlobalQuota = await checkLimit(mapboxLimiter, 'global_mapbox_calls', {
+      fallback: true,
+      label: 'Mapbox limiter',
+    });
+
+    if (!withinGlobalQuota) {
+      return NextResponse.json(
+        { error: 'Daily address search limit reached. Please try again tomorrow.' },
         { status: 429 }
       );
     }
@@ -102,19 +130,25 @@ export async function POST(request) {
     // Only write the optional columns if the frontend actually sent them.
     // Otherwise a re-run of onboarding with a bare body would wipe out
     // answers the user already gave us.
-    const profileUpdate = { lat: lat, lng: lng, zip: zip, county: county, pwsid: pwsid };
+    const profileUpdate = { id: userId, lat: lat, lng: lng, zip: zip, county: county, pwsid: pwsid };
     if (waterSource !== null) profileUpdate.water_source = waterSource;
     if (homeYear !== null) profileUpdate.home_year = homeYear;
 
-    const { error: updateError } = await supabase
+    // upsert, not update: `UPDATE ... WHERE id = x` against a row that does not
+    // exist is not an error in Postgres. It touches zero rows and reports
+    // success, so this endpoint would return 200 with coordinates while having
+    // persisted nothing at all -- silent data loss that looks exactly like a
+    // working onboard. The auth.users trigger normally creates the row first;
+    // this covers users who predate it and the case where it ever fails.
+    const { error: updateError } = await supabaseAdmin
       .from('profiles')
-      .update(profileUpdate)
-      .eq('id', profileId);
+      .upsert(profileUpdate, { onConflict: 'id' });
 
     if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
 
     // --- FINAL RESPONSE ---
     return NextResponse.json({ 
+      profile_id: userId,
       lat, 
       lng, 
       zip, 
@@ -126,6 +160,9 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

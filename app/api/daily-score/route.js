@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { openuvLimiter } from '@/lib/ratelimit'; // <-- IMPORT THE BOUNCER
+import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import {
   getAirRisk,
   getUvRisk,
@@ -8,10 +8,6 @@ import {
   getMoldRisk,
   getDashboardScore,
 } from '@/lib/scoring';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ==========================================
 // HELPER FUNCTIONS FOR STATUS CALCULATION
@@ -141,14 +137,20 @@ function formatResponsePayload({
 
 export async function GET(request) {
   try {
+    // Identity comes from the verified session, not from a query parameter.
+    // profile_id used to be caller-supplied, which made every household's
+    // coordinates and scores readable by anyone willing to guess a UUID.
+    const { userId: profileId } = await requireUser(request);
+
     const { searchParams } = new URL(request.url);
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
-    const profileId = searchParams.get('profile_id');
 
-    if (!lat || !lng || !profileId) {
+    assertProfileMatches(searchParams.get('profile_id'), profileId);
+
+    if (!lat || !lng) {
       return NextResponse.json(
-        { error: 'Latitude, longitude, and profile_id required' },
+        { error: 'Latitude and longitude required' },
         { status: 400 }
       );
     }
@@ -164,7 +166,7 @@ export async function GET(request) {
     const requestLat = parseFloat(lat);
     const requestLng = parseFloat(lng);
 
-    const { data: profileRow } = await supabase
+    const { data: profileRow } = await supabaseAdmin
       .from('profiles')
       .select('lat, lng')
       .eq('id', profileId)
@@ -184,7 +186,7 @@ export async function GET(request) {
     let cachedData = null;
     if (isProfileLocation) {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
+      const { data } = await supabaseAdmin
         .from('daily_scores')
         .select('*')
         .eq('profile_id', profileId)
@@ -431,7 +433,7 @@ export async function GET(request) {
 
     // daily_scores.score is an integer column, so it stores the rounded score.
     // The full-precision value stays in the API response.
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseAdmin
       .from('daily_scores')
       .insert([{ ...cacheRow, score: dashboardScore.display_score }]);
 
@@ -444,7 +446,7 @@ export async function GET(request) {
         'daily_scores.score column not found; caching without score.',
         insertError.message
       );
-      await supabase.from('daily_scores').insert([cacheRow]);
+      await supabaseAdmin.from('daily_scores').insert([cacheRow]);
     } else if (insertError) {
       console.error('Failed to cache daily score:', insertError.message);
     }
@@ -462,6 +464,9 @@ export async function GET(request) {
       })
     );
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

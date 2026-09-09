@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { ncRadonZones } from '@/lib/radonData'; // Bring in your local Radon dataset
 import { buildWellTestPlan } from '@/lib/wellTestData'; // Private well / spring test recommendations
 import { getRadonRisk, getWaterRisk, getHomeGuardScore } from '@/lib/scoring';
+import { requireUser, authErrorResponse } from '@/lib/serverAuth';
+import { normalizeWaterSource } from '@/lib/waterSource';
 
 // 1. Connect to Supabase using your safe, public keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -159,6 +161,12 @@ function buildBreakdown({
 
 export async function GET(request) {
   try {
+    // 1. Require a session. This route reads no personal data -- the caller
+    //    passes county/pwsid explicitly -- so auth here is not about privacy.
+    //    It keeps identity handling uniform across the API and stops the
+    //    endpoint being used as an open proxy onto the EPA dataset.
+    await requireUser(request);
+
     // 2. Extract parameters from the URL
     const { searchParams } = new URL(request.url);
     const county = searchParams.get('county');
@@ -166,7 +174,12 @@ export async function GET(request) {
     // Optional. 'well' or 'spring' switches us off the utility lookup entirely,
     // because there is no utility to look up. Anything else (or missing) keeps
     // the original public-water behavior.
-    const waterSource = searchParams.get('water_source');
+    // Normalized because the picker's display strings ("Well") do not match the
+    // tokens this route branches on ('well'). An unmatched private source falls
+    // through to the utility lookup and shows the household a PFAS measurement
+    // for a system they are not connected to -- the exact "no data presented as
+    // a measurement" failure the honesty convention exists to prevent.
+    const waterSource = normalizeWaterSource(searchParams.get('water_source'));
     // Optional. Year the home was built. Only used to decide whether lead is
     // a likely risk. parseInt returns NaN for junk input, so we normalize to null.
     const rawHomeYear = parseInt(searchParams.get('home_year'), 10);
@@ -446,6 +459,9 @@ export async function GET(request) {
     });
 
   } catch (err) {
+    const authResponse = authErrorResponse(err);
+    if (authResponse) return authResponse;
+
     console.error('HomeGuard API Error:', err);
     return NextResponse.json(
       { error: 'Internal Server Error while fetching HomeGuard data.' },
