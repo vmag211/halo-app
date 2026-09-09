@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MapPin, Navigation, ChevronDown } from "lucide-react";
 import Image from "next/image";
+import { ensureAnonSession, authedFetch } from "@/lib/auth";
 
 const WATER_SOURCES = ["City utility", "Well", "Spring", "Other"];
 
@@ -183,6 +184,14 @@ export default function OnboardingScreen() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [gpsPulse, setGpsPulse]       = useState(false);
 
+  // Coordinates from the GPS button, when the user used it. Held separately
+  // from the address string because the input shows a human-readable label
+  // while the backend needs something it can geocode.
+  const [coords, setCoords]           = useState<{ lat: number; lng: number } | null>(null);
+  const [submitting, setSubmitting]   = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted]     = useState(false);
+
   const auroraRef  = useRef<HTMLCanvasElement>(null!);
   const plexusRef  = useRef<HTMLCanvasElement>(null!);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -201,16 +210,93 @@ export default function OnboardingScreen() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Every device gets an anonymous Supabase session on load. It is silent and
+  // needs no input from the user, but it has to exist before any API call: the
+  // routes derive the profile id from the session token, and daily_scores rows
+  // are foreign-keyed all the way back to auth.users.
+  useEffect(() => {
+    ensureAnonSession().catch((err) => {
+      console.error("[HALO] session bootstrap failed:", err);
+      setSubmitError(
+        err?.code === "captcha_failed"
+          ? "Verification could not be completed. Check your connection and try again."
+          : "Could not start a session. Please reload and try again."
+      );
+    });
+  }, []);
+
   const handleGPS = () => {
     setGpsPulse(true);
     setTimeout(() => setGpsPulse(false), 600);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        () => setAddress("Current location detected"),
-        () => setAddress("123 Maple Street, Austin TX 78701")
-      );
-    } else {
-      setAddress("123 Maple Street, Austin TX 78701");
+    setSubmitError(null);
+
+    if (!navigator.geolocation) {
+      setSubmitError("This device can't share its location. Please type your address.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // Keep the real numbers; the backend reverse-geocodes them into a zip
+        // and county, which HomeGuard needs. Previously this set the literal
+        // string "Current location detected" as the address, and fell back to a
+        // hardcoded Austin address on failure -- both would have been geocoded
+        // as written, quietly reporting on someone else's home.
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setAddress("Using your current location");
+      },
+      () => {
+        setCoords(null);
+        setSubmitError("Couldn't get your location. Please type your address instead.");
+      }
+    );
+  };
+
+  const handleSubmit = async () => {
+    setDropdownOpen(false);
+    setSubmitError(null);
+
+    // A coordinate pair sent as the address makes the backend reverse-geocode
+    // it, which returns the same zip/county shape as a typed address.
+    const query = coords ? `${coords.lng},${coords.lat}` : address.trim();
+
+    if (!query) {
+      setSubmitError("Enter your home address so we know where to check.");
+      return;
+    }
+    if (!yearValid) {
+      setSubmitError(`Enter a build year between 1800 and ${currentYear}.`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await authedFetch("/api/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: query,
+          water_source: waterSource || null,
+          home_year: buildYear === "" ? null : Number(buildYear),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || `Setup failed (${response.status}).`);
+      }
+
+      setSubmitted(true);
+      // TODO(handoff): send the user to the dashboard once that route exists.
+      // The onboard response carries lat/lng/zip/county/pwsid, which is exactly
+      // what /api/daily-score and /api/home-guard need next.
+      console.log("[HALO] onboarded:", data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setSubmitError(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -376,7 +462,12 @@ export default function OnboardingScreen() {
                   <input
                     type="text"
                     value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      // A typed address supersedes whatever GPS gave us.
+                      setCoords(null);
+                      setSubmitError(null);
+                    }}
                     placeholder="123 Maple Street, City, State"
                     className="flex-1 bg-transparent outline-none min-w-0"
                     style={{
@@ -543,7 +634,8 @@ export default function OnboardingScreen() {
               {/* Submit CTA */}
               <button
                 type="button"
-                onClick={() => setDropdownOpen(false)}
+                onClick={handleSubmit}
+                disabled={submitting}
                 className="w-full flex items-center justify-center transition-all active:scale-[0.97]"
                 style={{
                   height: 56,
@@ -551,7 +643,8 @@ export default function OnboardingScreen() {
                   background: "linear-gradient(110deg, #2563eb 0%, #0ea5e9 52%, #14b8a6 100%)",
                   boxShadow: "0 4px 24px rgba(14,165,233,0.32)",
                   border: "none",
-                  cursor: "pointer",
+                  cursor: submitting ? "wait" : "pointer",
+                  opacity: submitting ? 0.72 : 1,
                   fontFamily: "'Proxima Soft', sans-serif",
                   fontWeight: 700,
                   fontSize: 16,
@@ -559,8 +652,23 @@ export default function OnboardingScreen() {
                   letterSpacing: "0.01em",
                 }}
               >
-                Set up my HALO
+                {submitting ? "Setting up…" : submitted ? "You're all set" : "Set up my HALO"}
               </button>
+
+              {submitError && (
+                <p
+                  role="alert"
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(255,200,180,0.9)",
+                    marginTop: 2,
+                    textAlign: "center",
+                    fontFamily: "'Proxima Soft', sans-serif",
+                  }}
+                >
+                  {submitError}
+                </p>
+              )}
 
               <p
                 style={{
