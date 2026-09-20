@@ -12,8 +12,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // "A", "A and B", "A, B and C" — used so messages can name what was actually
-// found instead of asserting a chemical family. Most of the unscoreable
-// detections in this dataset are lithium, which is not a PFAS at all.
+// found instead of asserting a chemical family. The names passed here are the
+// truly unregulated PFAS (PFPeA and the like); lithium is handled separately as
+// an excluded-from-score detection and never reaches this list.
 function formatList(names) {
   if (names.length === 1) return names[0];
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
@@ -50,6 +51,15 @@ function daysSince(dateString) {
   const time = Date.parse(dateString);
   if (Number.isNaN(time)) return null;
   return Math.round((Date.now() - time) / 86400000);
+}
+
+// The dump stores every concentration as ppt for a uniform schema, but EPA and
+// USGS report lithium in µg/L, and its published reference levels are quoted
+// that way. Convert for display so a lithium reading is not shown in a unit no
+// public benchmark uses. Presentation only — the scoring math stays in ppt.
+function ugPerL(ppt) {
+  if (ppt === null || ppt === undefined) return null;
+  return ppt / 1000;
 }
 
 // Confidence answers "how much should this number be trusted", which age
@@ -151,7 +161,23 @@ function buildBreakdown({
       status: 'detected_not_scored',
       confidence: 'full',
       is_measured: true,
-      detail: [{ value_ppt: entry.value_ppt, date: entry.date }],
+      // Detected and real, but EPA has set no enforceable limit — there is no
+      // MCL to fail and so no score to give. Stated outright so the UI can say
+      // "no federal limit" rather than leaving a blank that reads as reassurance.
+      has_federal_limit: false,
+      needs_local_context: entry.needs_local_context === true,
+      // A non-regulatory screening level, when one exists, shown only as a point
+      // of comparison. Deliberately not an MCL and never scored against.
+      health_reference_level_ppt: entry.health_reference_level_ppt ?? null,
+      health_reference_level_ug_l: ugPerL(entry.health_reference_level_ppt),
+      health_reference_source: entry.health_reference_source ?? null,
+      detail: [
+        {
+          value_ppt: entry.value_ppt,
+          value_ug_l: ugPerL(entry.value_ppt),
+          date: entry.date,
+        },
+      ],
       note: entry.reason,
     });
   }
