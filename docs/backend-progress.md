@@ -27,11 +27,11 @@ Branch: `vmag211/backend` (never merged to main). Pushed after each piece.
 - [x] `explain.js` — per-reading explanatory sentence by composition (§8.6, §11)
 - [x] `actionPlan.js` — ranked plan w/ cost + certification + renter suitability (§12.6–12.7)
 - [x] `learnContent.js` — the 7 Learn topics (§17); served by /api/learn
-- [ ] `journalAnalysis.js` — co-occurrence findings, thresholds, illness exclusion (§14.6)
-- [ ] `alertRules.js` — alert evaluation, sensitive-group shift (§19)
-- [ ] `volunteerMatch.js` — filter orgs by county + cause tags (§15.3)
-- [ ] `district.js` — district aggregate from utility dataset (§20)
-- [ ] `mapData.js` — map feature assembly from ucmr5 + radon (§13)
+- [x] `journalAnalysis.js` — co-occurrence findings, thresholds, illness exclusion (§14.6)
+- [x] `alertRules.js` — alert evaluation, sensitive-group shift (§19)
+- [x] `volunteerMatch.js` — filter orgs by county + cause tags (§15.3)
+- [x] `district.js` — district aggregate from utility dataset (§20)
+- [x] `mapData.js` — map feature assembly from ucmr5 + radon (§13)
 
 ## Routes
 - [x] `GET /api/profile` — profile retrieval + onboarded flag (live-tested)
