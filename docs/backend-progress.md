@@ -36,7 +36,7 @@ Branch: `vmag211/backend` (never merged to main). Pushed after each piece.
 ## Routes
 - [ ] `GET /api/profile` — profile retrieval, first-visit routing (existing table)
 - [ ] `GET|PUT /api/household` — composition
-- [ ] extend `GET /api/home-guard` — lead card + action plan
+- [x] extend `GET /api/home-guard` — lead card + action plan (live-tested vs Concord/well/year cases)
 - [ ] extend `GET /api/daily-score` — explanatory sentences
 - [ ] `GET /api/history` — daily readings across a date range
 - [ ] `GET|POST /api/journal` + `GET /api/journal/findings`

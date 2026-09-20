@@ -3,8 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import { ncRadonZones } from '@/lib/radonData'; // Bring in your local Radon dataset
 import { buildWellTestPlan } from '@/lib/wellTestData'; // Private well / spring test recommendations
 import { getRadonRisk, getWaterRisk, getHomeGuardScore } from '@/lib/scoring';
-import { requireUser, authErrorResponse } from '@/lib/serverAuth';
+import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeWaterSource } from '@/lib/waterSource';
+import { leadRisk } from '@/lib/leadRisk';
+import { actionPlan } from '@/lib/actionPlan';
+import { waterRiskSeverity, radonZoneSeverity } from '@/lib/severity';
+import { normalizeBands } from '@/lib/household';
+import { explain } from '@/lib/explain';
 
 // 1. Connect to Supabase using your safe, public keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -86,7 +91,8 @@ function buildBreakdown({
   radonRisk,
   waterData,
   waterRiskDetail,
-  isPrivateSource
+  isPrivateSource,
+  lead
 }) {
   const boxes = [];
   const waterCoverage = waterRiskDetail ? waterRiskDetail.coverage : null;
@@ -143,6 +149,25 @@ function buildBreakdown({
     note: radonData.error || null,
   });
 
+  // Lead — shown, never scored (§12.3). Present only for public-water homes; a
+  // private well covers lead inside its testing plan instead.
+  if (lead) {
+    boxes.push({
+      key: 'lead',
+      label: 'Lead',
+      contributes_to_score: false,
+      shown_not_scored: true,
+      risk: null,
+      score: null,
+      status: lead.level,
+      confidence: lead.level === 'no_data' ? 'none' : 'full',
+      is_measured: false,
+      is_estimate: lead.is_estimate === true,
+      detail: [{ basis: lead.basis }],
+      note: lead.sentence || lead.text,
+    });
+  }
+
   // Measured, shown, but deliberately outside the total. One box each.
   const excluded = waterRiskDetail ? waterRiskDetail.excluded_from_score : [];
   for (const entry of excluded) {
@@ -191,7 +216,7 @@ export async function GET(request) {
     //    passes county/pwsid explicitly -- so auth here is not about privacy.
     //    It keeps identity handling uniform across the API and stops the
     //    endpoint being used as an open proxy onto the EPA dataset.
-    await requireUser(request);
+    const { userId } = await requireUser(request);
 
     // 2. Extract parameters from the URL
     const { searchParams } = new URL(request.url);
@@ -466,6 +491,67 @@ export async function GET(request) {
     }
 
     // ==========================================
+    // MODULE 4: HOUSEHOLD PERSONALIZATION, LEAD, ACTION PLAN
+    // ==========================================
+    // Composition and renter mode personalize wording and ordering but never
+    // change a measurement or the score (§8.2). Both degrade gracefully: before
+    // migration 0002 is applied the household_bands table / renter_mode column
+    // are absent, so bands fall back to general-population and renter to owner.
+    let bands = normalizeBands(null);
+    let renter = false;
+    {
+      const { data: profileRow } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (profileRow) renter = profileRow.renter_mode === true;
+
+      const { data: bandRow } = await supabaseAdmin
+        .from('household_bands')
+        .select('*')
+        .eq('profile_id', userId)
+        .maybeSingle();
+      if (bandRow) bands = normalizeBands(bandRow);
+    }
+
+    // Lead is shown but never scored (§12.3). Public-water homes only; a private
+    // well covers lead inside its testing plan instead.
+    let leadData = null;
+    if (!isPrivateSource) {
+      const assessment = leadRisk({ homeYear });
+      leadData = {
+        ...assessment,
+        sentence: explain('lead', assessment.level, bands) || assessment.text,
+      };
+    }
+
+    // Worst scored water contaminant → the water action item.
+    let worstWater = null;
+    if (waterRiskDetail && Array.isArray(waterRiskDetail.scored) && waterRiskDetail.scored.length) {
+      const enforceable = waterRiskDetail.scored.filter((s) => s.is_enforceable);
+      const pool = enforceable.length ? enforceable : waterRiskDetail.scored;
+      const top = pool.reduce((a, b) => (b.risk > a.risk ? b : a));
+      worstWater = {
+        contaminant: top.contaminant,
+        value_ppt: top.value_ppt,
+        limit_ppt: top.limit_ppt,
+        severity: waterRiskSeverity(top.risk),
+      };
+    }
+
+    // Ranked action plan (§12.6). Private wells use the testing plan as the action.
+    const plan = isPrivateSource
+      ? []
+      : actionPlan({
+          water: worstWater,
+          radon: zoneNumber ? { zone: zoneNumber, severity: radonZoneSeverity(zoneNumber) } : null,
+          lead: leadData ? { level: leadData.level, basis: leadData.basis } : null,
+          bands,
+          renter,
+        });
+
+    // ==========================================
     // FINAL OUTPUT: THE COMBINED PAYLOAD
     // ==========================================
     return NextResponse.json({
@@ -473,6 +559,10 @@ export async function GET(request) {
       radon: radonData,
       water: waterData,
       score: scoreData,
+      // Shown but never scored; personalized by household composition.
+      lead: leadData,
+      // Ranked worst-first, Elevated+ only, with cost/certification/renter guidance.
+      action_plan: plan,
       // Per-factor boxes for the page. `score` above is the total; every entry
       // here declares whether it is actually part of that total.
       breakdown: buildBreakdown({
@@ -480,7 +570,8 @@ export async function GET(request) {
         radonRisk,
         waterData,
         waterRiskDetail,
-        isPrivateSource
+        isPrivateSource,
+        lead: leadData
       })
     });
 
