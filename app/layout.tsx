@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Playfair_Display, Poppins } from "next/font/google";
 import "./globals.css";
 import AuthInitializer from "../components/AuthInitializer";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Poppins carries body copy and labels; Playfair Display carries every
+// numeral, score and page heading — the HALO design language leans on that
+// serif/sans contrast throughout.
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -27,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${poppins.variable} ${playfair.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* Opens the anonymous session before any screen needs it. Renders nothing. */}
