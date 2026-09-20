@@ -34,16 +34,16 @@ Branch: `vmag211/backend` (never merged to main). Pushed after each piece.
 - [ ] `mapData.js` — map feature assembly from ucmr5 + radon (§13)
 
 ## Routes
-- [ ] `GET /api/profile` — profile retrieval, first-visit routing (existing table)
-- [ ] `GET|PUT /api/household` — composition
+- [x] `GET /api/profile` — profile retrieval + onboarded flag (live-tested)
+- [x] `GET/PUT /api/household` — composition (GET tested; PUT needs migration 0002)
 - [x] extend `GET /api/home-guard` — lead card + action plan (live-tested vs Concord/well/year cases)
 - [x] extend `GET /api/daily-score` — severity + explanatory sentences (live-tested)
-- [ ] `GET /api/history` — daily readings across a date range
+- [x] `GET /api/history` — daily readings, one-per-date, severity words (live-tested)
 - [ ] `GET|POST /api/journal` + `GET /api/journal/findings`
 - [ ] `GET /api/map` — assembled per-layer dataset
 - [ ] `GET /api/district`
 - [ ] `GET /api/volunteer`
-- [ ] `GET /api/learn`
+- [x] `GET /api/learn` — base content + composed why-yours + household branch (live-tested)
 - [ ] `GET|POST /api/alerts`
 - [ ] `POST /api/assistant` — diagnostic guard + retrieval (model call gated on key)
 - [ ] `GET /api/health` — external source reachability
