@@ -8,6 +8,9 @@ import {
   getMoldRisk,
   getDashboardScore,
 } from '@/lib/scoring';
+import { aqiSeverity, uvSeverity, pollenSeverity, moldSeverity } from '@/lib/severity';
+import { normalizeBands } from '@/lib/household';
+import { explain } from '@/lib/explain';
 
 // ==========================================
 // HELPER FUNCTIONS FOR STATUS CALCULATION
@@ -114,27 +117,53 @@ function formatResponsePayload({
   // reading reports the same provenance as the fresh one it was taken from.
   aqiSource = null,
   aqiIsMeasured = null,
+  // Household composition. Only selects which explanatory sentence appears; it
+  // never changes a measurement, a severity, or the score (§8.2).
+  bands = {},
 }) {
+  // Canonical severity words (server decides the level, §6.1) + the household-
+  // aware sentence for each reading.
+  const airSev = aqiSeverity(aqi);
+  const uvSev = uvSeverity(uvIndex);
+  const cats = [
+    ['tree', pollenRisk.tree],
+    ['grass', pollenRisk.grass],
+    ['weed', pollenRisk.weed],
+  ].filter(([, v]) => typeof v === 'number' && Number.isFinite(v));
+  const dominant = cats.length ? cats.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
+  const pollenSev = pollenSeverity(dominant ? dominant[1] : null);
+  const moldSev = moldSeverity(moldRisk);
+
   return {
     air: {
       aqi: aqi,
       status: getAirStatus(aqi),
       source: aqiSource,
       is_measured: aqiIsMeasured,
+      severity: airSev,
+      sentence: explain('air', airSev, bands),
     },
     uv: {
       index: uvIndex,
       status: getUvStatus(uvIndex),
+      severity: uvSev,
+      sentence: explain('uv', uvSev, bands),
     },
     pollen: {
       tree: pollenRisk.tree ?? null,
       grass: pollenRisk.grass ?? null,
       weed: pollenRisk.weed ?? null,
       status: getPollenStatus(pollenRisk),
+      // Which of the three categories is worst — the collapsed card names it.
+      dominant: dominant ? dominant[0] : null,
+      severity: pollenSev,
+      sentence: explain('pollen', pollenSev, bands),
     },
     mold: {
       risk: moldRisk || 'low',
       is_proxy: true,
+      severity: moldSev,
+      sentence: explain('mold', moldSev, bands),
     },
     score: buildDashboardScore({ aqi, uvIndex, pollenRisk, moldRisk }),
     cached,
@@ -151,6 +180,18 @@ export async function GET(request) {
     // profile_id used to be caller-supplied, which made every household's
     // coordinates and scores readable by anyone willing to guess a UUID.
     const { userId: profileId } = await requireUser(request);
+
+    // Household composition personalizes each reading's sentence; degrades to
+    // general-population if household_bands is not present yet (migration 0002).
+    let bands = normalizeBands(null);
+    {
+      const { data: bandRow } = await supabaseAdmin
+        .from('household_bands')
+        .select('*')
+        .eq('profile_id', profileId)
+        .maybeSingle();
+      if (bandRow) bands = normalizeBands(bandRow);
+    }
 
     const { searchParams } = new URL(request.url);
     const lat = searchParams.get('lat');
@@ -226,6 +267,7 @@ export async function GET(request) {
           cached: true,
           aqiSource: cachedData.aqi_source ?? null,
           aqiIsMeasured: isMeasuredSource(cachedData.aqi_source),
+          bands,
         })
       );
     }
@@ -449,6 +491,7 @@ export async function GET(request) {
           cached: false,
           aqiSource,
           aqiIsMeasured,
+          bands,
         })
       );
     }
@@ -482,6 +525,7 @@ export async function GET(request) {
         cached: false,
         aqiSource,
         aqiIsMeasured,
+        bands,
       })
     );
   } catch (error) {
