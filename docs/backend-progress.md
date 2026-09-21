@@ -51,7 +51,7 @@ Branch: `vmag211/backend` (never merged to main). Pushed after each piece.
 
 ## Status: backend logic complete + tested
 
-- **160+ unit tests pass** (`node --test test/*.test.mjs`) across all 12 logic modules.
+- **143 unit tests pass** (`node --test test/*.test.mjs`) across all 12 logic modules.
 - **Live smoke test** (`node scripts/smoke-test.mjs`, dev server running): **14 pass, 0 fail, 5
   degraded** — the 5 degraded routes only need a migration applied (see below).
 - All 16 API routes compile (`npm run build` green) and are pushed to `vmag211/backend`.
