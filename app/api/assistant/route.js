@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { requireUser, authErrorResponse } from '@/lib/serverAuth';
+import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL, DISCLAIMER, NO_SOURCE, suggestedQuestions } from '@/lib/assistant';
+import { answerQuestion } from '@/lib/assistantRag';
 
 /**
  * POST /api/assistant  { question, page? }
@@ -9,14 +10,16 @@ import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL, DISCLAIMER, NO_SOURCE, suggest
  * The structural diagnostic check runs FIRST, before any answer is composed
  * (§18.4), so a diagnosis request is declined reliably rather than merely likely.
  *
- * The grounded-answer path (retrieval over the curated corpus + a model call,
- * with citations) needs an embedding/model key and an ingested assistant_corpus
- * (migration 0007). Until those are present the route declines honestly rather
- * than improvising. Every response carries the not-medical-advice disclaimer.
+ * The grounded-answer path (embed the question → retrieve the nearest curated
+ * passages by cosine distance → compose a cited answer) is BUILT in
+ * lib/assistantRag.js but gated on an embedding/model key and an ingested
+ * assistant_corpus (migrations 0007 + 0008, scripts/ingest-corpus.mjs). Without a
+ * key the route declines honestly; with a key but an empty/irrelevant corpus the
+ * pipeline itself declines with NO_SOURCE rather than improvising. Every response
+ * carries the not-medical-advice disclaimer.
  *
- * TODO (gated on a model key): rate-limit per household (§37.2); embed the
- * question, retrieve top passages by cosine distance, compose a cited answer,
- * and stream it.
+ * TODO (gated on a model key, not yet built): per-household rate-limiting (§37.2)
+ * and streaming the answer.
  */
 
 const MODEL_KEY = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || null;
@@ -59,21 +62,31 @@ export async function POST(request) {
         message: NO_SOURCE,
         disclaimer: DISCLAIMER,
         citations: [],
-        note: 'The assistant needs an embedding/model key and an ingested source corpus (migration 0007) to answer.',
+        note: 'The assistant needs an embedding/model key and an ingested source corpus (migrations 0007 + 0008) to answer.',
       });
     }
 
-    // With a key present, retrieval + a cited answer would be composed here.
-    // Left unbuilt deliberately until the key/corpus exist, so nothing runs
-    // untested against a paid model.
-    return NextResponse.json({
-      answer: null,
-      configured: true,
-      message: NO_SOURCE,
-      disclaimer: DISCLAIMER,
-      citations: [],
-      note: 'Model key present, but the retrieval + answer pipeline is not wired yet.',
-    });
+    // Embed → retrieve → cite. answerQuestion declines with NO_SOURCE (grounded:
+    // false) when nothing relevant is retrieved; it only throws on a hard infra
+    // failure, which we turn into a transient message rather than an ungrounded
+    // answer or a 500.
+    try {
+      const result = await answerQuestion({
+        question,
+        apiKey: MODEL_KEY,
+        rpc: (fn, params) => supabaseAdmin.rpc(fn, params),
+      });
+      return NextResponse.json({ configured: true, ...result });
+    } catch (ragErr) {
+      console.error('Assistant pipeline error:', ragErr.message);
+      return NextResponse.json({
+        answer: null,
+        configured: true,
+        message: "I couldn't reach my sources just now. Please try again in a moment.",
+        disclaimer: DISCLAIMER,
+        citations: [],
+      });
+    }
   } catch (err) {
     const r = authErrorResponse(err);
     if (r) return r;
