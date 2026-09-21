@@ -12,7 +12,7 @@
 
 create table if not exists public.volunteer_orgs (
   id            uuid primary key default gen_random_uuid(),
-  name          text not null,
+  name          text not null unique,
   description   text not null,
   counties      text[] not null default '{}',   -- county names, or the literal 'statewide'
   causes        text[] not null default '{}',   -- cause tags: water, pfas, radon, air, wells, advocacy

@@ -43,9 +43,11 @@ export async function POST(request) {
     } else {
       return NextResponse.json({ error: 'Provide an id, or all:true.' }, { status: 400 });
     }
-    const { error } = await q;
+    // .select() so the client learns how many rows actually matched (a wrong or
+    // foreign id updates 0 rows rather than erroring, thanks to the profile scope).
+    const { data, error } = await q.select('id');
     if (error) throw new Error(error.message);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, updated: (data || []).length });
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;

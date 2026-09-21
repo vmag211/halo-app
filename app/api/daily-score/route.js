@@ -181,18 +181,6 @@ export async function GET(request) {
     // coordinates and scores readable by anyone willing to guess a UUID.
     const { userId: profileId } = await requireUser(request);
 
-    // Household composition personalizes each reading's sentence; degrades to
-    // general-population if household_bands is not present yet (migration 0002).
-    let bands = normalizeBands(null);
-    {
-      const { data: bandRow } = await supabaseAdmin
-        .from('household_bands')
-        .select('*')
-        .eq('profile_id', profileId)
-        .maybeSingle();
-      if (bandRow) bands = normalizeBands(bandRow);
-    }
-
     const { searchParams } = new URL(request.url);
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
@@ -204,6 +192,19 @@ export async function GET(request) {
         { error: 'Latitude and longitude required' },
         { status: 400 }
       );
+    }
+
+    // Household composition personalizes each reading's sentence; degrades to
+    // general-population if household_bands is not present yet (migration 0002).
+    // Fetched after the identity/param checks so a rejected request does no work.
+    let bands = normalizeBands(null);
+    {
+      const { data: bandRow } = await supabaseAdmin
+        .from('household_bands')
+        .select('*')
+        .eq('profile_id', profileId)
+        .maybeSingle();
+      if (bandRow) bands = normalizeBands(bandRow);
     }
 
     // --- CACHE CHECK ---
@@ -404,24 +405,34 @@ export async function GET(request) {
     );
 
     // 3. GOOGLE POLLEN API
-    const pollenApiKey = process.env.GOOGLE_POLLEN_API_KEY;
-    const pollenUrl = `https://pollen.googleapis.com/v1/forecast:lookup?key=${pollenApiKey}&location.longitude=${lng}&location.latitude=${lat}&days=1`;
-    const pollenResponse = await fetch(pollenUrl);
-    if (!pollenResponse.ok) throw new Error('Failed to fetch Pollen');
-    const pollenData = await pollenResponse.json();
+    // Wrapped like every other provider: a pollen failure must not take the
+    // whole route down. Null pollen is treated as excluded (not zero) by the
+    // scoring layer, so the composite is simply marked incomplete.
     let pollenRisk = { tree: null, grass: null, weed: null };
-    if (pollenData.dailyInfo && pollenData.dailyInfo.length > 0) {
-      const typesInfo = pollenData.dailyInfo[0].pollenTypeInfo;
-      if (typesInfo) {
-        typesInfo.forEach((info) => {
-          if (info.code === 'TREE')
-            pollenRisk.tree = info.indexInfo ? info.indexInfo.value : null;
-          if (info.code === 'GRASS')
-            pollenRisk.grass = info.indexInfo ? info.indexInfo.value : null;
-          if (info.code === 'WEED')
-            pollenRisk.weed = info.indexInfo ? info.indexInfo.value : null;
-        });
+    try {
+      const pollenApiKey = process.env.GOOGLE_POLLEN_API_KEY;
+      const pollenUrl = `https://pollen.googleapis.com/v1/forecast:lookup?key=${pollenApiKey}&location.longitude=${lng}&location.latitude=${lat}&days=1`;
+      const pollenResponse = await fetch(pollenUrl);
+      if (pollenResponse.ok) {
+        const pollenData = await pollenResponse.json();
+        if (pollenData.dailyInfo && pollenData.dailyInfo.length > 0) {
+          const typesInfo = pollenData.dailyInfo[0].pollenTypeInfo;
+          if (typesInfo) {
+            typesInfo.forEach((info) => {
+              if (info.code === 'TREE')
+                pollenRisk.tree = info.indexInfo ? info.indexInfo.value : null;
+              if (info.code === 'GRASS')
+                pollenRisk.grass = info.indexInfo ? info.indexInfo.value : null;
+              if (info.code === 'WEED')
+                pollenRisk.weed = info.indexInfo ? info.indexInfo.value : null;
+            });
+          }
+        }
+      } else {
+        console.error('Google Pollen API failed:', pollenResponse.status);
       }
+    } catch (err) {
+      console.error('Google Pollen fetch error:', err.message);
     }
 
     // 4. NATIONAL WEATHER SERVICE
