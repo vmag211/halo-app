@@ -49,7 +49,37 @@ Branch: `vmag211/backend` (never merged to main). Pushed after each piece.
 - [x] `GET /api/health` — external source reachability (live-tested: all 8 ok)
 - [x] `POST /api/cron/daily` — secret-guarded; air+radon alert evaluation (needs 0006)
 
-## Notes / flags
-- `profiles` already has both `home_year` and `build_year` columns; onboard writes `home_year`, so
-  lead logic reads `home_year` (falls back to `build_year`).
-- `home_risks` table exists but is empty/unused; home-guard computes on the fly. Persistence optional.
+## Status: backend logic complete + tested
+
+- **160+ unit tests pass** (`node --test test/*.test.mjs`) across all 12 logic modules.
+- **Live smoke test** (`node scripts/smoke-test.mjs`, dev server running): **14 pass, 0 fail, 5
+  degraded** — the 5 degraded routes only need a migration applied (see below).
+- All 16 API routes compile (`npm run build` green) and are pushed to `vmag211/backend`.
+
+## When you're back — to activate everything
+
+1. **Apply migrations in the SQL editor, in order** (DDL can't be automated here):
+   `0002` → `0003` → `0004` → `0005` → `0006` → `0007`. This turns the 5 DEGRADED routes
+   (household PUT, journal ×3, alerts) green and lights up composition-personalized wording.
+   Re-run `node scripts/smoke-test.mjs` to confirm.
+2. **Seed content** (after 0004/0005 applied): the volunteer seed is inside `0004`; run
+   `node scripts/seed-learn.mjs` to load the English Learn topics into the DB.
+3. **Config keys**: add `CRON_SECRET` (to run `/api/cron/daily`) and, for the assistant's grounded
+   answers, an embedding/model key (`ASSISTANT_MODEL_KEY` or `OPENAI_API_KEY`).
+
+## Flagged gaps (need a key, a data source, or human work — built as far as possible)
+- **Assistant grounded answers**: structural diagnostic guard + honest not-configured response are
+  done and tested; the RAG pipeline (embed → retrieve `assistant_corpus` → cited answer) and the
+  corpus ingestion script are gated on a model key. Rate-limiting per household is a TODO there too.
+- **Map/District geometry & population**: UCMR5 has no coordinates or population, so features carry
+  per-contaminant severity (usable by the selector) but `lat/lng/population` are null — join a
+  geographic/SDWIS source to draw them. The `air` and `facilities` map layers need external sources.
+- **Cron**: air-worsening + radon-season alerts are built; weather-advisory / new-water-result /
+  end-of-season alerts and pre-assembling the map dataset into a cached file are not wired yet.
+- **Content/verification**: the 5 seeded volunteer orgs need human verification (`last_verified` is
+  null); Spanish Learn content must be human-authored (English is in `lib/learnContent.js`).
+- **`home_risks`** table exists but is unused; home-guard computes on the fly. Persistence optional.
+- `profiles` has both `home_year` and `build_year`; onboard writes `home_year` (lead logic reads it).
+
+## Verify anytime
+`node --test test/*.test.mjs` (logic) · `node scripts/smoke-test.mjs` (routes, dev server up).
