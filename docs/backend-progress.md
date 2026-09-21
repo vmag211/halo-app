@@ -39,15 +39,15 @@ Branch: `vmag211/backend` (never merged to main). Pushed after each piece.
 - [x] extend `GET /api/home-guard` — lead card + action plan (live-tested vs Concord/well/year cases)
 - [x] extend `GET /api/daily-score` — severity + explanatory sentences (live-tested)
 - [x] `GET /api/history` — daily readings, one-per-date, severity words (live-tested)
-- [ ] `GET|POST /api/journal` + `GET /api/journal/findings`
+- [x] `GET/POST /api/journal` + `GET /api/journal/findings` (needs migration 0003)
 - [x] `GET /api/map` — water (per-contaminant severity) + radon layers (live-tested; needs coords join)
 - [x] `GET /api/district` — exceedance counts (live-tested: 106/290 over PFOS; pop needs source)
-- [ ] `GET /api/volunteer`
+- [x] `GET /api/volunteer` — match by county+cause (tested graceful; needs 0004)
 - [x] `GET /api/learn` — base content + composed why-yours + household branch (live-tested)
-- [ ] `GET|POST /api/alerts`
-- [ ] `POST /api/assistant` — diagnostic guard + retrieval (model call gated on key)
+- [x] `GET/POST /api/alerts` — inbox + mark-read (needs migration 0006)
+- [x] `POST /api/assistant` — structural diagnostic guard + honest not-configured (live-tested)
 - [x] `GET /api/health` — external source reachability (live-tested: all 8 ok)
-- [ ] `POST /api/cron/daily` — scheduled work (secret-guarded)
+- [x] `POST /api/cron/daily` — secret-guarded; air+radon alert evaluation (needs 0006)
 
 ## Notes / flags
 - `profiles` already has both `home_year` and `build_year` columns; onboard writes `home_year`, so
