@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL, DISCLAIMER, NO_SOURCE, suggestedQuestions } from '@/lib/assistant';
 import { answerQuestion } from '@/lib/assistantRag';
+import { assistantLimiter, checkLimit } from '@/lib/ratelimit';
 
 /**
  * POST /api/assistant  { question, page? }
@@ -38,7 +39,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    await requireUser(request);
+    const { userId } = await requireUser(request);
     const body = await request.json().catch(() => ({}));
     const question = typeof body.question === 'string' ? body.question.trim() : '';
 
@@ -64,6 +65,27 @@ export async function POST(request) {
         citations: [],
         note: 'The assistant needs an embedding/model key and an ingested source corpus (migrations 0007 + 0008) to answer.',
       });
+    }
+
+    // Per-household bound on the paid model path (§37.2). Fail open: a limiter
+    // outage should not block the assistant, and the model-key gate already caps
+    // spend when unconfigured.
+    const allowed = await checkLimit(assistantLimiter, `assistant:${userId}`, {
+      fallback: true,
+      label: 'assistant limiter',
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          answer: null,
+          configured: true,
+          rateLimited: true,
+          message: "You've reached the question limit for now. Please try again in a little while.",
+          disclaimer: DISCLAIMER,
+          citations: [],
+        },
+        { status: 429 },
+      );
     }
 
     // Embed → retrieve → cite. answerQuestion declines with NO_SOURCE (grounded:
