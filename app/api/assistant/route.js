@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL, DISCLAIMER, NO_SOURCE, suggestedQuestions } from '@/lib/assistant';
 import { answerQuestion } from '@/lib/assistantRag';
-import { assistantLimiter, checkLimit } from '@/lib/ratelimit';
+import { assistantLimiter, assistantGlobalLimiter, checkLimit } from '@/lib/ratelimit';
 
 /**
  * POST /api/assistant  { question, page? }
@@ -19,8 +19,8 @@ import { assistantLimiter, checkLimit } from '@/lib/ratelimit';
  * pipeline itself declines with NO_SOURCE rather than improvising. Every response
  * carries the not-medical-advice disclaimer.
  *
- * TODO (gated on a model key, not yet built): per-household rate-limiting (§37.2)
- * and streaming the answer.
+ * Spend is bounded twice (§37.2): 20 questions per user per hour, and 300 per
+ * hour across the whole app. TODO (gated on a model key): stream the answer.
  */
 
 const MODEL_KEY = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || null;
@@ -67,14 +67,21 @@ export async function POST(request) {
       });
     }
 
-    // Per-household bound on the paid model path (§37.2). Fail open: a limiter
-    // outage should not block the assistant, and the model-key gate already caps
-    // spend when unconfigured.
-    const allowed = await checkLimit(assistantLimiter, `assistant:${userId}`, {
+    // Two bounds on the paid model path (§37.2). The per-user check fails open, so
+    // one household isn't blocked by a limiter hiccup. The app-wide ceiling fails
+    // CLOSED: during an Upstash outage it pauses the assistant, because the
+    // per-user bound alone has no upper limit (anonymous ids are cheap to mint).
+    const perUser = await checkLimit(assistantLimiter, `assistant:${userId}`, {
       fallback: true,
       label: 'assistant limiter',
     });
-    if (!allowed) {
+    const global = perUser
+      ? await checkLimit(assistantGlobalLimiter, 'assistant:global', {
+          fallback: false,
+          label: 'assistant global limiter',
+        })
+      : false;
+    if (!perUser || !global) {
       return NextResponse.json(
         {
           answer: null,

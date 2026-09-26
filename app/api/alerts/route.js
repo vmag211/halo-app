@@ -39,6 +39,10 @@ export async function POST(request) {
     if (body.all === true) {
       q = q.eq('read', false);
     } else if (typeof body.id === 'string') {
+      // Postgres rejects a non-UUID id with an error, which would surface as a 500.
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.id)) {
+        return NextResponse.json({ error: 'That alert id is not valid.' }, { status: 400 });
+      }
       q = q.eq('id', body.id);
     } else {
       return NextResponse.json({ error: 'Provide an id, or all:true.' }, { status: 400 });

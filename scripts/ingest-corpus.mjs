@@ -25,7 +25,10 @@ try {
   const env = fs.readFileSync(new URL('../.env.local', import.meta.url), 'utf8');
   for (const line of env.split('\n')) {
     const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+    if (m && !process.env[m[1]]) {
+      // Strip one pair of matching surrounding quotes (KEY="value").
+      process.env[m[1]] = m[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+    }
   }
 } catch {
   /* env may already be exported in the shell */
@@ -55,14 +58,22 @@ function normalizeRetrieved(r) {
   return /^\d{4}-\d{2}$/.test(r) ? `${r}-01` : r;
 }
 
+const EMBED_DIM = 1536; // must match vector(1536) in migration 0007
+
 // One "what it is" passage + one "how to reduce exposure" passage per topic,
-// each attributed to a real Learn source.
+// each attributed to a real Learn source. A source with no retrieval date is
+// skipped with a warning — the column is NOT NULL, and an undated citation
+// shouldn't be served anyway.
 function buildPassages() {
   const rows = [];
   for (const topic of LEARN_TOPICS) {
     const c = LEARN_CONTENT[topic];
     const src = c.sources?.[0];
     if (!src) continue;
+    if (!normalizeRetrieved(src.retrieved)) {
+      console.warn(`Skipping ${topic}: its source has no retrieval date.`);
+      continue;
+    }
     rows.push({
       source_label: src.label,
       source_url: src.url,
@@ -70,7 +81,7 @@ function buildPassages() {
       passage: `${topic.toUpperCase()} — ${c.what_it_is}`,
     });
     if (Array.isArray(c.protect) && c.protect.length) {
-      const src2 = c.sources[1] || src;
+      const src2 = c.sources[1] && normalizeRetrieved(c.sources[1].retrieved) ? c.sources[1] : src;
       rows.push({
         source_label: src2.label,
         source_url: src2.url,
@@ -90,7 +101,19 @@ async function embedAll(texts) {
   });
   if (!res.ok) throw new Error(`Embedding request failed (${res.status}): ${await res.text()}`);
   const data = await res.json();
-  return data.data.map((d) => d.embedding);
+  const items = Array.isArray(data?.data) ? [...data.data] : [];
+  // Align by the API's own index rather than trusting array order.
+  items.sort((a, b) => a.index - b.index);
+  if (items.length !== texts.length) {
+    throw new Error(`Expected ${texts.length} embeddings, got ${items.length}`);
+  }
+  const vectors = items.map((d) => d.embedding);
+  vectors.forEach((v, i) => {
+    if (!Array.isArray(v) || v.length !== EMBED_DIM) {
+      throw new Error(`Embedding ${i} has ${v?.length ?? 0} dimensions; the corpus expects ${EMBED_DIM}`);
+    }
+  });
+  return vectors;
 }
 
 async function main() {
@@ -106,6 +129,12 @@ async function main() {
     console.error(`assistant_corpus already has ${count} rows. Re-run with --replace to wipe and re-ingest.`);
     process.exit(1);
   }
+
+  // Embed BEFORE touching existing rows: if the key is wrong or the API is down,
+  // the current corpus stays intact instead of being wiped.
+  const embeddings = await embedAll(passages.map((p) => p.passage));
+  const rows = passages.map((p, i) => ({ ...p, embedding: embeddings[i] }));
+
   if (count && replace) {
     const { error } = await sb
       .from('assistant_corpus')
@@ -115,8 +144,6 @@ async function main() {
     console.log(`Cleared ${count} existing rows.`);
   }
 
-  const embeddings = await embedAll(passages.map((p) => p.passage));
-  const rows = passages.map((p, i) => ({ ...p, embedding: embeddings[i] }));
   const { error } = await sb.from('assistant_corpus').insert(rows);
   if (error) throw new Error(error.message);
   console.log(`Ingested ${rows.length} passages into assistant_corpus. Assistant grounded answers are live.`);

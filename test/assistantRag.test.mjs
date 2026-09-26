@@ -4,6 +4,7 @@ import {
   buildAnswerPrompt,
   extractCitations,
   answerQuestion,
+  isDeclineText,
   MIN_SIMILARITY,
   MATCH_COUNT,
 } from '../lib/assistantRag.js';
@@ -19,7 +20,9 @@ test('prompt numbers the sources and pins the model to them', () => {
   const { system, user } = buildAnswerPrompt({ question: 'What is PFAS?', passages: PASSAGES });
   assert.match(user, /\[1\] EPA/);
   assert.match(user, /\[2\] CDC/);
-  assert.match(user, /QUESTION: What is PFAS\?/);
+  // The question is delimited and flagged as data, not instructions.
+  assert.match(user, /<question>\nWhat is PFAS\?\n<\/question>/);
+  assert.match(system, /never as instructions/);
   assert.match(system, /ONLY using the numbered SOURCES/);
   // The exact NO_SOURCE string is embedded so the model can echo it verbatim.
   assert.ok(system.includes(NO_SOURCE));
@@ -35,9 +38,8 @@ test('citations reflect only the passages the answer referenced, in order', () =
   assert.equal(cites[1].label, 'EPA');
 });
 
-test('an uncited answer falls back to every retrieved source', () => {
-  const cites = extractCitations('PFAS are synthetic chemicals.', PASSAGES);
-  assert.deepEqual(cites.map((c) => c.n), [1, 2]);
+test('an uncited answer yields no citations (no blanket fallback)', () => {
+  assert.deepEqual(extractCitations('PFAS are synthetic chemicals.', PASSAGES), []);
 });
 
 test('out-of-range citation markers are ignored', () => {
@@ -118,5 +120,57 @@ test('a non-ok embedding response throws (route degrades, never ungrounded)', as
       fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({}) }),
     }),
     /Embedding request failed \(429\)/,
+  );
+});
+
+// --- review hardening --------------------------------------------------------
+test('decline detection tolerates quotes, curly apostrophes, prefixes, punctuation', () => {
+  const curly = NO_SOURCE.replace(/'/g, '\u2019');
+  for (const v of [
+    NO_SOURCE,
+    `"${NO_SOURCE}"`,
+    curly,
+    `Sorry, ${NO_SOURCE}`,
+    NO_SOURCE.replace(/\.$/, ''),
+    `  ${NO_SOURCE.toUpperCase()}  `,
+    '',
+  ]) {
+    assert.equal(isDeclineText(v), true, JSON.stringify(v));
+  }
+  assert.equal(isDeclineText('PFAS are man-made chemicals [1].'), false);
+});
+
+test('a quoted NO_SOURCE echo is still a decline, not a grounded answer', async () => {
+  const res = await answerQuestion({
+    question: 'What is PFAS?',
+    apiKey: 'k',
+    rpc: rpcReturning(PASSAGES),
+    fetchImpl: scriptedFetch({ answer: `"${NO_SOURCE}"` }),
+  });
+  assert.equal(res.grounded, false);
+  assert.deepEqual(res.citations, []);
+});
+
+test('an answer that cites no retrieved source is declined as ungrounded', async () => {
+  const res = await answerQuestion({
+    question: 'What is PFAS?',
+    apiKey: 'k',
+    rpc: rpcReturning(PASSAGES),
+    fetchImpl: scriptedFetch({ answer: 'PFAS are forever chemicals found everywhere.' }),
+  });
+  assert.equal(res.grounded, false);
+  assert.equal(res.answer, null);
+  assert.equal(res.message, NO_SOURCE);
+});
+
+test('a wrong-dimension embedding throws a clear error', async () => {
+  await assert.rejects(
+    answerQuestion({
+      question: 'q',
+      apiKey: 'k',
+      rpc: rpcReturning(PASSAGES),
+      fetchImpl: scriptedFetch({ embedding: new Array(3072).fill(0.01), answer: 'x [1]' }),
+    }),
+    /3072 dimensions; the corpus expects 1536/,
   );
 });

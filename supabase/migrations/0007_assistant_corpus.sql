@@ -24,10 +24,13 @@ create table if not exists public.assistant_corpus (
 );
 
 -- Approximate-nearest-neighbour index for retrieval (cosine distance).
+-- HNSW, not IVFFlat: IVFFlat built on an empty table has meaningless list
+-- centres, and with the default probes=1 a small corpus (the starter ingest is
+-- ~14 passages) would return no rows for most questions — silently turning
+-- every answer into "no source". HNSW works at any size and needs no rebuild.
 create index if not exists assistant_corpus_embedding
   on public.assistant_corpus
-  using ivfflat (embedding extensions.vector_cosine_ops)
-  with (lists = 100);
+  using hnsw (embedding extensions.vector_cosine_ops);
 
 alter table public.assistant_corpus enable row level security;
 
