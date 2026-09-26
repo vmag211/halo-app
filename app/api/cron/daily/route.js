@@ -4,13 +4,15 @@ import { ncRadonZones } from '@/lib/radonData';
 import { aqiSeverity } from '@/lib/severity';
 import { normalizeBands, hasSensitiveGroup } from '@/lib/household';
 import { evaluateAlerts } from '@/lib/alertRules';
+import { isCronAuthorized } from '@/lib/cronAuth';
 
 /**
- * POST /api/cron/daily — the single daily scheduled process (§23).
+ * GET|POST /api/cron/daily — the single daily scheduled process (§23).
  *
- * Protected by a shared secret so it cannot be triggered by an outside request
- * (send `x-cron-secret: <CRON_SECRET>` or `?secret=`). Wire it to a scheduler
- * (Vercel Cron / pg_cron / an external ping) once deployed.
+ * Protected by a shared secret so it cannot be triggered by an outside request.
+ * Vercel Cron calls it with GET and `Authorization: Bearer <CRON_SECRET>` (see
+ * vercel.json); other schedulers may POST with `x-cron-secret` or `?secret=`.
+ * lib/cronAuth.js accepts all three and fails closed when CRON_SECRET is unset.
  *
  * Built here: per-household alert evaluation (air worsening + radon season) from
  * the stored daily readings and county radon zones, inserting only new alerts
@@ -21,9 +23,16 @@ import { evaluateAlerts } from '@/lib/alertRules';
  * map/district datasets into a cached static file (the map/district routes
  * assemble on demand for now).
  */
+export async function GET(request) {
+  return runDaily(request);
+}
+
 export async function POST(request) {
-  const secret = request.headers.get('x-cron-secret') || new URL(request.url).searchParams.get('secret');
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  return runDaily(request);
+}
+
+async function runDaily(request) {
+  if (!isCronAuthorized(request.headers, request.url)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
