@@ -113,10 +113,14 @@ export async function GET(request) {
 
     if (isProfileLocation && !fresh) {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      // Today's reading only: backfilled rows for PAST days are also created
+      // "just now" (at onboarding), so recency alone would serve yesterday's
+      // reading as today's.
       const { data: cachedRow } = await supabaseAdmin
         .from('daily_scores')
         .select('*')
         .eq('profile_id', profileId)
+        .eq('date', localDate())
         .gte('created_at', oneHourAgo)
         .order('created_at', { ascending: false })
         .limit(1)
