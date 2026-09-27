@@ -3,11 +3,13 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { learnTopic, LEARN_TOPICS } from '@/lib/learnContent';
 import { normalizeBands, presentGroups } from '@/lib/household';
 import { leadRisk } from '@/lib/leadRisk';
+import { composeWhyYours } from '@/lib/learnWhyYours';
 
 /**
- * GET /api/learn?topic=pfas&locale=en  (+ optional context that came from the
- * reading the overlay was opened over: contaminant, value, limit, county, zone,
- * home_year, source)
+ * GET /api/learn?topic=pfas&locale=en  (+ context from the reading the overlay
+ * was opened over: value, severity, and per topic — pfas: contaminant, limit;
+ * radon: county, zone; lead: home_year; air: source, pollutant; uv: peak_start,
+ * peak_end; pollen: category; mold: risk, humidity, precip)
  *
  * Learn is never generic: it explains a specific number the household is looking
  * at (§17). We return the base content plus a "why yours" line composed from the
@@ -53,9 +55,11 @@ export async function GET(request) {
     return NextResponse.json({
       topic,
       locale: base.locale ?? 'en',
-      title: base.title ?? topic,
+      // learn_content rows have no title column; take it from the code module.
+      title: base.title ?? learnTopic(topic, 'en')?.title ?? topic,
       what_it_is: base.what_it_is,
-      why_yours: composeWhyYours(topic, searchParams),
+      // Null when the reading's context wasn't passed — never generic filler.
+      why_yours: composeWhyYours(topic, (k) => searchParams.get(k), leadRisk),
       household_note: householdNote,
       protect: base.protect ?? [],
       sources: base.sources ?? [],
@@ -64,47 +68,5 @@ export async function GET(request) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-// The contextual second section — references the household's own value. Falls
-// back to a generic line when the reading context wasn't passed.
-function composeWhyYours(topic, sp) {
-  const num = (k) => {
-    const v = parseFloat(sp.get(k));
-    return Number.isFinite(v) ? v : null;
-  };
-  switch (topic) {
-    case 'pfas': {
-      const c = sp.get('contaminant');
-      const value = num('value');
-      const limit = num('limit');
-      if (c && value !== null && limit !== null) {
-        const ratio = (Math.round((value / limit) * 10) / 10).toFixed(1);
-        return `Your utility's most recent federal testing found ${c} at ${value} ppt — about ${ratio}× the federal limit of ${limit} ppt.`;
-      }
-      return 'This explains the PFAS reading your utility reported for your water.';
-    }
-    case 'radon': {
-      const county = sp.get('county');
-      const zone = sp.get('zone');
-      if (county && zone) {
-        return `${county} is a Zone ${zone} radon area. A zone predicts the county average, not your home — homes in low zones still test high.`;
-      }
-      return 'This explains what your county radon zone does and does not tell you.';
-    }
-    case 'lead': {
-      const homeYear = num('home_year');
-      const assessment = leadRisk({ homeYear: homeYear });
-      return assessment.text;
-    }
-    case 'air': {
-      const source = sp.get('source');
-      if (source === 'open-meteo') return 'Your reading is a modeled estimate — the nearest monitoring station is more than 25 miles away.';
-      if (source === 'airnow') return 'Your reading was measured at a physical monitoring station near you.';
-      return 'This explains the air quality reading for your area.';
-    }
-    default:
-      return `This explains the ${topic} reading for your area.`;
   }
 }
