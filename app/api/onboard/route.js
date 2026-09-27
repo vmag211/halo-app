@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { mapboxLimiter, onboardLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeWaterSource } from '@/lib/waterSource';
 import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear } from '@/lib/geocode';
+import { backfillHousehold } from '@/lib/backfill';
+
+// The history backfill runs after the response (see below) within this budget.
+export const maxDuration = 60;
 
 // Postgres reports an unknown column as 42703; PostgREST as PGRST204.
 function isUndefinedColumnError(error) {
@@ -173,6 +177,11 @@ export async function POST(request) {
       const { data: stored } = await supabaseAdmin.from('profiles').select('pwsid').eq('id', userId).maybeSingle();
       pwsid = stored?.pwsid ?? null;
     }
+
+    // Backfill the last few weeks of readings so Journal has history from day
+    // one (item 10). After the response, so onboarding and the results reveal
+    // never wait on it; it never overwrites a real reading and never throws.
+    after(() => backfillHousehold(supabaseAdmin, userId, { lat: profileUpdate.lat, lng: profileUpdate.lng }));
 
     // --- FINAL RESPONSE ---
     return NextResponse.json({ 

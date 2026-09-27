@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { aqiSeverity, uvSeverity, pollenSeverity, moldSeverity } from '@/lib/severity';
+import { localDate, addDays } from '@/lib/localDate';
 
 /**
  * GET /api/history?days=90 (or ?from=YYYY-MM-DD&to=YYYY-MM-DD)
@@ -14,13 +15,12 @@ export async function GET(request) {
     const { userId } = await requireUser(request);
     const { searchParams } = new URL(request.url);
 
-    const to = searchParams.get('to') || new Date().toISOString().slice(0, 10);
+    // Household-local dates (item 10) — the dates readings are stored under.
+    const to = searchParams.get('to') || localDate();
     let from = searchParams.get('from');
     if (!from) {
       const days = Math.min(365, Math.max(1, parseInt(searchParams.get('days'), 10) || 90));
-      const d = new Date(`${to}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() - (days - 1));
-      from = d.toISOString().slice(0, 10);
+      from = addDays(to, -(days - 1));
     }
 
     const { data, error } = await supabaseAdmin
