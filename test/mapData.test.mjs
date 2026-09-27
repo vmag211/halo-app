@@ -99,3 +99,11 @@ test("ratio is rounded to one decimal place", () => {
   const [f] = assembleWaterFeatures([util]);
   assert.equal(f.contaminants.PFOA.ratio, 1.5);
 });
+
+test("unscoreable system (only no-limit detections) is no_data on the map, never good", () => {
+  const [f] = assembleWaterFeatures([
+    { pwsid: "NC0000001", pws_name: "X", status: "measured", contaminants: { PFPeA: [{ date: "10/23/2024", value_ppt: 5 }] } },
+  ]);
+  assert.equal(f.coverage, "unscoreable");
+  assert.equal(f.overall_severity, "no_data");
+});
