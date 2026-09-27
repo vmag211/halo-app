@@ -78,14 +78,18 @@ const checks = [
 if (process.env.CRON_SECRET) {
   checks.push(["cron daily", "POST", `/api/cron/daily?secret=${encodeURIComponent(process.env.CRON_SECRET)}`]);
 }
+// Last on purpose: deletes this test household (auth user + every cascaded row),
+// which both checks capability 20 and cleans up after the run.
+checks.push(["account DELETE", "DELETE", "/api/account", { confirm: "DELETE" }]);
 
 let pass = 0, degraded = 0, fail = 0;
+let accountDeleted = false;
 console.log(`\nHALO smoke test → ${BASE}\n${"=".repeat(60)}`);
 for (const [name, method, path, body] of checks) {
   const r = await hit(name, method, path, body);
   const detail = r.json?.error || (r.json ? Object.keys(r.json).slice(0, 4).join(",") : r.error || "");
   let tag;
-  if (r.ok) { tag = "PASS "; pass++; }
+  if (r.ok) { tag = "PASS "; pass++; if (name === "account DELETE") accountDeleted = true; }
   else if (r.status >= 500 && /schema|relation|column|does not exist|Could not find/i.test(detail)) { tag = "DEGRD"; degraded++; }
   else { tag = "FAIL "; fail++; }
   console.log(`${tag} ${String(r.status).padStart(3)} ${String(r.ms).padStart(5)}ms  ${name.padEnd(22)} ${detail.slice(0, 60)}`);
@@ -93,6 +97,7 @@ for (const [name, method, path, body] of checks) {
 console.log("=".repeat(60));
 console.log(`pass ${pass} · degraded (needs migration) ${degraded} · fail ${fail}\n`);
 
-// Clean up seeded readings (leave the profile; it's this anon user's own).
-await admin.from("daily_scores").delete().eq("profile_id", uid);
+// The account DELETE check removes everything. If it failed, at least drop the
+// seeded readings so repeated runs don't pile up rows.
+if (!accountDeleted) await admin.from("daily_scores").delete().eq("profile_id", uid);
 process.exit(fail > 0 ? 1 : 0);
