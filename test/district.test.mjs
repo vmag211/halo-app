@@ -99,7 +99,7 @@ test("exceedanceLine renders the count sentence for a known contaminant", () => 
     { pwsid: "2", contaminants: { PFOS: [{ date: "7/1/2025", value_ppt: 1.0 }] } },
   ];
   const d = computeDistrict(utils);
-  assert.equal(exceedanceLine(d, "PFOS"), "1 of 2 systems exceed the limit for PFOS.");
+  assert.equal(exceedanceLine(d, "PFOS"), "1 of 2 systems tested for PFOS exceed the limit.");
 });
 
 test("exceedanceLine returns null for an unknown contaminant", () => {
@@ -144,4 +144,13 @@ test("population: without a geo map, affected_population stays null", () => {
   const d = computeDistrict([{ pwsid: "NC1", contaminants: { PFOS: [{ date: "2024-01-01", value_ppt: 8 }] } }]);
   assert.equal(d.affected_population, null);
   assert.equal(d.by_contaminant.PFOS.population_over, undefined);
+});
+
+test("exceedanceLine's denominator is systems TESTED for the compound, not all systems", () => {
+  const d = computeDistrict([
+    { pwsid: "1", contaminants: { PFOS: [{ date: "7/1/2025", value_ppt: 9.0 }] } },
+    { pwsid: "2", contaminants: { PFOA: [{ date: "7/1/2025", value_ppt: 1.0 }] } }, // never tested for PFOS
+    { pwsid: "3", contaminants: {} },
+  ]);
+  assert.equal(exceedanceLine(d, "PFOS"), "1 of 1 systems tested for PFOS exceed the limit.");
 });

@@ -1,84 +1,62 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { assembleWaterFeatures } from '@/lib/mapData';
-import { getWaterGeo, withGeo, POPULATION_SOURCE } from '@/lib/waterGeo';
-import { ncRadonZones } from '@/lib/radonData';
-import { radonZoneSeverity } from '@/lib/severity';
+import { LAYERS, readLayer, buildLayer, storeLayer, loadUtilities, waterPayload } from '@/lib/mapBuild';
+import { getWaterGeo } from '@/lib/waterGeo';
 
-// A cold cache falls back to a live ArcGIS lookup (~20s); the daily cron keeps
-// the shared cache warm so that is rare.
+// A cold, un-prebuilt layer falls back to a live build (ArcGIS ~20s, ECHO ~20s);
+// the daily job pre-builds every layer so that is rare.
 export const maxDuration = 60;
 
 /**
- * GET /api/map?layer=water|radon
+ * GET /api/map?layer=water|radon|facilities|air[&quarter=2024Q3]
  *
- * Per-layer feature data. Each water feature carries every regulated compound's
- * severity so the contaminant selector re-colours from data already in memory
- * (§13.10). Assembled on the fly here; the daily cron (§23) is the place to
- * pre-assemble it into a cached static dataset once that's wired.
+ * Served from the daily pre-build (map_layers, migration 0011). A missing or
+ * stale layer is built live and stored. `quarter` (water only) returns the
+ * water layer as of that sampling quarter, for the time slider; the available
+ * quarters are listed in `quarters`.
  *
- * Water features get lat/lng (service-area centroid) and population served
- * joined by PWSID from EPA's water-system boundary service (lib/waterGeo.js,
- * cached 24h). If that lookup fails, features keep null geometry and the
- * response says so, rather than failing the layer. The `air` and
- * `facilities` layers need external sources and are not built here.
+ * Water features: overall + per-compound severity, rescission flags, ISO
+ * dates, the PFAS hazard index, service-area centroid and population served.
+ * `counts` describes exactly the features returned (statewide).
+ * Facilities: EPA ECHO active majors + repeat violators inside NC-08.
+ * Air: AirNow monitoring sites around NC-08, latest hour.
  */
+const QUARTER_RE = /^\d{4}Q[1-4]$/;
+
 export async function GET(request) {
   try {
     await requireUser(request);
     const { searchParams } = new URL(request.url);
     const layer = searchParams.get('layer') || 'water';
+    const quarter = searchParams.get('quarter');
 
-    if (layer === 'water') {
-      const { data, error } = await supabaseAdmin
-        .from('ucmr5_utilities')
-        .select('pwsid, pws_name, status, contaminants')
-        .limit(2000);
-      if (error) throw new Error(error.message);
-      let features = assembleWaterFeatures(data || []);
-      let geo = { requested: features.length, found: 0, failedBatches: 0, error: null };
-      try {
-        const g = await getWaterGeo(features.map((f) => f.pwsid));
-        features = withGeo(features, g.geo);
-        geo = { requested: g.requested, found: g.found, failedBatches: g.failedBatches, source: g.source, error: null };
-      } catch (geoErr) {
-        console.error('Water geography lookup failed:', geoErr.message);
-        geo.error = 'Geography lookup unavailable; features have no coordinates this time.';
-      }
-      const located = features.filter((f) => f.lat !== null && f.lng !== null).length;
-      return NextResponse.json({
-        layer: 'water',
-        count: features.length,
-        located,
-        features,
-        geo,
-        population_source: POPULATION_SOURCE,
-        assembled_at: new Date().toISOString(),
-        note:
-          located === features.length
-            ? 'Every system has a service-area centroid and, where reported, population served.'
-            : `${features.length - located} of ${features.length} systems have no mapped service area; they carry severity but no coordinates.`,
-      });
+    if (!LAYERS.includes(layer) || layer === 'district') {
+      return NextResponse.json({ error: 'layer must be one of: water, radon, facilities, air.' }, { status: 400 });
     }
 
-    if (layer === 'radon') {
-      const features = Object.entries(ncRadonZones).map(([county, zone]) => ({
-        county,
-        zone,
-        severity: radonZoneSeverity(zone),
-      }));
-      return NextResponse.json({
-        layer: 'radon',
-        count: features.length,
-        features,
-        assembled_at: new Date().toISOString(),
-      });
+    if (quarter) {
+      if (layer !== 'water') return NextResponse.json({ error: 'quarter applies to the water layer only.' }, { status: 400 });
+      if (!QUARTER_RE.test(quarter)) return NextResponse.json({ error: 'quarter looks like 2024Q3.' }, { status: 400 });
+      const utilities = await loadUtilities(supabaseAdmin);
+      const g = await getWaterGeo(utilities.map((u) => u.pwsid));
+      return NextResponse.json(waterPayload(utilities, g.geo, { quarter }));
     }
 
-    return NextResponse.json(
-      { error: `Layer '${layer}' not available. Built layers: water, radon. (air, facilities need external sources.)` },
-      { status: 400 }
-    );
+    const stored = await readLayer(supabaseAdmin, layer);
+    if (stored) return NextResponse.json({ ...stored, prebuilt: true });
+
+    let payload;
+    try {
+      payload = await buildLayer(supabaseAdmin, layer);
+    } catch (err) {
+      console.error(`Map layer ${layer} build failed:`, err.message);
+      return NextResponse.json(
+        { error: `The ${layer} layer's source is unavailable right now. Try again shortly.`, layer },
+        { status: 503 },
+      );
+    }
+    storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error('Storing map layer failed:', e.message));
+    return NextResponse.json({ ...payload, prebuilt: false });
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;

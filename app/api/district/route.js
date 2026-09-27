@@ -1,49 +1,40 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { computeDistrict, exceedanceLine, REGULATED } from '@/lib/district';
-import { getWaterGeo, POPULATION_SOURCE } from '@/lib/waterGeo';
+import { readLayer, buildLayer, storeLayer } from '@/lib/mapBuild';
+import { householdCounty } from '@/lib/districtView';
 
-// A cold cache falls back to a live ArcGIS lookup (~20s); the daily cron keeps
-// the shared cache warm so that is rare.
+// Falls back to a live build (~20s ArcGIS geography) when not pre-built.
 export const maxDuration = 60;
 
 /**
- * GET /api/district — the whole district's contamination picture, from public
- * UCMR5 data only, no household data (§20). Powers the district panel and the
- * map's "38 of 412 systems exceed the limit for PFOS" line (§13.4).
+ * GET /api/district — NC-08's water picture from public data only (§20).
  *
- * Population served is joined by PWSID from EPA's water-system boundary service
- * (lib/waterGeo.js). If that lookup fails, affected_population falls back to
- * null with a note, rather than failing the route. There is no per-county
- * breakdown (the boundary data carries no county field).
+ * Scoped to NC-08: each system is placed by its service-area centroid against
+ * the Census Bureau's district and county boundaries. Returns the district
+ * totals (systems over each limit, affected population), exceedance lines using
+ * systems TESTED as the denominator, per-county rows for the nine NC-08
+ * counties, a district-vs-state comparison, and household_county — the
+ * caller's county ranked among North Carolina's counties (filled per request
+ * from their profile; the rest is the daily pre-build, map_layers 'district').
  */
 export async function GET(request) {
   try {
-    await requireUser(request);
+    const { userId } = await requireUser(request);
 
-    const { data, error } = await supabaseAdmin
-      .from('ucmr5_utilities')
-      .select('pwsid, contaminants')
-      .limit(2000);
-    if (error) throw new Error(error.message);
-
-    let geo = null;
-    try {
-      const g = await getWaterGeo((data || []).map((u) => u.pwsid));
-      if (g.found > 0) geo = g.geo;
-    } catch (geoErr) {
-      console.error('Water geography lookup failed:', geoErr.message);
+    let view = await readLayer(supabaseAdmin, 'district');
+    let prebuilt = true;
+    if (!view) {
+      prebuilt = false;
+      view = await buildLayer(supabaseAdmin, 'district');
+      storeLayer(supabaseAdmin, 'district', view).catch((e) => console.error('Storing district failed:', e.message));
     }
-    const district = computeDistrict(data || [], geo);
-    const lines = {};
-    for (const c of REGULATED) lines[c] = exceedanceLine(district, c);
 
-    return NextResponse.json({
-      ...district,
-      exceedance_lines: lines,
-      population_source: geo ? POPULATION_SOURCE : null,
-      assembled_at: new Date().toISOString(),
-    });
+    const { data: profile } = await supabaseAdmin.from('profiles').select('county').eq('id', userId).maybeSingle();
+    // The full statewide ranking stays server-side; the response carries the
+    // household's own county.
+    const { county_rankings, ...rest } = view;
+
+    return NextResponse.json({ ...rest, household_county: householdCounty(view, profile?.county ?? null), prebuilt });
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;

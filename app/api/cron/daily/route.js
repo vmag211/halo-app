@@ -12,6 +12,7 @@ import { parseNwsAdvisories, readingsFingerprint, normalizePrefs, justEndedSeaso
 import { seasonSummary, seasonRange } from '@/lib/journalRetro';
 import { fetchHistory } from '@/lib/journalHistory';
 import { pushConfigured, sendAlertPushes } from '@/lib/push';
+import { buildAndStoreAll } from '@/lib/mapBuild';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -23,7 +24,9 @@ export const maxDuration = 60;
  * `Authorization: Bearer <CRON_SECRET>` (vercel.json, 11:00 UTC).
  *
  * Each run:
- *  1. Refreshes the shared water-geography cache (map coordinates, population).
+ *  1. Refreshes the shared water-geography cache (map coordinates, population)
+ *     and pre-builds every map layer and the NC-08 district view (map_layers),
+ *     so /api/map and /api/district never wait on a government service.
  *  2. Detects UCMR reloads that changed a utility's readings (water_snapshots).
  *     The first run only records a baseline, so it never fires a flood of alerts.
  *  3. Records today's reading for every onboarded household (item 10), so
@@ -60,14 +63,8 @@ async function mapLimit(items, n, fn) {
   return out;
 }
 
-async function refreshWaterGeo(pwsids) {
-  try {
-    const g = await getWaterGeo(pwsids, { force: true });
-    return { requested: g.requested, found: g.found, failed_batches: g.failedBatches };
-  } catch (err) {
-    console.error('Water geography refresh failed:', err.message);
-    return { error: err.message };
-  }
+function summarizeGeo(g) {
+  return { requested: g.requested, found: g.found, failed_batches: g.failedBatches };
 }
 
 /** Utilities whose readings changed since the last run. */
@@ -109,8 +106,13 @@ async function runDaily(request) {
     if (pErr) throw new Error(pErr.message);
     if (uErr) throw new Error(uErr.message);
 
-    // 1. Geography refresh runs alongside everything else.
-    const geoPromise = refreshWaterGeo((utilities || []).map((u) => u.pwsid));
+    // 1. Geography refresh + map pre-build run alongside everything else.
+    const geoRefresh = getWaterGeo((utilities || []).map((u) => u.pwsid), { force: true });
+    const geoSummary = geoRefresh.then(summarizeGeo, (err) => {
+      console.error('Water geography refresh failed:', err.message);
+      return { error: err.message };
+    });
+    const mapBuild = buildAndStoreAll(supabaseAdmin, geoRefresh.then((g) => g.geo)).catch((err) => ({ error: err.message }));
 
     // 2. Water result changes.
     const water = await detectWaterChanges(utilities || []);
@@ -244,7 +246,8 @@ async function runDaily(request) {
       water_results: { changed: water.changed.size, baseline_run: water.baseline ?? null, note: water.note ?? null },
       alerts_created: inserted.length,
       push,
-      water_geo: await geoPromise,
+      water_geo: await geoSummary,
+      map_layers: await mapBuild,
       ran_at: now.toISOString(),
     });
   } catch (err) {
