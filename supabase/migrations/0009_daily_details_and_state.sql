@@ -24,3 +24,16 @@ begin
       add constraint profiles_state_check check (state is null or state ~ '^[A-Z]{2}$');
   end if;
 end $$;
+
+-- Privacy clean-up (item 7d). The privacy statement promises approximate
+-- coordinates and doesn't list ZIP code. Onboarding now rounds to 3 decimals
+-- (~100 m) and stores no ZIP; bring rows written by earlier versions into line.
+-- Idempotent: re-rounding a rounded value is a no-op.
+update public.profiles
+   set lat = round(lat::numeric, 3)::double precision,
+       lng = round(lng::numeric, 3)::double precision
+ where lat is not null
+   and (lat <> round(lat::numeric, 3)::double precision
+        or lng <> round(lng::numeric, 3)::double precision);
+
+update public.profiles set zip = null where zip is not null;

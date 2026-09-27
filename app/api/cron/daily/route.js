@@ -6,6 +6,7 @@ import { normalizeBands, hasSensitiveGroup } from '@/lib/household';
 import { evaluateAlerts } from '@/lib/alertRules';
 import { isCronAuthorized } from '@/lib/cronAuth';
 import { getWaterGeo } from '@/lib/waterGeo';
+import { radonAppliesTo } from '@/lib/geocode';
 
 // The water-geography refresh below can take ~20s (ArcGIS is slow for ~290
 // systems), on top of the per-household alert pass.
@@ -50,7 +51,7 @@ async function runDaily(request) {
     // Households = profiles with a resolved location.
     const { data: profiles, error: pErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, county')
+      .select('*') // includes state once migration 0009 is applied
       .not('lat', 'is', null)
       .limit(5000);
     if (pErr) throw new Error(pErr.message);
@@ -99,7 +100,8 @@ async function runDaily(request) {
         .maybeSingle();
       if (bandRow) bands = normalizeBands(bandRow);
 
-      const zone = ncRadonZones[p.county];
+      // NC zones only for NC (or legacy, state-less) households.
+      const zone = radonAppliesTo(p.state ?? null) ? ncRadonZones[p.county] : undefined;
 
       const fired = evaluateAlerts({
         airToday,

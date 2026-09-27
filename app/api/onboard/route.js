@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server';
 import { mapboxLimiter, onboardLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeWaterSource } from '@/lib/waterSource';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear } from '@/lib/geocode';
+
+// Postgres reports an unknown column as 42703; PostgREST as PGRST204.
+function isUndefinedColumnError(error) {
+  if (!error) return false;
+  return (
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    /column .* does not exist/i.test(error.message || '') ||
+    /could not find the .* column/i.test(error.message || '')
+  );
+}
 
 export async function POST(request) {
   try {
@@ -24,7 +36,11 @@ export async function POST(request) {
     // or hand back a private-well testing plan, and home_year drives the
     // lead-plumbing risk check.
     const waterSource = normalizeWaterSource(body.water_source);
-    const homeYear = body.home_year ?? null;
+    const year = validateHomeYear(body.home_year);
+    if (!year.ok) {
+      return NextResponse.json({ error: year.error }, { status: 400 });
+    }
+    const homeYear = year.value;
 
     if (!address) {
       return NextResponse.json({ error: 'Address is required' }, { status: 400 });
@@ -77,23 +93,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not find coordinates for this address' }, { status: 404 });
     }
 
-    const bestResult = mapboxData.features[0];
-    const lng = bestResult.center[0];
-    const lat = bestResult.center[1];
-
-    let zip = null;
-    let county = null;
-
-    if (bestResult.context) {
-      bestResult.context.forEach(item => {
-        if (item.id.startsWith('postcode')) zip = item.text;
-        if (item.id.startsWith('district') || item.text.toLowerCase().includes('county')) county = item.text;
-      });
-    }
+    // lat/lng here are Mapbox's precise point — used for the utility lookup
+    // below, then rounded before anything is stored. zip is returned for
+    // compatibility but no longer stored (nothing uses it, and the privacy
+    // statement doesn't list it).
+    const { lat, lng, county, state, zip } = parseMapboxFeature(mapboxData.features[0]);
 
     // --- ARCGIS FEATURESERVER API (Spatial Query) ---
-    let pwsid = null;
-    let serviceAreaStatus = 'outside_known_area'; 
+    let arcgisOutcome = null;
 
     try {
       // We use URLSearchParams to neatly build the query string without messing up the formatting
@@ -110,27 +117,35 @@ export async function POST(request) {
       const arcgisUrl = `https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/Water_System_Boundaries/FeatureServer/0/query?${params.toString()}`;
       
       const arcgisResponse = await fetch(arcgisUrl);
-      
-      if (arcgisResponse.ok) {
-        const arcgisData = await arcgisResponse.json();
-        
-        // Check if the map actually found a boundary polygon for this point
-        if (arcgisData.features && arcgisData.features.length > 0) {
-          // ArcGIS tucks our requested data inside the "attributes" object
-          pwsid = arcgisData.features[0].attributes.PWSID;
-          serviceAreaStatus = 'measured';
-        }
-      }
+      arcgisOutcome = {
+        ok: arcgisResponse.ok,
+        json: arcgisResponse.ok ? await arcgisResponse.json() : null,
+      };
     } catch (arcgisError) {
       console.error("Failed to fetch ArcGIS water data:", arcgisError.message);
-      // It safely falls back to 'outside_known_area' and null pwsid if this crashes
     }
+
+    // "No polygon here" (a finding — often a private well) and "the lookup
+    // failed" (our problem) are different: a failure keeps the utility already
+    // on file rather than overwriting it with null.
+    const serviceArea = serviceAreaFromArcgis(arcgisOutcome);
+    const serviceAreaStatus = serviceArea.status;
 
     // --- UPDATE SUPABASE ---
     // Only write the optional columns if the frontend actually sent them.
     // Otherwise a re-run of onboarding with a bare body would wipe out
     // answers the user already gave us.
-    const profileUpdate = { id: userId, lat: lat, lng: lng, zip: zip, county: county, pwsid: pwsid };
+    const profileUpdate = {
+      id: userId,
+      // Approximate coordinates (~100 m), as the privacy statement promises.
+      lat: roundCoord(lat),
+      lng: roundCoord(lng),
+      county: county,
+      // Clears any zip stored by earlier versions.
+      zip: null,
+    };
+    if (serviceAreaStatus !== 'lookup_failed') profileUpdate.pwsid = serviceArea.pwsid;
+    if (state) profileUpdate.state = state;
     if (waterSource !== null) profileUpdate.water_source = waterSource;
     if (homeYear !== null) profileUpdate.home_year = homeYear;
 
@@ -140,19 +155,33 @@ export async function POST(request) {
     // persisted nothing at all -- silent data loss that looks exactly like a
     // working onboard. The auth.users trigger normally creates the row first;
     // this covers users who predate it and the case where it ever fails.
-    const { error: updateError } = await supabaseAdmin
+    let { error: updateError } = await supabaseAdmin
       .from('profiles')
       .upsert(profileUpdate, { onConflict: 'id' });
 
+    // profiles.state arrives with migration 0009; until then store the rest.
+    if (updateError && isUndefinedColumnError(updateError) && 'state' in profileUpdate) {
+      const { state: _state, ...withoutState } = profileUpdate;
+      ({ error: updateError } = await supabaseAdmin.from('profiles').upsert(withoutState, { onConflict: 'id' }));
+    }
+
     if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
+
+    // On a failed lookup, report the utility already on file (if any).
+    let pwsid = serviceArea.pwsid;
+    if (serviceAreaStatus === 'lookup_failed') {
+      const { data: stored } = await supabaseAdmin.from('profiles').select('pwsid').eq('id', userId).maybeSingle();
+      pwsid = stored?.pwsid ?? null;
+    }
 
     // --- FINAL RESPONSE ---
     return NextResponse.json({ 
       profile_id: userId,
-      lat, 
-      lng, 
-      zip, 
-      county, 
+      lat: profileUpdate.lat,
+      lng: profileUpdate.lng,
+      zip,
+      county,
+      state,
       pwsid,
       service_area_status: serviceAreaStatus,
       water_source: waterSource,

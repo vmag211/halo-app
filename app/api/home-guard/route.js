@@ -10,6 +10,7 @@ import { actionPlan } from '@/lib/actionPlan';
 import { waterRiskSeverity, radonZoneSeverity, waterDetailSeverity, compositeSeverity } from '@/lib/severity';
 import { normalizeBands } from '@/lib/household';
 import { explain } from '@/lib/explain';
+import { radonAppliesTo } from '@/lib/geocode';
 
 // 1. Connect to Supabase using your safe, public keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -225,10 +226,23 @@ export async function GET(request) {
     //    endpoint being used as an open proxy onto the EPA dataset.
     const { userId } = await requireUser(request);
 
+    // The household's stored answers are the defaults; query parameters still
+    // override them (kept for compatibility and for looking at another place).
+    const { data: profileRow, error: profileErr } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    if (profileErr) throw new Error(`Could not read profile: ${profileErr.message}`);
+
     // 2. Extract parameters from the URL
     const { searchParams } = new URL(request.url);
-    const county = searchParams.get('county');
-    const pwsid = searchParams.get('pwsid');
+    const county = searchParams.get('county') ?? profileRow?.county ?? null;
+    const pwsid = searchParams.has('pwsid') ? searchParams.get('pwsid') : profileRow?.pwsid ?? null;
+    // Radon zones here are North Carolina's. The state comes from the geocoder
+    // (migration 0009); a profile from before that has none and keeps the NC
+    // lookup. A `state` parameter overrides, like the others.
+    const state = (searchParams.get('state') ?? profileRow?.state ?? null)?.toUpperCase?.() ?? null;
     // Optional. 'well' or 'spring' switches us off the utility lookup entirely,
     // because there is no utility to look up. Anything else (or missing) keeps
     // the original public-water behavior.
@@ -237,16 +251,20 @@ export async function GET(request) {
     // through to the utility lookup and shows the household a PFAS measurement
     // for a system they are not connected to -- the exact "no data presented as
     // a measurement" failure the honesty convention exists to prevent.
-    const waterSource = normalizeWaterSource(searchParams.get('water_source'));
+    const waterSource = normalizeWaterSource(
+      searchParams.has('water_source') ? searchParams.get('water_source') : profileRow?.water_source,
+    );
     // Optional. Year the home was built. Only used to decide whether lead is
     // a likely risk. parseInt returns NaN for junk input, so we normalize to null.
-    const rawHomeYear = parseInt(searchParams.get('home_year'), 10);
-    const homeYear = Number.isNaN(rawHomeYear) ? null : rawHomeYear;
+    const rawHomeYear = searchParams.has('home_year')
+      ? parseInt(searchParams.get('home_year'), 10)
+      : profileRow?.home_year ?? profileRow?.build_year ?? NaN;
+    const homeYear = Number.isInteger(rawHomeYear) ? rawHomeYear : null;
 
     // 3. Safety check: ONLY require the county.
     if (!county) {
       return NextResponse.json(
-        { error: 'The county query parameter is required.' },
+        { error: 'No county on file. Finish onboarding, or pass the county parameter.' },
         { status: 400 }
       );
     }
@@ -255,9 +273,18 @@ export async function GET(request) {
     // MODULE 1: RADON RISK LOOKUP (Local Data)
     // ==========================================
     let radonData = {};
-    const zoneNumber = ncRadonZones[county];
+    const outOfState = !radonAppliesTo(state);
+    const zoneNumber = outOfState ? undefined : ncRadonZones[county];
 
-    if (!zoneNumber) {
+    if (outOfState) {
+      // Never hand an out-of-state household a North Carolina zone just because
+      // its county name matches one (Union County, SC → NC's Union County).
+      radonData = {
+        error: 'Radon zone data here covers North Carolina addresses only.',
+        out_of_state: true,
+        state,
+      };
+    } else if (!zoneNumber) {
       radonData = { error: `County '${county}' not found in North Carolina radon dataset.` };
     } else {
       let riskLevel = 'Low';
@@ -516,11 +543,6 @@ export async function GET(request) {
     let bands = normalizeBands(null);
     let renter = false;
     {
-      const { data: profileRow } = await supabaseAdmin
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
       if (profileRow) renter = profileRow.renter_mode === true;
 
       const { data: bandRow } = await supabaseAdmin
