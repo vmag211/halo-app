@@ -11,6 +11,16 @@ import { waterRiskSeverity, radonZoneSeverity, waterDetailSeverity, compositeSev
 import { normalizeBands } from '@/lib/household';
 import { explain } from '@/lib/explain';
 import { radonAppliesTo } from '@/lib/geocode';
+import {
+  toIsoDate,
+  contaminantsWithIso,
+  scoredWithFlags,
+  excludedWithIso,
+  latestUnregulated,
+  waterConfidence,
+} from '@/lib/waterPresentation';
+import { lookupWaterGeoOne } from '@/lib/waterGeo';
+import { utilityLeadInventory } from '@/lib/leadInventory';
 
 // 1. Connect to Supabase using your safe, public keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,20 +47,7 @@ function riskStatus(risk) {
   return 'action_needed';
 }
 
-// How much of what was found could actually be evaluated. Kept separate from
-// `status` (severity) on purpose: a box can be low-severity AND low-confidence
-// at the same time, and collapsing the two is what made a utility with
-// unscoreable detections look identical to a clean one.
-function coverageConfidence(coverage) {
-  if (coverage === 'complete' || coverage === 'no_detections') return 'full';
-  if (coverage === 'partial' || coverage === 'excluded_only') return 'limited';
-  return 'none'; // 'unscoreable', 'no_data', or absent
-}
-
-// UCMR5 sampling ran 2023-2025, so most systems sit in the 1-3 year band and
-// tighter thresholds would mark nearly everything stale.
-const WATER_STALE_DAYS = 1095; // 3 years
-const WATER_AGING_DAYS = 730; // 2 years
+// Confidence (coverage + staleness) lives in lib/waterPresentation.js.
 
 function daysSince(dateString) {
   if (!dateString) return null;
@@ -66,21 +63,6 @@ function daysSince(dateString) {
 function ugPerL(ppt) {
   if (ppt === null || ppt === undefined) return null;
   return ppt / 1000;
-}
-
-// Confidence answers "how much should this number be trusted", which age
-// affects just as much as coverage does. A complete evaluation of a
-// three-year-old sample is still a three-year-old sample. Deliberately kept out
-// of the arithmetic: the data WAS evaluated, it is only old, so it belongs here
-// rather than in a third mechanism quietly moving the score.
-function waterConfidence(coverage, ageDays) {
-  const base = coverageConfidence(coverage);
-  if (base === 'none') return 'none'; // nothing evaluated; age is moot
-  if (ageDays !== null && ageDays > WATER_STALE_DAYS) return 'stale';
-  if (ageDays !== null && ageDays > WATER_AGING_DAYS && base === 'full') {
-    return 'limited';
-  }
-  return base;
 }
 
 // One entry per factor the page renders as its own box. `contributes_to_score`
@@ -126,7 +108,7 @@ function buildBreakdown({
       ? daysSince(waterRiskDetail.latest_sample_date)
       : null,
     reading_count: waterRiskDetail ? waterRiskDetail.reading_count : 0,
-    detail: waterRiskDetail ? waterRiskDetail.scored : [],
+    detail: waterRiskDetail ? scoredWithFlags(waterRiskDetail.scored) : [],
     note: waterData.message || null,
   });
 
@@ -209,6 +191,7 @@ function buildBreakdown({
           value_ppt: entry.value_ppt,
           value_ug_l: ugPerL(entry.value_ppt),
           date: entry.date,
+          date_iso: toIsoDate(entry.date),
         },
       ],
       note: entry.reason,
@@ -401,25 +384,43 @@ export async function GET(request) {
           }. The score below reflects only what could be evaluated.`;
         }
 
+        // Population served, from the boundary service already joined for the
+        // map (the advocacy letter needs it, §15.5). Best effort: null if the
+        // lookup is unavailable.
+        let populationServed = null;
+        try {
+          populationServed = (await lookupWaterGeoOne(pwsid))?.population ?? null;
+        } catch (geoErr) {
+          console.error('Population lookup failed:', geoErr.message);
+        }
+
         waterData = {
           pws_name: data.pws_name,
           status: unregulatedOnly ? 'detected_unregulated' : data.status,
-          contaminants: data.contaminants,
+          // Every reading gains date_iso alongside its original M/D/YYYY date.
+          contaminants: contaminantsWithIso(data.contaminants),
+          population_served: populationServed,
           is_measured: true,
           // Preserved so nothing is lost when we override `status` above.
           source_status: data.status,
           coverage: waterRiskDetail.coverage,
           latest_sample_date: waterRiskDetail.latest_sample_date,
           earliest_sample_date: waterRiskDetail.earliest_sample_date,
+          latest_sample_iso: toIsoDate(waterRiskDetail.latest_sample_date),
+          earliest_sample_iso: toIsoDate(waterRiskDetail.earliest_sample_date),
           data_age_days: daysSince(waterRiskDetail.latest_sample_date),
           reading_count: waterRiskDetail.reading_count,
           scored_count: waterRiskDetail.scored_count,
           detected_count: waterRiskDetail.detected_count,
           detected_unregulated: unnamed,
+          // The latest reading of each unregulated detection, chosen here so the
+          // interface never has to pick one.
+          detected_unregulated_latest: latestUnregulated(data.contaminants, unnamed),
           // Measured and shown, but deliberately not scored. Distinct from
           // detected_unregulated, which means no limit exists at all.
-          excluded_from_score: waterRiskDetail.excluded_from_score,
-          scored_contaminants: waterRiskDetail.scored,
+          excluded_from_score: excludedWithIso(waterRiskDetail.excluded_from_score),
+          // exceeds_limit is the only basis for saying "above the limit".
+          scored_contaminants: scoredWithFlags(waterRiskDetail.scored),
           // True when any part of the score rests on non-binding guidance.
           includes_guidance: guidanceScored.length > 0,
           guidance_scored: guidanceScored.map((entry) => ({
@@ -561,6 +562,9 @@ export async function GET(request) {
       leadData = {
         ...assessment,
         sentence: explain('lead', assessment.level, bands) || assessment.text,
+        // The utility's published service-line counts (NC DEQ). Context only:
+        // not address-level, so it never changes the level above.
+        utility_inventory: utilityLeadInventory(pwsid),
       };
     }
 
@@ -574,6 +578,7 @@ export async function GET(request) {
         contaminant: top.contaminant,
         value_ppt: top.value_ppt,
         limit_ppt: top.limit_ppt,
+        is_enforceable: top.is_enforceable !== false,
         severity: waterRiskSeverity(top.risk),
       };
     }

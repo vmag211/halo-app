@@ -219,3 +219,14 @@ test("lead item certification is NSF/ANSI 53 and cost is a lead test cost", () =
   assert.equal(lead.certification, "NSF/ANSI 53");
   assert.ok(/test/i.test(lead.cost));
 });
+
+test("water reason rounds the value to one decimal", () => {
+  const plan = actionPlan({ water: { contaminant: "PFOS", value_ppt: 8.2345, limit_ppt: 4, severity: "severe" }, bands: {} });
+  assert.match(plan[0].reason, /measured at 8\.2 ppt/);
+});
+
+test("a non-enforceable benchmark is called a health benchmark, never a federal limit", () => {
+  const plan = actionPlan({ water: { contaminant: "PFBS", value_ppt: 3000, limit_ppt: 2000, severity: "high", is_enforceable: false }, bands: {} });
+  assert.match(plan[0].reason, /health benchmark of 2000 ppt/);
+  assert.doesNotMatch(plan[0].reason, /federal limit/);
+});

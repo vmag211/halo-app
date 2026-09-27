@@ -8,6 +8,7 @@ import {
   withGeo,
   getWaterGeo,
   _resetWaterGeoCache,
+  lookupWaterGeoOne,
 } from '../lib/waterGeo.js';
 
 const feature = (pwsid, x, y, pop) => ({
@@ -165,4 +166,27 @@ test('a broken shared store falls through to ArcGIS instead of failing', async (
   const r = await getWaterGeo(['NC0113010'], { fetchImpl: oneFeature, store });
   assert.equal(r.source, 'arcgis');
   assert.equal(r.found, 1);
+});
+
+test('single-system lookup reads the shared cache without replacing it', async () => {
+  _resetWaterGeoCache();
+  const store = fakeStore();
+  await getWaterGeo(['NC0113010', 'NC0000001'], {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ features: [feature('NC0113010', -80.6, 35.38, 116088), feature('NC0000001', -79, 36, 5)] }) }),
+    store,
+  });
+  _resetWaterGeoCache();
+  const setsBefore = store.sets;
+  let calls = 0;
+  const one = await lookupWaterGeoOne('NC0113010', { store, fetchImpl: async () => { calls += 1; return oneFeature(); } });
+  assert.equal(one.population, 116088);
+  assert.equal(calls, 0, 'served from the shared cache');
+  assert.equal(store.sets, setsBefore, 'the statewide entry is untouched');
+});
+
+test('single-system lookup falls back to a direct query, and rejects bad ids', async () => {
+  _resetWaterGeoCache();
+  const one = await lookupWaterGeoOne('NC0113010', { store: null, fetchImpl: oneFeature });
+  assert.equal(one.population, 7);
+  assert.equal(await lookupWaterGeoOne("X' OR 1=1", { store: null, fetchImpl: oneFeature }), null);
 });
