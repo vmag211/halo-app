@@ -55,13 +55,14 @@ export async function GET(request) {
     let supabase;
     try {
       const { error } = await supabaseAdmin.from('ucmr5_utilities').select('pwsid', { count: 'exact', head: true });
-      supabase = { name: 'supabase', reachable: !error, ms: Date.now() - sbStarted, ...(error && { error: error.message }) };
+      supabase = { name: 'supabase', reachable: !error, ok: !error, ms: Date.now() - sbStarted, ...(error && { error: error.message }) };
     } catch (err) {
-      supabase = { name: 'supabase', reachable: false, ms: Date.now() - sbStarted, error: err.message };
+      supabase = { name: 'supabase', reachable: false, ok: false, ms: Date.now() - sbStarted, error: err.message };
     }
     results.push(supabase);
 
-    const allOk = results.every((r) => r.reachable);
+    // Reachable isn't enough: a bad API key answers 401 and is still reachable.
+    const allOk = results.every((r) => r.reachable && r.ok === true);
     return NextResponse.json({ all_ok: allOk, checked_at: new Date().toISOString(), checks: results });
   } catch (err) {
     const authResponse = authErrorResponse(err);
