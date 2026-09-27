@@ -5,6 +5,11 @@ import { aqiSeverity } from '@/lib/severity';
 import { normalizeBands, hasSensitiveGroup } from '@/lib/household';
 import { evaluateAlerts } from '@/lib/alertRules';
 import { isCronAuthorized } from '@/lib/cronAuth';
+import { getWaterGeo } from '@/lib/waterGeo';
+
+// The water-geography refresh below can take ~20s (ArcGIS is slow for ~290
+// systems), on top of the per-household alert pass.
+export const maxDuration = 60;
 
 /**
  * GET|POST /api/cron/daily — the single daily scheduled process (§23).
@@ -49,6 +54,19 @@ async function runDaily(request) {
       .not('lat', 'is', null)
       .limit(5000);
     if (pErr) throw new Error(pErr.message);
+
+    // Refresh the shared water-geography cache (coordinates + population served)
+    // so /api/map and /api/district never have to wait on ArcGIS. Failure here
+    // is logged and reported, never allowed to block the alert pass.
+    let waterGeo = null;
+    try {
+      const { data: systems } = await supabaseAdmin.from('ucmr5_utilities').select('pwsid').limit(2000);
+      const g = await getWaterGeo((systems || []).map((s) => s.pwsid), { force: true });
+      waterGeo = { requested: g.requested, found: g.found, failed_batches: g.failedBatches };
+    } catch (geoErr) {
+      console.error('Water geography refresh failed:', geoErr.message);
+      waterGeo = { error: geoErr.message };
+    }
 
     let created = 0;
     const toInsert = [];
@@ -116,7 +134,13 @@ async function runDaily(request) {
       created = toInsert.length;
     }
 
-    return NextResponse.json({ ok: true, households: (profiles || []).length, alerts_created: created, ran_at: now.toISOString() });
+    return NextResponse.json({
+      ok: true,
+      households: (profiles || []).length,
+      alerts_created: created,
+      water_geo: waterGeo,
+      ran_at: now.toISOString(),
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

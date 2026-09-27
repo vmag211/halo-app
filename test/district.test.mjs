@@ -107,3 +107,41 @@ test("exceedanceLine returns null for an unknown contaminant", () => {
   assert.equal(exceedanceLine(d, "LEAD"), null);
   assert.equal(exceedanceLine(d, "PFBS"), null);
 });
+
+// --- population join (lib/waterGeo.js supplies the Map) ----------------------
+test("population: sums people served by over-limit systems, per compound and overall", () => {
+  const utilities = [
+    { pwsid: "NC1", contaminants: { PFOS: [{ date: "2024-01-01", value_ppt: 8 }] } }, // over PFOS
+    { pwsid: "NC2", contaminants: { PFOA: [{ date: "2024-01-01", value_ppt: 9 }], PFOS: [{ date: "2024-01-01", value_ppt: 9 }] } }, // over both
+    { pwsid: "NC3", contaminants: { PFOS: [{ date: "2024-01-01", value_ppt: 1 }] } }, // under
+  ];
+  const geo = new Map([
+    ["NC1", { population: 1000 }],
+    ["NC2", { population: 500 }],
+    ["NC3", { population: 99999 }],
+  ]);
+  const d = computeDistrict(utilities, geo);
+  assert.equal(d.affected_population, 1500); // NC2 counted once, not per compound
+  assert.equal(d.affected_population_complete, true);
+  assert.equal(d.by_contaminant.PFOS.population_over, 1500);
+  assert.equal(d.by_contaminant.PFOA.population_over, 500);
+});
+
+test("population: unknown population is counted, not guessed, and marks the total a minimum", () => {
+  const utilities = [
+    { pwsid: "NC1", contaminants: { PFOS: [{ date: "2024-01-01", value_ppt: 8 }] } },
+    { pwsid: "NC7", contaminants: { PFOS: [{ date: "2024-01-01", value_ppt: 8 }] } },
+  ];
+  const d = computeDistrict(utilities, new Map([["NC1", { population: 1000 }]]));
+  assert.equal(d.affected_population, 1000);
+  assert.equal(d.affected_population_complete, false);
+  assert.equal(d.over_limit_population_unknown, 1);
+  assert.equal(d.by_contaminant.PFOS.over_population_unknown, 1);
+  assert.match(d.note, /minimum/);
+});
+
+test("population: without a geo map, affected_population stays null", () => {
+  const d = computeDistrict([{ pwsid: "NC1", contaminants: { PFOS: [{ date: "2024-01-01", value_ppt: 8 }] } }]);
+  assert.equal(d.affected_population, null);
+  assert.equal(d.by_contaminant.PFOS.population_over, undefined);
+});

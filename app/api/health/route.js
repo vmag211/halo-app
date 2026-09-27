@@ -38,6 +38,14 @@ export async function GET(request) {
       ping('nws', `https://api.weather.gov/points/${lat},${lng}`, { headers: { 'User-Agent': 'HALO/1.0' } }),
       ping('mapbox-geocoding', `https://api.mapbox.com/geocoding/v5/mapbox.places/concord.json?access_token=${process.env.MAPBOX_TOKEN}`),
       ping('arcgis-water-boundaries', `https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/Water_System_Boundaries/FeatureServer/0/query?geometryType=esriGeometryPoint&geometry=${lng},${lat}&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWSID&returnGeometry=false&f=json`),
+      // Upstash Redis backs every rate limiter and the shared water-geography
+      // cache. Those all degrade silently when it is gone (limits stop applying,
+      // the assistant's app-wide cap pauses it), so surface it here.
+      process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+        ? ping('upstash-redis', `${process.env.UPSTASH_REDIS_REST_URL}/ping`, {
+            headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` },
+          })
+        : Promise.resolve({ name: 'upstash-redis', reachable: false, error: 'not configured', ms: 0 }),
     ];
 
     const results = await Promise.all(checks);
