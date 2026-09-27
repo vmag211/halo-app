@@ -49,3 +49,27 @@ test("fixed strings are present and substantial", () => {
     assert.ok(!c.includes("!"), "no exclamation marks");
   }
 });
+
+test("seriousness of a reading and fixing an environmental problem are NOT medical (item 15)", () => {
+  for (const q of [
+    "Is it serious that my AQI is 160?",
+    "What treatment options exist for radon?",
+    "What treatment removes PFAS from water?",
+    "Is it serious that the radon zone is 1?",
+  ]) {
+    assert.equal(isDiagnosticRequest(q), false, q);
+  }
+});
+
+test("anything about a person's body or care is still refused, even with an environmental word", () => {
+  for (const q of [
+    "Should I take medication since my radon is high?",
+    "Is it serious that my son coughs when the AQI is high?",
+    "Do I have lead poisoning from my water?",
+    "Diagnose my symptoms from the air quality",
+    "Is it serious that my allergies flare when pollen is high?",
+    "What treatment is there for my rash?",
+  ]) {
+    assert.equal(isDiagnosticRequest(q), true, q);
+  }
+});

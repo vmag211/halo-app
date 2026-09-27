@@ -174,3 +174,37 @@ test('a wrong-dimension embedding throws a clear error', async () => {
     /3072 dimensions; the corpus expects 1536/,
   );
 });
+
+// --- household context (item 15) --------------------------------------------
+test('household context sits in its own block, separate from sources, with [H] rules', () => {
+  const { system, user } = buildAnswerPrompt({ question: 'Is my air ok?', passages: PASSAGES, context: 'Air quality index 160 (High).', page: 'today' });
+  assert.match(user, /^HOUSEHOLD CONTEXT:\nAir quality index 160/);
+  assert.ok(user.indexOf('HOUSEHOLD CONTEXT') < user.indexOf('SOURCES:'));
+  assert.match(system, /cite it as \[H\]/);
+  assert.match(system, /from the today page/);
+});
+
+test('answering from household data alone ([H]) is grounded and flagged', async () => {
+  const res = await answerQuestion({
+    question: 'What is my AQI today?',
+    apiKey: 'k',
+    rpc: rpcReturning([]), // no relevant source
+    context: 'Air quality index 160 (High).',
+    fetchImpl: scriptedFetch({ answer: 'Your reading today is an AQI of 160, which is High [H].' }),
+  });
+  assert.equal(res.grounded, true);
+  assert.equal(res.uses_household_data, true);
+  assert.equal(res.reason, null);
+  assert.deepEqual(res.citations, []);
+});
+
+test('declines carry reason "no_source"; [H] without context does not count', async () => {
+  const noCtx = await answerQuestion({
+    question: 'q', apiKey: 'k', rpc: rpcReturning(PASSAGES),
+    fetchImpl: scriptedFetch({ answer: 'Something [H].' }),
+  });
+  assert.equal(noCtx.grounded, false);
+  assert.equal(noCtx.reason, 'no_source');
+  const nothing = await answerQuestion({ question: 'q', apiKey: 'k', rpc: rpcReturning([]), fetchImpl: scriptedFetch({}) });
+  assert.equal(nothing.reason, 'no_source');
+});

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL, DISCLAIMER, NO_SOURCE, suggestedQuestions } from '@/lib/assistant';
 import { answerQuestion } from '@/lib/assistantRag';
+import { gatherHouseholdContext } from '@/lib/assistantContextData';
+
+// Pages the assistant can be opened from; anything else is ignored.
+const PAGES = new Set(['today', 'home', 'homeguard', 'map', 'journal', 'act', 'settings', 'learn']);
 import { assistantLimiter, assistantGlobalLimiter, checkLimit } from '@/lib/ratelimit';
 
 /**
@@ -42,6 +46,7 @@ export async function POST(request) {
     const { userId } = await requireUser(request);
     const body = await request.json().catch(() => ({}));
     const question = typeof body.question === 'string' ? body.question.trim() : '';
+    const page = typeof body.page === 'string' && PAGES.has(body.page.toLowerCase()) ? body.page.toLowerCase() : null;
 
     if (!question) {
       return NextResponse.json({ error: 'Ask a question to get started.' }, { status: 400 });
@@ -60,6 +65,7 @@ export async function POST(request) {
       return NextResponse.json({
         answer: null,
         configured: false,
+        reason: 'no_source',
         message: NO_SOURCE,
         disclaimer: DISCLAIMER,
         citations: [],
@@ -100,10 +106,15 @@ export async function POST(request) {
     // failure, which we turn into a transient message rather than an ungrounded
     // answer or a 500.
     try {
+      // The household's own readings, home assessment and journal, built from
+      // the verified session and weighted by the page (item 15). Best-effort.
+      const context = await gatherHouseholdContext(supabaseAdmin, userId, page).catch(() => null);
       const result = await answerQuestion({
         question,
         apiKey: MODEL_KEY,
         rpc: (fn, params) => supabaseAdmin.rpc(fn, params),
+        context,
+        page,
       });
       return NextResponse.json({ configured: true, ...result });
     } catch (ragErr) {
@@ -111,6 +122,9 @@ export async function POST(request) {
       return NextResponse.json({
         answer: null,
         configured: true,
+        // The only case the interface offers Retry for.
+        reason: 'unavailable',
+        uses_household_data: false,
         message: "I couldn't reach my sources just now. Please try again in a moment.",
         disclaimer: DISCLAIMER,
         citations: [],
