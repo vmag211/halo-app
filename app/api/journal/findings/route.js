@@ -1,35 +1,27 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { aqiSeverity, uvSeverity, pollenSeverity, moldSeverity } from '@/lib/severity';
 import { journalFindings } from '@/lib/journalAnalysis';
+import { fetchHistory } from '@/lib/journalHistory';
+import { localDate, addDays } from '@/lib/localDate';
 
 /**
  * GET /api/journal/findings
  *
  * Either a not-ready response (with counts + what's still needed) or findings
  * with co-occurrence rates + the permanent disclaimer (§14.6). Excludes
- * illness-flagged days and enforces the minimum-data thresholds. Requires
- * migrations 0003 (symptom_logs) and existing daily_scores history.
+ * illness-flagged days and enforces the minimum-data thresholds. Uses the
+ * household's local dates, the same ones readings and entries are stored under.
  */
 export async function GET(request) {
   try {
     const { userId } = await requireUser(request);
 
     // 90-day window of environmental history + all symptom entries in it.
-    const to = new Date().toISOString().slice(0, 10);
-    const fromD = new Date(`${to}T00:00:00Z`);
-    fromD.setUTCDate(fromD.getUTCDate() - 89);
-    const from = fromD.toISOString().slice(0, 10);
+    const to = localDate();
+    const from = addDays(to, -89);
 
-    const [{ data: scores, error: sErr }, { data: entries, error: eErr }] = await Promise.all([
-      supabaseAdmin
-        .from('daily_scores')
-        .select('date, aqi, uv_index, pollen_level, mold_risk, created_at')
-        .eq('profile_id', userId)
-        .gte('date', from)
-        .lte('date', to)
-        .order('date', { ascending: true })
-        .order('created_at', { ascending: false }),
+    const [history, { data: entries, error: eErr }] = await Promise.all([
+      fetchHistory(supabaseAdmin, userId, from, to),
       supabaseAdmin
         .from('symptom_logs')
         .select('entry_date, symptoms, possibly_illness')
@@ -37,32 +29,9 @@ export async function GET(request) {
         .gte('entry_date', from)
         .lte('entry_date', to),
     ]);
-    if (sErr) throw new Error(sErr.message);
     if (eErr) throw new Error(eErr.message);
 
-    // One environmental record per date (latest write), mapped to severity words.
-    const byDate = new Map();
-    for (const row of scores || []) if (!byDate.has(row.date)) byDate.set(row.date, row);
-    const history = [...byDate.values()].map((row) => {
-      let pollen = null;
-      if (row.pollen_level) {
-        try {
-          const p = JSON.parse(row.pollen_level);
-          const vals = [p.tree, p.grass, p.weed].filter((v) => typeof v === 'number');
-          pollen = vals.length ? Math.max(...vals) : null;
-        } catch { /* ignore */ }
-      }
-      return {
-        date: row.date,
-        air: aqiSeverity(row.aqi),
-        uv: uvSeverity(row.uv_index),
-        pollen: pollenSeverity(pollen),
-        mold: moldSeverity(row.mold_risk),
-      };
-    });
-
-    const result = journalFindings({ entries: entries || [], history });
-    return NextResponse.json(result);
+    return NextResponse.json(journalFindings({ entries: entries || [], history }));
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;
