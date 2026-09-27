@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { learnTopic, LEARN_TOPICS } from '@/lib/learnContent';
-import { normalizeBands, priorityGroup } from '@/lib/household';
+import { normalizeBands, presentGroups } from '@/lib/household';
 import { leadRisk } from '@/lib/leadRisk';
 
 /**
@@ -46,8 +46,9 @@ export async function GET(request) {
       if (data) bandRow = data;
     }
     const bands = normalizeBands(bandRow);
-    const group = priorityGroup(bands);
-    const householdNote = (base.household && group && base.household[group]) || null;
+    // First group (in priority order) that the topic has a note for (§8.5).
+    const group = presentGroups(bands).find((g) => base.household && base.household[g]) ?? null;
+    const householdNote = (group && base.household[group]) || null;
 
     return NextResponse.json({
       topic,

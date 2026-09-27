@@ -103,3 +103,17 @@ test("returns a non-empty string for every known metric/word/general", () => {
     }
   }
 });
+
+test("walks the priority list: asthma + toddler gets the toddler UV sentence, not general", () => {
+  const both = explain("uv", "high", normalizeBands({ has_respiratory: true, has_toddler: true }));
+  const toddler = explain("uv", "high", normalizeBands({ has_toddler: true }));
+  const general = explain("uv", "high", normalizeBands(null));
+  assert.equal(both, toddler);
+  assert.notEqual(both, general);
+});
+
+test("the top group still wins when it has copy", () => {
+  const both = explain("pollen", "high", normalizeBands({ has_respiratory: true, has_toddler: true }));
+  const asthma = explain("pollen", "high", normalizeBands({ has_respiratory: true }));
+  assert.equal(both, asthma);
+});
