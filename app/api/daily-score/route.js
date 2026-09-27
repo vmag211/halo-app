@@ -475,6 +475,11 @@ export async function GET(request) {
     // itself rather than the whole cache row.
     const cacheRow = {
       profile_id: profileId,
+      // Written explicitly rather than left to the column's database default:
+      // /api/history, /api/journal/findings and the daily cron all group and
+      // compare readings by this date. UTC, matching the existing default and the
+      // UTC dates those readers compute.
+      date: new Date().toISOString().slice(0, 10),
       aqi: aqi,
       uv_index: uvIndex,
       pollen_level: pollenText,
