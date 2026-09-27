@@ -1,23 +1,30 @@
 import { NextResponse } from 'next/server';
-import { openuvLimiter } from '@/lib/ratelimit'; // <-- IMPORT THE BOUNCER
+import { openuvLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import {
-  getAirRisk,
-  getUvRisk,
-  getPollenRisk,
-  getMoldRisk,
-  getDashboardScore,
-} from '@/lib/scoring';
-import { aqiSeverity, uvSeverity, pollenSeverity, moldSeverity } from '@/lib/severity';
 import { normalizeBands } from '@/lib/household';
-import { explain } from '@/lib/explain';
+import { fetchDailyReadings } from '@/lib/dailyReadings';
+import { formatDailyPayload, toIsoUtc } from '@/lib/dailyPayload';
+import { localDate } from '@/lib/localDate';
 
-// ==========================================
-// HELPER FUNCTIONS FOR STATUS CALCULATION
-// ==========================================
+/**
+ * GET /api/daily-score[?lat=&lng=][&fresh=1]
+ *
+ * Today's air, UV, pollen and mold for the household, with a composite score.
+ *
+ * - Location: lat/lng if given (kept for compatibility), otherwise the
+ *   household's stored location.
+ * - Cache: a reading taken at the household's own location in the last hour is
+ *   served from daily_scores. `fresh=1` skips that read (pull to refresh).
+ * - Provider fetches (cache misses and refreshes) are limited to one per
+ *   household per five minutes, so repeated pulls can't hammer AirNow, Pollen
+ *   and NWS. The limiter fails open.
+ * - Readings are stored with the household's local (America/New_York) date.
+ *
+ * Fetching lives in lib/dailyReadings.js (shared with the daily job) and the
+ * response shape in lib/dailyPayload.js.
+ */
 
-// Postgres reports an unknown column as 42703; PostgREST surfaces the same
-// condition as PGRST204 when its schema cache has no such column.
+// Postgres reports an unknown column as 42703; PostgREST as PGRST204.
 function isUndefinedColumnError(error) {
   if (!error) return false;
   return (
@@ -28,175 +35,67 @@ function isUndefinedColumnError(error) {
   );
 }
 
-// AirNow publishes readings from physical monitors; Open-Meteo returns a model
-// output. The distinction has to survive the cache, because presenting a
-// modelled number as a measurement is the same class of error as presenting
-// "no data" as "safe". A row with no recorded source stays null -- unknown
-// provenance, not assumed-modelled.
+// AirNow is a physical monitor; Open-Meteo is a model. A row with no recorded
+// source stays null — unknown provenance, not assumed-modelled.
 function isMeasuredSource(source) {
   if (!source) return null;
   return source === 'airnow';
 }
 
-function getAirStatus(aqi) {
-  if (aqi === null || aqi === undefined) return 'unknown';
-  if (aqi <= 50) return 'good';
-  if (aqi <= 100) return 'moderate';
-  return 'unhealthy';
-}
-
-function getUvStatus(uvIndex) {
-  if (uvIndex === null || uvIndex === undefined) return 'unknown';
-  if (uvIndex <= 2) return 'low';
-  if (uvIndex <= 5) return 'moderate';
-  if (uvIndex <= 7) return 'high';
-  return 'very_high';
-}
-
-function getPollenStatus(pollenRisk) {
-  const values = [pollenRisk.tree, pollenRisk.grass, pollenRisk.weed].filter(
-    (val) => val !== null && val !== undefined
-  );
-  if (values.length === 0) return 'none';
-
-  const maxVal = Math.max(...values);
-  if (maxVal <= 2) return 'low';
-  if (maxVal <= 3) return 'moderate';
-  return 'high';
-}
-
-// Converts the four raw readings into individual 0-100 risks and the composite
-// dashboard score. Readings that are missing stay missing: they are passed to
-// the scoring layer as null so they are excluded from the composite rather than
-// being scored as a benign zero.
-//
-// Note on mold: the payload below falls back to displaying 'low' when the NWS
-// lookup produced nothing, but the SCORE is built from the raw label. So a
-// response can legitimately show mold 'low' while `score.missing_inputs`
-// includes 'mold' — the display has a default, the score refuses to invent one.
-function buildDashboardScore({ aqi, uvIndex, pollenRisk, moldRisk }) {
-  const airRisk = getAirRisk(aqi);
-  const uvRisk = getUvRisk(uvIndex);
-  const pollenRiskValue = getPollenRisk(
-    pollenRisk.tree ?? null,
-    pollenRisk.grass ?? null,
-    pollenRisk.weed ?? null
-  );
-  const moldRiskValue = getMoldRisk(moldRisk);
-
-  const composite = getDashboardScore({
-    airRisk,
-    uvRisk,
-    pollenRisk: pollenRiskValue,
-    moldRisk: moldRiskValue,
-  });
-
+/** A cached daily_scores row → the readings shape formatDailyPayload takes. */
+function readingsFromRow(row) {
+  let pollen = { tree: null, grass: null, weed: null };
+  if (row.pollen_level) {
+    try {
+      pollen = { ...pollen, ...JSON.parse(row.pollen_level) };
+    } catch (e) {
+      console.error('Error parsing cached pollen data:', e);
+    }
+  }
+  const details = row.details && typeof row.details === 'object' ? row.details : {};
   return {
-    ...composite,
-    // The composite is derived from measurements, but is not itself a
-    // measurement of anything — and it folds in the mold proxy.
-    is_measured: false,
-    is_estimate: true,
-    inputs: {
-      air: airRisk,
-      uv: uvRisk,
-      pollen: pollenRiskValue,
-      mold: moldRiskValue,
-    },
+    aqi: row.aqi,
+    aqiSource: row.aqi_source ?? null,
+    aqiIsMeasured: isMeasuredSource(row.aqi_source),
+    dominantPollutant: details.dominant_pollutant ?? null,
+    uvIndex: row.uv_index,
+    uvPeakWindow: details.uv_peak_window ?? null,
+    pollen,
+    mold: { risk: row.mold_risk ?? null, basis: details.mold_basis ?? null },
   };
 }
-
-function formatResponsePayload({
-  aqi,
-  uvIndex,
-  pollenRisk,
-  moldRisk,
-  cached,
-  // Which provider the AQI came from, and whether it was measured at a monitor
-  // or produced by a model. Persisted in daily_scores.aqi_source, so a cached
-  // reading reports the same provenance as the fresh one it was taken from.
-  aqiSource = null,
-  aqiIsMeasured = null,
-  // Household composition. Only selects which explanatory sentence appears; it
-  // never changes a measurement, a severity, or the score (§8.2).
-  bands = {},
-}) {
-  // Canonical severity words (server decides the level, §6.1) + the household-
-  // aware sentence for each reading.
-  const airSev = aqiSeverity(aqi);
-  const uvSev = uvSeverity(uvIndex);
-  const cats = [
-    ['tree', pollenRisk.tree],
-    ['grass', pollenRisk.grass],
-    ['weed', pollenRisk.weed],
-  ].filter(([, v]) => typeof v === 'number' && Number.isFinite(v));
-  const dominant = cats.length ? cats.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
-  const pollenSev = pollenSeverity(dominant ? dominant[1] : null);
-  const moldSev = moldSeverity(moldRisk);
-
-  return {
-    air: {
-      aqi: aqi,
-      status: getAirStatus(aqi),
-      source: aqiSource,
-      is_measured: aqiIsMeasured,
-      severity: airSev,
-      sentence: explain('air', airSev, bands),
-    },
-    uv: {
-      index: uvIndex,
-      status: getUvStatus(uvIndex),
-      severity: uvSev,
-      sentence: explain('uv', uvSev, bands),
-    },
-    pollen: {
-      tree: pollenRisk.tree ?? null,
-      grass: pollenRisk.grass ?? null,
-      weed: pollenRisk.weed ?? null,
-      status: getPollenStatus(pollenRisk),
-      // Which of the three categories is worst — the collapsed card names it.
-      dominant: dominant ? dominant[0] : null,
-      severity: pollenSev,
-      sentence: explain('pollen', pollenSev, bands),
-    },
-    mold: {
-      risk: moldRisk || 'low',
-      is_proxy: true,
-      severity: moldSev,
-      sentence: explain('mold', moldSev, bands),
-    },
-    score: buildDashboardScore({ aqi, uvIndex, pollenRisk, moldRisk }),
-    cached,
-  };
-}
-
-// ==========================================
-// MAIN GET ROUTE
-// ==========================================
 
 export async function GET(request) {
   try {
-    // Identity comes from the verified session, not from a query parameter.
-    // profile_id used to be caller-supplied, which made every household's
-    // coordinates and scores readable by anyone willing to guess a UUID.
+    // Identity comes from the verified session, never a query parameter.
     const { userId: profileId } = await requireUser(request);
 
     const { searchParams } = new URL(request.url);
-    const lat = searchParams.get('lat');
-    const lng = searchParams.get('lng');
-
     assertProfileMatches(searchParams.get('profile_id'), profileId);
+    const fresh = searchParams.get('fresh') === '1';
 
-    if (!lat || !lng) {
+    const { data: profileRow, error: profileErr } = await supabaseAdmin
+      .from('profiles')
+      .select('lat, lng')
+      .eq('id', profileId)
+      .maybeSingle();
+    if (profileErr) throw new Error(profileErr.message);
+
+    const hasStored =
+      !!profileRow && typeof profileRow.lat === 'number' && typeof profileRow.lng === 'number';
+    const qLat = searchParams.get('lat');
+    const qLng = searchParams.get('lng');
+    const lat = qLat !== null ? parseFloat(qLat) : hasStored ? profileRow.lat : NaN;
+    const lng = qLng !== null ? parseFloat(qLng) : hasStored ? profileRow.lng : NaN;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return NextResponse.json(
-        { error: 'Latitude and longitude required' },
-        { status: 400 }
+        { error: 'No location yet. Finish onboarding, or pass lat and lng.' },
+        { status: 400 },
       );
     }
 
-    // Household composition personalizes each reading's sentence; degrades to
-    // general-population if household_bands is not present yet (migration 0002).
-    // Fetched after the identity/param checks so a rejected request does no work.
+    // Household composition only chooses wording (§8.2).
     let bands = normalizeBands(null);
     {
       const { data: bandRow } = await supabaseAdmin
@@ -207,347 +106,105 @@ export async function GET(request) {
       if (bandRow) bands = normalizeBands(bandRow);
     }
 
-    // --- CACHE CHECK ---
-    // daily_scores rows are keyed on profile_id alone, but every value in one
-    // depends on lat/lng. Without a location check, a user who corrects their
-    // address keeps seeing their previous location's air, UV and pollen for up
-    // to an hour. The table has no lat/lng column, so we compare the request
-    // against the coordinates stored on the profile and treat a mismatch as a
-    // miss. The same gate gets applied to the WRITE below, so a cached row is
-    // always one that was computed for the profile's own location.
-    const requestLat = parseFloat(lat);
-    const requestLng = parseFloat(lng);
-
-    const { data: profileRow } = await supabaseAdmin
-      .from('profiles')
-      .select('lat, lng')
-      .eq('id', profileId)
-      .single();
-
-    // ~0.01 degrees is roughly a kilometer — close enough that the readings
-    // would be identical, coarse enough to ignore geocoder jitter.
+    // daily_scores has no lat/lng, so only readings for the profile's own
+    // location (~1 km) are cached or served from cache.
     const isProfileLocation =
-      !!profileRow &&
-      typeof profileRow.lat === 'number' &&
-      typeof profileRow.lng === 'number' &&
-      Number.isFinite(requestLat) &&
-      Number.isFinite(requestLng) &&
-      Math.abs(profileRow.lat - requestLat) < 0.01 &&
-      Math.abs(profileRow.lng - requestLng) < 0.01;
+      hasStored && Math.abs(profileRow.lat - lat) < 0.01 && Math.abs(profileRow.lng - lng) < 0.01;
 
-    let cachedData = null;
-    if (isProfileLocation) {
+    if (isProfileLocation && !fresh) {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const { data } = await supabaseAdmin
+      const { data: cachedRow } = await supabaseAdmin
         .from('daily_scores')
         .select('*')
         .eq('profile_id', profileId)
         .gte('created_at', oneHourAgo)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
-      cachedData = data;
-    }
-
-    if (cachedData) {
-      let parsedPollen = { tree: null, grass: null, weed: null };
-      if (cachedData.pollen_level) {
-        try {
-          parsedPollen = JSON.parse(cachedData.pollen_level);
-        } catch (e) {
-          console.error('Error parsing cached pollen data:', e);
-        }
-      }
-
-      return NextResponse.json(
-        formatResponsePayload({
-          aqi: cachedData.aqi,
-          uvIndex: cachedData.uv_index,
-          pollenRisk: parsedPollen,
-          moldRisk: cachedData.mold_risk,
-          cached: true,
-          aqiSource: cachedData.aqi_source ?? null,
-          aqiIsMeasured: isMeasuredSource(cachedData.aqi_source),
-          bands,
-        })
-      );
-    }
-
-    // 1. AIR QUALITY — AirNow (measured) first, Open-Meteo (modeled) fallback
-    let aqi = null;
-    let aqiSource = null;
-    let aqiIsMeasured = null;
-
-    try {
-      const airnowApiKey = process.env.AIRNOW_API_KEY;
-      const airnowUrl = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${lat}&longitude=${lng}&distance=25&API_KEY=${airnowApiKey}`;
-      const airnowResponse = await fetch(airnowUrl);
-      if (airnowResponse.ok) {
-        const airnowData = await airnowResponse.json();
-        // AirNow returns one entry per pollutant (O3, PM2.5, PM10...). EPA
-        // defines the reported AQI as the MAXIMUM of those sub-indices —
-        // taking the first entry understates air risk whenever the leading
-        // pollutant is not the worst one, which varies day to day.
-        const aqiValues = Array.isArray(airnowData)
-          ? airnowData
-              .map((reading) => reading && reading.AQI)
-              .filter((value) => typeof value === 'number' && Number.isFinite(value))
-          : [];
-        if (aqiValues.length > 0) {
-          aqi = Math.max(...aqiValues);
-          aqiSource = 'airnow';
-          aqiIsMeasured = true;
-        }
-      } else {
-        console.error('AirNow API failed:', airnowResponse.status);
-      }
-    } catch (err) {
-      // Previously this threw and 500'd the whole route. It now falls through
-      // to the modeled fallback below, which is the entire point of having one.
-      console.error('AirNow fetch error:', err.message);
-    }
-
-    // Roughly half of NC congressional district 8 has no AirNow monitor within
-    // 25 miles, so air simply vanished from those households' scores. Open-Meteo
-    // covers them — but it is a CAMS model output, not a ground measurement, and
-    // the two genuinely disagree (28 vs 55 at the same point, minutes apart).
-    // It is used only when there is no monitor, and it is labelled as modeled.
-    if (aqi === null) {
-      try {
-        const openMeteoAirUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi&timezone=UTC`;
-        const openMeteoAirResponse = await fetch(openMeteoAirUrl);
-        if (openMeteoAirResponse.ok) {
-          const openMeteoAirData = await openMeteoAirResponse.json();
-          const value = openMeteoAirData.current
-            ? openMeteoAirData.current.us_aqi
-            : null;
-          if (typeof value === 'number' && Number.isFinite(value)) {
-            aqi = value;
-            aqiSource = 'open-meteo';
-            aqiIsMeasured = false;
-          }
-        } else {
-          console.error('Open-Meteo AQI failed:', openMeteoAirResponse.status);
-        }
-      } catch (err) {
-        console.error('Open-Meteo AQI fetch error:', err.message);
-      }
-    }
-
-    console.log(
-      aqi === null ? 'AQI unavailable from both providers.' : `AQI ${aqi} via ${aqiSource}.`
-    );
-
-    // 2. UV INDEX — Open-Meteo first, OpenUV as fallback
-    //
-    // OpenUV's free tier is 45 calls per day GLOBALLY, not per user, so past
-    // the 45th request of the day UV silently vanished from everyone's score.
-    // Open-Meteo needs no API key, has no comparable cap, and returns a value
-    // for locations with no nearby monitor, so it leads and OpenUV backs it up.
-    let uvIndex = null;
-    let uvSource = null;
-
-    try {
-      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=UTC`;
-      const openMeteoResponse = await fetch(openMeteoUrl);
-      if (openMeteoResponse.ok) {
-        const openMeteoData = await openMeteoResponse.json();
-        const value = openMeteoData.current ? openMeteoData.current.uv_index : null;
-        if (typeof value === 'number' && Number.isFinite(value)) {
-          uvIndex = value;
-          uvSource = 'open-meteo';
-        }
-      } else {
-        console.error('Open-Meteo UV failed:', openMeteoResponse.status);
-      }
-    } catch (err) {
-      console.error('Open-Meteo UV fetch error:', err.message);
-    }
-
-    if (uvIndex === null) {
-      let canCallOpenUV = false;
-      try {
-        ({ success: canCallOpenUV } = await openuvLimiter.limit('global_openuv_calls'));
-      } catch (err) {
-        // The rate limiter is a budget guard, not the product. When Upstash is
-        // unreachable this used to throw and take the whole endpoint down with
-        // it; now a limiter outage costs at most the fallback UV reading.
-        console.error('Rate limiter unavailable, skipping OpenUV:', err.message);
-      }
-
-      if (canCallOpenUV) {
-        try {
-          const openuvApiKey = process.env.OPENUV_API_KEY;
-          const openuvUrl = `https://api.openuv.io/api/v1/uv?lat=${lat}&lng=${lng}`;
-          const openuvResponse = await fetch(openuvUrl, {
-            headers: { 'x-access-token': openuvApiKey },
-          });
-
-          if (openuvResponse.ok) {
-            const openuvData = await openuvResponse.json();
-            uvIndex = openuvData.result ? openuvData.result.uv : null;
-            if (uvIndex !== null) uvSource = 'openuv';
-          } else {
-            console.error('OpenUV API failed');
-          }
-        } catch (err) {
-          console.error('OpenUV fetch error:', err.message);
-        }
-      } else {
-        console.log('OpenUV unavailable or daily limit reached, skipping fetch.');
-      }
-    }
-
-    console.log(
-      uvIndex === null
-        ? 'UV unavailable from both providers.'
-        : `UV ${uvIndex} via ${uvSource}.`
-    );
-
-    // 3. GOOGLE POLLEN API
-    // Wrapped like every other provider: a pollen failure must not take the
-    // whole route down. Null pollen is treated as excluded (not zero) by the
-    // scoring layer, so the composite is simply marked incomplete.
-    let pollenRisk = { tree: null, grass: null, weed: null };
-    try {
-      const pollenApiKey = process.env.GOOGLE_POLLEN_API_KEY;
-      const pollenUrl = `https://pollen.googleapis.com/v1/forecast:lookup?key=${pollenApiKey}&location.longitude=${lng}&location.latitude=${lat}&days=1`;
-      const pollenResponse = await fetch(pollenUrl);
-      if (pollenResponse.ok) {
-        const pollenData = await pollenResponse.json();
-        if (pollenData.dailyInfo && pollenData.dailyInfo.length > 0) {
-          const typesInfo = pollenData.dailyInfo[0].pollenTypeInfo;
-          if (typesInfo) {
-            typesInfo.forEach((info) => {
-              if (info.code === 'TREE')
-                pollenRisk.tree = info.indexInfo ? info.indexInfo.value : null;
-              if (info.code === 'GRASS')
-                pollenRisk.grass = info.indexInfo ? info.indexInfo.value : null;
-              if (info.code === 'WEED')
-                pollenRisk.weed = info.indexInfo ? info.indexInfo.value : null;
-            });
-          }
-        }
-      } else {
-        console.error('Google Pollen API failed:', pollenResponse.status);
-      }
-    } catch (err) {
-      console.error('Google Pollen fetch error:', err.message);
-    }
-
-    // 4. NATIONAL WEATHER SERVICE
-    let moldRisk = 'low';
-    try {
-      const pointsResponse = await fetch(
-        `https://api.weather.gov/points/${lat},${lng}`,
-        { headers: { 'User-Agent': 'HALO/1.0' } }
-      );
-      if (pointsResponse.ok) {
-        const pointsData = await pointsResponse.json();
-        const forecastResponse = await fetch(
-          pointsData.properties.forecastHourly,
-          { headers: { 'User-Agent': 'HALO/1.0' } }
+        .maybeSingle();
+      if (cachedRow) {
+        return NextResponse.json(
+          formatDailyPayload({
+            ...readingsFromRow(cachedRow),
+            cached: true,
+            retrievedAt: toIsoUtc(cachedRow.created_at),
+            bands,
+          }),
         );
-        if (forecastResponse.ok) {
-          const forecastData = await forecastResponse.json();
-          const currentHour = forecastData.properties.periods[0];
-          const humidity = currentHour.relativeHumidity.value;
-          const precipitation = currentHour.probabilityOfPrecipitation.value;
-          if (humidity > 70 && precipitation > 0) moldRisk = 'high';
-          else if (humidity > 60 || precipitation > 0) moldRisk = 'moderate';
-        }
       }
-    } catch (nwsError) {
-      console.error('Failed to fetch NWS:', nwsError.message);
     }
 
-    // --- SAVE TO SUPABASE ---
-    const pollenText = JSON.stringify(pollenRisk);
-    const dashboardScore = buildDashboardScore({
-      aqi,
-      uvIndex,
-      pollenRisk,
-      moldRisk,
+    // About to call the providers: one fetch per household per five minutes.
+    const allowed = await checkLimit(dailyScoreLimiter, `daily-score:${profileId}`, {
+      fallback: true,
+      label: 'daily-score limiter',
     });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Readings were just refreshed. Try again in a few minutes.', retry_after_seconds: 300 },
+        { status: 429 },
+      );
+    }
 
-    // Columns every environment is known to have. Anything that might be
-    // missing goes in optionalColumns below, so one absent column costs only
-    // itself rather than the whole cache row.
+    const readings = await fetchDailyReadings(
+      { lat, lng },
+      {
+        openuvAllowed: () =>
+          checkLimit(openuvLimiter, 'global_openuv_calls', { fallback: false, label: 'OpenUV limiter' }),
+      },
+    );
+    const retrievedAt = new Date().toISOString();
+    const payload = formatDailyPayload({ ...readings, cached: false, retrievedAt, bands });
+
+    if (!isProfileLocation) {
+      // Never cache a reading for some other point as this household's.
+      return NextResponse.json(payload);
+    }
+
     const cacheRow = {
       profile_id: profileId,
-      // Written explicitly rather than left to the column's database default:
-      // /api/history, /api/journal/findings and the daily cron all group and
-      // compare readings by this date. UTC, matching the existing default and the
-      // UTC dates those readers compute.
-      date: new Date().toISOString().slice(0, 10),
-      aqi: aqi,
-      uv_index: uvIndex,
-      pollen_level: pollenText,
-      mold_risk: moldRisk,
+      // The household's local calendar day (item 10) — readings and journal
+      // entries are joined by this date string.
+      date: localDate(),
+      aqi: readings.aqi,
+      uv_index: readings.uvIndex,
+      pollen_level: JSON.stringify(readings.pollen),
+      mold_risk: readings.mold.risk,
     };
-
+    // Columns some environments may lack; one missing column costs only itself.
     const optionalColumns = {
-      // Integer column, so it holds the rounded score. The full-precision
-      // value stays in the API response.
-      score: dashboardScore.display_score,
-      aqi_source: aqiSource,
+      score: payload.score.display_score,
+      aqi_source: readings.aqiSource,
+      details: {
+        dominant_pollutant: readings.dominantPollutant,
+        uv_peak_window: readings.uvPeakWindow,
+        uv_source: readings.uvSource,
+        mold_basis: readings.mold.basis,
+      },
     };
-
-    // Only cache a reading taken at the profile's own location. Writing a row
-    // for some other coordinate would let it be served later as though it were
-    // this profile's, which is exactly the bug the read gate above prevents.
-    if (!isProfileLocation) {
-      console.log('Request is not for the profile location; skipping cache write.');
-      return NextResponse.json(
-        formatResponsePayload({
-          aqi,
-          uvIndex,
-          pollenRisk,
-          moldRisk,
-          cached: false,
-          aqiSource,
-          aqiIsMeasured,
-          bands,
-        })
-      );
-    }
 
     const { error: insertError } = await supabaseAdmin
       .from('daily_scores')
       .insert([{ ...cacheRow, ...optionalColumns }]);
-
-    // If one of the optional columns is missing from this environment's schema,
-    // fall back to the guaranteed columns rather than losing the cache row
-    // entirely. Same graceful-degradation posture as the external API calls
-    // above: a missing column should cost us that field, not the whole write.
     if (insertError && isUndefinedColumnError(insertError)) {
-      console.warn(
-        `Optional daily_scores column missing (${Object.keys(optionalColumns).join(', ')}); caching without it.`,
-        insertError.message
-      );
-      const { error: retryError } = await supabaseAdmin.from('daily_scores').insert([cacheRow]);
-      if (retryError) console.error('Failed to cache daily score:', retryError.message);
+      console.warn('Optional daily_scores column missing; caching without it.', insertError.message);
+      const { details, ...withoutDetails } = optionalColumns;
+      const { error: retryError } = await supabaseAdmin
+        .from('daily_scores')
+        .insert([{ ...cacheRow, ...withoutDetails }]);
+      if (retryError && isUndefinedColumnError(retryError)) {
+        const { error: lastError } = await supabaseAdmin.from('daily_scores').insert([cacheRow]);
+        if (lastError) console.error('Failed to cache daily score:', lastError.message);
+      } else if (retryError) {
+        console.error('Failed to cache daily score:', retryError.message);
+      }
     } else if (insertError) {
       console.error('Failed to cache daily score:', insertError.message);
     }
 
-    // Return restructured payload
-    return NextResponse.json(
-      formatResponsePayload({
-        aqi,
-        uvIndex,
-        pollenRisk,
-        moldRisk,
-        cached: false,
-        aqiSource,
-        aqiIsMeasured,
-        bands,
-      })
-    );
+    return NextResponse.json(payload);
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
-
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -7,7 +7,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { normalizeWaterSource } from '@/lib/waterSource';
 import { leadRisk } from '@/lib/leadRisk';
 import { actionPlan } from '@/lib/actionPlan';
-import { waterRiskSeverity, radonZoneSeverity } from '@/lib/severity';
+import { waterRiskSeverity, radonZoneSeverity, waterDetailSeverity, compositeSeverity } from '@/lib/severity';
 import { normalizeBands } from '@/lib/household';
 import { explain } from '@/lib/explain';
 
@@ -109,6 +109,9 @@ function buildBreakdown({
         ? Math.round(100 - waterRiskDetail.risk)
         : null,
     status: waterRiskDetail ? riskStatus(waterRiskDetail.risk) : 'unknown',
+    // Canonical severity (lib/severity.js), the same scale the action plan and
+    // the rest of the app use. `status` is kept for compatibility (additive only).
+    severity: isPrivateSource ? 'no_data' : waterDetailSeverity(waterRiskDetail),
     confidence: waterConfidence(
       waterCoverage,
       waterRiskDetail ? daysSince(waterRiskDetail.latest_sample_date) : null
@@ -139,6 +142,7 @@ function buildBreakdown({
       : { High: 'action_needed', Moderate: 'moderate', Low: 'good' }[
           radonData.risk_level
         ] || 'unknown',
+    severity: radonData.error ? 'no_data' : radonZoneSeverity(radonData.zone),
     confidence: radonData.error ? 'none' : 'full',
     // A county-level EPA zone map, not a measurement of this home.
     is_measured: false,
@@ -160,6 +164,7 @@ function buildBreakdown({
       risk: null,
       score: null,
       status: lead.level,
+      severity: lead.level,
       confidence: lead.level === 'no_data' ? 'none' : 'full',
       is_measured: false,
       is_estimate: lead.is_estimate === true,
@@ -184,6 +189,8 @@ function buildBreakdown({
       risk: null,
       score: null,
       status: 'detected_not_scored',
+      // Measured, but with no limit to judge it against: there is no severity.
+      severity: 'no_data',
       confidence: 'full',
       is_measured: true,
       // Detected and real, but EPA has set no enforceable limit — there is no
@@ -260,7 +267,8 @@ export async function GET(request) {
       radonData = {
         county: county,
         zone: zoneNumber,
-        risk_level: riskLevel
+        risk_level: riskLevel,
+        severity: radonZoneSeverity(zoneNumber)
       };
     }
 
@@ -489,6 +497,14 @@ export async function GET(request) {
           })
       };
     }
+
+    // The composite's severity: the worst of the inputs it actually includes —
+    // water and radon only; lead is never scored and never counts. Null when
+    // there is no display score (a private well). See compositeSeverity().
+    scoreData.severity = compositeSeverity(scoreData, {
+      water: isPrivateSource ? 'no_data' : waterDetailSeverity(waterRiskDetail),
+      radon: zoneNumber ? radonZoneSeverity(zoneNumber) : 'no_data',
+    });
 
     // ==========================================
     // MODULE 4: HOUSEHOLD PERSONALIZATION, LEAD, ACTION PLAN
