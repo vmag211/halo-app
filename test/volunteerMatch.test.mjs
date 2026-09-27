@@ -98,3 +98,23 @@ test("missing opts defaults to no county filter and no causes", () => {
   // No causes -> all county-serving; null county -> all orgs.
   assert.equal(r.length, ORGS.length);
 });
+
+// --- item 17: NC-08 tagging and radon coverage ------------------------------
+test("a radon-only household in an NC-08 county gets radon organizations, not an empty list", () => {
+  const orgs = [
+    { name: "American Lung Association in North Carolina", counties: ["statewide"], causes: ["air", "radon", "advocacy"] },
+    { name: "North Carolina Radon Program (NCDHHS)", counties: ["statewide"], causes: ["radon"] },
+    { name: "Yadkin Riverkeeper", counties: ["Union County", "Stanly County"], causes: ["water", "pfas", "advocacy"] },
+  ];
+  const out = matchOrgs(orgs, { county: "Union County", causes: ["radon"] });
+  assert.deepEqual(out.map((o) => o.name).sort(), ["American Lung Association in North Carolina", "North Carolina Radon Program (NCDHHS)"]);
+});
+
+test("a county-tagged local group ranks ahead of statewide groups for the same causes", () => {
+  const orgs = [
+    { name: "Statewide Water", counties: ["statewide"], causes: ["water"] },
+    { name: "Three Rivers Land Trust", counties: ["Stanly County"], causes: ["water"] },
+  ];
+  const out = matchOrgs(orgs, { county: "Stanly County", causes: ["water"] });
+  assert.equal(out[0].name, "Three Rivers Land Trust");
+});
