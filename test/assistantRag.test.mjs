@@ -208,3 +208,11 @@ test('declines carry reason "no_source"; [H] without context does not count', as
   const nothing = await answerQuestion({ question: 'q', apiKey: 'k', rpc: rpcReturning([]), fetchImpl: scriptedFetch({}) });
   assert.equal(nothing.reason, 'no_source');
 });
+
+import { chatBody } from '../lib/assistantRag.js';
+
+test('fallback models are added only when configured, primary first, no duplicates', () => {
+  assert.equal(chatBody({ model: 'a', system: 's', user: 'u', fallbacks: '' }).models, undefined);
+  assert.deepEqual(chatBody({ model: 'a', system: 's', user: 'u', fallbacks: 'b, a ,c' }).models, ['a', 'b', 'c']);
+  assert.equal(chatBody({ model: 'a', system: 's', user: 'u', fallbacks: 'b' }).temperature, 0);
+});

@@ -58,7 +58,8 @@ function normalizeRetrieved(r) {
   return /^\d{4}-\d{2}$/.test(r) ? `${r}-01` : r;
 }
 
-const EMBED_DIM = 1536; // must match vector(1536) in migration 0007
+// Must match the assistant_corpus.embedding column (vector(2048) after migration 0013).
+const EMBED_DIM = Number(process.env.ASSISTANT_EMBED_DIM || 1536);
 
 // One "what it is" passage + one "how to reduce exposure" passage per topic,
 // each attributed to a real Learn source. A source with no retrieval date is
