@@ -1,23 +1,19 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
+import "./onboarding.css";
 import AuthInitializer from "../components/AuthInitializer";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const instrument = localFont({src: '../public/fonts/instrument-sans-latin.woff2', variable:'--font-instrument', display:'swap', weight:'400 700', fallback:['Arial']});
+const fraunces = localFont({src: '../public/fonts/fraunces-latin.woff2', variable:'--font-fraunces', display:'swap', weight:'100 900', fallback:['Georgia']});
 
 export const metadata: Metadata = {
-  title: "HALO",
+  title: {default: "HALO", template: "HALO | %s"},
   description:
-    "A home-environmental-health snapshot for your address: air quality, UV, pollen, mold risk, radon risk and drinking water.",
+    "See what's in the air, water, and ground around your home, and what to do about it.",
+  icons: { icon: '/halo-icon.png', apple: '/halo-icon.png' },
 };
+export const viewport: Viewport = { width:'device-width', initialScale:1, viewportFit:'cover', themeColor:[{media:'(prefers-color-scheme: light)',color:'#0e5e6f'},{media:'(prefers-color-scheme: dark)',color:'#2cc4bd'}] };
 
 export default function RootLayout({
   children,
@@ -27,7 +23,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${instrument.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* Opens the anonymous session before any screen needs it. Renders nothing. */}

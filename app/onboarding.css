@@ -1,0 +1,107 @@
+  .halo-app { --halo-page:light-dark(#eef8f7,#081725); --halo-card:light-dark(#ffffff,#0f2436); --halo-ink:light-dark(#0b1f33,#e8f3f5); --halo-secondary:light-dark(#4a6275,#9bb4c2); --halo-primary:light-dark(#0e5e6f,#2cc4bd); --halo-on-primary:light-dark(#ffffff,#081725); --halo-border:light-dark(#d3e4e6,#1d3a50); --halo-tint:light-dark(#d9f0ef,#1d4f5c); --halo-error:light-dark(#c0262d,#f0605f); --halo-error-tint:light-dark(#fff6f6,#301d2b); --halo-good:light-dark(#1e7a3c,#4cc27a); --halo-good-ink:light-dark(#ffffff,#081725); --halo-navy:#0b1f33; --halo-teal:#0e5e6f; --halo-gutter:20px; --halo-radius:14px; --halo-band:220px; --halo-heading:26px; --halo-welcome-size:30px; background:var(--halo-page); color:var(--halo-ink); width:100%; max-width:430px; margin:0 auto; font-family:var(--font-instrument),Arial,sans-serif; border:1px solid var(--halo-border); }
+  .halo-app[data-fidelity="wireframe"] { --halo-page:light-dark(#f5f6f6,#16191c); --halo-card:light-dark(#ffffff,#22272c); --halo-ink:light-dark(#22282c,#eef0f2); --halo-secondary:light-dark(#525d65,#b5bdc4); --halo-primary:light-dark(#364650,#d0dae1); --halo-on-primary:light-dark(#ffffff,#16191c); --halo-border:light-dark(#ccd2d6,#434e57); --halo-tint:light-dark(#e4e9ec,#36434d); --halo-navy:light-dark(#25323b,#1d2c37); --halo-teal:light-dark(#596c77,#344c5d); }
+  .halo-app[data-fidelity="wireframe"] .halo-logo img { filter:brightness(0) invert(1); }
+  .halo-app button, .halo-app input, .halo-app select { font-family:inherit; }
+  .halo-app button { transition:background-color 150ms,color 150ms,transform 150ms; }
+  .halo-app button:active:not(:disabled) { transform:translateY(1px); }
+  .halo-app button:disabled { opacity:.4; cursor:default; }
+  .halo-app button:focus-visible, .halo-app input:focus-visible, .halo-app select:focus-visible { outline:3px solid var(--halo-primary); outline-offset:3px; }
+  .halo-app h1, .halo-app h2, .halo-app p { margin:0; }
+  .halo-app h1 { font:600 var(--halo-heading)/1.23 var(--font-fraunces),Georgia,serif; letter-spacing:-.35px; }
+  .halo-app p { font-size:15px; line-height:22px; }
+  .halo-app .halo-page { min-height:max(710px,100svh); display:flex; flex-direction:column; }
+  .halo-app .halo-top { padding:24px var(--halo-gutter) 0; }
+  .halo-app .halo-progress { display:flex; gap:4px; margin-bottom:15px; }
+  .halo-app .halo-progress span { height:3px; flex:1; background:var(--halo-border); border-radius:2px; }
+  .halo-app .halo-progress span[data-filled="true"] { background:var(--halo-primary); }
+  .halo-app .halo-back { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; margin-left:-10px; background:transparent; border:0; padding:10px; color:var(--halo-primary); }
+  .halo-app .halo-back svg { width:22px; height:22px; }
+  .halo-app .halo-main { padding:24px var(--halo-gutter); }
+  .halo-app .halo-intro { margin-top:16px; color:var(--halo-secondary); }
+  .halo-app .halo-fields { margin-top:32px; display:grid; gap:28px; }
+  .halo-app .halo-field { display:grid; gap:8px; }
+  .halo-app .halo-label { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:4px; font-size:15px; font-weight:600; line-height:22px; }
+  .halo-app .halo-optional { color:var(--halo-secondary); font-weight:400; font-size:13px; }
+  .halo-app .halo-input, .halo-app .halo-select { display:block; width:100%; height:52px; min-width:0; padding:12px 14px; border:1px solid var(--halo-border); border-radius:var(--halo-radius); background:var(--halo-card); color:var(--halo-ink); font-size:16px; line-height:24px; }
+  .halo-app .halo-input::placeholder { color:var(--halo-secondary); opacity:1; }
+  .halo-app .halo-input[aria-invalid="true"], .halo-app .halo-select[aria-invalid="true"] { border-color:var(--halo-error); }
+  .halo-app .halo-privacy, .halo-app .halo-year-help { color:var(--halo-secondary); margin-top:4px; }
+  .halo-app .halo-error { display:flex; align-items:flex-start; gap:7px; color:var(--halo-error); font-size:13px; line-height:19px; }
+  .halo-app .halo-error svg { flex:0 0 16px; margin-top:2px; }
+  .halo-app .halo-error:empty { display:none; }
+  .halo-app .halo-location { margin-top:20px; }
+  .halo-app .halo-location-note { margin-top:10px; }
+  .halo-app .halo-button { display:flex; align-items:center; justify-content:center; gap:9px; min-height:52px; width:100%; padding:13px 15px; border:1.5px solid var(--halo-primary); border-radius:calc(var(--halo-radius) - 2px); font-size:16px; font-weight:600; line-height:22px; text-align:center; }
+  .halo-app .halo-primary { color:var(--halo-on-primary); background:var(--halo-primary); box-shadow:0 2px 8px rgb(11 31 51 / .12); }
+  .halo-app .halo-secondary { color:var(--halo-primary); background:transparent; }
+  .halo-app .halo-button:hover:not(:disabled) { filter:brightness(.96); }
+  .halo-app .halo-footer { margin-top:auto; padding:24px var(--halo-gutter) 28px; }
+  .halo-app .halo-footer-note { color:var(--halo-secondary); font-size:13px; line-height:19px; text-align:center; margin-top:12px; }
+  .halo-app .halo-actions-equal { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .halo-app .halo-callout { margin:0 0 18px; background:var(--halo-error-tint); border:1px solid var(--halo-error); border-radius:var(--halo-radius); padding:14px; display:grid; gap:12px; }
+  .halo-app .halo-callout p { color:var(--halo-ink); }
+  .halo-app .halo-callout-title { display:flex; align-items:flex-start; gap:8px; }
+  .halo-app .halo-callout-title svg { flex:0 0 18px; color:var(--halo-error); margin-top:2px; }
+  .halo-app .halo-text-button { justify-self:start; min-height:44px; margin:-4px 0 -6px; padding:10px 0; color:var(--halo-primary); background:none; border:0; font-weight:600; font-size:15px; }
+  .halo-app .halo-band { min-height:var(--halo-band); display:flex; justify-content:center; align-items:center; padding:24px; background:linear-gradient(165deg,var(--halo-navy),var(--halo-teal)); }
+  .halo-app .halo-logo { position:relative; overflow:hidden; }
+  .halo-app .halo-logo img { display:block; width:100%; height:100%; object-fit:contain; filter:brightness(0) invert(1); }
+  .halo-app .halo-logo-tile { width:158px; height:158px; }
+  .halo-app .halo-welcome-copy { padding:32px var(--halo-gutter) 16px; }
+  .halo-app .halo-welcome-copy .halo-wordmark { display:flex; justify-content:center; align-items:center; height:calc(var(--halo-welcome-size,56px) * 1.66); color:var(--halo-primary); text-align:center; }
+  .halo-app .halo-wordmark canvas { display:block; width:calc(var(--halo-welcome-size,56px) * 4.9); max-width:100%; height:auto; aspect-ratio:294 / 96; }
+  .halo-app .halo-welcome-copy .halo-welcome-subtitle { margin-top:-6px; font:400 calc(var(--halo-welcome-size,56px) * .54)/1.2 var(--font-fraunces),Georgia,serif; letter-spacing:-.3px; color:var(--halo-primary); text-align:center; }
+  .halo-app .halo-welcome-copy p { margin-top:18px; font-size:17px; line-height:25px; color:var(--halo-ink); }
+  .halo-app .halo-welcome-copy .halo-account-note { color:var(--halo-secondary); margin-top:16px; }
+  .halo-app .halo-chips { display:flex; gap:10px 8px; flex-wrap:wrap; padding:0; margin:28px 0 0; border:0; }
+  .halo-app .halo-chip { border:1.5px solid var(--halo-border); border-radius:24px; background:var(--halo-card); color:var(--halo-ink); padding:11px 13px; min-height:46px; display:flex; align-items:center; gap:8px; text-align:left; font-size:15px; font-weight:500; line-height:21px; max-width:100%; }
+  .halo-app .halo-chip[aria-pressed="true"] { background:var(--halo-tint); border-color:var(--halo-primary); }
+  .halo-app .halo-chip-mark { display:flex; flex:0 0 17px; align-items:center; justify-content:center; color:var(--halo-secondary); }
+  .halo-app .halo-chip[aria-pressed="true"] .halo-chip-mark { color:var(--halo-primary); }
+  .halo-app .halo-spinner { display:inline-block; width:18px; height:18px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:halo-working-spin 900ms linear infinite; }
+  @keyframes halo-working-spin { to { transform:rotate(360deg); } }
+  .halo-app .halo-working { display:inline-flex; gap:8px; align-items:center; }
+  .halo-app .halo-reveal-head { padding:36px var(--halo-gutter) 20px; }
+  .halo-app .halo-reveal-logo { width:65px; height:65px; margin:0 auto; background:var(--halo-primary); mask:url("/halo-logo-mark.png") center/contain no-repeat; }
+  .halo-app .halo-reveal-logo img { opacity:0; }
+  .halo-app .halo-reveal-lines { padding:12px var(--halo-gutter) 8px; }
+  .halo-app .halo-reveal-line { display:grid; grid-template-columns:20px minmax(0,.95fr) minmax(0,1fr); gap:9px; align-items:start; padding:20px 0; border-bottom:1px solid var(--halo-border); }
+  .halo-app .halo-reveal-line:last-child { border-bottom:0; }
+  .halo-app .halo-resolve-icon { color:var(--halo-primary); padding-top:1px; display:flex; }
+  .halo-app .halo-resolve-icon[data-missing="true"] { color:var(--halo-secondary); }
+  .halo-app .halo-reveal-label { font-size:15px; line-height:22px; color:var(--halo-secondary); }
+  .halo-app .halo-result { font-size:15px; line-height:22px; font-weight:500; overflow-wrap:anywhere; }
+  .halo-app .halo-result-skeleton { display:block; height:14px; width:92%; margin:3px 0 7px; background:var(--halo-border); border-radius:4px; }
+  .halo-app .halo-result-skeleton:last-child { width:65%; }
+  .halo-app .halo-severity { display:inline-flex; align-items:center; gap:5px; font-size:12px; line-height:16px; font-weight:600; background:var(--halo-good); color:var(--halo-good-ink); padding:5px 8px; border-radius:99px; }
+  .halo-app .halo-severity[data-empty="true"] { color:var(--halo-ink); border:1px solid currentColor; background:transparent; }
+  .halo-app .halo-region-note { display:flex; align-items:flex-start; gap:9px; margin:12px var(--halo-gutter) 0; padding:15px; border:1px solid var(--halo-border); border-radius:var(--halo-radius); background:var(--halo-card); }
+  .halo-app .halo-region-note svg { flex:0 0 18px; color:var(--halo-primary); margin-top:2px; }
+  .halo-app .halo-offline { display:flex; gap:8px; padding:12px var(--halo-gutter); background:var(--halo-card); border-bottom:1px solid var(--halo-border); font-size:15px; line-height:22px; }
+  .halo-app .halo-offline svg { flex:0 0 18px; margin-top:2px; }
+  .halo-app .halo-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  @media(max-width:390px) {    .halo-app .halo-reveal-line { grid-template-columns:18px minmax(0,.95fr) minmax(0,1fr); gap:7px; } }
+  @media(prefers-reduced-motion:reduce) { .halo-app *, .halo-app *::before, .halo-app *::after { transition:none !important; animation:none !important; } }
+.halo-app { --halo-moderate:light-dark(#b85c00,#f0913a); --halo-elevated:light-dark(#c0262d,#f0605f); --halo-high:light-dark(#8e2a6b,#d668ad); --halo-severe:light-dark(#4f1440,#a870f0); --halo-no-data:light-dark(#111111,#e6e6e6); --halo-welcome-size:56px; }
+/* The approved host's 430 weight resolved to its available 500 font face. */
+.halo-app { font-weight:500; }
+.halo-app svg { stroke-width:1.8; }
+.halo-app .halo-top { padding-top:calc(24px + env(safe-area-inset-top)); }
+.halo-app .halo-band { min-height:calc(220px + env(safe-area-inset-top)); padding-top:calc(24px + env(safe-area-inset-top)); }
+.halo-app .halo-footer { padding-bottom:calc(28px + env(safe-area-inset-bottom)); }
+.halo-app .halo-reveal-head { padding-top:calc(36px + env(safe-area-inset-top)); }
+.halo-app .halo-button { position:relative; }
+.halo-app .halo-button-label-hidden { visibility:hidden; }
+.halo-app .halo-button-spinner { position:absolute; }
+.halo-app .halo-button.halo-tertiary { border-color:transparent; background:transparent; color:var(--halo-primary); }
+.halo-app .halo-chip svg { flex:0 0 17px; }
+.halo-app .halo-severity[data-severity="moderate"] { background:var(--halo-moderate); }
+.halo-app .halo-severity[data-severity="elevated"] { background:var(--halo-elevated); }
+.halo-app .halo-severity[data-severity="high"] { background:var(--halo-high); }
+.halo-app .halo-severity[data-severity="severe"] { background:var(--halo-severe); }
+.halo-app .halo-severity[data-severity="no_data"] { background:transparent; color:var(--halo-no-data); border:1px solid currentColor; }
+.halo-preview-toolbar { display:grid; gap:8px; padding:12px 20px; max-width:430px; margin:0 auto; font-size:13px; }
+.halo-preview-toolbar label { display:grid; gap:5px; }
+.halo-preview-toolbar select { min-height:44px; width:100%; border:1px solid currentColor; border-radius:8px; padding:8px; }
+.halo-preview .halo-page { min-height:710px; }
+.halo-handoff { display:grid; gap:20px; padding:32px 20px; }

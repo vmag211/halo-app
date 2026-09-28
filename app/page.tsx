@@ -1,9 +1,5 @@
-import OnboardingScreen from './OnboardingScreen';
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return (
-    <main>
-      <OnboardingScreen />
-    </main>
-  );
+  redirect('/onboarding?entry=1');
 }

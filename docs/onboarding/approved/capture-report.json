@@ -1,0 +1,2625 @@
+{
+  "capturedAt": "2026-09-28T12:33:31.318Z",
+  "browser": "154.0.8037.57",
+  "screenshotCount": 179,
+  "offlineFlowPassed": true,
+  "errors": [],
+  "captures": [
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 1,
+      "state": "default",
+      "label": "Ready",
+      "file": "screenshots/light-375-1-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 1,
+      "state": "session-loading",
+      "label": "Starting session",
+      "file": "screenshots/light-375-1-session-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 1,
+      "state": "captcha",
+      "label": "Verification failed",
+      "file": "screenshots/light-375-1-captcha.png",
+      "height": 754.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 1,
+      "state": "signin",
+      "label": "Session failed",
+      "file": "screenshots/light-375-1-signin.png",
+      "height": 754.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/light-375-2-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "filled",
+      "label": "Address entered",
+      "file": "screenshots/light-375-2-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "gps",
+      "label": "Location selected",
+      "file": "screenshots/light-375-2-gps.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "gps-denied",
+      "label": "Location denied",
+      "file": "screenshots/light-375-2-gps-denied.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "gps-unsupported",
+      "label": "Location unavailable",
+      "file": "screenshots/light-375-2-gps-unsupported.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "invalid",
+      "label": "Address too short",
+      "file": "screenshots/light-375-2-invalid.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "not-found",
+      "label": "Address not found",
+      "file": "screenshots/light-375-2-not-found.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "loading",
+      "label": "Finding local data",
+      "file": "screenshots/light-375-2-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "rate-limited",
+      "label": "Too many requests",
+      "file": "screenshots/light-375-2-rate-limited.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "error",
+      "label": "Connection / server error",
+      "file": "screenshots/light-375-2-error.png",
+      "height": 727.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "timeout",
+      "label": "Request timed out",
+      "file": "screenshots/light-375-2-timeout.png",
+      "height": 727.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 2,
+      "state": "offline",
+      "label": "Offline",
+      "file": "screenshots/light-375-2-offline.png",
+      "height": 774.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 3,
+      "state": "default",
+      "label": "Nothing selected",
+      "file": "screenshots/light-375-3-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 3,
+      "state": "selected",
+      "label": "Some groups selected",
+      "file": "screenshots/light-375-3-selected.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 3,
+      "state": "all",
+      "label": "All groups selected",
+      "file": "screenshots/light-375-3-all.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 3,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/light-375-3-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 3,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/light-375-3-error.png",
+      "height": 729.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/light-375-4-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "filled",
+      "label": "Home details entered",
+      "file": "screenshots/light-375-4-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "no-year",
+      "label": "Year left blank",
+      "file": "screenshots/light-375-4-no-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "invalid-year",
+      "label": "Invalid build year",
+      "file": "screenshots/light-375-4-invalid-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "future-year",
+      "label": "Future build year",
+      "file": "screenshots/light-375-4-future-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "missing-water",
+      "label": "Water not selected",
+      "file": "screenshots/light-375-4-missing-water.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/light-375-4-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 4,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/light-375-4-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "default",
+      "label": "Public water · above limit",
+      "file": "screenshots/light-375-5-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "below",
+      "label": "Public water · below limits",
+      "file": "screenshots/light-375-5-below.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "loading",
+      "label": "Checks in progress",
+      "file": "screenshots/light-375-5-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "well",
+      "label": "Private well",
+      "file": "screenshots/light-375-5-well.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "spring",
+      "label": "Spring",
+      "file": "screenshots/light-375-5-spring.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "no-utility",
+      "label": "No utility match",
+      "file": "screenshots/light-375-5-no-utility.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "no-results",
+      "label": "No published water results",
+      "file": "screenshots/light-375-5-no-results.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "unregulated",
+      "label": "Only unregulated compounds",
+      "file": "screenshots/light-375-5-unregulated.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "lookup-failed",
+      "label": "Water lookup unavailable",
+      "file": "screenshots/light-375-5-lookup-failed.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "radon-missing",
+      "label": "Radon unavailable",
+      "file": "screenshots/light-375-5-radon-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "outside",
+      "label": "Outside North Carolina",
+      "file": "screenshots/light-375-5-outside.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "air-missing",
+      "label": "Air has no data",
+      "file": "screenshots/light-375-5-air-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "air-error",
+      "label": "Air request failed",
+      "file": "screenshots/light-375-5-air-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "home-error",
+      "label": "Home request failed",
+      "file": "screenshots/light-375-5-home-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "screen": 5,
+      "state": "all-error",
+      "label": "All requests failed",
+      "file": "screenshots/light-375-5-all-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 1,
+      "state": "default",
+      "label": "Ready",
+      "file": "screenshots/light-320-1-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 1,
+      "state": "session-loading",
+      "label": "Starting session",
+      "file": "screenshots/light-320-1-session-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 1,
+      "state": "captcha",
+      "label": "Verification failed",
+      "file": "screenshots/light-320-1-captcha.png",
+      "height": 776.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 1,
+      "state": "signin",
+      "label": "Session failed",
+      "file": "screenshots/light-320-1-signin.png",
+      "height": 754.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/light-320-2-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "filled",
+      "label": "Address entered",
+      "file": "screenshots/light-320-2-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "gps",
+      "label": "Location selected",
+      "file": "screenshots/light-320-2-gps.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "gps-denied",
+      "label": "Location denied",
+      "file": "screenshots/light-320-2-gps-denied.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "gps-unsupported",
+      "label": "Location unavailable",
+      "file": "screenshots/light-320-2-gps-unsupported.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "invalid",
+      "label": "Address too short",
+      "file": "screenshots/light-320-2-invalid.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "not-found",
+      "label": "Address not found",
+      "file": "screenshots/light-320-2-not-found.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "loading",
+      "label": "Finding local data",
+      "file": "screenshots/light-320-2-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "rate-limited",
+      "label": "Too many requests",
+      "file": "screenshots/light-320-2-rate-limited.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "error",
+      "label": "Connection / server error",
+      "file": "screenshots/light-320-2-error.png",
+      "height": 771.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "timeout",
+      "label": "Request timed out",
+      "file": "screenshots/light-320-2-timeout.png",
+      "height": 749.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 2,
+      "state": "offline",
+      "label": "Offline",
+      "file": "screenshots/light-320-2-offline.png",
+      "height": 818.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 3,
+      "state": "default",
+      "label": "Nothing selected",
+      "file": "screenshots/light-320-3-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 3,
+      "state": "selected",
+      "label": "Some groups selected",
+      "file": "screenshots/light-320-3-selected.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 3,
+      "state": "all",
+      "label": "All groups selected",
+      "file": "screenshots/light-320-3-all.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 3,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/light-320-3-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 3,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/light-320-3-error.png",
+      "height": 807.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/light-320-4-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "filled",
+      "label": "Home details entered",
+      "file": "screenshots/light-320-4-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "no-year",
+      "label": "Year left blank",
+      "file": "screenshots/light-320-4-no-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "invalid-year",
+      "label": "Invalid build year",
+      "file": "screenshots/light-320-4-invalid-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "future-year",
+      "label": "Future build year",
+      "file": "screenshots/light-320-4-future-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "missing-water",
+      "label": "Water not selected",
+      "file": "screenshots/light-320-4-missing-water.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/light-320-4-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 4,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/light-320-4-error.png",
+      "height": 741.9375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "default",
+      "label": "Public water · above limit",
+      "file": "screenshots/light-320-5-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "below",
+      "label": "Public water · below limits",
+      "file": "screenshots/light-320-5-below.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "loading",
+      "label": "Checks in progress",
+      "file": "screenshots/light-320-5-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "well",
+      "label": "Private well",
+      "file": "screenshots/light-320-5-well.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "spring",
+      "label": "Spring",
+      "file": "screenshots/light-320-5-spring.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "no-utility",
+      "label": "No utility match",
+      "file": "screenshots/light-320-5-no-utility.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "no-results",
+      "label": "No published water results",
+      "file": "screenshots/light-320-5-no-results.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "unregulated",
+      "label": "Only unregulated compounds",
+      "file": "screenshots/light-320-5-unregulated.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "lookup-failed",
+      "label": "Water lookup unavailable",
+      "file": "screenshots/light-320-5-lookup-failed.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "radon-missing",
+      "label": "Radon unavailable",
+      "file": "screenshots/light-320-5-radon-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "outside",
+      "label": "Outside North Carolina",
+      "file": "screenshots/light-320-5-outside.png",
+      "height": 762,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "air-missing",
+      "label": "Air has no data",
+      "file": "screenshots/light-320-5-air-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "air-error",
+      "label": "Air request failed",
+      "file": "screenshots/light-320-5-air-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "home-error",
+      "label": "Home request failed",
+      "file": "screenshots/light-320-5-home-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": 5,
+      "state": "all-error",
+      "label": "All requests failed",
+      "file": "screenshots/light-320-5-all-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 1,
+      "state": "default",
+      "label": "Ready",
+      "file": "screenshots/dark-375-1-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 1,
+      "state": "session-loading",
+      "label": "Starting session",
+      "file": "screenshots/dark-375-1-session-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 1,
+      "state": "captcha",
+      "label": "Verification failed",
+      "file": "screenshots/dark-375-1-captcha.png",
+      "height": 754.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 1,
+      "state": "signin",
+      "label": "Session failed",
+      "file": "screenshots/dark-375-1-signin.png",
+      "height": 754.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/dark-375-2-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "filled",
+      "label": "Address entered",
+      "file": "screenshots/dark-375-2-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "gps",
+      "label": "Location selected",
+      "file": "screenshots/dark-375-2-gps.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "gps-denied",
+      "label": "Location denied",
+      "file": "screenshots/dark-375-2-gps-denied.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "gps-unsupported",
+      "label": "Location unavailable",
+      "file": "screenshots/dark-375-2-gps-unsupported.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "invalid",
+      "label": "Address too short",
+      "file": "screenshots/dark-375-2-invalid.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "not-found",
+      "label": "Address not found",
+      "file": "screenshots/dark-375-2-not-found.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "loading",
+      "label": "Finding local data",
+      "file": "screenshots/dark-375-2-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "rate-limited",
+      "label": "Too many requests",
+      "file": "screenshots/dark-375-2-rate-limited.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "error",
+      "label": "Connection / server error",
+      "file": "screenshots/dark-375-2-error.png",
+      "height": 727.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "timeout",
+      "label": "Request timed out",
+      "file": "screenshots/dark-375-2-timeout.png",
+      "height": 727.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 2,
+      "state": "offline",
+      "label": "Offline",
+      "file": "screenshots/dark-375-2-offline.png",
+      "height": 774.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 3,
+      "state": "default",
+      "label": "Nothing selected",
+      "file": "screenshots/dark-375-3-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 3,
+      "state": "selected",
+      "label": "Some groups selected",
+      "file": "screenshots/dark-375-3-selected.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 3,
+      "state": "all",
+      "label": "All groups selected",
+      "file": "screenshots/dark-375-3-all.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 3,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/dark-375-3-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 3,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/dark-375-3-error.png",
+      "height": 729.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/dark-375-4-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "filled",
+      "label": "Home details entered",
+      "file": "screenshots/dark-375-4-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "no-year",
+      "label": "Year left blank",
+      "file": "screenshots/dark-375-4-no-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "invalid-year",
+      "label": "Invalid build year",
+      "file": "screenshots/dark-375-4-invalid-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "future-year",
+      "label": "Future build year",
+      "file": "screenshots/dark-375-4-future-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "missing-water",
+      "label": "Water not selected",
+      "file": "screenshots/dark-375-4-missing-water.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/dark-375-4-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 4,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/dark-375-4-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "default",
+      "label": "Public water · above limit",
+      "file": "screenshots/dark-375-5-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "below",
+      "label": "Public water · below limits",
+      "file": "screenshots/dark-375-5-below.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "loading",
+      "label": "Checks in progress",
+      "file": "screenshots/dark-375-5-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "well",
+      "label": "Private well",
+      "file": "screenshots/dark-375-5-well.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "spring",
+      "label": "Spring",
+      "file": "screenshots/dark-375-5-spring.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "no-utility",
+      "label": "No utility match",
+      "file": "screenshots/dark-375-5-no-utility.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "no-results",
+      "label": "No published water results",
+      "file": "screenshots/dark-375-5-no-results.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "unregulated",
+      "label": "Only unregulated compounds",
+      "file": "screenshots/dark-375-5-unregulated.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "lookup-failed",
+      "label": "Water lookup unavailable",
+      "file": "screenshots/dark-375-5-lookup-failed.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "radon-missing",
+      "label": "Radon unavailable",
+      "file": "screenshots/dark-375-5-radon-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "outside",
+      "label": "Outside North Carolina",
+      "file": "screenshots/dark-375-5-outside.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "air-missing",
+      "label": "Air has no data",
+      "file": "screenshots/dark-375-5-air-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "air-error",
+      "label": "Air request failed",
+      "file": "screenshots/dark-375-5-air-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "home-error",
+      "label": "Home request failed",
+      "file": "screenshots/dark-375-5-home-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "screen": 5,
+      "state": "all-error",
+      "label": "All requests failed",
+      "file": "screenshots/dark-375-5-all-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 1,
+      "state": "default",
+      "label": "Ready",
+      "file": "screenshots/dark-320-1-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 1,
+      "state": "session-loading",
+      "label": "Starting session",
+      "file": "screenshots/dark-320-1-session-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 1,
+      "state": "captcha",
+      "label": "Verification failed",
+      "file": "screenshots/dark-320-1-captcha.png",
+      "height": 776.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 1,
+      "state": "signin",
+      "label": "Session failed",
+      "file": "screenshots/dark-320-1-signin.png",
+      "height": 754.234375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": false,
+        "fraunces": false
+      },
+      "heading": "Welcome",
+      "handwriting": "complete"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/dark-320-2-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "filled",
+      "label": "Address entered",
+      "file": "screenshots/dark-320-2-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "gps",
+      "label": "Location selected",
+      "file": "screenshots/dark-320-2-gps.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "gps-denied",
+      "label": "Location denied",
+      "file": "screenshots/dark-320-2-gps-denied.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "gps-unsupported",
+      "label": "Location unavailable",
+      "file": "screenshots/dark-320-2-gps-unsupported.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "invalid",
+      "label": "Address too short",
+      "file": "screenshots/dark-320-2-invalid.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "not-found",
+      "label": "Address not found",
+      "file": "screenshots/dark-320-2-not-found.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "loading",
+      "label": "Finding local data",
+      "file": "screenshots/dark-320-2-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "rate-limited",
+      "label": "Too many requests",
+      "file": "screenshots/dark-320-2-rate-limited.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "error",
+      "label": "Connection / server error",
+      "file": "screenshots/dark-320-2-error.png",
+      "height": 771.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "timeout",
+      "label": "Request timed out",
+      "file": "screenshots/dark-320-2-timeout.png",
+      "height": 749.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 2,
+      "state": "offline",
+      "label": "Offline",
+      "file": "screenshots/dark-320-2-offline.png",
+      "height": 818.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Where do you live?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 3,
+      "state": "default",
+      "label": "Nothing selected",
+      "file": "screenshots/dark-320-3-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 3,
+      "state": "selected",
+      "label": "Some groups selected",
+      "file": "screenshots/dark-320-3-selected.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 3,
+      "state": "all",
+      "label": "All groups selected",
+      "file": "screenshots/dark-320-3-all.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 3,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/dark-320-3-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 3,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/dark-320-3-error.png",
+      "height": 807.96875,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "Who lives here?"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "default",
+      "label": "Empty",
+      "file": "screenshots/dark-320-4-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "filled",
+      "label": "Home details entered",
+      "file": "screenshots/dark-320-4-filled.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "no-year",
+      "label": "Year left blank",
+      "file": "screenshots/dark-320-4-no-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "invalid-year",
+      "label": "Invalid build year",
+      "file": "screenshots/dark-320-4-invalid-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "future-year",
+      "label": "Future build year",
+      "file": "screenshots/dark-320-4-future-year.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "missing-water",
+      "label": "Water not selected",
+      "file": "screenshots/dark-320-4-missing-water.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "loading",
+      "label": "Saving",
+      "file": "screenshots/dark-320-4-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 4,
+      "state": "error",
+      "label": "Save failed",
+      "file": "screenshots/dark-320-4-error.png",
+      "height": 741.9375,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      },
+      "heading": "A little about your home."
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "default",
+      "label": "Public water · above limit",
+      "file": "screenshots/dark-320-5-default.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "below",
+      "label": "Public water · below limits",
+      "file": "screenshots/dark-320-5-below.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "loading",
+      "label": "Checks in progress",
+      "file": "screenshots/dark-320-5-loading.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "well",
+      "label": "Private well",
+      "file": "screenshots/dark-320-5-well.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "spring",
+      "label": "Spring",
+      "file": "screenshots/dark-320-5-spring.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "no-utility",
+      "label": "No utility match",
+      "file": "screenshots/dark-320-5-no-utility.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "no-results",
+      "label": "No published water results",
+      "file": "screenshots/dark-320-5-no-results.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "unregulated",
+      "label": "Only unregulated compounds",
+      "file": "screenshots/dark-320-5-unregulated.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "lookup-failed",
+      "label": "Water lookup unavailable",
+      "file": "screenshots/dark-320-5-lookup-failed.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "radon-missing",
+      "label": "Radon unavailable",
+      "file": "screenshots/dark-320-5-radon-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "outside",
+      "label": "Outside North Carolina",
+      "file": "screenshots/dark-320-5-outside.png",
+      "height": 762,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "air-missing",
+      "label": "Air has no data",
+      "file": "screenshots/dark-320-5-air-missing.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "air-error",
+      "label": "Air request failed",
+      "file": "screenshots/dark-320-5-air-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "home-error",
+      "label": "Home request failed",
+      "file": "screenshots/dark-320-5-home-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": 5,
+      "state": "all-error",
+      "label": "All requests failed",
+      "file": "screenshots/dark-320-5-all-error.png",
+      "height": 712,
+      "overflow": false,
+      "fonts": {
+        "instrumentSans": true,
+        "fraunces": true
+      }
+    }
+  ],
+  "animationCaptures": [
+    {
+      "file": "screenshots/animation-start.png",
+      "writing": "writing",
+      "subtitleOpacity": 0,
+      "getStartedEnabled": true
+    },
+    {
+      "file": "screenshots/animation-middle.png",
+      "writing": "writing",
+      "subtitleOpacity": 0,
+      "getStartedEnabled": true
+    },
+    {
+      "file": "screenshots/animation-complete.png",
+      "writing": "complete",
+      "subtitleOpacity": 1,
+      "getStartedEnabled": true
+    }
+  ]
+}

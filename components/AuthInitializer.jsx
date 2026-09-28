@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { ensureAnonSession } from "../lib/auth";
 
 /**
  * Opens the device's anonymous session as early as possible.
@@ -18,10 +17,13 @@ import { ensureAnonSession } from "../lib/auth";
  */
 export default function AuthInitializer() {
   useEffect(() => {
-    ensureAnonSession().catch((err) => {
+    // Preview is deliberately isolated: it must never create a real household.
+    if (window.location.pathname.startsWith('/onboarding/preview')) return;
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
+    import('../lib/auth').then(({ensureAnonSession}) => ensureAnonSession()).catch(() => {
       // Surfacing this is the job of whichever screen needs the session; here we
       // only make sure a failure is never silent.
-      console.error("[HALO] anonymous session could not be started:", err);
+      // The foreground flow shows the approved, non-sensitive error message.
     });
   }, []);
 

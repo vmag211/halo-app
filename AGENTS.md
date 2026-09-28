@@ -3,3 +3,10 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+# HALO frontend decisions
+
+- Do not use em dashes (U+2014) anywhere in app-facing text. This includes screens, buttons, errors, alerts, accessibility labels, and generated or source-provided copy. Use natural sentences, commas, colons, or parentheses without changing the meaning. This user decision supersedes punctuation in older specifications.
+- The approved logo shape comes from `public/halo-logo.png`, supplied by the user as `Untitled design.png`. The blue tile is superseded: use the transparent `public/halo-logo-mark.png` as a monochrome mask, rendered white on the dark Welcome band. Use a contrasting foreground on light surfaces. Earlier logos and generated concepts are superseded.
+- Onboarding's Welcome screen uses a centered teal "Welcome" heading in a bold, simple cursive style. It writes itself along the actual pen strokes, including loops and cross-strokes, not a horizontal fade or wipe. After the handwriting finishes, a smaller, lighter, centered "To Halo" subtitle fades in underneath in a complementary font. The description follows both headings. Show both headings immediately under reduced motion and never delay access to Get started. This supersedes the HALO-only heading, Playwrite Argentina, and the earlier letter reveal. Preserve the approved logo and all other onboarding visuals.
+- The onboarding wireframes are otherwise approved. Continue the agreed wireframe review before implementing the functioning frontend.
