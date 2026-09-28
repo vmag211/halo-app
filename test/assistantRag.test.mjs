@@ -216,3 +216,23 @@ test('fallback models are added only when configured, primary first, no duplicat
   assert.deepEqual(chatBody({ model: 'a', system: 's', user: 'u', fallbacks: 'b, a ,c' }).models, ['a', 'b', 'c']);
   assert.equal(chatBody({ model: 'a', system: 's', user: 'u', fallbacks: 'b' }).temperature, 0);
 });
+
+import { normalizeCitations } from '../lib/assistantRag.js';
+
+test('citation styles from different models are normalised to [n]', () => {
+  assert.equal(normalizeCitations('Zone 3 is low【1】.'), 'Zone 3 is low[1].');
+  assert.equal(normalizeCitations('See ［2］ and 〔3〕'), 'See [2] and [3]');
+  assert.equal(normalizeCitations('Both apply [1, 3].'), 'Both apply [1][3].');
+  assert.equal(normalizeCitations('Your reading 【H】.'), 'Your reading [H].');
+  assert.equal(normalizeCitations('Already fine [1][2].'), 'Already fine [1][2].');
+});
+
+test('an answer cited with 【1】 is grounded, not discarded', async () => {
+  const res = await answerQuestion({
+    question: 'What is PFAS?', apiKey: 'k', rpc: rpcReturning(PASSAGES),
+    fetchImpl: scriptedFetch({ answer: 'PFAS are man-made chemicals【1】.' }),
+  });
+  assert.equal(res.grounded, true);
+  assert.equal(res.answer, 'PFAS are man-made chemicals[1].');
+  assert.deepEqual(res.citations.map((c) => c.label), ['EPA']);
+});
