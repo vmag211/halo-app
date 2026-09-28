@@ -58,7 +58,8 @@ function normalizeRetrieved(r) {
   return /^\d{4}-\d{2}$/.test(r) ? `${r}-01` : r;
 }
 
-const EMBED_DIM = 1536; // must match vector(1536) in migration 0007
+// Must match the assistant_corpus.embedding column (vector(2048) after migration 0013).
+const EMBED_DIM = Number(process.env.ASSISTANT_EMBED_DIM || 1536);
 
 // One "what it is" passage + one "how to reduce exposure" passage per topic,
 // each attributed to a real Learn source. A source with no retrieval date is
@@ -93,6 +94,48 @@ function buildPassages() {
   return rows;
 }
 
+// Reference passages that aren't Learn topics but that the assistant must be
+// able to cite — PFOS is HALO's headline contaminant, and without these the
+// corpus never named it. Each is written only from the cited page's own text
+// (EPA's PFAS drinking water regulation page, fetched 2026-09-28).
+const REFERENCE_PASSAGES = [
+  {
+    source_label: 'EPA — PFAS drinking water regulation',
+    source_url: 'https://www.epa.gov/sdwa/and-polyfluoroalkyl-substances-pfas',
+    retrieved: '2026-09-28',
+    passage:
+      "PFOA, PFOS and other regulated PFAS — EPA's 2024 National Primary Drinking Water Regulation set legally enforceable limits (Maximum Contaminant Levels) for six PFAS in drinking water. PFOA and PFOS: 4.0 parts per trillion (ppt) each. PFHxS, PFNA and HFPO-DA (known as GenX chemicals): 10 ppt each. Mixtures of two or more of PFHxS, PFNA, HFPO-DA and PFBS are limited by a Hazard Index.",
+  },
+  {
+    source_label: 'EPA — PFAS drinking water regulation',
+    source_url: 'https://www.epa.gov/sdwa/and-polyfluoroalkyl-substances-pfas',
+    retrieved: '2026-09-28',
+    passage:
+      'PFAS drinking water deadlines and proposed changes — Public water systems must finish initial PFAS monitoring by 2027 and have until 2029 to reduce PFAS if levels exceed the limits. EPA has proposed keeping the PFOA and PFOS limits, with an option for systems to request two more years (to 2031), and has proposed rescinding the limits for PFHxS, PFNA, HFPO-DA (GenX) and the Hazard Index mixture.',
+  },
+  {
+    source_label: 'AirNow — Air Quality Index basics',
+    source_url: 'https://www.airnow.gov/aqi/aqi-basics/',
+    retrieved: '2026-09-28',
+    passage:
+      'Air quality index categories — 0 to 50, Good: air quality is satisfactory, and air pollution poses little or no risk. 51 to 100, Moderate: air quality is acceptable, but there may be a risk for some people, particularly those who are unusually sensitive to air pollution. 101 to 150, Unhealthy for Sensitive Groups: members of sensitive groups may experience health effects; the general public is less likely to be affected. 151 to 200, Unhealthy: some members of the general public may experience health effects, and members of sensitive groups may experience more serious health effects. 201 to 300, Very Unhealthy: health alert, the risk of health effects is increased for everyone. 301 and higher, Hazardous: health warning of emergency conditions; everyone is more likely to be affected.',
+  },
+  {
+    source_label: 'EPA — Map of Radon Zones',
+    source_url: 'https://www.epa.gov/radon/epa-map-radon-zones-0',
+    retrieved: '2026-09-28',
+    passage:
+      'Radon zones — EPA sorts counties into three radon zones. Zone 1: highest potential; average indoor radon levels may be greater than 4 pCi/L. Zone 2: moderate potential; average indoor levels may be between 2 and 4 pCi/L. Zone 3: low potential; average indoor levels may be less than 2 pCi/L. Homes with elevated radon have been found in all three zones, all homes should be tested, and the map should not be used to decide whether a particular home needs testing.',
+  },
+  {
+    source_label: 'EPA — UV Index Scale',
+    source_url: 'https://www.epa.gov/sunsafety/uv-index-scale-0',
+    retrieved: '2026-09-28',
+    passage:
+      'UV index scale and sun protection — UV index 1 to 2 (Low): no protection needed; you can safely stay outside using minimal sun protection. 3 to 7 (Moderate to High): protection needed; seek shade during late morning through mid-afternoon, and when outside generously apply broad-spectrum SPF 15 or higher sunscreen on exposed skin and wear protective clothing, a wide-brimmed hat, and sunglasses. 8 and above (Very High to Extreme): extra protection needed; be careful outside, especially late morning through mid-afternoon — if your shadow is shorter than you, seek shade, cover up, and apply at least SPF 15 broad-spectrum sunscreen.',
+  },
+];
+
 async function embedAll(texts) {
   const res = await fetch(EMBED_URL, {
     method: 'POST',
@@ -117,7 +160,7 @@ async function embedAll(texts) {
 }
 
 async function main() {
-  const passages = buildPassages();
+  const passages = [...buildPassages(), ...REFERENCE_PASSAGES];
   console.log(`Prepared ${passages.length} passages from ${LEARN_TOPICS.length} Learn topics.`);
 
   const { count, error: countErr } = await sb

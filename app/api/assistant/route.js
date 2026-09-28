@@ -23,8 +23,8 @@ import { assistantLimiter, assistantGlobalLimiter, checkLimit } from '@/lib/rate
  * pipeline itself declines with NO_SOURCE rather than improvising. Every response
  * carries the not-medical-advice disclaimer.
  *
- * Spend is bounded twice (§37.2): 20 questions per user per hour, and 300 per
- * hour across the whole app. TODO (gated on a model key): stream the answer.
+ * Spend is bounded twice (§37.2): 20 questions per user per hour, and an
+ * app-wide daily cap (default 450, ASSISTANT_GLOBAL_DAILY_LIMIT). TODO (gated on a model key): stream the answer.
  */
 
 const MODEL_KEY = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || null;
@@ -108,7 +108,13 @@ export async function POST(request) {
     try {
       // The household's own readings, home assessment and journal, built from
       // the verified session and weighted by the page (item 15). Best-effort.
-      const context = await gatherHouseholdContext(supabaseAdmin, userId, page).catch(() => null);
+      // ASSISTANT_SEND_HOUSEHOLD_CONTEXT=false keeps household data out of the
+      // model call entirely (only the question + public agency sources are sent)
+      // — the default for free models, which may log prompts.
+      const sendContext = process.env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT !== 'false';
+      const context = sendContext
+        ? await gatherHouseholdContext(supabaseAdmin, userId, page).catch(() => null)
+        : null;
       const result = await answerQuestion({
         question,
         apiKey: MODEL_KEY,
