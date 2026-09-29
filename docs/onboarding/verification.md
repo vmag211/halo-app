@@ -26,10 +26,14 @@ Run all browser checks with `npm run test:ui`. They use installed Google Chrome 
 - No raw address, GPS input, household draft, or credentials are stored by the frontend cache. Backend messages are mapped to safe catalog text. App/source display strings are normalized to remove em dashes.
 - The approved logo replaces the starter favicon through a reproducible format-conversion script. The transparent white Welcome mark and the title stroke geometry are unchanged.
 
+## Live backend run (September 28, 2026)
+
+A scripted Chrome run drove the real flow on a local dev server against the configured Supabase (migration 0014 applied), Mapbox, ArcGIS, AirNow and HomeGuard, then deleted its anonymous test user. Verified: an anonymous session is created; ZIP 28025 geocodes to Cabarrus County, NC with a measured utility; onboard stores and echoes the request ID; stored coordinates are rounded to three places; household, home details and `onboarding_complete` save; all four reveal rows resolve with no failure; HomeGuard returns `assembled_at`; finishing opens Today and a returning complete profile skips onboarding. Change address opens on Address, keeps home details, saves a Durham County address with a new request ID, requests `fresh=1` readings that are not rate-limited, and clears the previous home's cached daily reading.
+
 ## Not yet release-verified
 
-Vibhav still needs to verify deployed anonymous auth/CAPTCHA, migrations, provider payloads, real location/boundary matches, address-replacement cache concurrency, and the production integration. Test on physical phones, particularly Safari, safe-area behavior, on-screen keyboard, actual GPS prompts, assistive technology, and browser text enlargement. Desktop Chrome fixtures do not prove those conditions.
+Vibhav still needs to verify deployed anonymous auth/CAPTCHA (the live run had no Turnstile key configured locally), a real timed-out address write, concurrent address writes, and the deployed production integration. Test on physical phones, particularly Safari, safe-area behavior, on-screen keyboard, actual GPS prompts, assistive technology, and browser text enlargement. Desktop Chrome fixtures do not prove those conditions.
 
 The Today route is an explicitly labeled integration boundary, not the full dashboard. Later screens will expose source dates and full provenance; the approved onboarding reveal was not redesigned to invent those destinations.
 
-`npm audit --omit=dev` reports existing dependency advisories: 5 production packages, including 1 critical Next.js entry. Coordinate the framework upgrade before deployment. See integration.md for the release gate. Passing frontend tests is not a claim that the whole application is production-ready.
+Next.js is upgraded to 16.3.6 and `npm audit --omit=dev` reports 0 vulnerabilities; see integration.md. Passing frontend tests is not a claim that the whole application is production-ready.

@@ -75,4 +75,4 @@ The Today destination and later app stages are separate features. Their full vis
 
 ## Dependency release gate
 
-The existing pinned Next.js 16.2.10 dependency has security advisories. `npm audit --omit=dev` on September 28, 2026 reports 5 affected production packages: 1 critical, 3 high, and 1 moderate. The critical entry is Next.js; the audit recommends 16.3.6. The Windows-hosted-server and image-optimization advisories require review before deployment. This onboarding change does not silently upgrade the shared framework while backend work is in progress. Coordinate the framework/dependency update with Vibhav, then rerun the complete test/build suite. The local preview binds to loopback only.
+Resolved September 28, 2026: Next.js and eslint-config-next are pinned at 16.3.6, and `npm audit --omit=dev` reports 0 vulnerabilities (previously 1 critical, 3 high, 1 moderate). The unit, frontend, typecheck, lint, build, preservation and all 36 UI tests (including approved screenshot comparisons) pass on it. The local preview binds to loopback only.
