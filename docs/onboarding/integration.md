@@ -18,6 +18,8 @@ The frontend is implemented against the repository's current route contracts. Au
 
 `water_source` uses `utility`, `well`, `spring`, or `other`. The distinct Other and Not sure UI options both send `other`. Blank home year sends `null`, not zero or an omitted field. No request contains a client-selected `profile_id`.
 
+Bare five-digit ZIP and ZIP+4 inputs constrain Mapbox geocoding to the United States. Without this, `28025` resolves to Madrid, Spain ahead of Concord, North Carolina and leaves the county unavailable for HomeGuard. Full address and coordinate searches retain their existing coverage.
+
 ## Error and cancellation rules
 
 - The normal client deadline is 8 seconds. Address submission, HomeGuard and daily readings use 15 seconds, including auth/transport/response parsing. The session bootstrap uses 15 seconds to allow the existing CAPTCHA flow.

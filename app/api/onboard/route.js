@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeWaterSource } from '@/lib/waterSource';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, parseRequestId, locationMoved } from '@/lib/geocode';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, parseRequestId, locationMoved, isUsZipCode } from '@/lib/geocode';
 import { localDate } from '@/lib/localDate';
 import { backfillHousehold } from '@/lib/backfill';
 
@@ -86,7 +86,9 @@ export async function POST(request) {
     // --- MAPBOX GEOCODING API ---
     const mapboxToken = process.env.MAPBOX_TOKEN;
     const encodedAddress = encodeURIComponent(address);
-    const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${mapboxToken}`;
+    const mapboxParams = new URLSearchParams({ access_token: mapboxToken });
+    if (isUsZipCode(address)) mapboxParams.set('country', 'us');
+    const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?${mapboxParams}`;
 
     const mapboxResponse = await fetch(mapboxUrl);
 

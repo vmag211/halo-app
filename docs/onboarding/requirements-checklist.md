@@ -53,6 +53,7 @@ Checked items are implemented and reviewed against the source contracts, with au
 - [x] Use a 15-second client timeout. After onboard timeout, check GET profile before reporting failure because the write may have completed.
 - [x] Preserve county, state, pwsid, and service_area_status in memory for reveal. `outside_known_area` is a normal result; `lookup_failed` is not evidence of no utility.
 - [x] Non-NC addresses continue normally. Missing state is not positive evidence of an out-of-state address.
+- [x] Bare U.S. ZIP and ZIP+4 inputs request U.S. geocoding, so an identically numbered foreign postcode cannot be selected first.
 
 ## Household
 

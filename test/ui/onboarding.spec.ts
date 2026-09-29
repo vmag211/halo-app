@@ -195,6 +195,8 @@ for (const colorScheme of ['light', 'dark'] as const) for (const width of [320, 
     await page.addStyleTag({ content: '.halo-preview-toolbar, nextjs-portal { display: none !important; }' });
     const product = page.locator('.halo-app');
     const shot = async (screen: number, state = 'default') => {
+      await expect(product).toHaveCSS('background-color', colorScheme === 'light' ? 'rgb(238, 248, 247)' : 'rgb(8, 23, 37)');
+      await expect(product).toHaveCSS('border-top-width', '1px');
       await page.evaluate(() => document.fonts.ready);
       await expect(product).toHaveScreenshot(`${colorScheme}-${width}-${screen}-${state}.png`, { animations: 'disabled', maxDiffPixelRatio: 0.005 });
       expect(await product.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);

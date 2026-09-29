@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, radonAppliesTo, parseRequestId, locationMoved } from '../lib/geocode.js';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, radonAppliesTo, parseRequestId, locationMoved, isUsZipCode } from '../lib/geocode.js';
 
 const feature = (regionCode, countyText = 'Union County') => ({
   center: [-80.54321, 35.012345],
@@ -16,6 +16,11 @@ test('state comes from the region short_code', () => {
   assert.equal(parseMapboxFeature(feature('US-SC')).state, 'SC');
   assert.equal(parseMapboxFeature(feature('ca-on')).state, null); // not a US state
   assert.equal(parseMapboxFeature({ center: [0, 0], context: [] }).state, null);
+});
+
+test('bare US ZIP inputs request US-only geocoding, while full addresses keep broad coverage', () => {
+  for (const address of ['28025', ' 28025 ', '28025-1234']) assert.equal(isUsZipCode(address), true);
+  for (const address of ['Madrid 28025', '123 Main St, Concord NC', '-80.579,35.409', '2802', '280250']) assert.equal(isUsZipCode(address), false);
 });
 
 test('county and coordinates parse as before', () => {
