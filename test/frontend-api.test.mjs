@@ -28,7 +28,10 @@ test('live methods use exact routes, plain headers, canonical body and no identi
   await api.saveHome({ water_source: 'not_sure', home_year: null });
   await Promise.all([api.getDaily(), api.getHome()]);
   assert.deepEqual(calls.map((call) => call.url), ['/api/profile', '/api/onboard', '/api/household', '/api/profile', '/api/daily-score', '/api/home-guard']);
-  assert.deepEqual(JSON.parse(calls[1].init.body), { address: '28025' });
+  const onboardBody = JSON.parse(calls[1].init.body);
+  assert.equal(onboardBody.address, '28025');
+  assert.match(onboardBody.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.deepEqual(Object.keys(onboardBody).sort(), ['address', 'request_id']);
   assert.deepEqual(JSON.parse(calls[2].init.body), { ...emptyHousehold(), has_child: true });
   assert.deepEqual(JSON.parse(calls[3].init.body), { water_source: 'other', home_year: null });
   assert.ok(calls.every((call) => !(call.init.headers instanceof Headers)));
@@ -107,6 +110,28 @@ test('onboard timeout never accepts an existing location, even when coordinates 
     await api.getProfile();
     await assert.rejects(api.submitAddress('28025'), { code: 'timeout' });
   }
+});
+test('onboard timeout recovers a replaced location only when the profile carries this request id', async () => {
+  let sent = null;
+  const { api } = setup((url, init) => {
+    if (url === '/api/onboard') { sent = JSON.parse(init.body).request_id; return new Promise(() => {}); }
+    return response({ onboarding_complete: true, profile: { ...location, lat: 35.7, onboard_request_id: sent } });
+  }, { normalTimeoutMs: 50, slowTimeoutMs: 5 });
+  const recovered = await api.submitAddress('28025');
+  assert.equal(recovered.recovered_after_timeout, true);
+  assert.equal(recovered.lat, 35.7);
+  assert.equal(recovered.service_area_status, null);
+});
+test('onboard timeout rejects a location stored by a different request id', async () => {
+  const { api } = setup((url) => url === '/api/onboard' ? new Promise(() => {}) : response({ onboarding_complete: true, profile: { ...location, onboard_request_id: '00000000-0000-4000-8000-000000000000' } }), { normalTimeoutMs: 50, slowTimeoutMs: 5 });
+  await assert.rejects(api.submitAddress('28025'), { code: 'timeout' });
+});
+test('each address submission gets its own request id', async () => {
+  const { api, calls } = setup(() => response(location));
+  await api.submitAddress('28025');
+  await api.submitAddress('28025');
+  const [first, second] = calls.map((call) => JSON.parse(call.init.body).request_id);
+  assert.notEqual(first, second);
 });
 test('onboard timeout with unknown baseline checks profile but cannot assert this write succeeded', async () => {
   const { api, calls } = setup((url) => url === '/api/onboard' ? new Promise(() => {}) : response(complete), { normalTimeoutMs: 50, slowTimeoutMs: 5 });

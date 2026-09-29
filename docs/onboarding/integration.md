@@ -8,7 +8,7 @@ The frontend is implemented against the repository's current route contracts. Au
 | --- | --- | --- | --- |
 | Session bootstrap | `ensureAnonSession()` from `lib/auth.js` | No identity input | Enable Get started |
 | First-visit routing | `GET /api/profile` | No parameters | Route using `onboarding_complete`, never `onboarded` alone |
-| Address | `POST /api/onboard` | `{ address }`, including device GPS as `"lng,lat"` | Household |
+| Address | `POST /api/onboard` | `{ address, request_id }`, including device GPS as `"lng,lat"` | Household |
 | Household Continue | `PUT /api/household` | All seven real boolean keys, every time | Home details |
 | Household Skip | None | No save | Home details |
 | Home details | `PATCH /api/profile` | `{ water_source, home_year }` | Reveal only after a complete profile is returned |
@@ -28,15 +28,13 @@ The frontend is implemented against the repository's current route contracts. Au
 
 ## Timeout ambiguity requiring backend confirmation
 
-After an address request times out, the adapter always rechecks `/api/profile` before showing the error. For a profile known to have no coordinates before the submission, newly stored coordinates are enough to recover and proceed.
-
-For an existing location, the current profile response does not include an address-write version, request ID or digest. The frontend cannot prove that existing coordinates were written by this timed-out request. It intentionally does not accept an old location, even if a concurrent request changed the coordinates. Vibhav should consider returning a client request ID or monotonic address revision from onboarding and profile to support safe recovery during Change address. Until then, a timed-out replacement keeps the entered address and asks for a retry.
+After an address request times out, the adapter rechecks `/api/profile` before showing the error. Each submission now sends a fresh UUID as `request_id`. When `profiles.onboard_request_id` equals that UUID, the frontend can confirm that particular write and proceed, including during Change address. A different ID cannot confirm the write. On a deployment without migration `0014_onboard_request_id.sql`, the adapter can only recover a first address when a profile known to have no coordinates gains them; timed-out replacements still ask for a retry.
 
 ## Fresh readings on address replacement
 
 The initial onboarding reveal is parameterless, as specified. After replacing an existing location (including resubmitting Address after Back), the frontend clears old local readings and calls `/api/daily-score?fresh=1`, as specified for Change address. HomeGuard remains parameterless. The adapter gives the refresh the same 15-second deadline and error handling as the initial reading. A failed or rate-limited refresh stays unavailable and never falls back to the old home's cache.
 
-The current daily-score route still caches by profile and time, not location revision. `fresh=1` bypasses that read for this reveal, but cannot solve every concurrent write or a later parameterless dashboard request after a failed refresh. Vibhav must verify or location-version the server cache on address changes and exercise refresh rate limits before Change address is live-accepted. No backend file was changed for this feature.
+The current checkout also contains backend changes that clear today's old-location reading and reset the daily-score limiter when coordinates change. Vibhav must apply migration `0014`, verify the cache invalidation and refresh rate limits against the deployed service, and exercise concurrent address writes before Change address is live-accepted.
 
 ## Honest result binding
 
@@ -68,7 +66,7 @@ Reading-cache `receivedAt` is distinct from backend `retrieved_at`/`assembled_at
 3. Submit a disposable NC location. Confirm address input is not stored, coordinates are rounded, and the water boundary result is preserved. Repeat with unmatched, failed boundary and outside-NC cases.
 4. Verify Household Skip performs no call and Continue performs a full seven-boolean replacement. Confirm blank year and both Other/Not sure normalization.
 5. Verify parallel reveal responses against real backend fields for public water, wells, springs, missing data and provider errors. Complete navigation must remain available after a failed reveal lookup.
-6. Resolve the address-change server cache issue above, then test replacing an existing location and retrying a timed-out replacement.
+6. Apply migration `0014_onboard_request_id.sql`, verify an address replacement clears the old daily reading, and retry a timed-out replacement. Confirm the returned profile carries the matching request ID.
 7. Test the integrated flow on an actual phone, including keyboard, GPS permission denial, browser back, low connectivity, reduced motion and large text. Offline fixtures and desktop browser checks do not substitute for this step.
 
 The Today destination and later app stages are separate features. Their full visual/product implementation is not implied by completing onboarding.

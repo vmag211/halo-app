@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, radonAppliesTo } from '../lib/geocode.js';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, radonAppliesTo, parseRequestId, locationMoved } from '../lib/geocode.js';
 
 const feature = (regionCode, countyText = 'Union County') => ({
   center: [-80.54321, 35.012345],
@@ -54,4 +54,18 @@ test('home year: integers 1700–now or blank; everything else rejected', () => 
   for (const bad of [1699, 2027, 1975.5, 'abc', '19 75', -1]) {
     assert.equal(validateHomeYear(bad, now).ok, false, String(bad));
   }
+});
+
+test('request id: a UUID (lowercased) or null, never an error', () => {
+  assert.equal(parseRequestId('0F8FAD5B-D9CB-469F-A165-70867728950E'), '0f8fad5b-d9cb-469f-a165-70867728950e');
+  for (const bad of [undefined, null, '', 'abc', 42, '0f8fad5b-d9cb-469f-a165-70867728950e; drop']) {
+    assert.equal(parseRequestId(bad), null, String(bad));
+  }
+});
+
+test('location moved: only a different stored point counts', () => {
+  assert.equal(locationMoved({ lat: 35.1, lng: -80.2 }, { lat: 35.1, lng: -80.2 }), false);
+  assert.equal(locationMoved({ lat: 35.1, lng: -80.2 }, { lat: 35.101, lng: -80.2 }), true);
+  assert.equal(locationMoved({ lat: null, lng: null }, { lat: 35.1, lng: -80.2 }), false);
+  assert.equal(locationMoved(null, { lat: 35.1, lng: -80.2 }), false);
 });

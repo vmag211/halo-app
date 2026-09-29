@@ -1,8 +1,9 @@
 import { NextResponse, after } from 'next/server';
-import { mapboxLimiter, onboardLimiter, checkLimit } from '@/lib/ratelimit';
+import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeWaterSource } from '@/lib/waterSource';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear } from '@/lib/geocode';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, parseRequestId, locationMoved } from '@/lib/geocode';
+import { localDate } from '@/lib/localDate';
 import { backfillHousehold } from '@/lib/backfill';
 
 // The history backfill runs after the response (see below) within this budget.
@@ -45,6 +46,8 @@ export async function POST(request) {
       return NextResponse.json({ error: year.error }, { status: 400 });
     }
     const homeYear = year.value;
+    // Stored with the location so the app can confirm a timed-out request.
+    const requestId = parseRequestId(body.request_id);
 
     if (!address) {
       return NextResponse.json({ error: 'Address is required' }, { status: 400 });
@@ -152,6 +155,10 @@ export async function POST(request) {
     if (state) profileUpdate.state = state;
     if (waterSource !== null) profileUpdate.water_source = waterSource;
     if (homeYear !== null) profileUpdate.home_year = homeYear;
+    if (requestId !== null) profileUpdate.onboard_request_id = requestId;
+
+    // The location on file before this write, to tell a move from a re-submit.
+    const { data: before } = await supabaseAdmin.from('profiles').select('lat, lng').eq('id', userId).maybeSingle();
 
     // upsert, not update: `UPDATE ... WHERE id = x` against a row that does not
     // exist is not an error in Postgres. It touches zero rows and reports
@@ -163,10 +170,15 @@ export async function POST(request) {
       .from('profiles')
       .upsert(profileUpdate, { onConflict: 'id' });
 
-    // profiles.state arrives with migration 0009; until then store the rest.
-    if (updateError && isUndefinedColumnError(updateError) && 'state' in profileUpdate) {
-      const { state: _state, ...withoutState } = profileUpdate;
-      ({ error: updateError } = await supabaseAdmin.from('profiles').upsert(withoutState, { onConflict: 'id' }));
+    // profiles.state arrives with migration 0009 and onboard_request_id with
+    // 0014; until then store the rest. Drop the column the error names, else
+    // the newest one first.
+    const optional = ['onboard_request_id', 'state'].filter((column) => column in profileUpdate);
+    while (updateError && isUndefinedColumnError(updateError) && optional.length) {
+      const named = optional.find((column) => (updateError.message || '').includes(column)) ?? optional[0];
+      optional.splice(optional.indexOf(named), 1);
+      delete profileUpdate[named];
+      ({ error: updateError } = await supabaseAdmin.from('profiles').upsert(profileUpdate, { onConflict: 'id' }));
     }
 
     if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
@@ -176,6 +188,24 @@ export async function POST(request) {
     if (serviceAreaStatus === 'lookup_failed') {
       const { data: stored } = await supabaseAdmin.from('profiles').select('pwsid').eq('id', userId).maybeSingle();
       pwsid = stored?.pwsid ?? null;
+    }
+
+    // A new home: today's cached reading belongs to the old one, and the
+    // five-minute provider limit would otherwise make the results reveal's
+    // fresh reading for the new home fail. Onboarding itself is limited to 10
+    // per day per user, so this can't be used to hammer the providers.
+    if (locationMoved(before, profileUpdate)) {
+      const { error: clearError } = await supabaseAdmin
+        .from('daily_scores')
+        .delete()
+        .eq('profile_id', userId)
+        .eq('date', localDate());
+      if (clearError) console.error('Could not clear the old home\'s reading:', clearError.message);
+      try {
+        await dailyScoreLimiter.resetUsedTokens(`daily-score:${userId}`);
+      } catch (limitError) {
+        console.error('Could not reset the daily-score limiter:', limitError.message);
+      }
     }
 
     // Backfill the last few weeks of readings so Journal has history from day
@@ -194,13 +224,17 @@ export async function POST(request) {
       pwsid,
       service_area_status: serviceAreaStatus,
       water_source: waterSource,
-      home_year: homeYear
+      home_year: homeYear,
+      // Echoed only if it was stored (null before migration 0014).
+      onboard_request_id: profileUpdate.onboard_request_id ?? null,
     });
 
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
 
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Details go to the log: database and provider messages are not for users.
+    console.error('Onboard failed:', error);
+    return NextResponse.json({ error: 'Could not save this address. Please try again.' }, { status: 500 });
   }
 }

@@ -153,8 +153,9 @@ export function createLiveOnboardingApi(options: LiveApiOptions = {}): Onboardin
     async submitAddress(address, signal) {
       if (validateAddress(address)) throw new FrontendError("address_required");
       const baseline = profileBeforeAddress;
+      const requestId = crypto.randomUUID();
       try {
-        const response = await request<OnboardResponse>("/api/onboard", { method: "POST", body: JSON.stringify({ address: address.trim() }) }, signal);
+        const response = await request<OnboardResponse>("/api/onboard", { method: "POST", body: JSON.stringify({ address: address.trim(), request_id: requestId }) }, signal);
         if (!hasLocation(response)) throw new FrontendError("invalid_response");
         // Old-location readings cannot belong to this newly selected home.
         clearOnboardingStorage();
@@ -162,14 +163,16 @@ export function createLiveOnboardingApi(options: LiveApiOptions = {}): Onboardin
         return response;
       } catch (error) {
         if (errorCode(error) !== "timeout" || signal?.aborted) throw error;
-        // A timed-out write may still have completed. Only a transition from a
-        // known location-free profile is conclusive with today's contract. It has
-        // no write version/address digest to distinguish an old location from a
-        // late write, so re-onboarding never silently accepts existing coordinates.
+        // A timed-out write may still have completed. The stored request ID
+        // proves this particular submission won, including an address change.
+        // Older deployments without migration 0014 can only confirm a first
+        // location from a known location-free baseline.
         try {
           const after = await request<ProfileResponse>("/api/profile", {}, signal);
           profileBeforeAddress = after;
-          if (baseline !== null && !hasLocation(baseline.profile) && hasLocation(after.profile)) {
+          const matchedRequest = after.profile?.onboard_request_id === requestId;
+          const firstLocation = baseline !== null && !hasLocation(baseline.profile) && !after.profile?.onboard_request_id;
+          if (hasLocation(after.profile) && (matchedRequest || firstLocation)) {
             clearOnboardingStorage();
             return { ...after.profile, service_area_status: null, recovered_after_timeout: true };
           }

@@ -209,6 +209,7 @@ export async function GET(request) {
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Daily score failed:', error);
+    return NextResponse.json({ error: 'Could not load today\'s readings. Please try again.' }, { status: 500 });
   }
 }

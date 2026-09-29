@@ -10,6 +10,7 @@ export interface LocationProfile {
   lat?: number | null; lng?: number | null;
   water_source?: string | null; home_year?: number | null;
   renter_mode?: boolean; locale?: string | null;
+  onboard_request_id?: string | null;
 }
 export interface ProfileResponse {
   onboarded?: boolean; onboarding_complete?: boolean;
@@ -18,7 +19,7 @@ export interface ProfileResponse {
 }
 export interface OnboardResponse extends LocationProfile {
   service_area_status?: "measured" | "outside_known_area" | "lookup_failed" | null;
-  /** True only when a previously location-free profile gained coordinates after timeout. */
+  /** True when the stored request ID matches, or a legacy first location was confirmed. */
   recovered_after_timeout?: boolean;
 }
 export interface ScoredContaminant {

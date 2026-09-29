@@ -615,7 +615,10 @@ export async function GET(request) {
         waterRiskDetail,
         isPrivateSource,
         lead: leadData
-      })
+      }),
+      // When this answer was put together. The water results inside it are
+      // dated per contaminant (date_iso); this is not a measurement time.
+      assembled_at: new Date().toISOString(),
     });
 
   } catch (err) {

@@ -56,6 +56,8 @@ async function profileResponse(userId) {
           water_source: profile.water_source ?? null,
           renter_mode: profile.renter_mode === true,
           locale: profile.locale ?? 'en',
+          // The /api/onboard request that stored this location (migration 0014).
+          onboard_request_id: profile.onboard_request_id ?? null,
         }
       : null,
     household: normalizeBands(bandRow ?? null),
@@ -70,7 +72,8 @@ export async function GET(request) {
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Profile failed:', err);
+    return NextResponse.json({ error: 'Could not load your profile. Please try again.' }, { status: 500 });
   }
 }
 
@@ -100,6 +103,7 @@ export async function PATCH(request) {
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Profile failed:', err);
+    return NextResponse.json({ error: 'Could not load your profile. Please try again.' }, { status: 500 });
   }
 }

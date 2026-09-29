@@ -45,7 +45,7 @@ Checked items are implemented and reviewed against the source contracts, with au
 
 - [x] Visible label, street-address autocomplete, 16px-or-larger input, specified placeholder, privacy statement visible before typing.
 - [x] Trimmed address requires at least five characters. Validate on blur and on submit; clear an existing error as soon as input becomes valid.
-- [x] Invalid input does not disable Continue; successful validation submits `POST /api/onboard { address }`.
+- [x] Invalid input does not disable Continue; successful validation submits `POST /api/onboard { address, request_id }`, with a new UUID for each attempt.
 - [x] Geolocation is requested only when Use my location is activated. Display Using your current location, send `longitude,latitude` in that order, and never use a fabricated fallback location.
 - [x] Unsupported geolocation and denied/failed geolocation show their distinct specified messages. Typing in the input discards acquired coordinates.
 - [x] In-flight submit disables duplicate requests and shows the button's working state plus Finding your local data.
@@ -124,6 +124,6 @@ Checked items are implemented and reviewed against the source contracts, with au
 3. HomeGuard currently has no top-level retrieved_at/assembled_at field. Use water sample ISO dates where appropriate; never label browser receipt time as source freshness. Ask Vibhav for source-date availability needed by later screens.
 4. The federal-testing reveal must distinguish enforceable limits from non-enforceable guidance. The PDF's shorthand above-limit example does not authorize calling guidance a legal limit.
 5. The all-screen source/date definition of done is broader than the approved minimalist reveal. Preserve the approved composition and document how Today/HomeGuard will expose full provenance instead of silently claiming it exists.
-6. Onboard timeout recovery can confirm stored coordinates, but if an older location existed a profile read alone cannot prove the latest address write succeeded. Change-address integration needs explicit reconciliation for that case.
+6. Onboard timeout recovery compares the stored `onboard_request_id` with the submitted UUID, including when an older location existed. Applying migration `0014_onboard_request_id.sql` and checking the live behavior remain release gates.
 7. Skipping after a previously successful household save cannot mean erase composition because Skip explicitly sends no request. Existing server selections remain until a new Continue saves all seven booleans.
 8. Actual backend/provider integration and real-device verification are separate completion gates from a frontend passing mocked tests. Do not mark them complete without evidence.

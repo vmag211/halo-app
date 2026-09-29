@@ -34,7 +34,8 @@ export async function GET(request) {
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Household failed:', err);
+    return NextResponse.json({ error: 'Could not load your household. Please try again.' }, { status: 500 });
   }
 }
 
@@ -73,6 +74,7 @@ export async function PUT(request) {
   } catch (err) {
     const authResponse = authErrorResponse(err);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Household failed:', err);
+    return NextResponse.json({ error: 'Could not save your household. Please try again.' }, { status: 500 });
   }
 }
