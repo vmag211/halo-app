@@ -1,0 +1,1015 @@
+{
+  "status": "unapproved-review-evidence",
+  "referenceMain": "9f1ef88",
+  "scenarios": 53,
+  "files": [
+    {
+      "path": "app/foundation/preview/page.tsx",
+      "sha256": "4eaca4c597dd31d960db1ab508d32ac8d7cb665f5f5c3982ce5caddebb2eaebc"
+    },
+    {
+      "path": "app/foundation/preview/preview.css",
+      "sha256": "e096c13781bc0ec8a346779325680d4804b8c068c85fb8317f648bbe0ede86fa"
+    },
+    {
+      "path": "app/globals.css",
+      "sha256": "fdc8c6d1223c23d465306d234ea2a9fa05ef7efcce249dfc9b69d18226781633"
+    },
+    {
+      "path": "app/layout.tsx",
+      "sha256": "dc17d36b38614a85f780e1d4a29d17deae8a054f1555c75c327a59f5a5ca7de8"
+    },
+    {
+      "path": "app/onboarding.css",
+      "sha256": "2f35e609320049ea292fff747e46a9e7e4a35bcbe74fc9cbc797533b14b56ea0"
+    },
+    {
+      "path": "components/foundation/FoundationPreview.tsx",
+      "sha256": "4301c70457c1b1d0d1ebaad288d22610c7613a466c9de4e3cb164313e38177a9"
+    },
+    {
+      "path": "components/ui/Button.tsx",
+      "sha256": "ad5c5c7ff9e0a0216b33d26a1a9eb167d3190d46bef59b949c329f59a85674a3"
+    },
+    {
+      "path": "components/ui/Foundation.tsx",
+      "sha256": "df9516311e08d1f5d261c8818f20a324cec7c24de0c06c10aaf9cc405ee4e21d"
+    },
+    {
+      "path": "components/ui/SeverityPill.tsx",
+      "sha256": "4cb27bd3385c8fd25ffe7647c882f16bfc5503970c05acf19139598912d7601c"
+    },
+    {
+      "path": "docs/foundation/reference/HALO_Frontend_Specification_2026-09-29.pdf",
+      "sha256": "a6ee330a7ff4e52d0ec54c2cc3a542d426d8ab643d72a2ef7e9607e8750ec33a"
+    },
+    {
+      "path": "docs/foundation/review/dark-overview.png",
+      "sha256": "d336681b1af0538328680b56c15fcc4aaa6155aea29e1720aa78cf7ae246f949"
+    },
+    {
+      "path": "docs/foundation/review/light-overview.png",
+      "sha256": "f809eaab7ebee3e5c3f012791fb0d28aaf1fb59f21a845edd9d05e7dddaf9d50"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-bars.png",
+      "sha256": "43e36c90e678f308bc0999281d1f7968e775bcab57aa9b83fe81bacaccf746dd"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-buttons.png",
+      "sha256": "f739d825d256f5f16ffcc9e647a89dc1a42cf05c8344d6ddbf94cfea92fccc82"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-callouts.png",
+      "sha256": "535f5da490b07266af8619374bb6332f792e12c07816ba7e5a3e28ca92dd5c1b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-card-loading.png",
+      "sha256": "bf1d0cff19792963099c3224d6a915239fe62d615a06fcbae1b11474caac951c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-card-no-data.png",
+      "sha256": "2caab92827de7c9ff0b3ecd242566117c7d6825d59b3471086b6c7131416f0da"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-cards.png",
+      "sha256": "69209d17452ad3ffb4b6f236bc1443a87a1c2337b207ca1c9f357b260e067e40"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-contribution-single.png",
+      "sha256": "fd69b29c348ab31bc9838814e5e2ec163b5e58da5518ed8ad7853e2c43ad48f3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-contribution-sliver.png",
+      "sha256": "c2e24e8a86ee360e5f9597704fef9254864d7ca3eafb2df61351406b1bb087f5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-contribution-zero.png",
+      "sha256": "c11ecd51aedf9d13eef01e4c176f6048b444e4ef3614183cc744f094bf30ce56"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-controls-failure.png",
+      "sha256": "81571cfeba82a98ea4705329bcd2133f2d858b53cdf540c4fa5d39c7b0900bba"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-controls.png",
+      "sha256": "81571cfeba82a98ea4705329bcd2133f2d858b53cdf540c4fa5d39c7b0900bba"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-empty-no-action.png",
+      "sha256": "39228795a334483edba581673e63fa8ba0ffa627bc80d13a43ed0d48c6f38c16"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-empty.png",
+      "sha256": "42ae6021c7eb44c3a0b376ac9607bd6acdc159c00742c3041ec7193caa9d65d7"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-error.png",
+      "sha256": "0909023cb31ffbf806699c5003b89e51ef5fbd0cb65a9115a6eb7048629f5d24"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-form-disabled.png",
+      "sha256": "4be0b2801d22b7342a2b1614c70b1113bbd28d9e0c5d91409371032a760e38a0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-form-error.png",
+      "sha256": "9b286445a4ddb82784140e0ce2864fea21d142927c31c772227d822aaabad22b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-form.png",
+      "sha256": "bece91f17a78389408dd40bec37f2f02a0f37c6bcfc6c8f5965823f86fdecc1a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-gate-error.png",
+      "sha256": "f1097c1ed4d18ea9231509ba8c1c2dba6656b2223f898bea68302657d90a50da"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-gate-incomplete.png",
+      "sha256": "39a46c9a0b254e4226323e4287dfc95e8ca2de38fda2002e641c7c1bd84e07b5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-gate-loading.png",
+      "sha256": "1e7c2ccb1564f492ce589180859b156d8bb351eed7d808a8e5a478c21b56d945"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-gate-location.png",
+      "sha256": "3f6626e48839ec84354c05295664b250dc3a186d520d7124e70f16d0f9b429d0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-identity.png",
+      "sha256": "a2a4f7aa6b829fbb616878b89231c0132c37de33d9d1e9d6e1838ebd9692578e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-loading.png",
+      "sha256": "538688175f34ed36044d3ac07928851f655110f9ea83be1c0798b03ff5611f55"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-long-text.png",
+      "sha256": "3c45f5c5348befed2c9043d095c344964d355e43e409b13e3c78cbf40045040a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-no-data.png",
+      "sha256": "950086183df524b385c9f62aef95038502ef02ce91a136c2299fbd876b87ae62"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-not-found.png",
+      "sha256": "bf29111c14175acbfac9dd06443a43c6e210c3108155a00a7d7ec7d217cefc0f"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-offline-empty.png",
+      "sha256": "ef4fba4b4d9868c01a2a6ae5abd12bcf0bafd8c2a76a74562082dd7bbfc7ad4e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-offline.png",
+      "sha256": "bcda26f3b410ae9f5142c1d4e9b122ea2e7c7d7e45a69f46abab1d7554667a82"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-partial.png",
+      "sha256": "17087b695bd3f915c6342b295a7d20a148216c5aa9dddba7f11049a22d1e0432"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-pills.png",
+      "sha256": "79336f80ab494b2bee7b43b99644ae217c3e140ebb63ea22442c5b52efbc9469"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-refreshing.png",
+      "sha256": "bca16bf97764564b6f691b20b8d742c8cee308033bb8540972c8fd6d1c10becc"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-score-full.png",
+      "sha256": "6acb6351f661d8aed3784ac759b160cd48ecf30d7eb8a7de391043d662c57be8"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-score-zero.png",
+      "sha256": "0aff1e6aa6bb17defe80611e1ef7adfde65ec7b3a668cda3e7e46c3296df8432"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-content.png",
+      "sha256": "2216c9a77227c9a38f1ba5f5417ee1c319ccc4ff4bd68b5dbc38813d4717767a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-deep-link.png",
+      "sha256": "b0e02617f06d0e837c7ee7e2b3dac04bf1c6ee0ab4d969e836dbaa410f2d7cda"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-empty.png",
+      "sha256": "cc691cbeb5965833fcd1cbcea5c8e7aad6d79e9c60b19a59014c9bd60ec391de"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-error.png",
+      "sha256": "482a72a92a6f6b94240da6a18f364b94a719158b0f2e24b400e26a32efa4dc8e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-loading.png",
+      "sha256": "9927f8f0e9be440fb816002278d72a76381309d13ac9c559deafe3e2d74a0e41"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-standard.png",
+      "sha256": "b0e02617f06d0e837c7ee7e2b3dac04bf1c6ee0ab4d969e836dbaa410f2d7cda"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-sheet-tall.png",
+      "sha256": "5cc77a088d06a1a432d2eca213dfacd33bbd9188844cf07249d2fba058bca817"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-act.png",
+      "sha256": "820975a493f642484911941ec3d08477b03e678f31bde47948e0d92be216f8d6"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-badge-cap.png",
+      "sha256": "466309b32bd8680a1fe02a595dc95842a0704822129e5366800b89d813c9a68e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-home.png",
+      "sha256": "8d99923ec39e92dbb61ca4f5887c1019ab2e657048c9436a1624a76269b05c5d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-journal.png",
+      "sha256": "4e6a45e961b56f2f265f1d092c6268a789a3a41c161cb28ec7f14fb1c1fc7089"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-map.png",
+      "sha256": "940b82acac43a61e372e3006ab2f92aefcf75c4f312dd09dc100bd9becd77e82"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-no-alerts.png",
+      "sha256": "af6e544583a04b884e43cde62c2f5de9565f53cf078aedae5e79e5bc729bcf5c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-no-assistant.png",
+      "sha256": "207ffd82e46df4417c8a5cce50bb30a228e31b79c0297cb71f9df5e03733d120"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell-settings.png",
+      "sha256": "bef922af8ddee99a0d542999e8db3fb56d1becad420acac0f5f04a86323fce9c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-shell.png",
+      "sha256": "72eaf2e8bc805b16649435537f17bc294c860275f012a606786034962f38c33a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-stale.png",
+      "sha256": "80947514d979f6564018f131c432ad38abd0bf009441f819eb6e5ad5efa96ab1"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-swipe.png",
+      "sha256": "e3eb92c6727243870747c2ece908632d48fbf3d9893bd5d70b6ec1e032aa16bb"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-toast-undo.png",
+      "sha256": "a3bfa0f27ed90f4194fe14aaae24996fe4cc4086416930f81b9c29d7a2aeb8e1"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-320-toast.png",
+      "sha256": "4bf77470475c1324f45b72936d7036a8d745e5ff96c742874f3106883143e7c3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-bars.png",
+      "sha256": "0c4461939c4289d84642e3f7d4c0d24c701d385cee8af8c36baa7076ca88a85b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-buttons.png",
+      "sha256": "a482d0a77c683dfb6e7d3912cc48d842ffa512b75a06476a1764ddcb3e3cc070"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-callouts.png",
+      "sha256": "8da78121fa06418aa2c1a0789982deb07b4edb8eddf12682c958fed5ffdfce28"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-card-loading.png",
+      "sha256": "a1186efed7d40cc7212361e9eee95a262ac1053fcd12423b96c02cd04c9b1f0e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-card-no-data.png",
+      "sha256": "fb42bf7c8105a1887cd65072c51cef247cbc89560aac2f54d15ec73656088370"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-cards.png",
+      "sha256": "51611e8e16ac65bb2981dc71880441eb38c36f76e74ba6dd9f10958161c82b53"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-contribution-single.png",
+      "sha256": "84ab141afae127a204d8fa1ac8fc169b917f226ddf0a2c4d1a4b2e436a0994a1"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-contribution-sliver.png",
+      "sha256": "9ee996565fd9d44e6c0f7f9a680763b4a0c4bd9b41ebd0bf116ef2de2509fbe3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-contribution-zero.png",
+      "sha256": "3158002985d44265be6e943cb8998c0c62b28bc5bcd96ed4e20ee38ca909e647"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-controls-failure.png",
+      "sha256": "6e7c79f4d5d854540c18c3537150da00a2980dba35676ca6599edc335870f058"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-controls.png",
+      "sha256": "6e7c79f4d5d854540c18c3537150da00a2980dba35676ca6599edc335870f058"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-empty-no-action.png",
+      "sha256": "ca8da56dfaf2aecf2e3c00643a23bdb7fde201cc1649e20588d0b3ebccafac96"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-empty.png",
+      "sha256": "b77c64921cd9f9868d3166594cf60b3c015ec9aae44748517b2347f375297391"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-error.png",
+      "sha256": "b231746db6a7680c5d042c14d99ecf6e8912f33c095f0aa38c3652aa85f323cc"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-form-disabled.png",
+      "sha256": "113b995d597e6505408b71edca3c839ee04f616a608728a04af261518e3c7988"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-form-error.png",
+      "sha256": "dd50336e16f807bb0f38d2329f388c620a06a8a17d20685eedf4c9b71619cdb5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-form.png",
+      "sha256": "05a1987eec48e50425f40c98b51a6ea46e6aca47e90825be6337cc064bf41957"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-gate-error.png",
+      "sha256": "72c44e92d6b7dd401fd70128799550b5752decd81180cf8485583acaa39e914e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-gate-incomplete.png",
+      "sha256": "cd4aec12c8251c034892ab17fbc3cd3101ec118eecdb05549449d8e3a3ce85a8"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-gate-loading.png",
+      "sha256": "b01aefb69ec2f990052faa454632d960d4064a1df07890401fcb96180e9565b4"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-gate-location.png",
+      "sha256": "7a86b661fe3bf6d712e411ba18952b0d595c2852abc8ba97de30a5294358a426"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-identity.png",
+      "sha256": "0d481d074bcc9fc2b503e5777bc8a8042e0cc8c93cc5d3537bf6b30bea94fc4f"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-loading.png",
+      "sha256": "0431538023fe8a6270edb4c540f84fcb8ccec28cacc99ea6804c28d71e46fc20"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-long-text.png",
+      "sha256": "fb5517cf0b24993f61302ab071ae0adb9c51d4685dda3b691073a4a621f8faf6"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-no-data.png",
+      "sha256": "633fa84b6be12c65b5b4379a6387ea01c4996f79e0d28fbcee669d3d82bb8bcc"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-not-found.png",
+      "sha256": "f9bcdc43aa4908966a7e18aabee232fffb32ba5df7b8ac70b81f0ff01dab8485"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-offline-empty.png",
+      "sha256": "c1d20dae90c6899dc0a351fb2f6810278af867401afd222cc9c4d6f78a2b06d0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-offline.png",
+      "sha256": "4b205f72c1d95ad862337b5c6e6d8d085024427c5eb56e1fae9f2e7c528cf720"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-partial.png",
+      "sha256": "8b43947c8d27a49b9f93129852327d46647e07f4e638f1171006c5ae02f70d57"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-pills.png",
+      "sha256": "2a1d6501f336e02a9ced3b94b355d20f53f51c668ae585208b82889afbe98cd6"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-refreshing.png",
+      "sha256": "e15c72bad4f784bbaca0680eea6eff90c437b9d91dd590293463761ce3e48dd0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-score-full.png",
+      "sha256": "87d952dc39eef7133835a8abbc5bee349c1a84024e91baf96aa0ebdca808853c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-score-zero.png",
+      "sha256": "965b17a0fd9ffba13e736b3fc99b6e8a43daac1d17f00c3e5cabe4a9e593492c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-content.png",
+      "sha256": "f8a4051ba7bbab0ff5ac7da19634fe75924ac843030448297ec96832c4f7262a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-deep-link.png",
+      "sha256": "b3e03fa2c82463596293a47f3a48ceecf0844e07facbd7475ab5ba48a6451e79"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-empty.png",
+      "sha256": "ab5dab12a11cafcf11ec1cd2ed38de62e2138c320a1b65b45aeaa39eeffc813d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-error.png",
+      "sha256": "1bb66e660c34c752048a646c8c4a2f29f6e8cf42ff83f17a0d3f11b8ef62948c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-loading.png",
+      "sha256": "067325d6d751b4f40c51942b0bc80b2604872a56b6e56a5642c470f5b1e6b3c9"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-standard.png",
+      "sha256": "b3e03fa2c82463596293a47f3a48ceecf0844e07facbd7475ab5ba48a6451e79"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-sheet-tall.png",
+      "sha256": "cda883658a568796e936c61d96eef9b4a36be92a3a4705080c0fd4288f8b689a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-act.png",
+      "sha256": "a9f311260dce598a48cbdf394808be847c5958df59d0468b3f7380d5fb18e4bb"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-badge-cap.png",
+      "sha256": "a9366f2423ccccdc9996841c659ec7db95ef59276f6cb49be5ee7f0ad8258fdd"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-home.png",
+      "sha256": "c79b19c43813d3efaa95500b1a891f6f840de3877cbbd423660e47f8ce6b16b1"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-journal.png",
+      "sha256": "2f2a18941dc730bc4e5af61dbc9c66b70ca9b21bb5554123b2bea96ca4b53aab"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-map.png",
+      "sha256": "1f8fabee10d01c5bf1656421aad5fedf3df8f3c7c6b3addc921e79687d9a8e48"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-no-alerts.png",
+      "sha256": "b2628b3113740a2d5ea198da3b546c8c572df4bb715393037be51bb22592efa1"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-no-assistant.png",
+      "sha256": "18cf1acedf9cb029b34dad2968c45f3d0d1106a7769f2b9c17112cb31ea36da6"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell-settings.png",
+      "sha256": "c217a9ad01fe36971317aeef53e6e563be7a05971101866aff4631760ce042b3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-shell.png",
+      "sha256": "b2b229ffa7b380261aa044ec3df2b5dfd0b32f98b5b96ddb68f3cc363f71251c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-stale.png",
+      "sha256": "b2f90f885f17af0c70dc7e0949fe0048e016c97a1739c048655a71a5ac8f4141"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-swipe.png",
+      "sha256": "5536f861064b39cf7900b8b587ed345e0d85aad5ef1d5fc3f7cb123ca4d596b3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-toast-undo.png",
+      "sha256": "6f929251ae1fbb6db51089d3176b7c6020097e790a575ba4a93482ea147fa864"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/dark-375-toast.png",
+      "sha256": "1ed4dc7beb1507a053b41d5ae9cfe38fed77c36375adea57d6ef2c5ce2f72bad"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-320-controls.png",
+      "sha256": "01e22f8feabc00af57b98ee32126a272c241e5d9ce265c0a8dd1226fdeb096c4"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-320-form.png",
+      "sha256": "4064666bc98817ba463de5b2601c16cb049c955c97a05ddfbd3ea40133cf3d85"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-320-identity.png",
+      "sha256": "e5e9bd9b4cc19e1868081223cf27d0a6054ee58a4ffc0341c3be45b2b64aedf0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-320-long-text.png",
+      "sha256": "6106883789905b00d6e85edb65cbfff49e6290ae62b8871160ba9948d8172602"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-320-sheet-tall.png",
+      "sha256": "38434ce2393a35c416b7c9bb8928ff44b25c251a0600e83eccde3172198a3735"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-320-shell.png",
+      "sha256": "a2462d979e3ac4e4d1c76ba7258ec8c15231cfb3d512b8089571873aca50e78b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-430-controls.png",
+      "sha256": "6d79a8bbf43527116fe0db056698416441996220c0bdc733de6df8e8ab84e047"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-430-form.png",
+      "sha256": "4be850d500716220d156547c202aaea8ab78e8ca200dc0c157bf29f5243c3e3d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-430-identity.png",
+      "sha256": "d17ea23b4b4e525c38fed6a541c601c8bf306141ec5374ec4bbb1336098df28a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-430-long-text.png",
+      "sha256": "9ffea0b05307f4dc3b72ec8d39f273ae080ded8ccfab062aa5a47f3639508a17"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-430-sheet-tall.png",
+      "sha256": "2fc37445c3e36afd46233c27817e259d79d3e759ce62d39ce15332dddd2b4b0f"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-430-shell.png",
+      "sha256": "8a4568d9046c903d8a28ec55786fe59e5b6d9850fd5c36d629f1049af11b7df7"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-900-controls.png",
+      "sha256": "e0b5d27710df55b976b9b8900f19c41ab155b30be97529d710bfdc00cd62128b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-900-form.png",
+      "sha256": "e48ed73a753b4f11dd7c7bc302ac49ea2708f85d2cd2d4744f75d6838a966ed0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-900-identity.png",
+      "sha256": "18b50cddbe87b2942753f61512564478e1118aba21c0845c4edfa543093e981c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-900-long-text.png",
+      "sha256": "42b2bfe51044c1cfc66fa5c2d48f27d197603e1ed32db1017f2cd8b922e4de1a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-900-sheet-tall.png",
+      "sha256": "d10836ba802be462501a60dc7c656bdf8063875863c1fb7204139eeeb1e2ec88"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/large-900-shell.png",
+      "sha256": "a702b17a5e260ba94981a46c4eaf8a80b68fe2abaa3e2a7684a689fca2a1fdb9"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-bars.png",
+      "sha256": "bf367751b99738617f9cca890f6949da99a71efa16812f3f7b96d2ffe215e2eb"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-buttons.png",
+      "sha256": "15be5f2a4d1028d11c83a029a12a1973775bf3c265f643af3611d2ca0cc1e179"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-callouts.png",
+      "sha256": "3dbef04ddf4c5a64c0c3ac27e4589dd75c83aa043e05054858b6858a0732f586"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-card-loading.png",
+      "sha256": "6af0698bfcc2379474ab9ac4c06932059439d1a85c0e58b1e604be89dc9f1a18"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-card-no-data.png",
+      "sha256": "d198e7c6ad9b396d91c89abf15f4c520297ca226590a4a6bfcebf4281ae1664a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-cards.png",
+      "sha256": "9fcc9a1141eb372f58f0fa54cf278b6d29432a8f4c9b651a97fdbccd72385cb3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-contribution-single.png",
+      "sha256": "f4d8bdadf0a649aea854661a818bf6bbcd604a097649b31d5bd5d47bc655773d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-contribution-sliver.png",
+      "sha256": "882509f2ac922627e9b403a770d2d7ed241733a01b196bb0733b32e2fd6b05f8"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-contribution-zero.png",
+      "sha256": "28ead7792e9726aba2fe387b75ee790eded0da1548e5d58cdf3aef7ab833eccd"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-controls-failure.png",
+      "sha256": "d556c50dcbe13d8f4a05844862afa1f53dd1c99f6fd2ef185199c9f48a3599cd"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-controls.png",
+      "sha256": "d556c50dcbe13d8f4a05844862afa1f53dd1c99f6fd2ef185199c9f48a3599cd"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-empty-no-action.png",
+      "sha256": "eb62d865956a8cf96ecc73e8ee006b92b71bb6e7e3e52550aac81f490f0137d3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-empty.png",
+      "sha256": "fd0c8b3ff9ee3a632d901dbcb996573f105b23754da485bfaada77cb5395a5f0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-error.png",
+      "sha256": "c200cc2e4461f82f2a15a134a668cf82e5bd9c69f44cc6f4ab13fefc7d8d107c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-form-disabled.png",
+      "sha256": "4d4763e106f55158e477665acd4121c30cfdef74f0c79799b2ba6ce9aaa89212"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-form-error.png",
+      "sha256": "36028caa4ca364d6dc44f0793e1a4211fe4e6fac8d0d35ed4c4ca196fd76fbdb"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-form.png",
+      "sha256": "a36c85792dd12f4c54875197eeaa80b7c3e2b2d5bb49ed6efaca56fccef4c066"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-gate-error.png",
+      "sha256": "6ff846cabb8f81ea9a94719c770500645704f30f0e11fa20ebdbf66edd862f0e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-gate-incomplete.png",
+      "sha256": "5e6c5ce6c3940cbec0af16be61cbd731fab72f2c0afd86c73f6a5047f57fc29a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-gate-loading.png",
+      "sha256": "c9d75525957466bb48f6d400c2b5440fb9359b13d0d43833981528acf0c8241b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-gate-location.png",
+      "sha256": "e164551f76f22837f3cb03703ae37df865904e9868437c886f871e1aacdfda7b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-identity.png",
+      "sha256": "4499a6ba8f798d342c8ef40e45405102a251d18aaa1fdb0598bc3b0b91e798bf"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-loading.png",
+      "sha256": "3ef343ab8d88de24c4973cbaa14dd7290e1db202262ff9a31159714b513b6b05"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-long-text.png",
+      "sha256": "e62a2f1613af895b1f6687d5c1702d5e4dfbed6c227a4df2db6fdb90ffb2596e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-no-data.png",
+      "sha256": "dd473d42fe793e82a3943e4e1b5ec264c201925d3621abaa5bcb8b97937a2727"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-not-found.png",
+      "sha256": "7469252360bb619e26dfeddeaf4e32003201d8b35e7ce4405c9e11fed5677311"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-offline-empty.png",
+      "sha256": "4fd9722205d4da717e02a2d2cdd9489b37cecb89b514898c1364290574b4ec9d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-offline.png",
+      "sha256": "08de6ea45bc344f74e475d9a43c135c57272452ef21fa5970dce6d87cd74c87e"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-partial.png",
+      "sha256": "c81195930a8f54810502876464c6a64c0e9ac86f42152e4e99ca8daf3181083b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-pills.png",
+      "sha256": "fbc9e0482ffa0c1d6647578f9f0cf6d25d86f9dce434a18cb7f6e84145ccdde6"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-refreshing.png",
+      "sha256": "b6a4be43d332dd0cd3ea875763fe77c43da296704d17bafe559d9a349dc42e63"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-score-full.png",
+      "sha256": "b1ce29d33fb53a453449d8625ded134f3ef6d08b785ac3b8a4374666ac0ddb88"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-score-zero.png",
+      "sha256": "384e9554653ff50e5b91299c04fb51c534b05c22ca4cb49a0f45877ada6197c9"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-content.png",
+      "sha256": "518395b7fa41a49ddea0db10a80d19020914696e576ee87cf9fda7c54fd39043"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-deep-link.png",
+      "sha256": "908a18c42eaa008374a8bcb482a13460eb3a13253df874fa729243163e6b2bd7"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-empty.png",
+      "sha256": "6ad6bd46b91138942701c831925f3518cea1f413655a2afc21c398a78385e67b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-error.png",
+      "sha256": "8401d105930be8bf58ce7e8a3daa7fd1622aadbae2af30248cecc851fffa706f"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-loading.png",
+      "sha256": "5829d875a09c363bfab14b9abf46d038a6107a0b78a2383ed00d3a94286b35a9"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-standard.png",
+      "sha256": "908a18c42eaa008374a8bcb482a13460eb3a13253df874fa729243163e6b2bd7"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-sheet-tall.png",
+      "sha256": "38434ce2393a35c416b7c9bb8928ff44b25c251a0600e83eccde3172198a3735"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-act.png",
+      "sha256": "6e953d3dd780427266f6d679572c1f9337a9f5f9ea3aa6d0f0a50c976e5a7b4f"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-badge-cap.png",
+      "sha256": "fbb0a07bb1c0d34e8ac34f567e0035d3d512f3c1403ced4cb13a02c667c6eb16"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-home.png",
+      "sha256": "e9b67a76aaca1b56fe8377f08cc71facf307a1a4b7cc07a2a13b34a41b508279"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-journal.png",
+      "sha256": "838af802365288fde2407ba581a3299d447c2625899466bb78cb561081829ea7"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-map.png",
+      "sha256": "1cb815ab429f5dc397b5f406dcb47f321c8367ff65a16dcfd1b362bddca05d59"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-no-alerts.png",
+      "sha256": "fb77483a15982fbb08d651cc2fa24afd594b90946137b8bea6bc440f89cc304c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-no-assistant.png",
+      "sha256": "51aca2630413412bf1da8f63b945adaea34c3ea04b012382b0c51662fcb494c8"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell-settings.png",
+      "sha256": "f38fab01056de913b8ae4128b2d263c38c66f7575cd3899a2babea6bbd05b327"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-shell.png",
+      "sha256": "84bd53dbdce92c60ba24c4745afb5273cc1ce0bfa007c1e053fae37975dffa38"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-stale.png",
+      "sha256": "4dddb4efe3314e0606885fab5b1f233607853cfdf28dbae5d425939a96c540b1"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-swipe.png",
+      "sha256": "5dcf280871221bc482548e96e83eabcae5ec37cf21bbf2182c75f321de15d088"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-toast-undo.png",
+      "sha256": "b6e51ad83d4ad611dad5a2b005817647a7c3521007ad4b292efd974b356c8bdc"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-320-toast.png",
+      "sha256": "ff13ef0835cb5f8dd96e779dc8bdf66db4f5c7605d6259cc6b43ddbcd7d8e142"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-bars.png",
+      "sha256": "0018964011dbab38008d7743a063a3c1617687bb26693680f282d3e9a531bae4"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-buttons.png",
+      "sha256": "6786e0cdfd062f8e3bff0bfddeff8d09d7e0553f4c970d5544f30a55ea431914"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-callouts.png",
+      "sha256": "d2d5fa5b40ca1f7c26bec15899e1ba273fa38fff71c7a096d8857bf9399167ba"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-card-loading.png",
+      "sha256": "7148c4a97c569ab372e1340d85a93b673628cf79e238e7bccb4a174efbc6b6f5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-card-no-data.png",
+      "sha256": "2cc2b731a6669aa9ba1593b171a655ce18f4069de9985868026ee65aae20348f"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-cards.png",
+      "sha256": "43e4c8e731c430227fe824935fdacf02f72f6d761a07d8f9c54f8f8339657879"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-contribution-single.png",
+      "sha256": "159686b73dfbbae337406f8b5005daa4c9f638ddde61fc9f5e15cb9641ae3d71"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-contribution-sliver.png",
+      "sha256": "c99efce3bddca7179c1fd73fa0f767a9079f309375600ff7a1fba18a81dc46df"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-contribution-zero.png",
+      "sha256": "ac89d9298c087caf82aa49182f05548154d2fa16648cc3d1b2ed7a13b530fb65"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-controls-failure.png",
+      "sha256": "1336b95f602af3d57a01746ff36d24c05966b144384d67614b1633be45de4715"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-controls.png",
+      "sha256": "1336b95f602af3d57a01746ff36d24c05966b144384d67614b1633be45de4715"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-empty-no-action.png",
+      "sha256": "623d1c849a9e530e8ee2fd851e0fa66c2ed9d1d4ddebe80b2976ccd16cf10cc6"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-empty.png",
+      "sha256": "3a85678b7eeeafea24bb2d2c130b9b5c43d4d3a6bb0e11b3d47cca946bdefd65"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-error.png",
+      "sha256": "da8e73ee6ab6933df42400e82c608895107ff1f37ff8b71aa859a0262284f6ce"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-form-disabled.png",
+      "sha256": "6b41654cc0245ef6abf7723dc64adac97d1c058c12e3d2aea41cd4f7e3d33a76"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-form-error.png",
+      "sha256": "153056f056c0ebafc29dc45b32fd8f32940d2130a2b7704c11b83c7b87a8787d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-form.png",
+      "sha256": "0363033460650c6fb0cb56362cce4850f99a8d67559757963e19e3e4f08c1426"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-gate-error.png",
+      "sha256": "7e428867e335e0a373d1d563275a023d11c078fdef9bee60abb4d462bb7d4df3"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-gate-incomplete.png",
+      "sha256": "1166aebef51797123aba2801675ce60a23cb930125dddb933b1ddb19732b8281"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-gate-loading.png",
+      "sha256": "40a3bbde07eefd37df230c125be7a701910b7d50706aeab9cc304bc5f151a6fc"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-gate-location.png",
+      "sha256": "626982a7d8b5d1cccef5299af4545bd7379b28568aaf7191dfe31ce13079a9a2"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-identity.png",
+      "sha256": "5bdd458cd7fd2bea5b608b69be26e049dfc83f71ca0745a1249325b5c7f5fb9d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-loading.png",
+      "sha256": "1f8f0c033e9f9a8d53398851f86d34d0b21d7b8aa5b8b1421c7728f5a6b57efd"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-long-text.png",
+      "sha256": "bd8a5bff28ead36c89da800eff566f105c0a717d02009f01ca90dc9b6d3fa00c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-no-data.png",
+      "sha256": "e35dbdc47c13ff831da9aa02246b7d1cad2d7ea05abbcaab7a39dc1ac54f1c98"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-not-found.png",
+      "sha256": "98782d0db7719fa67545785615d0c3d80cc2bbc8c19c571b1010fe601fb1af6a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-offline-empty.png",
+      "sha256": "69643495cc1abfb36321edb7f39230d29bb9592226b876b4c5d9ecf85d656bff"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-offline.png",
+      "sha256": "1c71315ee8c79f1cd95ddc027349236393498d65e841ac542c30f94065d967c4"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-partial.png",
+      "sha256": "ee7780da874c57dc268a9899099a218b1d9a6e7a2e5502c7dd6590219933393c"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-pills.png",
+      "sha256": "ede185900ed57ef260a386b950893babb7ff70ea7e6098c96314ee697386fe55"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-refreshing.png",
+      "sha256": "ccfcb8590fb04bb3fecdff5e561727a096ab4c90d7c212360d52824167dc80eb"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-score-full.png",
+      "sha256": "0368ddf44259af53ee753ab2d7b7b010689ee32a4273975622df6356efb21ec8"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-score-zero.png",
+      "sha256": "99871e64b6009a736c3ea2c7e911e004f925ecc5a363ad143a83c9c663b4cfb5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-content.png",
+      "sha256": "5e6fb41a538099a1c3322e40455bbbbcfc757af32c18aa9c7373b660c1113f4a"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-deep-link.png",
+      "sha256": "338518f1cdab548cac49f2acd1642168cc2c03148d7dedd66d56656eca297552"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-empty.png",
+      "sha256": "c7215a853b7fc75eed1c25be2b9560365236aa5fc0c83db6db3be5e2f3fa0bdc"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-error.png",
+      "sha256": "8ce626886b6f51eb1be259aaf9252a6ef15d8d4d5177cd3a93844c1d6220efd5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-loading.png",
+      "sha256": "eaa6c137e1bcdc667fdc9c5b89e55ada3fb09d01bbb437589db3c538b701e1b2"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-standard.png",
+      "sha256": "338518f1cdab548cac49f2acd1642168cc2c03148d7dedd66d56656eca297552"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-sheet-tall.png",
+      "sha256": "58d7a2e4360933b06c139e99a98ceb5ad0f36d0e7fad5dbf4954c10f25525987"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-act.png",
+      "sha256": "0295b12c7d020fa8e64f7016daa73e8209e1ee91dec4926dc7c018ba2dacfed8"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-badge-cap.png",
+      "sha256": "a9b8c420814c0ce0a29cfe28fec1d545f4e675d373a93fe277196465ede0e5ac"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-home.png",
+      "sha256": "7d62143ab5c032fdfb674de78589415b6c1b1ec14ad699fdc3ee0abcf8287c42"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-journal.png",
+      "sha256": "b928064c6bc98585a23ea86696a7678fd7c2a4770a3c645037bfc68a750f91a0"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-map.png",
+      "sha256": "8e1c9d705218509c96c593bbffae497836387319860288536575c39b3ddd8a3d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-no-alerts.png",
+      "sha256": "cc5284329e7b64af20229e226832d5677d449d031e3528b9ca8b089771e574e4"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-no-assistant.png",
+      "sha256": "73c81cc341e1deeccbfb4687524a3bfe5f7fac3f3c8954b06bd3b965be07d275"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell-settings.png",
+      "sha256": "35c01d80eca7a48814e4b11749a10c828c2caa5b2deceec3069682f6d08f7a41"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-shell.png",
+      "sha256": "dffa56613d07067fa8dcc58e40d9ba5b701a31b87bc67a069a47941c675587d5"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-stale.png",
+      "sha256": "486baa22aa4050c9b286a1d0babfedbaf613ecf5fcbcfd29260475ac2fa05d4d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-swipe.png",
+      "sha256": "789af8f51e5267eb6efe12ba046d1ba0aaf3843c699fe5ff1ec206973d7d314d"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-toast-undo.png",
+      "sha256": "a3daec13148920c3c7c90e662606d592251eafb0c5703ebd2bfb3a1a4db7b62b"
+    },
+    {
+      "path": "docs/foundation/review/screenshots/light-375-toast.png",
+      "sha256": "ed7b766d45c1ee3a5a76e5088e9650d5f4419bdd08fc0a4bfe12ac6717accd2c"
+    },
+    {
+      "path": "lib/frontend/copy.ts",
+      "sha256": "a04f4e45128c010021d29d362ffa86f1cf626fbec2877e08e724956a631879f6"
+    },
+    {
+      "path": "lib/frontend/copy/foundation-preview.ts",
+      "sha256": "0ff8de03650349a93340616ce245f2187c4e8c4cf4972c3c026fe8a961429670"
+    },
+    {
+      "path": "lib/frontend/foundation-preview.ts",
+      "sha256": "474d7c636eebec2ddc23aabadffc5ea0783f1411a68333d2d6fedab9f2e86814"
+    },
+    {
+      "path": "lib/frontend/onboarding.ts",
+      "sha256": "2c9537c6d10e2bec7bb34318a687857370abb682c461928d7457c69d1cd11864"
+    },
+    {
+      "path": "lib/frontend/types.ts",
+      "sha256": "428c6ee64232a3dbabbe072e64f15a097102d6260ad53478ea5eff45dfa1ff71"
+    },
+    {
+      "path": "public/fonts/fraunces-latin.woff2",
+      "sha256": "7234ed860a9cc83045413c4faee63c960a8f2d1917adcf728119307d56e0d783"
+    },
+    {
+      "path": "public/fonts/ibm-plex-mono-OFL.txt",
+      "sha256": "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"
+    },
+    {
+      "path": "public/fonts/ibm-plex-mono-latin.woff2",
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7"
+    },
+    {
+      "path": "public/fonts/instrument-sans-latin.woff2",
+      "sha256": "2ee17598a98d8a59e4df8152d015bec9ab8e4d5672cc0ab42bef806b568e3971"
+    },
+    {
+      "path": "public/halo-logo-mark.png",
+      "sha256": "b2350ff8789f45728f8fb19f5db58f886c993b09a31f652599034f7d64df0a6f"
+    }
+  ]
+}

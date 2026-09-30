@@ -19,6 +19,7 @@ export default function AuthInitializer() {
   useEffect(() => {
     // Preview is deliberately isolated: it must never create a real household.
     if (window.location.pathname.startsWith('/onboarding/preview')) return;
+    if (window.location.pathname.startsWith('/foundation/preview')) return;
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
     import('../lib/auth').then(({ensureAnonSession}) => ensureAnonSession()).catch(() => {
       // Surfacing this is the job of whichever screen needs the session; here we
