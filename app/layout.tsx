@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import "./onboarding.css";
+import "./onboarding-mobile.css";
 import AuthInitializer from "../components/AuthInitializer";
 
 const instrument = localFont({src: '../public/fonts/instrument-sans-latin.woff2', variable:'--font-instrument', display:'swap', weight:'400 700', fallback:['Arial']});

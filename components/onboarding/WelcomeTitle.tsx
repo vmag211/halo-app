@@ -12,7 +12,7 @@ import {
 } from "./lettering";
 
 /** The approved pen-stroke lettering, not an outline trace or horizontal wipe. */
-export default function WelcomeTitle({ animate = true }: { animate?: boolean }) {
+export default function WelcomeTitle({ animate = true, stackedSubtitle = false }: { animate?: boolean; stackedSubtitle?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const subtitleRef = useRef<HTMLHeadingElement>(null);
@@ -132,7 +132,7 @@ export default function WelcomeTitle({ animate = true }: { animate?: boolean }) 
       <h1 ref={headingRef} className="halo-wordmark" aria-label={copy.welcome.title}>
         <canvas ref={canvasRef} width={882} height={288} aria-hidden="true">{copy.welcome.title}</canvas>
       </h1>
-      <h2 ref={subtitleRef} className="halo-welcome-subtitle">{copy.welcome.subtitle}</h2>
+      <h2 ref={subtitleRef} className="halo-welcome-subtitle">{stackedSubtitle ? <><span>{copy.welcome.subtitleTo}</span>{' '}<span>{copy.welcome.subtitleBrand}</span></> : copy.welcome.subtitle}</h2>
     </>
   );
 }

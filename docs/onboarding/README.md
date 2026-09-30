@@ -9,6 +9,7 @@ The real entry is `/`, which routes through `/onboarding?entry=1`. `/onboarding?
 - [Vibhav's API integration handoff and release gates](integration.md)
 - [Requirements checklist](requirements-checklist.md)
 - [Verification record](verification.md)
+- [Approved mobile formatting](mobile-review/README.md), compare at `/onboarding/preview?design=mobile`
 
 Checks: `npm test`, `npm run test:frontend`, `npm run typecheck`, `npm run lint`, `npm run build`, and `npm run preservation:verify`. `npm run test:ui` starts/reuses a loopback development server on port 3010 and uses installed Google Chrome. Browser tests block external and live API requests. Visual comparisons use immutable approved PNGs; never update them to make a regression pass.
 

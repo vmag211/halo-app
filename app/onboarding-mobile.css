@@ -1,0 +1,193 @@
+/* Approved mobile onboarding. The preview can still show the preserved design. */
+.halo-mobile-shell {
+  padding: 12px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left));
+}
+
+.halo-mobile-shell .halo-app {
+  --halo-radius: 20px;
+  --halo-gutter: 24px;
+  border: 0;
+  border-radius: 28px;
+  box-shadow: 0 12px 48px rgb(11 31 51 / .08);
+}
+
+.halo-mobile-shell .halo-page {
+  min-height: min(760px, calc(100svh - 24px));
+}
+
+.halo-mobile-shell .halo-band {
+  min-height: calc(clamp(164px, 27svh, 220px) + env(safe-area-inset-top));
+  border-radius: 28px 28px 36px 36px;
+}
+
+.halo-mobile-shell .halo-logo-tile {
+  width: 136px;
+  height: 136px;
+}
+
+.halo-mobile-shell .halo-welcome-copy {
+  padding-top: 28px;
+  text-align: center;
+}
+
+.halo-mobile-shell .halo-welcome-subtitle span {
+  display: block;
+}
+
+.halo-mobile-shell .halo-welcome-subtitle span:first-child {
+  font-size: .7em;
+}
+
+.halo-mobile-shell .halo-welcome-copy p {
+  max-width: 30ch;
+  margin-inline: auto;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.halo-mobile-shell .halo-welcome-copy .halo-account-note {
+  font-size: 14px;
+  margin-top: 14px;
+}
+
+.halo-mobile-shell .halo-top {
+  padding-top: calc(24px + env(safe-area-inset-top));
+}
+
+.halo-mobile-shell .halo-progress {
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.halo-mobile-shell .halo-progress span {
+  height: 5px;
+  border-radius: 99px;
+}
+
+.halo-mobile-shell .halo-back {
+  margin-left: 0;
+  background: var(--halo-tint);
+  border-radius: 50%;
+}
+
+.halo-mobile-shell .halo-main {
+  padding-top: 22px;
+}
+
+.halo-mobile-shell .halo-fields {
+  margin-top: 28px;
+  gap: 24px;
+}
+
+.halo-mobile-shell .halo-input,
+.halo-mobile-shell .halo-select {
+  height: 56px;
+  border-radius: 18px;
+  padding-inline: 16px;
+}
+
+.halo-mobile-shell .halo-button {
+  min-height: 56px;
+  border-radius: 18px;
+}
+
+.halo-mobile-shell .halo-primary {
+  border-radius: 99px;
+  box-shadow: 0 4px 12px rgb(11 31 51 / .12);
+}
+
+.halo-mobile-shell .halo-secondary {
+  background: var(--halo-card);
+}
+
+.halo-mobile-shell .halo-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.halo-mobile-shell .halo-chip {
+  min-height: 54px;
+  border-radius: 18px;
+  padding: 12px;
+}
+
+.halo-mobile-shell .halo-chip span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.halo-mobile-shell .halo-chip:last-child {
+  grid-column: 1 / -1;
+}
+
+.halo-mobile-shell .halo-footer {
+  padding-top: 28px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+.halo-mobile-shell .halo-reveal-head {
+  padding-bottom: 24px;
+}
+
+.halo-mobile-shell .halo-reveal-lines {
+  display: grid;
+  gap: 12px;
+  padding-top: 0;
+}
+
+.halo-mobile-shell .halo-reveal-line {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 16px;
+  background: var(--halo-card);
+  border: 1px solid var(--halo-border);
+  border-radius: 20px;
+}
+
+.halo-mobile-shell .halo-reveal-line:last-child {
+  border-bottom: 1px solid var(--halo-border);
+}
+
+.halo-mobile-shell .halo-resolve-icon {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  padding-top: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--halo-tint);
+  border-radius: 50%;
+}
+
+.halo-mobile-shell .halo-result {
+  grid-column: 2;
+}
+
+@media (min-width: 600px) {
+  .halo-mobile-shell {
+    padding-block: 28px;
+  }
+}
+
+@media (max-height: 650px) {
+  .halo-mobile-shell .halo-welcome-copy {
+    padding-top: 16px;
+  }
+
+  .halo-mobile-shell .halo-welcome-copy .halo-account-note {
+    margin-top: 10px;
+  }
+
+  .halo-mobile-shell .halo-app[data-step="0"] .halo-footer {
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 350px) {
+  .halo-mobile-shell .halo-app {
+    --halo-gutter: 18px;
+    --halo-welcome-size: 48px;
+  }
+}

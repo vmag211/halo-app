@@ -2,6 +2,8 @@
 
 Approval baseline: September 28, 2026. This archive freezes the last user-approved interactive onboarding wireframe, including the final **Welcome / To Halo** treatment. It is the visual reference for implementation, not a new design proposal.
 
+September 29 revision: the user approved the [rounded mobile design](mobile-review/README.md) for live onboarding, with lowercase **to** above all-caps **HALO**. The original archive remains immutable. The preview retains the previous design for historical screenshot comparisons and offers the accepted mobile design separately.
+
 ## What is saved
 
 | File or folder | Purpose |
