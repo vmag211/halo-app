@@ -1,0 +1,12 @@
+{
+  "screenshotCount": 132,
+  "repeatedCaptureCount": 132,
+  "mismatches": [],
+  "comparison": "Every PNG SHA-256 is identical across two independent full capture runs before sealing.",
+  "browser": "154.0.8037.59",
+  "platform": "win32",
+  "browserArguments": [
+    "--disable-gpu"
+  ],
+  "stabilization": "Two consecutive byte-identical screenshots, maximum six attempts."
+}

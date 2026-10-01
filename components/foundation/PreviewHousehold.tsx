@@ -17,6 +17,11 @@ export function PreviewHouseholdProvider({ children }: { children: ReactNode }) 
 
 export const usePreviewHousehold = () => useContext(HouseholdContext);
 
+/** Production supplies only categories returned by the authenticated profile. */
+export function HouseholdProvider({ bands, children }: { bands: HouseholdBands; children: ReactNode }) {
+  return <HouseholdContext.Provider value={{ bands, setBand: () => {} }}>{children}</HouseholdContext.Provider>;
+}
+
 export function PreviewHouseholdPicker() {
   const { bands, setBand } = usePreviewHousehold();
   return <fieldset className="halo-household-picker"><legend>Homeguard sample household</legend><p>Choose the categories shown inside the house. Review choices stay in memory and reset on reload. They do not change your real profile.</p><div>{homeMemberKeys.map(key => <label key={key}><input type="checkbox" checked={bands[memberCatalog[key].band]} onChange={event => setBand(key, event.target.checked)} />{memberCatalog[key].label}</label>)}</div></fieldset>;

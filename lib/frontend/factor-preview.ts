@@ -7,7 +7,13 @@ export type FactorDetails = {
   uv?: { peak_window: { start: string; end: string; max: number } | null };
   pollen?: { categories: { name: string; value: number | null; severity: string }[] };
   mold?: { humidity_pct: number | null; precip_pct: number | null };
-  water?: { sampleDate: string; rows: { name: string; value_ppt: number; limit_ppt: number | null; severity: string; exceeds_limit: boolean }[]; lithium_ug_l: number | null };
+  water?: {
+    sampleDate: string;
+    rows: { name: string; value_ppt: number; limit_ppt: number | null; severity: string; exceeds_limit: boolean; is_enforceable?: boolean; basis?: string; source?: string; date_iso?: string | null; proposed_for_rescission?: boolean }[];
+    lithium_ug_l: number | null;
+    coverage?: string; status?: string; is_measured?: boolean; includes_guidance?: boolean; confidence?: string;
+    detected_unregulated?: { name: string; value_ppt: number | null; date_iso: string | null }[];
+  };
   radon?: { zone: number; county: string };
   lead?: { home_year: number | null };
 };
@@ -31,6 +37,8 @@ export type FactorReading = {
   trendCaption: string;
   context: Record<string, string | number>;
   details: FactorDetails;
+  /** Live provenance and coverage notices, absent in frozen design fixtures. */
+  disclosures?: string[];
 };
 import type { MotionMode, SceneTime } from './scene-clock';
 export type PreviewPreferences = { appearance?: string; scale?: string; motion?: MotionMode; time?: SceneTime; contrast?: boolean };

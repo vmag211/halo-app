@@ -1,5 +1,7 @@
 # Preserve approval evidence byte-for-byte across Windows/macOS/Linux checkouts.
 /docs/onboarding/approved/** -text
 /docs/onboarding/reference/** -text
+/docs/foundation/approved/** -text
+/docs/foundation/reference/** -text
 # Keep upstream font-license text verbatim, including its original whitespace.
 /public/fonts/*-OFL.txt -text -whitespace

@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Droplets, Flower2, House, Leaf, Pause, Play, ShieldCheck, Sprout, Sun, Users, Wind } from 'lucide-react';
 import SeverityPill from '@/components/ui/SeverityPill';
@@ -23,6 +23,7 @@ import { homeMemberKeys, memberCatalog } from '@/lib/frontend/home-household';
 import FactorSteps from './FactorSteps';
 import PreviewSectionLink from './PreviewSectionLink';
 import RisingSun from './RisingSun';
+import { useStageRuntime } from './StageRuntime';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
@@ -30,16 +31,19 @@ type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; fam
 
 export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false }: OverviewProps) {
   const { clock } = useSceneExperience();
-  const missing = scenario === 'no-data';
-  const partial = scenario === 'partial';
+  const runtime = useStageRuntime();
+  const overview = runtime ? (home ? runtime.home : runtime.today) : null;
+  const readings = runtime?.readings ?? factorReadings;
+  const missing = overview ? overview.score === null : scenario === 'no-data';
+  const partial = overview ? overview.partial : scenario === 'partial';
   const missingKey = home ? 'pfas' : 'pollen';
   const keys = home ? homeFactorKeys : personalFactorKeys;
   const zeroRisk = scenario === 'contribution-zero' || scenario === 'score-full';
-  const score = missing ? null : scenario === 'score-zero' ? 0 : zeroRisk ? 100 : home ? 58 : 74;
-  const severity = missing ? 'no_data' : score === 0 ? 'severe' : home ? 'elevated' : 'moderate';
+  const score = overview ? overview.score : missing ? null : scenario === 'score-zero' ? 0 : zeroRisk ? 100 : home ? 58 : 74;
+  const severity = overview ? overview.severity : missing ? 'no_data' : score === 0 ? 'severe' : home ? 'elevated' : 'moderate';
   const segments: ScoreSegment[] = keys.filter(key => key !== 'lead').map((key, index) => ({
-    key, label: factorReadings[key].shortTitle, color: factorColor(key), href: factorHref(key),
-    share: missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
+    key, label: readings[key].shortTitle, color: factorColor(key), href: factorHref(key),
+    share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
   }));
   return <div className="halo-ph-overview" data-home={home}>
     <section className="halo-ph-landscape" aria-label={`${home ? 'Homeguard' : 'Today'} overview`}>
@@ -48,15 +52,16 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
         <span className="halo-ph-higher">Higher is better</span>
       </div>
     </section>
-    <div className="halo-ph-introduction"><div className="halo-ph-headline">{(missing || score === 0 || zeroRisk || home) && <h2>{missing ? 'A few readings are missing' : score === 0 ? 'Take a closer look at your readings' : zeroRisk ? 'A little more room to breathe' : 'Know your home a little better.'}</h2>}<SeverityPill severity={severity} /></div><p>{home ? 'Water, ground, and the place you call home.' : 'Your air, sunlight, pollen, and moisture, brought into focus.'}</p><span className="halo-f-meta">Sample household · September 30, 2026</span></div>
-    {partial && <Callout tone="notice"><p>Based on {home ? 1 : 3} of {home ? 2 : 4} scored factors. {home ? 'PFAS' : 'Pollen'} data is not available right now.</p></Callout>}
-    {missing && <Callout tone="notice"><p>We could not get readings for this sample. Missing data does not mean low risk.</p></Callout>}
-    <CompactContributionBar segments={segments} />
+    <div className="halo-ph-introduction"><div className="halo-ph-headline">{(missing || score === 0 || zeroRisk || home) && <h2>{missing ? 'A few readings are missing' : score === 0 ? 'Take a closer look at your readings' : zeroRisk ? 'A little more room to breathe' : 'Know your home a little better.'}</h2>}<SeverityPill severity={severity} /></div><p>{home ? 'Water, ground, and the place you call home.' : 'Your air, sunlight, pollen, and moisture, brought into focus.'}</p><span className="halo-f-meta">{overview ? overview.asOf : 'Sample household · September 30, 2026'}</span></div>
+    {partial && (!runtime || !missing) && <Callout tone="notice">{overview ? <p>{`Partial score. Missing inputs: ${overview.missingInputs.join(', ') || 'Some readings are unavailable'}.`}</p> : <p>Based on {home ? 1 : 3} of {home ? 2 : 4} scored factors. {home ? 'PFAS' : 'Pollen'} data is not available right now.</p>}</Callout>}
+    {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'We could not get readings for this sample. Missing data does not mean low risk.'}</p></Callout>}
+    {overview?.notice && <Callout tone="notice"><p>{overview.notice}</p></Callout>}
+    <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
     {home && <HouseholdContext home />}
     {home && memberHref && <HomeHousehold memberHref={memberHref} />}
     <div className="halo-ph-section-label"><h2>{home ? 'Around your home' : 'Your environment, closer up'}</h2><span>Explore a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
-      const factor = factorReadings[key]; const Icon = factorIcons[key]; const noData = missing || (partial && key === missingKey);
+      const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? factor.severity === 'no_data' : missing || (partial && key === missingKey);
       return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} /></Reveal>;
     })}</div>
     {!home && <HouseholdContext familyHref={familyHref} />}
@@ -71,15 +76,16 @@ export function MotionButton() {
 }
 
 function HouseholdContext({ home = false, familyHref }: { home?: boolean; familyHref?: string }) {
+  const runtime = useStageRuntime();
   const { bands } = usePreviewHousehold();
   const selected = homeMemberKeys.filter(key => bands[memberCatalog[key].band]).map(key => memberCatalog[key].shortLabel);
   if (!home && familyHref) return <Link href={familyHref} prefetch={false} className="halo-ph-family-link">
     <span className="halo-ph-family-symbol"><Users size={25} aria-hidden="true" /></span>
-    <span><span className="halo-ph-kicker">Today · Your household</span><strong>A little guidance for everyone.</strong><span>Young children and adults · Explore your daily guidance</span></span>
+    <span><span className="halo-ph-kicker">Today · Your household</span><strong>A little guidance for everyone.</strong><span>{runtime ? `${selected.join(', ') || 'General household guidance'} · Explore your daily guidance` : 'Young children and adults · Explore your daily guidance'}</span></span>
   </Link>;
-  return <aside className="halo-ph-household" data-prominent={home} aria-label="Sample household">
+  return <aside className="halo-ph-household" data-prominent={home} aria-label={runtime ? 'Your household' : 'Sample household'}>
     <div className="halo-ph-household-icon"><Users size={23} aria-hidden="true" /></div>
-    <div><h3>{home ? 'The people who make it home' : 'Looking out for your household'}</h3><p>{home ? `Sample household · ${selected.join(', ') || 'No categories selected'}` : 'Sample profile · Adults and a young child'}</p>{home && <span>Choose someone below for guidance on the home you share.</span>}</div>
+    <div><h3>{home ? 'The people who make it home' : 'Looking out for your household'}</h3><p>{runtime ? selected.join(', ') || 'No categories selected' : home ? `Sample household · ${selected.join(', ') || 'No categories selected'}` : 'Sample profile · Adults and a young child'}</p>{home && <span>Choose someone below for guidance on the home you share.</span>}</div>
   </aside>;
 }
 
@@ -93,18 +99,22 @@ const pfasPracticalSteps = [
   'Ask your local health or environmental department what steps it recommends for your water supply. A utility sample does not measure your individual exposure.',
 ];
 
-export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading }) {
+export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading, evidence }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading; evidence?: ReactNode }) {
   const { clock } = useSceneExperience();
-  const base = reading ?? factorReadings[factorKey];
-  const missing = scenario === 'no-data' || scenario === 'card-no-data' || (scenario === 'partial' && factorKey === 'pollen');
+  const runtime = useStageRuntime();
+  const readings = runtime?.readings ?? factorReadings;
+  const base = reading ?? readings[factorKey];
+  const missing = runtime ? base.severity === 'no_data' : scenario === 'no-data' || scenario === 'card-no-data' || (scenario === 'partial' && factorKey === 'pollen');
   const offline = scenario === 'offline';
-  const factor: FactorReading = missing ? { ...base, score: null, severity: 'no_data', reading: 'No data', unit: '', why: null, householdNote: null, trend: [] } : base;
+  const factor: FactorReading = missing && !runtime ? { ...base, score: null, severity: 'no_data', reading: 'No data', unit: '', why: null, householdNote: null, trend: [] } : base;
   const Icon = factorIcons[factorKey];
   const accent = factorColor(factorKey);
-  const content = learnTopic(factorKey);
+  const content = runtime?.learn[factorKey] ?? learnTopic(factorKey);
+  const why = runtime ? runtime.learn[factorKey]?.why_yours : factor.why;
+  const householdNote = runtime ? runtime.learn[factorKey]?.household_note : factor.householdNote;
   const related = (factorKey === 'pfas' || factorKey === 'radon' || factorKey === 'lead' ? homeFactorKeys : personalFactorKeys).filter(key => key !== factorKey).slice(0, 2);
   const trend = !missing && (factor.trend.length > 0
-    ? <FactorTrend points={factor.trend} title={factor.trendTitle} caption={factor.trendCaption} unit={factorKey === 'air' ? 'AQI' : factorKey === 'pfas' ? 'ppt PFOS' : factorKey === 'pollen' ? 'index' : 'UV'} color={accent} />
+    ? <FactorTrend points={factor.trend} title={factor.trendTitle} caption={factor.trendCaption} unit={factorKey === 'air' ? 'AQI' : factorKey === 'pfas' ? runtime ? factor.unit : 'ppt PFOS' : factorKey === 'pollen' ? 'index' : 'UV'} color={accent} />
     : <Reveal><section className="halo-ph-honesty"><h2>{factor.trendTitle}</h2><p>{factor.trendCaption}</p></section></Reveal>);
   return <article className="halo-ph-detail" data-factor={factorKey} style={{ '--factor-accent': accent } as CSSProperties}>
     <section className="halo-ph-factor-hero"><EnvironmentalScene variant={factorKey} />
@@ -120,18 +130,22 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
     {missing && <Callout tone="notice"><p>A missing reading is not a zero. General guidance remains available below.</p></Callout>}
     {factorKey === 'air' && trend}
     <Reveal><div className="halo-ph-reading-story" id="reading-detail" tabIndex={-1}>{!missing && <FactorFocus factor={factor} />}
-      {!offline && factor.why && <aside className="halo-ph-why"><h3>Why yours reads this way</h3><p>{displayText(factor.why)}</p></aside>}
+      {!offline && why && <aside className="halo-ph-why"><h3>Why yours reads this way</h3><p>{displayText(why)}</p></aside>}
+      {runtime?.learnPending && <p className="halo-f-meta" role="status">Updating the explanation for your reading.</p>}
+      {runtime?.learnFailed && <Callout tone="notice"><p>The current explanation could not be loaded. General education remains available.</p><button className="halo-text-button" onClick={runtime.retryLearn}>Retry explanation</button></Callout>}
+      {factor.disclosures?.map((text, index) => <p className="halo-f-meta" key={index}>{displayText(text)}</p>)}
       <FactorReadingGuide factorKey={factorKey} />
+      {evidence}
     </div></Reveal>
-    {!offline && !missing && factor.householdNote && <Reveal><aside className="halo-ph-household-note"><Users size={23} aria-hidden="true" /><div><h3>What it means for your household</h3><p>{displayText(factor.householdNote)}</p></div></aside></Reveal>}
+    {!offline && !missing && householdNote && <Reveal><aside className="halo-ph-household-note"><Users size={23} aria-hidden="true" /><div><h3>What it means for your household</h3><p>{displayText(householdNote)}</p></div></aside></Reveal>}
     {['uv', 'pollen'].includes(factorKey) && trend}
     {content && <Reveal><section className="halo-ph-protection" id="protection" tabIndex={-1}><span className="halo-ph-kicker">{actionTitles[factorKey]}</span><h2>Small steps that help</h2>
-      <FactorSteps factor={factorKey} tips={factorKey === 'pfas' ? pfasPracticalSteps : content.protect} />
+      <FactorSteps key={`${factorKey}:${content.protect.join('|')}`} factor={factorKey} tips={factorKey === 'pfas' ? pfasPracticalSteps : content.protect} />
       {factorKey === 'pfas' && <a className="halo-ph-inline-link" href="https://www.epa.gov/water-research/identifying-drinking-water-filters-certified-reduce-pfas" target="_blank" rel="noopener noreferrer">EPA guidance on PFAS filters <ArrowUpRight size={15} aria-hidden="true" /></a>}
     </section></Reveal>}
     {['mold', 'pfas', 'radon', 'lead'].includes(factorKey) && trend}
-    {content && <section className="halo-ph-sources" id="reading-sources" tabIndex={-1}><h2>Where this comes from</h2><p className="halo-f-meta">The reading source is above. These references explain the factor and practical guidance.</p>{content.sources.map((source: { label: string; url: string; retrieved: string }) => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer"><span>{displayText(source.label)}<small>Retrieved {source.retrieved}</small></span><ArrowUpRight size={18} aria-hidden="true" /></a>)}</section>}
-    <section className="halo-ph-related"><h2>Keep exploring</h2>{related.map(key => { const RelatedIcon = factorIcons[key]; return <Link key={key} href={factorHref(key)} prefetch={false} style={{ '--factor-accent': factorColor(key) } as CSSProperties}><RelatedIcon size={19} aria-hidden="true" /><span>{factorReadings[key].title}</span><ArrowUpRight size={17} aria-hidden="true" /></Link>; })}<Link href={parentHref} prefetch={false}>Back to your overview</Link></section>
+    {content && <section className="halo-ph-sources" id="reading-sources" tabIndex={-1}><h2>Where this comes from</h2><p className="halo-f-meta">The reading source is above. These references explain the factor and practical guidance.</p>{content.sources.map((source: { label: string; url: string; retrieved: string | null }) => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer"><span>{displayText(source.label)}{runtime ? <small>{source.retrieved ? `Retrieved ${source.retrieved}` : 'Retrieval date unavailable'}</small> : <small>Retrieved {source.retrieved}</small>}</span><ArrowUpRight size={18} aria-hidden="true" /></a>)}</section>}
+    <section className="halo-ph-related"><h2>Keep exploring</h2>{related.map(key => { const RelatedIcon = factorIcons[key]; return <Link key={key} href={factorHref(key)} prefetch={false} style={{ '--factor-accent': factorColor(key) } as CSSProperties}><RelatedIcon size={19} aria-hidden="true" /><span>{readings[key].title}</span><ArrowUpRight size={17} aria-hidden="true" /></Link>; })}<Link href={parentHref} prefetch={false}>Back to your overview</Link></section>
   </article>;
 }
 
@@ -141,6 +155,7 @@ function localClock(value: string) {
   return `${hours % 12 || 12}${minutes ? `:${String(minutes).padStart(2, '0')}` : ''}${hours < 12 ? 'am' : 'pm'}`;
 }
 function FactorFocus({ factor }: { factor: FactorReading }) {
+  const live = !!useStageRuntime();
   const details = factor.details;
   if (factor.key === 'air' && details.air) {
     const air = details.air;
@@ -150,7 +165,7 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
       <p>{air.explanation}</p>
       <div className="halo-ph-scale" aria-label={`AQI ${air.aqi} on a zero to 100 comparison scale`}><span style={{ width: `${Math.min(100, air.aqi)}%` }} /></div>
       <div className="halo-ph-axis"><span>0 AQI</span><span>100 AQI{air.aqi > 100 ? ' (chart continues)' : ''}</span></div>
-      <p className="halo-f-meta">Lower AQI means less pollution. Your factor score runs the other way: higher is better.</p>
+      <p className="halo-f-meta">{live && factor.score === null ? 'Lower AQI means less pollution. A separate factor score is not supplied for this reading.' : 'Lower AQI means less pollution. Your factor score runs the other way: higher is better.'}</p>
     </section>;
   }
   if (factor.key === 'uv' && details.uv) {
@@ -185,13 +200,16 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
   </section>;
   if (factor.key === 'pfas' && details.water) return <section className="halo-ph-panel">
     <span className="halo-ph-kicker">Inside the utility sample</span><h2>Each compound, in context</h2>
-    <p className="halo-f-meta">Illustrative results · {details.water.sampleDate}. Bars share a fixed 0 to 2× comparison scale.</p>
+    {live ? <p className="halo-f-meta">{'Utility results'} · {details.water.sampleDate}. Bars share a fixed 0 to 2× comparison scale.</p> : <p className="halo-f-meta">Illustrative results · {details.water.sampleDate}. Bars share a fixed 0 to 2× comparison scale.</p>}
     <div className="halo-ph-water-results">{details.water.rows.map(row => {
       const ratio = row.limit_ppt !== null && row.limit_ppt > 0 ? row.value_ppt / row.limit_ppt : null;
       return <div key={row.name}>
         <div className="halo-ph-panel-heading"><b>{row.name}</b><span>{row.value_ppt.toFixed(1)} ppt{ratio !== null ? ` · ${ratio.toFixed(1)}×` : ''}</span></div>
         {ratio !== null ? <><div className="halo-ph-limit" role="img" aria-label={`${row.name}, ${row.value_ppt} parts per trillion, ${ratio.toFixed(1)} times the supplied limit${ratio > 2 ? ', continues beyond the chart' : ''}`}><span style={{ width: `${Math.min(100, ratio * 50)}%` }} data-exceeds={row.exceeds_limit} /><i />{ratio > 2 && <b aria-hidden="true">›</b>}</div>
-          <div className="halo-ph-axis"><span>0</span><span>Limit {row.limit_ppt} ppt</span><span>2×</span></div></> : <p className="halo-f-meta">No comparison limit supplied. Shown, not scored.</p>}
+          <div className="halo-ph-axis"><span>0</span>{live ? <span>{row.is_enforceable === false ? 'Benchmark' : 'Limit'} {row.limit_ppt} ppt</span> : <span>Limit {row.limit_ppt} ppt</span>}<span>2×</span></div></> : <p className="halo-f-meta">No comparison limit supplied. Shown, not scored.</p>}
+        {live && <p className="halo-f-meta">{row.is_enforceable === false ? 'Health guidance benchmark, not an enforceable federal limit.' : row.is_enforceable === true ? 'Enforceable limit identified by the supplied dataset.' : 'Comparison status has not been supplied.'}{row.exceeds_limit ? ' Reported above this comparison value.' : ''}</p>}
+        {live && row.date_iso && <p className="halo-f-meta">Sampled {row.date_iso}</p>}
+        {live && row.proposed_for_rescission && <p className="halo-f-meta">This comparison uses a limit identified by the dataset as proposed for rescission.</p>}
       </div>;
     })}</div>
     {details.water.lithium_ug_l !== null && <div className="halo-ph-unscored"><span><b>Lithium</b><small>Shown, not scored</small></span><strong>{details.water.lithium_ug_l.toFixed(1)} µg/L</strong></div>}
@@ -200,7 +218,7 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
   </section>;
   if (factor.key === 'radon' && details.radon) return <section className="halo-ph-panel">
     <span className="halo-ph-kicker">{details.radon.county} County potential</span><h2>A zone is a clue, not a home test.</h2>
-    <div className="halo-ph-zones">{[1, 2, 3].map(zone => <div key={zone} data-selected={zone === details.radon!.zone}><span>Zone</span><strong>{zone}</strong><span>{['Higher', 'Middle', 'Lower'][zone - 1]} potential</span>{zone === details.radon!.zone && <b>Sample county</b>}</div>)}</div>
+    <div className="halo-ph-zones">{[1, 2, 3].map(zone => <div key={zone} data-selected={zone === details.radon!.zone}><span>Zone</span><strong>{zone}</strong><span>{['Higher', 'Middle', 'Lower'][zone - 1]} potential</span>{zone === details.radon!.zone && <b>{live ? 'Your county' : 'Sample county'}</b>}</div>)}</div>
     <p>Testing is the only way to learn the level inside this home. HALO has no home radon measurement to plot.</p>
     <a className="halo-ph-inline-link" href="#protection">Read about home testing <ArrowUpRight size={16} aria-hidden="true" /></a>
   </section>;
@@ -209,7 +227,7 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
     const selected = year === null ? null : year < 1950 ? 0 : year < 1988 ? 1 : 2;
     return <section className="halo-ph-panel">
       <span className="halo-ph-kicker">Your home’s story</span><h2>Plumbing has a history.</h2>
-      <div className="halo-ph-era">{['Before 1950', '1950 to 1987', '1988 onward'].map((label, i) => <span key={label} data-selected={i === selected}>{i === selected ? <><b>{label}</b><strong>{year}</strong><small>Sample home</small></> : label}</span>)}</div>
+      <div className="halo-ph-era">{['Before 1950', '1950 to 1987', '1988 onward'].map((label, i) => <span key={label} data-selected={i === selected}>{i === selected ? <><b>{label}</b><strong>{year}</strong><small>{live ? 'Your home' : 'Sample home'}</small></> : label}</span>)}</div>
       <p>{year === null ? 'The year this home was built has not been supplied.' : 'Building age cannot identify replaced pipes or fixtures.'} A tap-water test gives more specific information.</p>
       <div className="halo-ph-info-note"><ShieldCheck size={21} aria-hidden="true" /><span>This factor is an estimate and is not scored.</span></div>
       <a className="halo-ph-inline-link" href="#protection">See practical steps <ArrowUpRight size={16} aria-hidden="true" /></a>

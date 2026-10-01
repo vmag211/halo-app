@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test:frontend": "node --test test/frontend-*.test.mjs",
     "test:ui": "playwright test",
-    "preservation:verify": "node docs/onboarding/approved/check-integrity.cjs"
+    "test:stage": "playwright test --config playwright.stage.config.ts",
+    "preservation:verify": "node docs/onboarding/approved/check-integrity.cjs && node docs/foundation/approved/2026-10-01/verify.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

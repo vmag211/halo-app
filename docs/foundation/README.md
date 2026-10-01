@@ -1,4 +1,10 @@
-# Phase 0 foundation wireframe review
+# HALO foundation and approved-stage frontend
+
+Current implementation: [Approved-stage frontend handoff](STAGE_FRONTEND_HANDOFF.md). The October 1, 2026 approval covers Today, Homeguard, factor details, household guidance, Luna, and their shared shell. The [immutable approval archive](approved/2026-10-01/README.md) preserves the exact approved design independently of production data. Map, Journal, Act, and full standalone Settings remain later stages.
+
+The September 29 record below is historical. Its proposal status, placeholder interactions, and future-build checklist describe that earlier review, not the current implementation. Use the current handoff and `../WIREFRAME_WORKFLOW.md` for implementation and integration decisions.
+
+## Historical Phase 0 wireframe review
 
 Status: **PROPOSED, not approved or frozen**. Created September 29, 2026 on `codex/foundation-wireframes`, based on integrated main `9f1ef88`. Yogi is the sole frontend person. Assignments in the source documents are superseded.
 

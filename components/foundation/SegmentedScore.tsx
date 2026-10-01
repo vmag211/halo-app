@@ -26,11 +26,12 @@ export default function SegmentedScore({ score, severity, partial = false, segme
     <div className="halo-ph-ring-center" aria-hidden="true"><span>{label}</span><strong data-empty={validScore === null}>{validScore === null ? 'No data' : <AnimatedNumber value={validScore} />}</strong><small>{validScore === null ? 'Waiting for readings' : 'out of 100'}</small></div>
   </div></Reveal>;
 }
-export function CompactContributionBar({ segments }: { segments: readonly ScoreSegment[] }) {
+export function CompactContributionBar({ segments, unavailableNote }: { segments: readonly ScoreSegment[]; unavailableNote?: string }) {
   const shares = normalizeSegments(segments);
   const hasRisk = shares.some(s => s.percent > 0);
   return <div className="halo-ph-contributions"><div className="halo-ph-section-label"><span>What shapes your score</span><span>Risk contribution</span></div>
-    {hasRisk ? <div className="halo-ph-contribution-track" aria-hidden="true">{shares.filter(s => s.percent > 0).map(s => <span key={s.key} style={{ width: `${s.percent}%`, background: s.color }} />)}</div> : <p className="halo-f-meta">{shares.some(s => s.share !== null) ? 'No risk to divide between the available factors.' : 'Contributions will appear when readings are available.'}</p>}
+    {hasRisk ? <div className="halo-ph-contribution-track" aria-hidden="true">{shares.filter(s => s.percent > 0).map(s => <span key={s.key} style={{ width: `${s.percent}%`, background: s.color }} />)}</div> : <p className="halo-f-meta">{unavailableNote || (shares.some(s => s.share !== null) ? 'No risk to divide between the available factors.' : 'Contributions will appear when readings are available.')}</p>}
     <div className="halo-ph-legend">{shares.map(s => <Link key={s.key} href={s.href} prefetch={false} aria-label={`${s.label}, ${s.share === null ? 'No data' : `${Number(s.percent.toFixed(1))}% of risk`}. Open factor page.`}><i style={{ background: s.share === null ? 'transparent' : s.color }} /><span>{s.label}</span><b>{s.share === null ? 'No data' : `${Number(s.percent.toFixed(1))}%`}</b></Link>)}</div>
+    {hasRisk && unavailableNote && <p className="halo-f-meta">{unavailableNote}</p>}
   </div>;
 }

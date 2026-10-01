@@ -14,12 +14,13 @@ import { createLiveOnboardingApi, errorCode, FrontendError } from '@/lib/fronten
 import { emptyHousehold, normalizeHousehold, normalizeWaterAnswer, validateAddress, validateHomeYear, parseHomeYear, hasLocation, isProfileComplete } from '@/lib/frontend/onboarding';
 import { clearOnboardingStorage, hasCompletedOnboarding, markCompleted } from '@/lib/frontend/storage';
 import { householdKeys, type OnboardingApi, type Household, type OnboardResponse, type ErrorCode } from '@/lib/frontend/types';
+import { safeStageReturn } from '@/lib/frontend/stage-routing';
 
 const liveApi = createLiveOnboardingApi();
-type Props = { api?: OnboardingApi; preview?: boolean; stackedWelcomeSubtitle?: boolean; entry?: boolean; changeAddress?: boolean; onComplete?: () => void };
+type Props = { api?: OnboardingApi; preview?: boolean; stackedWelcomeSubtitle?: boolean; entry?: boolean; changeAddress?: boolean; returnTo?: string; onComplete?: () => void };
 type Errors = { address?: string; year?: string; water?: string; location?: string };
 
-export default function OnboardingScreen({ api = liveApi, preview = false, stackedWelcomeSubtitle = false, entry = false, changeAddress = false, onComplete }: Props) {
+export default function OnboardingScreen({ api = liveApi, preview = false, stackedWelcomeSubtitle = false, entry = false, changeAddress = false, returnTo, onComplete }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [session, setSession] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -50,8 +51,8 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
   const hadLocation = useRef(false);
 
   const finish = useCallback(() => {
-    if (onComplete) onComplete(); else router.replace('/today');
-  }, [onComplete, router]);
+    if (onComplete) onComplete(); else router.replace(changeAddress ? '/today' : safeStageReturn(returnTo));
+  }, [onComplete, router, returnTo, changeAddress]);
 
   const cancel = useCallback(() => {
     requestId.current++;
@@ -160,6 +161,7 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
   function back() {
     if (step <= 0) return;
     cancel();
+    if (!preview && changeAddress && step === 1) { router.replace('/settings'); return; }
     if (window.history.state?.haloOnboarding?.id === flowId.current && historyIndex.current > 0) window.history.back();
     else move(step - 1, true);
   }

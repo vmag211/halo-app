@@ -1,0 +1,16 @@
+/* Additive live-state affordances. The approved visual system remains shared. */
+.halo-stage-app { color-scheme:light dark; }
+.halo-stage-skip { position:fixed; top:8px; left:8px; z-index:1000; padding:12px 18px; background:var(--halo-card); color:var(--halo-ink); transform:translateY(-200%); border-radius:12px; }
+.halo-stage-skip:focus { transform:none; }
+.halo-stage-refresh { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.halo-stage-refresh button { display:inline-flex; gap:8px; align-items:center; min-height:44px; }
+.halo-stage-app .halo-f-tabs button { display:flex; flex:1; min-width:0; align-items:center; justify-content:center; flex-direction:column; gap:5px; min-height:60px; padding:4px 2px; font-size:calc(.65rem * var(--halo-text-scale)); font-weight:500; color:var(--halo-secondary); border:0; background:transparent; border-radius:20px; opacity:.65; }
+.halo-stage-app .halo-f-tabs button span { text-align:center; line-height:1.2; overflow-wrap:normal; }
+.halo-stage-app[data-text-scale="150"] .halo-f-tabs button { flex-basis:18%; font-size:.74rem; }
+.halo-stage-setting { display:grid; gap:8px; }
+.halo-stage-setting select, .halo-stage-setting input { min-width:0; width:100%; min-height:44px; padding:10px; border:1px solid var(--halo-border); border-radius:12px; background:var(--halo-card); color:var(--halo-ink); }
+.halo-stage-check { display:flex; align-items:center; gap:12px; min-height:44px; }
+.halo-stage-check input { width:20px; height:20px; accent-color:var(--halo-primary); }
+.halo-stage-alert-actions { display:flex; flex-wrap:wrap; gap:12px; }
+.halo-stage-app button:disabled { opacity:.6; }
+.halo-stage-app #halo-main:focus { outline:none; }

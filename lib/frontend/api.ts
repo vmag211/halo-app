@@ -25,6 +25,13 @@ export interface LiveApiOptions {
   normalTimeoutMs?: number;
   slowTimeoutMs?: number;
   onIdentityChange?: () => void;
+  /** Stage-specific shape checks run before an environmental response is cached. */
+  validateReading?: (kind: "daily" | "home", payload: unknown) => void;
+}
+/** Shared protected transport for later frontend stages. Keep authentication,
+ * identity checks, deadlines, and safe errors in this one implementation. */
+export interface ProtectedOnboardingApi extends OnboardingApi {
+  request<T>(endpoint: string, init?: RequestInit, signal?: AbortSignal, cache?: "daily" | "home", timeoutMs?: number): Promise<T>;
 }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 // One browser-wide observer, not one observer per page mount. Individual
@@ -68,7 +75,7 @@ export async function withDeadline<T>(operation: (signal: AbortSignal) => Promis
   }
 }
 
-export function createLiveOnboardingApi(options: LiveApiOptions = {}): OnboardingApi {
+export function createLiveOnboardingApi(options: LiveApiOptions = {}): ProtectedOnboardingApi {
   // Never import the configured Supabase client while rendering or in a mock preview.
   const loadAuth = options.loadAuth ?? (async () => {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new FrontendError("configuration");
@@ -88,9 +95,9 @@ export function createLiveOnboardingApi(options: LiveApiOptions = {}): Onboardin
     }
     return next;
   }
-  async function request<T>(endpoint: string, init: RequestInit = {}, signal?: AbortSignal, cache?: "daily" | "home"): Promise<T> {
+  async function request<T>(endpoint: string, init: RequestInit = {}, signal?: AbortSignal, cache?: "daily" | "home", timeoutMs?: number): Promise<T> {
     const pathname = endpoint.split("?")[0];
-    const limit = ["/api/onboard", "/api/daily-score", "/api/home-guard"].includes(pathname) ? slow : normal;
+    const limit = timeoutMs ?? (["/api/onboard", "/api/daily-score", "/api/home-guard"].includes(pathname) ? slow : normal);
     try {
       return await withDeadline(async (deadline) => {
         const auth = await loadAuth();
@@ -119,6 +126,7 @@ export function createLiveOnboardingApi(options: LiveApiOptions = {}): Onboardin
         await syncIdentity(auth, expected);
         if (deadline.aborted) throw new FrontendError("aborted");
         if (!object(payload)) throw new FrontendError("invalid_response");
+        if (cache) options.validateReading?.(cache, payload);
         if (cache === "daily") storeReading("daily", payload as DailyResponse);
         else if (cache === "home") storeReading("home", payload as HomeResponse);
         return payload as T;
@@ -130,7 +138,8 @@ export function createLiveOnboardingApi(options: LiveApiOptions = {}): Onboardin
       throw new FrontendError(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "generic");
     }
   }
-  const api: OnboardingApi = {
+  const api: ProtectedOnboardingApi = {
+    request,
     async ensureSession() {
       try {
         await withDeadline(async () => {

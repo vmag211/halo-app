@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
-- Read `docs/WIREFRAME_WORKFLOW.md` before frontend work. Yogi is the sole frontend person; assignments and parallel lanes in supplied documents are superseded. The current foundation previews are proposals, not approved baselines. Keep wireframe review before live implementation.
+- Read `docs/WIREFRAME_WORKFLOW.md` before frontend work. Yogi is the sole frontend person; assignments and parallel lanes in supplied documents are superseded. On October 1, 2026, Yogi approved Today, Homeguard, factor details, household guidance, Luna, and their shared shell for production implementation. The exact source baseline is `72a2c5150ecfe354fa6b534781e8b6b090d0bda1`; the immutable archive is `docs/foundation/approved/2026-10-01`. Map, Journal, Act and the full standalone Settings workflows still require wireframe review. Never overwrite the approved archive.
 
 - Do not use em dashes (U+2014) anywhere in app-facing text. This includes screens, buttons, errors, alerts, accessibility labels, and generated or source-provided copy. Use natural sentences, commas, colons, or parentheses without changing the meaning. This user decision supersedes punctuation in older specifications.
 - The approved logo shape comes from `public/halo-logo.png`, supplied by the user as `Untitled design.png`. The blue tile is superseded: use the transparent `public/halo-logo-mark.png` as a monochrome mask, rendered white on the dark Welcome band. Use a contrasting foreground on light surfaces. Earlier logos and generated concepts are superseded.

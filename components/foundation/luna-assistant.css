@@ -53,6 +53,21 @@
 .halo-luna-latest { display:grid; place-items:center; position:absolute; top:-48px; left:calc(50% - 20px); width:40px; height:40px; background:var(--luna-surface); border:1px solid var(--luna-border); border-radius:50%; color:inherit; box-shadow:0 3px 12px #00132320; cursor:pointer; }
 .halo-luna-suggestions { max-height:180px; overflow:auto; margin-bottom:12px; }
 .halo-f-app .halo-luna-offline { margin:0 0 12px; font-size:calc(.75rem * var(--halo-text-scale)); line-height:1.5; color:var(--luna-muted); }
+.halo-f-app .halo-luna-service-note { margin:12px 0 0; color:var(--luna-muted); font-size:calc(.75rem * var(--halo-text-scale)); line-height:1.6; overflow-wrap:anywhere; }
+.halo-f-app .halo-luna-message .halo-luna-service-note { margin-top:12px; font-size:calc(.72rem * var(--halo-text-scale)); }
+.halo-luna-service-note p { margin:0; }
+.halo-luna-text-action { border:0; background:none; color:var(--luna-accent); font:inherit; font-size:calc(.78rem * var(--halo-text-scale)); min-height:44px; padding:8px 0; text-align:left; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.halo-luna-request { margin-top:20px; padding:12px 15px; border:1px solid var(--luna-border); border-radius:14px; }
+.halo-luna-request p { margin:0; font-size:calc(.8rem * var(--halo-text-scale)); }
+.halo-luna-citations { list-style:none; margin:10px 0 0; padding:0; }
+.halo-luna-citations li { min-width:0; }
+.halo-luna-citations a { overflow-wrap:anywhere; max-width:100%; }
+.halo-luna-citations a span { min-width:0; }
+.halo-luna-citations a svg { flex-shrink:0; }
+.halo-luna-citations small { display:block; color:var(--luna-muted); font-size:calc(.68rem * var(--halo-text-scale)); }
+.halo-luna-message p sup { line-height:0; }
+.halo-luna-message p sup a { display:inline; min-height:0; margin:0 2px; font-size:.75em; line-height:inherit; }
+.halo-luna-message[data-state="refused"] > div { padding:13px 15px; border-left:3px solid var(--luna-accent); border-radius:0 14px 14px 0; background:color-mix(in srgb,var(--luna-accent) 6%,var(--luna-surface)); }
 .halo-luna-dialog button:focus-visible,.halo-luna-dialog a:focus-visible { outline:2px solid var(--luna-accent); outline-offset:3px; }
 .halo-f-app[data-contrast="high"] .halo-luna-dialog { --luna-muted:var(--halo-ink); --luna-border:var(--halo-ink); }
 @media(max-width:350px) { .halo-luna-header { padding:12px 10px; gap:5px; } .halo-luna-header > .halo-luna-mark { width:28px; } .halo-luna-scroll { padding-inline:16px; } .halo-luna-footer { padding-inline:10px; } }
