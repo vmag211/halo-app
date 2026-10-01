@@ -1,0 +1,11 @@
+.halo-rising-sun { --sun-light:light-dark(#f8cf73,#efc475); --sun-warm:light-dark(#e6a05d,#cb874d); --sun-line:light-dark(#b98337,#d9ae69); display:block; width:100%; max-width:360px; height:auto; justify-self:center; flex-shrink:0; }
+.halo-rising-sun-rays { transform-origin:180px 124px; opacity:.65; }
+.halo-rising-sun-disc { opacity:.82; }
+.halo-reveal[data-reveal="visible"] .halo-rising-sun[data-animate="true"] .halo-rising-sun-disc { animation:halo-sunrise 1800ms cubic-bezier(.2,.7,.3,1) both var(--sun-play,running); }
+.halo-rising-sun[data-animate="true"] .halo-rising-sun-rays { animation:halo-sun-ray-light 6s ease-in-out infinite alternate var(--sun-play,running); }
+.halo-f-app[data-motion="full"] .halo-reveal[data-reveal="visible"] .halo-rising-sun[data-animate="true"] .halo-rising-sun-disc { animation:halo-sunrise 1800ms cubic-bezier(.2,.7,.3,1) both var(--sun-play,running) !important; }
+.halo-f-app[data-motion="full"] .halo-rising-sun[data-animate="true"] .halo-rising-sun-rays { animation:halo-sun-ray-light 6s ease-in-out infinite alternate var(--sun-play,running) !important; }
+.halo-rising-sun[data-moving="false"] { --sun-play:paused; }
+@keyframes halo-sunrise { from { transform:translateY(28px); opacity:.35; } to { transform:translateY(0); opacity:.82; } }
+@keyframes halo-sun-ray-light { from { opacity:.4; transform:scale(.98); } to { opacity:.8; transform:scale(1.02); } }
+@media(forced-colors:active) { .halo-rising-sun-disc { fill:CanvasText; } .halo-rising-sun-rays { stroke:CanvasText; } }

@@ -41,8 +41,8 @@ for (const mode of ['light', 'dark'] as const) {
 test('tabs, Back, settings return, and scroll memory', async ({ page }) => {
   await page.goto('/foundation/preview');
   await page.evaluate(() => window.scrollTo(0, 300));
-  await page.getByRole('link', { name: 'Home', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your home', exact: true }).first()).toBeVisible();
+  await page.getByRole('link', { name: 'Homeguard', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Homeguard', exact: true }).first()).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('link', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
@@ -67,7 +67,7 @@ test('sheets trap focus, replace instead of stacking, Back closes, scroll and fo
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Alerts, 2 unread' })).toBeFocused();
-  await page.getByRole('button', { name: 'Ask HALO', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await page.goBack(); await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.goto('/foundation/preview?scenario=sheet-content');
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -87,7 +87,8 @@ test('pasted Learn link closes without leaving preview, invalid topics are ignor
   await page.getByRole('button', { name: 'Close sheet' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await page.evaluate(() => window.history.length)).toBe(before);
-  await expect(page).toHaveURL(/\/foundation\/preview$/);
+  await expect(page).toHaveURL(/\/foundation\/preview\/?(?:\?|$)/);
+  expect(new URL(page.url()).searchParams.has('learn')).toBeFalsy();
   await page.goto('/foundation/preview?learn=invalid');
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -104,15 +105,14 @@ test('backdrop and drag dismissal', async ({ page }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('one expandable card, contribution selection and no card history', async ({ page }) => {
+test('contribution links open factor routes and missing factors remain explicit', async ({ page }) => {
   await page.goto('/foundation/preview?scenario=partial');
   const before = await page.evaluate(() => window.history.length);
-  await page.getByRole('button', { name: /^Air quality: 12%/ }).click();
-  await expect(page.locator('#factor-air button').first()).toHaveAttribute('aria-expanded', 'true');
-  await page.locator('#factor-uv button').first().click();
-  await expect(page.locator('#factor-air button').first()).toHaveAttribute('aria-expanded', 'false');
-  expect(await page.evaluate(() => window.history.length)).toBe(before);
-  await expect(page.locator('.halo-f-contribution-segment[data-severity="no_data"]')).toBeVisible();
+  await page.locator('.halo-ph-legend').getByRole('link', { name: /^Air,/ }).click();
+  await expect(page).toHaveURL(/\/factor\/air/);
+  expect(await page.evaluate(() => window.history.length)).toBe(before + 1);
+  await page.goBack();
+  await expect(page.getByTestId('factor-scorecard').filter({ hasText: 'Pollen' })).toContainText('No data');
 });
 
 test('delete and Undo are immediate, one toast lasts eight seconds', async ({ page }) => {
@@ -164,7 +164,7 @@ for (const width of [320, 430, 900]) {
     test(`enlarged layout ${width} ${scenario}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 850 });
       await page.goto(`/foundation/preview?scenario=${scenario}`);
-      if (scenario !== 'sheet-tall') await page.getByLabel('Text size', { exact: true }).selectOption('150');
+      if (scenario !== 'sheet-tall') { await page.getByText('HALO design review', { exact: true }).click(); await page.getByLabel('Text size', { exact: true }).selectOption('150'); }
       await page.evaluate(() => document.fonts.ready);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
       if (process.env.HALO_CAPTURE_FOUNDATION === '1') {

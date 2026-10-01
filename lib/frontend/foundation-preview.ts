@@ -62,8 +62,8 @@ export const previewTabs = ['today', 'home', 'map', 'journal', 'act'] as const;
 export type PreviewTab = typeof previewTabs[number];
 export type PreviewRoute = PreviewTab | 'settings';
 export type PreviewSheet = 'learn' | 'alerts' | 'assistant' | 'map';
-export const routeTitles: Record<PreviewRoute, string> = { today: 'Today', home: 'Your home', map: 'Map', journal: 'Journal', act: 'Act', settings: 'Settings' };
-export const tabLabels: Record<PreviewTab, string> = { today: 'Today', home: 'Home', map: 'Map', journal: 'Journal', act: 'Act' };
+export const routeTitles: Record<PreviewRoute, string> = { today: 'Today', home: 'Homeguard', map: 'Map', journal: 'Journal', act: 'Act', settings: 'Settings' };
+export const tabLabels: Record<PreviewTab, string> = { today: 'Today', home: 'Homeguard', map: 'Map', journal: 'Journal', act: 'Act' };
 export const sampleFactors = [
   { key: 'air', title: 'Air quality', summary: 'AQI 37', severity: 'good', share: 12, provenance: 'measured' },
   { key: 'uv', title: 'UV index', summary: '5.2', severity: 'moderate', share: 64, provenance: null },

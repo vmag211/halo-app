@@ -214,6 +214,6 @@
 .halo-f-hero-swatch[data-time="2"] { background:linear-gradient(130deg,var(--halo-hero-evening-start),var(--halo-hero-evening-end)); }
 .halo-f-hero-swatch[data-time="3"] { background:linear-gradient(130deg,var(--halo-hero-night-start),var(--halo-hero-night-end)); }
 .halo-f-app[data-motion="reduce"] *, .halo-f-app[data-motion="reduce"] *::before, .halo-f-app[data-motion="reduce"] *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
-@media(prefers-reduced-motion:reduce) { .halo-f-app *, .halo-f-app *::before, .halo-f-app *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+@media(prefers-reduced-motion:reduce) { .halo-f-app:not([data-motion="full"]) *, .halo-f-app:not([data-motion="full"]) *::before, .halo-f-app:not([data-motion="full"]) *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
 @media(max-width:350px) { .halo-f-main { padding-right:16px; padding-left:16px; } .halo-f-card-end { gap:4px; } .halo-f-card-toggle { padding:16px 12px; } }
 @media print { .halo-f-review { color-scheme:light; } .halo-f-review-tools, .halo-f-tabs, .halo-f-assistant { display:none; } .halo-f-main { padding-bottom:20px; } }

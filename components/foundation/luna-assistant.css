@@ -1,0 +1,59 @@
+.halo-luna-mark { display:block; flex-shrink:0; color:var(--luna-accent,var(--halo-primary)); }
+.halo-f-app .halo-f-assistant { --luna-accent:light-dark(#087f91,#68d4df); }
+.halo-f-app .halo-luna-dialog { --luna-accent:light-dark(#087f91,#68d4df); --luna-surface:light-dark(#fbfdfe,#102a3b); --luna-muted:light-dark(#547081,#b1c7d3); --luna-border:light-dark(#d9e5eb,#2b4657); position:fixed; inset:auto 0 8px; margin:0 auto; padding:0; width:min(440px,calc(100% - 16px)); max-width:none; height:min(800px,calc(var(--luna-height,100dvh) - 16px - env(safe-area-inset-bottom))); max-height:none; color:var(--halo-ink); background:var(--luna-surface); border:1px solid var(--luna-border); border-radius:25px; box-shadow:0 20px 80px #00132355; overflow:hidden; font-size:calc(.94rem * var(--halo-text-scale)); }
+.halo-luna-dialog[open] { display:flex; flex-direction:column; }
+.halo-luna-dialog::backdrop { background:#03142080; backdrop-filter:blur(5px); }
+.halo-luna-header { display:flex; align-items:center; gap:10px; padding:16px 16px 15px; border-bottom:1px solid var(--luna-border); flex-shrink:0; }
+.halo-luna-identity { flex:1; min-width:0; }
+.halo-luna-identity > div { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.halo-f-app .halo-luna-identity h2 { font-family:var(--font-onest),sans-serif; font-size:calc(1.3rem * var(--halo-text-scale)); font-weight:650; margin:0; text-align:left; }
+.halo-f-app .halo-luna-identity p { font-size:calc(.72rem * var(--halo-text-scale)); color:var(--luna-muted); margin:3px 0 0; line-height:1.4; }
+.halo-luna-preview { color:var(--luna-accent); font-size:calc(.6rem * var(--halo-text-scale)); letter-spacing:.04em; padding:3px 6px; border:1px solid var(--luna-border); border-radius:6px; }
+.halo-f-app .halo-luna-icon { display:grid; place-items:center; background:transparent; color:inherit; border:0; padding:0; width:44px; height:44px; border-radius:12px; flex-shrink:0; cursor:pointer; }
+.halo-f-app .halo-luna-icon:hover { background:color-mix(in srgb,var(--luna-accent) 9%,transparent); }
+.halo-luna-options { position:absolute; z-index:5; right:16px; top:83px; max-width:calc(100% - 32px); padding:6px; border:1px solid var(--luna-border); border-radius:14px; background:var(--luna-surface); box-shadow:0 12px 30px #00132330; }
+.halo-luna-options button { display:flex; gap:10px; align-items:center; text-align:left; min-height:46px; padding:10px; border:0; background:none; color:inherit; font-size:calc(.8rem * var(--halo-text-scale)); cursor:pointer; border-radius:9px; }
+.halo-luna-options button:hover { background:color-mix(in srgb,var(--luna-accent) 9%,transparent); }
+.halo-luna-about { display:flex; gap:10px; padding:12px 16px; background:color-mix(in srgb,var(--luna-accent) 8%,var(--luna-surface)); flex-shrink:0; max-height:35%; overflow:auto; }
+.halo-f-app .halo-luna-about p { font-size:calc(.77rem * var(--halo-text-scale)); line-height:1.6; margin:0; }
+.halo-luna-about button { background:none; border:0; color:inherit; min-width:44px; min-height:44px; align-self:start; }
+.halo-luna-scroll { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:18px 22px 24px; scrollbar-width:thin; scrollbar-color:var(--luna-border) transparent; }
+.halo-f-app .halo-luna-date { text-align:center; margin:0 0 25px; font-size:calc(.72rem * var(--halo-text-scale)); color:var(--luna-muted); }
+.halo-luna-welcome-mark { display:inline-grid; place-items:center; width:68px; height:68px; background:color-mix(in srgb,var(--luna-accent) 6%,transparent); border-radius:22px; margin-bottom:14px; }
+.halo-f-app .halo-luna-welcome h3 { font:550 calc(1.85rem * var(--halo-text-scale))/1.18 var(--font-onest),sans-serif; letter-spacing:-.045em; margin:0 0 16px; text-align:left; }
+.halo-f-app .halo-luna-welcome > p { line-height:1.7; margin:0 0 12px; }
+.halo-f-app .halo-luna-welcome .halo-luna-disclosure { font-size:calc(.73rem * var(--halo-text-scale)); line-height:1.6; color:var(--luna-muted); }
+.halo-luna-disclosure button { padding:0; color:var(--luna-accent); border:0; background:none; font:inherit; text-decoration:underline; text-underline-offset:3px; cursor:pointer; min-height:30px; }
+.halo-luna-opening { display:flex; align-items:center; gap:10px; margin:25px 0 14px; padding:15px; background:color-mix(in srgb,var(--luna-accent) 7%,var(--luna-surface)); border-radius:4px 17px 17px 17px; }
+.halo-f-app .halo-luna-opening p { font-size:calc(.88rem * var(--halo-text-scale)); line-height:1.5; margin:0; }
+.halo-luna-prompts { display:grid; gap:10px; }
+.halo-luna-prompts button { display:flex; align-items:center; gap:11px; padding:13px; min-height:52px; text-align:left; background:transparent; color:inherit; border:1px solid var(--luna-border); border-radius:14px; font:inherit; font-size:calc(.8rem * var(--halo-text-scale)); cursor:pointer; transition:background 180ms ease,border-color 180ms ease; }
+.halo-luna-prompts button span { flex:1; line-height:1.5; }
+.halo-luna-prompts button > svg:last-child { flex-shrink:0; color:var(--luna-muted); }
+.halo-luna-prompts button:hover { border-color:var(--luna-accent); background:color-mix(in srgb,var(--luna-accent) 5%,transparent); }
+.halo-luna-messages { display:grid; gap:24px; }
+.halo-luna-message { display:flex; align-items:flex-start; gap:10px; min-width:0; margin-top:20px; }
+.halo-luna-message > .halo-luna-mark { margin-top:7px; }
+.halo-luna-message > div { min-width:0; }
+.halo-luna-message--user { justify-content:flex-end; padding-left:25px; }
+.halo-luna-message--user > div { padding:13px 16px; border-radius:17px 4px 17px 17px; background:color-mix(in srgb,var(--luna-accent) 12%,var(--luna-surface)); }
+.halo-luna-message-label { display:block; font-size:calc(.66rem * var(--halo-text-scale)); color:var(--luna-muted); margin-bottom:6px; }
+.halo-f-app .halo-luna-message p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:calc(.88rem * var(--halo-text-scale)); line-height:1.7; margin:0; }
+.halo-luna-message a { display:inline-flex; align-items:center; gap:6px; margin-top:12px; min-height:44px; font-size:calc(.78rem * var(--halo-text-scale)); line-height:1.5; color:var(--luna-accent); text-decoration:underline; text-underline-offset:4px; }
+.halo-luna-footer { position:relative; padding:12px 15px 10px; background:var(--luna-surface); border-top:1px solid var(--luna-border); flex-shrink:0; }
+.halo-luna-composer { border:1px solid var(--luna-border); border-radius:18px; padding:12px 11px 8px; background:color-mix(in srgb,var(--luna-accent) 2%,var(--luna-surface)); }
+.halo-luna-composer:focus-within { border-color:var(--luna-accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--luna-accent) 12%,transparent); }
+.halo-luna-composer textarea { display:block; width:100%; min-height:50px; max-height:120px; resize:none; font-family:inherit; font-size:max(16px,calc(.88rem * var(--halo-text-scale))); line-height:1.5; color:inherit; background:none; border:0; padding:2px 3px; outline:none; }
+.halo-luna-composer textarea::placeholder { color:var(--luna-muted); }
+.halo-luna-compose-tools { display:flex; align-items:center; gap:7px; }
+.halo-luna-compose-tools > span { flex:1; font-size:calc(.66rem * var(--halo-text-scale)); color:var(--luna-muted); }
+.halo-luna-send { display:grid; place-items:center; width:44px; height:44px; flex-shrink:0; border:0; border-radius:50%; background:var(--luna-accent); color:var(--luna-surface); cursor:pointer; }
+.halo-luna-dialog button:disabled { opacity:.4; cursor:not-allowed; }
+.halo-f-app .halo-luna-footer-note { text-align:center; font-size:calc(.62rem * var(--halo-text-scale)); line-height:1.5; color:var(--luna-muted); margin:8px 0 0; }
+.halo-luna-latest { display:grid; place-items:center; position:absolute; top:-48px; left:calc(50% - 20px); width:40px; height:40px; background:var(--luna-surface); border:1px solid var(--luna-border); border-radius:50%; color:inherit; box-shadow:0 3px 12px #00132320; cursor:pointer; }
+.halo-luna-suggestions { max-height:180px; overflow:auto; margin-bottom:12px; }
+.halo-f-app .halo-luna-offline { margin:0 0 12px; font-size:calc(.75rem * var(--halo-text-scale)); line-height:1.5; color:var(--luna-muted); }
+.halo-luna-dialog button:focus-visible,.halo-luna-dialog a:focus-visible { outline:2px solid var(--luna-accent); outline-offset:3px; }
+.halo-f-app[data-contrast="high"] .halo-luna-dialog { --luna-muted:var(--halo-ink); --luna-border:var(--halo-ink); }
+@media(max-width:350px) { .halo-luna-header { padding:12px 10px; gap:5px; } .halo-luna-header > .halo-luna-mark { width:28px; } .halo-luna-scroll { padding-inline:16px; } .halo-luna-footer { padding-inline:10px; } }
+@media(max-height:550px) { .halo-luna-composer textarea { min-height:30px; height:32px; } .halo-luna-footer-note { display:none; } .halo-luna-header { padding-block:6px; } }

@@ -11,13 +11,13 @@ export default defineConfig({
   // Approved screenshots are immutable. Never accept a changed UI as its own baseline.
   updateSnapshots: 'none',
   use: {
-    baseURL: 'http://127.0.0.1:3010',
+    baseURL: process.env.HALO_TEST_BASE_URL ?? 'http://127.0.0.1:3010',
     browserName: 'chromium', channel: 'chrome',
     viewport: { width: 375, height: 850 },
     colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' },
     screenshot: 'only-on-failure', trace: 'retain-on-failure',
   },
-  webServer: {
+  webServer: process.env.HALO_TEST_BASE_URL ? undefined : {
     command: 'npm run dev -- --hostname 127.0.0.1 --port 3010',
     url: 'http://127.0.0.1:3010/onboarding/preview',
     reuseExistingServer: !process.env.CI,
