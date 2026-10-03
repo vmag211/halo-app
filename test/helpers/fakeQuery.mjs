@@ -39,16 +39,22 @@ export class QueryBuilder {
   #lookup;
   #name;
   #log;
+  #maxRows;
   #state = {
     operation: 'select', payload: undefined, options: {}, columns: null, returning: true,
     count: null, head: false, filters: [], orders: [], offset: 0, limit: Infinity, single: null,
   };
 
-  /** `log` (optional) receives one { table, operation, filters, rows, values } entry per executed statement. */
-  constructor(lookup, name, log = null) {
+  /**
+   * `log` (optional) receives one { table, operation, filters, rows, values } entry per executed statement.
+   * `maxRows` (optional) returns PostgREST's `db-max-rows` for a select: the server returns at most that many
+   * rows whatever `.limit()` asked for, while `count` still reports every match.
+   */
+  constructor(lookup, name, log = null, maxRows = () => Infinity) {
     this.#lookup = lookup;
     this.#name = name;
     this.#log = log;
+    this.#maxRows = maxRows;
   }
 
   static {
@@ -149,7 +155,8 @@ export class QueryBuilder {
     const hits = [];
     table.rows.forEach((row, index) => { if (matches(state.filters, row)) hits.push({ row, index }); });
     const total = hits.length;
-    const chosen = sortRows(hits, state.orders, (hit) => hit.row).slice(state.offset, state.offset + state.limit);
+    const rowCap = state.operation === 'select' ? Math.min(state.limit, this.#maxRows()) : state.limit;
+    const chosen = sortRows(hits, state.orders, (hit) => hit.row).slice(state.offset, state.offset + rowCap);
 
     if (state.operation === 'select') {
       return this.#finish(chosen.map((hit) => hit.row), total, null);

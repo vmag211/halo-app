@@ -30,6 +30,7 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   const rpcCalls = [];
   const queryLog = [];
   let authOutage = 'off';
+  let maxRows = Infinity;
 
   const declare = (name, declaration) => {
     if (!store.has(name)) store.set(name, new FakeTable(name, declaration));
@@ -55,7 +56,7 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   });
 
   const db = {
-    from: (name) => new QueryBuilder((table) => store.get(table), name, queryLog),
+    from: (name) => new QueryBuilder((table) => store.get(table), name, queryLog, () => maxRows),
 
     /** Dispatches to a handler registered with registerRpc; unknown names fail like PostgREST. */
     rpc: async (name, args = {}) => {
@@ -121,6 +122,13 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
       if (!table) throw new Error(`fakeSupabase: no table "${name}" declared or seeded`);
       return wire(table.rows);
     },
+
+    /**
+     * Simulates PostgREST's `db-max-rows` (Supabase's API row cap): a select returns at most `limit`
+     * rows however large a `.limit()` it asked for; `count: 'exact'` still reports every match.
+     * Default `Infinity` (no cap).
+     */
+    setMaxRows: (limit) => { maxRows = limit; },
 
     /** 'off' | 'returned' (auth-js returns a 5xx error) | 'thrown' (network failure). */
     setAuthOutage: (mode) => { authOutage = mode; },

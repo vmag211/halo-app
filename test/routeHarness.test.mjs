@@ -140,7 +140,8 @@ test('GET /api/history reads daily_scores through the fake: ranges and the owner
   const body = await res.json();
   assert.deepEqual(body.history.map((row) => [row.date, row.score]), [['2026-09-10', 81]]); // bob's 22 is absent
 
-  const outside = await (await h.call('/api/history', 'GET', { as: 'alice', url: '/api/history?from=2026-10-01&to=2026-10-31' })).json();
+  // A range wholly before the data. (It used to end in the future, which the route now rejects with a 400.)
+  const outside = await (await h.call('/api/history', 'GET', { as: 'alice', url: '/api/history?from=2026-08-01&to=2026-08-31' })).json();
   assert.equal(outside.count, 0);
 });
 
