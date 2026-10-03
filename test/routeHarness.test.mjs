@@ -180,8 +180,8 @@ test('POST /api/push/subscribe goes through the stubbed rate limiter and the end
   assert.equal(h.db.rows('push_subscriptions')[0].profile_id, h.identities.alice.id);
 
   await h.call('/api/push/subscribe', 'POST', { as: 'bob', body: subscription });
-  assert.equal(h.db.rows('push_subscriptions').length, 1); // same endpoint: one row, upsert on endpoint
-  assert.equal(h.db.rows('push_subscriptions')[0].profile_id, h.identities.bob.id);
+  assert.equal(h.db.rows('push_subscriptions').length, 1); // the unique endpoint key holds: still one row
+  assert.equal(h.db.rows('push_subscriptions')[0].profile_id, h.identities.alice.id); // and it was not taken over
 });
 
 test('DELETE /api/account deletes the auth user and cascades to every owned table', async () => {
