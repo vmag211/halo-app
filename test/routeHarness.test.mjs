@@ -201,7 +201,8 @@ test('DELETE /api/account deletes the auth user and cascades to every owned tabl
   assert.equal(after.status, 401); // the deleted user's token no longer verifies
 });
 
-test('a table the harness was not given behaves like an unapplied migration', async () => {
+test('a table the harness was not given behaves like an unapplied migration', async (t) => {
+  muteConsoleError(t); // the route logs the failed directory read
   const h = createRouteHarness({ tables: { profiles: { primaryKey: 'id' } } });
   const res = await h.call('/api/volunteer', 'GET', { as: 'alice', url: '/api/volunteer?county=Wake' });
   assert.equal(res.status, 200);
