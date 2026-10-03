@@ -3,6 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { normalizeBands } from '@/lib/household';
 import { normalizeWaterSource } from '@/lib/waterSource';
 import { validateHomeYear } from '@/lib/geocode';
+import { requestIdFor, internalError } from '@/lib/apiErrors';
 
 /**
  * GET   /api/profile — the household's stored location, home details and
@@ -22,7 +23,10 @@ import { validateHomeYear } from '@/lib/geocode';
  * or change its own profile.
  */
 
-async function profileResponse(userId) {
+// `onBandsError` (optional) hears about a failed composition read; the read still
+// degrades to general-population, as documented. GET uses it to mark the answer;
+// PATCH does not pass it and answers as before.
+async function profileResponse(userId, { onBandsError } = {}) {
   const { data: profile, error } = await supabaseAdmin
     .from('profiles')
     .select('*')
@@ -31,11 +35,12 @@ async function profileResponse(userId) {
   if (error) throw new Error(`Could not read profile: ${error.message}`);
 
   // Composition is optional; a missing row (or table) means general-population.
-  const { data: bandRow } = await supabaseAdmin
+  const { data: bandRow, error: bandsError } = await supabaseAdmin
     .from('household_bands')
     .select('*')
     .eq('profile_id', userId)
     .maybeSingle();
+  if (bandsError) onBandsError?.(bandsError);
 
   const onboarded = !!(profile && typeof profile.lat === 'number' && typeof profile.lng === 'number');
   const onboardingComplete = onboarded && typeof profile.water_source === 'string' && profile.water_source !== '';
@@ -66,14 +71,26 @@ async function profileResponse(userId) {
 }
 
 export async function GET(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    return NextResponse.json(await profileResponse(userId));
+    let bandsFailed = false;
+    const body = await profileResponse(userId, {
+      onBandsError: (error) => {
+        bandsFailed = true;
+        console.error(`Profile household read failed (request ${requestId}):`, error.message);
+      },
+    });
+    // A composition that could not be read looks like "no composition yet", so say which it is.
+    return NextResponse.json(
+      bandsFailed ? { ...body, unavailable: true, reason: 'household_unavailable' } : body,
+      { headers: { 'X-Request-Id': requestId } },
+    );
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error('Profile failed:', err);
-    return NextResponse.json({ error: 'Could not load your profile. Please try again.' }, { status: 500 });
+    console.error(`Profile failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
 

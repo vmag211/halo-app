@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { BAND_KEYS, normalizeBands } from '@/lib/household';
+import { requestIdFor, internalError } from '@/lib/apiErrors';
 
 /**
  * Household composition (§8, §16.2).
@@ -13,29 +14,39 @@ import { BAND_KEYS, normalizeBands } from '@/lib/household';
  */
 
 export async function GET(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    const { data: bandRow } = await supabaseAdmin
+    const { data: bandRow, error: bandsError } = await supabaseAdmin
       .from('household_bands')
       .select('*')
       .eq('profile_id', userId)
       .maybeSingle();
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('renter_mode, locale')
       .eq('id', userId)
       .maybeSingle();
-    return NextResponse.json({
-      household: normalizeBands(bandRow),
-      household_set: bandRow !== null,
-      renter_mode: profile?.renter_mode === true,
-      locale: profile?.locale ?? 'en',
-    });
+    if (bandsError) console.error(`Household read failed (request ${requestId}):`, bandsError.message);
+    if (profileError) console.error(`Household preferences read failed (request ${requestId}):`, profileError.message);
+    // The defaults below are what a household with no rows gets. A read that failed
+    // gets them too, so the answer then says it is not the household's real one.
+    const unavailableReason = bandsError ? 'household_unavailable' : profileError ? 'preferences_unavailable' : null;
+    return NextResponse.json(
+      {
+        household: normalizeBands(bandRow),
+        household_set: bandRow !== null,
+        renter_mode: profile?.renter_mode === true,
+        locale: profile?.locale ?? 'en',
+        ...(unavailableReason && { unavailable: true, reason: unavailableReason }),
+      },
+      { headers: { 'X-Request-Id': requestId } },
+    );
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error('Household failed:', err);
-    return NextResponse.json({ error: 'Could not load your household. Please try again.' }, { status: 500 });
+    console.error(`Household failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
 
