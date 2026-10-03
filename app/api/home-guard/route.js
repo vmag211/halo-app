@@ -5,6 +5,8 @@ import { buildWellTestPlan } from '@/lib/wellTestData'; // Private well / spring
 import { getRadonRisk, getWaterRisk, getHomeGuardScore } from '@/lib/scoring';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeWaterSource } from '@/lib/waterSource';
+import { parseHomeGuardOverrides } from '@/lib/homeGuardInput';
+import { requestIdFor, validationError, internalError } from '@/lib/apiErrors';
 import { leadRisk } from '@/lib/leadRisk';
 import { actionPlan } from '@/lib/actionPlan';
 import { waterRiskSeverity, radonZoneSeverity, waterDetailSeverity, compositeSeverity } from '@/lib/severity';
@@ -202,12 +204,22 @@ function buildBreakdown({
 }
 
 export async function GET(request) {
+  const requestId = requestIdFor(request);
+  const headers = { 'X-Request-Id': requestId };
   try {
     // 1. Require a session. This route reads no personal data -- the caller
     //    passes county/pwsid explicitly -- so auth here is not about privacy.
     //    It keeps identity handling uniform across the API and stops the
     //    endpoint being used as an open proxy onto the EPA dataset.
     const { userId } = await requireUser(request);
+
+    // 2. Validate the query overrides before anything is read (see
+    //    lib/homeGuardInput.js): a malformed override is a 400, not ignored.
+    const { searchParams } = new URL(request.url);
+    const overrides = parseHomeGuardOverrides(searchParams);
+    if (!overrides.ok) return validationError(overrides.fieldErrors, requestId);
+    const given = overrides.value;
+    const has = (name) => Object.hasOwn(given, name);
 
     // The household's stored answers are the defaults; query parameters still
     // override them (kept for compatibility and for looking at another place).
@@ -218,14 +230,12 @@ export async function GET(request) {
       .maybeSingle();
     if (profileErr) throw new Error(`Could not read profile: ${profileErr.message}`);
 
-    // 2. Extract parameters from the URL
-    const { searchParams } = new URL(request.url);
-    const county = searchParams.get('county') ?? profileRow?.county ?? null;
-    const pwsid = searchParams.has('pwsid') ? searchParams.get('pwsid') : profileRow?.pwsid ?? null;
+    const county = given.county ?? profileRow?.county ?? null;
+    const pwsid = has('pwsid') ? given.pwsid : profileRow?.pwsid ?? null;
     // Radon zones here are North Carolina's. The state comes from the geocoder
     // (migration 0009); a profile from before that has none and keeps the NC
     // lookup. A `state` parameter overrides, like the others.
-    const state = (searchParams.get('state') ?? profileRow?.state ?? null)?.toUpperCase?.() ?? null;
+    const state = (given.state ?? profileRow?.state ?? null)?.toUpperCase?.() ?? null;
     // Optional. 'well' or 'spring' switches us off the utility lookup entirely,
     // because there is no utility to look up. Anything else (or missing) keeps
     // the original public-water behavior.
@@ -234,21 +244,22 @@ export async function GET(request) {
     // through to the utility lookup and shows the household a PFAS measurement
     // for a system they are not connected to -- the exact "no data presented as
     // a measurement" failure the honesty convention exists to prevent.
-    const waterSource = normalizeWaterSource(
-      searchParams.has('water_source') ? searchParams.get('water_source') : profileRow?.water_source,
-    );
+    const waterSource = has('waterSource') ? given.waterSource : normalizeWaterSource(profileRow?.water_source);
     // Optional. Year the home was built. Only used to decide whether lead is
-    // a likely risk. parseInt returns NaN for junk input, so we normalize to null.
-    const rawHomeYear = searchParams.has('home_year')
-      ? parseInt(searchParams.get('home_year'), 10)
-      : profileRow?.home_year ?? profileRow?.build_year ?? NaN;
-    const homeYear = Number.isInteger(rawHomeYear) ? rawHomeYear : null;
+    // a likely risk. A stored value that is not a whole number normalizes to null;
+    // an override was already checked by validateHomeYear (null when blank).
+    const storedHomeYear = profileRow?.home_year ?? profileRow?.build_year ?? NaN;
+    const homeYear = has('homeYear') ? given.homeYear : Number.isInteger(storedHomeYear) ? storedHomeYear : null;
 
     // 3. Safety check: ONLY require the county.
     if (!county) {
-      return NextResponse.json(
-        { error: 'No county on file. Finish onboarding, or pass the county parameter.' },
-        { status: 400 }
+      return validationError(
+        [{
+          field: 'county',
+          code: 'county_required',
+          message: 'No county on file. Finish onboarding, or pass the county parameter.',
+        }],
+        requestId,
       );
     }
 
@@ -619,16 +630,13 @@ export async function GET(request) {
       // When this answer was put together. The water results inside it are
       // dated per contaminant (date_iso); this is not a measurement time.
       assembled_at: new Date().toISOString(),
-    });
+    }, { headers });
 
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
 
-    console.error('HomeGuard API Error:', err);
-    return NextResponse.json(
-      { error: 'Internal Server Error while fetching HomeGuard data.' },
-      { status: 500 }
-    );
+    console.error(`HomeGuard API Error (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }

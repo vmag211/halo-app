@@ -86,6 +86,7 @@ function routeFile(routePath) {
  * @param {object} [options.identities] name -> { id, email, isAnonymous } overrides; default is alice and bob.
  * @param {Function} [options.fetch] stands in for global fetch inside every call; default rejects and records.
  * @param {object} [options.env] environment values the routes see (strings); everything else the app reads is removed.
+ * @param {(key: string) => boolean} [options.rateLimit] answers `checkLimit(limiter, key)`: false means "limited" (default: always allowed).
  */
 export function createRouteHarness({
   seed = {},
@@ -93,6 +94,7 @@ export function createRouteHarness({
   identities: identitySpec = DEFAULT_IDENTITIES,
   fetch: harnessFetch,
   env: harnessEnv = {},
+  rateLimit,
 } = {}) {
   harnessCount += 1;
   const harnessId = harnessCount;
@@ -102,7 +104,7 @@ export function createRouteHarness({
     seed: typeof seed === 'function' ? seed(identities) : seed,
     identities: Object.values(identities),
   });
-  const state = { db, afterQueue: [] };
+  const state = { db, afterQueue: [], rateLimit };
   const modules = new Map();
   const blockedFetches = [];
   const defaultFetch = harnessFetch ?? blockedFetch(blockedFetches);

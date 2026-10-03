@@ -54,14 +54,16 @@ export function quiet(t) {
  * @param {object} [options.env] env values the routes see
  * @param {(request: {url: string, method: string, body: string|null}) => Response|null|undefined} [options.provider]
  *        answers outbound fetches; anything it does not answer gets a 503
+ * @param {(key: string) => boolean} [options.rateLimit] false for a limiter key means "limited" (default: always allowed)
  */
-export function setup({ seed: seedOptions, env, provider } = {}) {
+export function setup({ seed: seedOptions, env, provider, rateLimit } = {}) {
   const outbound = [];
   let rows;
   const h = createRouteHarness({
     tables: HALO_TABLES,
     seed: (identities) => (rows = seedHouseholds(identities, seedOptions)),
     env,
+    rateLimit,
     fetch: async (url, init = {}) => {
       const entry = { url: String(url), method: init.method ?? 'GET', body: typeof init.body === 'string' ? init.body : null };
       outbound.push(entry);

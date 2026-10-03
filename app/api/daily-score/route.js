@@ -5,6 +5,8 @@ import { normalizeBands } from '@/lib/household';
 import { fetchDailyReadings } from '@/lib/dailyReadings';
 import { formatDailyPayload, toIsoUtc } from '@/lib/dailyPayload';
 import { localDate } from '@/lib/localDate';
+import { parseCoordinates } from '@/lib/validate';
+import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } from '@/lib/apiErrors';
 
 /**
  * GET /api/daily-score[?lat=&lng=][&fresh=1]
@@ -12,13 +14,16 @@ import { localDate } from '@/lib/localDate';
  * Today's air, UV, pollen and mold for the household, with a composite score.
  *
  * - Location: lat/lng if given (kept for compatibility), otherwise the
- *   household's stored location.
+ *   household's stored location. Give both or neither; each must be a plain
+ *   decimal number in range (one of the pair, or anything else, is a 400).
  * - Cache: a reading taken at the household's own location in the last hour is
  *   served from daily_scores. `fresh=1` skips that read (pull to refresh).
  * - Provider fetches (cache misses and refreshes) are limited to one per
  *   household per five minutes, so repeated pulls can't hammer AirNow, Pollen
  *   and NWS. The limiter fails open.
  * - Readings are stored with the household's local (America/New_York) date.
+ * - `fresh` is literally "1"; any other value is the same as not sending it.
+ * - Every response carries X-Request-Id; errors are the shared envelope.
  *
  * Fetching lives in lib/dailyReadings.js (shared with the daily job) and the
  * response shape in lib/dailyPayload.js.
@@ -66,6 +71,8 @@ function readingsFromRow(row) {
 }
 
 export async function GET(request) {
+  const requestId = requestIdFor(request);
+  const headers = { 'X-Request-Id': requestId };
   try {
     // Identity comes from the verified session, never a query parameter.
     const { userId: profileId } = await requireUser(request);
@@ -73,6 +80,26 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     assertProfileMatches(searchParams.get('profile_id'), profileId);
     const fresh = searchParams.get('fresh') === '1';
+
+    // lat and lng come as a pair or not at all. Checked before anything is read.
+    const qLat = searchParams.get('lat');
+    const qLng = searchParams.get('lng');
+    let requested = null;
+    if (qLat !== null || qLng !== null) {
+      if (qLat === null || qLng === null) {
+        return validationError(
+          [{
+            field: qLat === null ? 'lat' : 'lng',
+            code: 'coordinate_pair_required',
+            message: 'Send both lat and lng, or neither.',
+          }],
+          requestId,
+        );
+      }
+      const parsed = parseCoordinates({ lat: qLat, lng: qLng });
+      if (!parsed.ok) return validationError(parsed.fieldErrors, requestId);
+      requested = parsed.value;
+    }
 
     const { data: profileRow, error: profileErr } = await supabaseAdmin
       .from('profiles')
@@ -83,15 +110,17 @@ export async function GET(request) {
 
     const hasStored =
       !!profileRow && typeof profileRow.lat === 'number' && typeof profileRow.lng === 'number';
-    const qLat = searchParams.get('lat');
-    const qLng = searchParams.get('lng');
-    const lat = qLat !== null ? parseFloat(qLat) : hasStored ? profileRow.lat : NaN;
-    const lng = qLng !== null ? parseFloat(qLng) : hasStored ? profileRow.lng : NaN;
+    const lat = requested ? requested.lat : hasStored ? profileRow.lat : NaN;
+    const lng = requested ? requested.lng : hasStored ? profileRow.lng : NaN;
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return NextResponse.json(
-        { error: 'No location yet. Finish onboarding, or pass lat and lng.' },
-        { status: 400 },
+      return validationError(
+        [{
+          field: 'location',
+          code: 'location_required',
+          message: 'No location yet. Finish onboarding, or pass lat and lng.',
+        }],
+        requestId,
       );
     }
 
@@ -133,6 +162,7 @@ export async function GET(request) {
             retrievedAt: toIsoUtc(cachedRow.created_at),
             bands,
           }),
+          { headers },
         );
       }
     }
@@ -143,10 +173,15 @@ export async function GET(request) {
       label: 'daily-score limiter',
     });
     if (!allowed) {
-      return NextResponse.json(
-        { error: 'Readings were just refreshed. Try again in a few minutes.', retry_after_seconds: 300 },
-        { status: 429 },
-      );
+      // The shared envelope, plus the legacy retry_after_seconds field next to it.
+      const limited = apiError({
+        status: 429,
+        code: ERROR_CODES.RATE_LIMITED,
+        message: 'Readings were just refreshed. Try again in a few minutes.',
+        retryAfterSeconds: 300,
+        requestId,
+      });
+      return NextResponse.json({ ...(await limited.json()), retry_after_seconds: 300 }, { status: 429, headers: limited.headers });
     }
 
     const readings = await fetchDailyReadings(
@@ -161,7 +196,7 @@ export async function GET(request) {
 
     if (!isProfileLocation) {
       // Never cache a reading for some other point as this household's.
-      return NextResponse.json(payload);
+      return NextResponse.json(payload, { headers });
     }
 
     const cacheRow = {
@@ -205,11 +240,11 @@ export async function GET(request) {
       console.error('Failed to cache daily score:', insertError.message);
     }
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { headers });
   } catch (error) {
-    const authResponse = authErrorResponse(error);
+    const authResponse = authErrorResponse(error, requestId);
     if (authResponse) return authResponse;
-    console.error('Daily score failed:', error);
-    return NextResponse.json({ error: 'Could not load today\'s readings. Please try again.' }, { status: 500 });
+    console.error(`Daily score failed (request ${requestId}):`, error);
+    return internalError(requestId);
   }
 }
