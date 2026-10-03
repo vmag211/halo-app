@@ -7,19 +7,9 @@ import { pathToFileURL } from 'node:url';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { createRouteHooks } from './helpers/routeHooks.mjs';
+import { haloTables } from './helpers/tables.mjs';
 
-const TABLES = {
-  profiles: { primaryKey: 'id', ownerColumn: 'id' },
-  household_bands: { primaryKey: 'profile_id', ownerColumn: 'profile_id' },
-  symptom_logs: {
-    primaryKey: 'id',
-    unique: [['profile_id', 'entry_date', 'band']],
-    ownerColumn: 'profile_id',
-    defaults: { id: () => crypto.randomUUID() },
-  },
-  daily_scores: { primaryKey: 'id', ownerColumn: 'profile_id' },
-  push_subscriptions: { primaryKey: 'id', unique: [['endpoint']], ownerColumn: 'profile_id', defaults: { id: () => crypto.randomUUID() } },
-};
+const TABLES = haloTables('profiles', 'household_bands', 'symptom_logs', 'daily_scores', 'push_subscriptions');
 
 function twoHouseholds() {
   return createRouteHarness({
@@ -125,11 +115,22 @@ test('PUT /api/household persists to the fake and leaves the other household alo
   assert.deepEqual(h.db.rows('profiles').find((row) => row.id === h.identities.alice.id), { id: h.identities.alice.id, renter_mode: false, locale: 'en' });
 });
 
-test('malformed JSON reaches the route as a raw body, and the route\'s own handling decides', async () => {
-  const h = twoHouseholds();
-  const res = await h.call('/api/household', 'PUT', { as: 'alice', rawBody: '{not json' });
-  assert.equal(res.status, 200); // household treats an unreadable body as "no booleans set"
-  assert.equal(h.db.rows('household_bands').find((row) => row.profile_id === h.identities.alice.id).has_senior, false);
+test('rawBody reaches the route verbatim: malformed JSON, empty and multi-line bodies are not rewritten', async () => {
+  const h = createRouteHarness();
+  const echo = async (rawBody, headers) => {
+    const res = await h.call('test/helpers/fixtures/echoRoute.mjs', 'PUT', { as: 'alice', rawBody, headers });
+    assert.equal(res.status, 200);
+    return res.json();
+  };
+
+  assert.deepEqual(await echo('{not json'), { raw: '{not json', contentType: 'application/json' });
+  assert.equal((await echo('')).raw, '');
+  const awkward = '{"a":1,\n  "note":"caf\u00e9 \u2603",}\r\n';
+  assert.equal((await echo(awkward)).raw, awkward);
+  assert.deepEqual(await echo('plain text', { 'content-type': 'text/plain' }), { raw: 'plain text', contentType: 'text/plain' });
+
+  const json = await h.call('test/helpers/fixtures/echoRoute.mjs', 'PUT', { as: 'alice', body: { b: [1, 2] } });
+  assert.equal((await json.json()).raw, '{"b":[1,2]}'); // a plain body is sent as JSON.stringify output
 });
 
 test('GET /api/history reads daily_scores through the fake: ranges and the owner filter both apply', async () => {
@@ -145,12 +146,17 @@ test('GET /api/history reads daily_scores through the fake: ranges and the owner
 
 test('DELETE /api/journal?all=true removes only the caller\'s rows and select() reports the count', async () => {
   const h = twoHouseholds();
-  const res = await h.call('/api/journal', 'DELETE', { as: 'alice', url: '/api/journal?all=true' });
-  assert.deepEqual(await res.json(), { deleted: 1 });
-  assert.deepEqual(h.db.rows('symptom_logs').map((row) => row.id), ['b1']);
+  const aliceEntry = '11111111-1111-4111-8111-111111111111'; // a UUID key, so the route's id filter accepts it
+  h.db.seed('symptom_logs', [{ id: aliceEntry, profile_id: h.identities.alice.id, entry_date: '2026-09-02', band: 'household' }]);
 
-  const other = await h.call('/api/journal', 'DELETE', { as: 'bob', url: '/api/journal?id=11111111-1111-4111-8111-111111111111' });
+  // The id exists, but it is alice's: the owner filter is what keeps bob out.
+  const other = await h.call('/api/journal', 'DELETE', { as: 'bob', url: `/api/journal?id=${aliceEntry}` });
   assert.deepEqual(await other.json(), { deleted: 0 });
+  assert.deepEqual(h.db.rows('symptom_logs').map((row) => row.id).sort(), ['a1', aliceEntry, 'b1'].sort());
+
+  const res = await h.call('/api/journal', 'DELETE', { as: 'alice', url: '/api/journal?all=true' });
+  assert.deepEqual(await res.json(), { deleted: 2 });
+  assert.deepEqual(h.db.rows('symptom_logs').map((row) => row.id), ['b1']);
 });
 
 test('POST /api/journal upserts on the declared composite key', async () => {

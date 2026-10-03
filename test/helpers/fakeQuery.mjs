@@ -38,14 +38,17 @@ const singleRowError = (count) =>
 export class QueryBuilder {
   #lookup;
   #name;
+  #log;
   #state = {
     operation: 'select', payload: undefined, options: {}, columns: null, returning: true,
     count: null, head: false, filters: [], orders: [], offset: 0, limit: Infinity, single: null,
   };
 
-  constructor(lookup, name) {
+  /** `log` (optional) receives one { table, operation, filters, rows, values } entry per executed statement. */
+  constructor(lookup, name, log = null) {
     this.#lookup = lookup;
     this.#name = name;
+    this.#log = log;
   }
 
   static {
@@ -124,6 +127,13 @@ export class QueryBuilder {
 
   async #run() {
     const state = this.#state;
+    this.#log?.push({
+      table: this.#name,
+      operation: state.operation,
+      filters: structuredClone(state.filters),
+      rows: state.payload === undefined || state.operation === 'update' ? [] : wire([].concat(state.payload)),
+      values: state.operation === 'update' ? wire(state.payload) : null,
+    });
     const table = this.#lookup(this.#name);
     if (!table) {
       return {

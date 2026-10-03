@@ -18,6 +18,15 @@
  * imports are shared across the process. A handler that throws rejects `call`
  * (Next.js would answer 500); `runAfter` likewise rethrows a failing callback.
  *
+ * No call reaches the network or a real service (see sandbox.mjs). While a
+ * handler, an `after` callback or a route import runs, global `fetch` rejects
+ * (attempts are listed in `h.blockedFetches`) and the provider and secret
+ * variables (UPSTASH_*, AIRNOW_API_KEY, MAPBOX_TOKEN, ASSISTANT_MODEL_KEY, ...)
+ * are removed from process.env. A test that needs a provider passes its own
+ * `fetch` (option of createRouteHarness, or of one call) and the `env` values
+ * the route should see. A route that reads env at import (assistant) sees the
+ * `env` of the harness's first call to it.
+ *
  * Helpers re-exported for tests: tokenFor(name), rpcError(code, message) for
  * registered fake RPCs (`h.db.registerRpc`), muteConsoleError(t).
  */
@@ -26,6 +35,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createFakeSupabase, tokenFor } from './fakeSupabase.mjs';
+import { blockedFetch, withSandbox } from './sandbox.mjs';
 import { runWithHarness } from './stubs/context.mjs';
 import { NextRequest } from './stubs/nextServer.mjs';
 
@@ -74,8 +84,16 @@ function routeFile(routePath) {
  * @param {object|function} [options.seed] table name -> rows, or a function of the identities returning that.
  * @param {object} [options.tables] table name -> { primaryKey, unique, ownerColumn, defaults }; see fakeTable.mjs.
  * @param {object} [options.identities] name -> { id, email, isAnonymous } overrides; default is alice and bob.
+ * @param {Function} [options.fetch] stands in for global fetch inside every call; default rejects and records.
+ * @param {object} [options.env] environment values the routes see (strings); everything else the app reads is removed.
  */
-export function createRouteHarness({ seed = {}, tables = {}, identities: identitySpec = DEFAULT_IDENTITIES } = {}) {
+export function createRouteHarness({
+  seed = {},
+  tables = {},
+  identities: identitySpec = DEFAULT_IDENTITIES,
+  fetch: harnessFetch,
+  env: harnessEnv = {},
+} = {}) {
   harnessCount += 1;
   const harnessId = harnessCount;
   const identities = buildIdentities(identitySpec);
@@ -86,12 +104,21 @@ export function createRouteHarness({ seed = {}, tables = {}, identities: identit
   });
   const state = { db, afterQueue: [] };
   const modules = new Map();
+  const blockedFetches = [];
+  const defaultFetch = harnessFetch ?? blockedFetch(blockedFetches);
 
-  const loadRoute = (routePath) => {
+  /** Runs work inside this harness with fetch and env sandboxed (see sandbox.mjs). */
+  const sandboxed = (overrides, work) =>
+    withSandbox(
+      { fetch: overrides.fetch ?? defaultFetch, env: { ...harnessEnv, ...overrides.env } },
+      () => runWithHarness(state, work),
+    );
+
+  const loadRoute = (routePath, overrides) => {
     const file = routeFile(routePath);
     if (!modules.has(file)) {
       const url = `${pathToFileURL(file).href}?harness=${harnessId}`;
-      modules.set(file, runWithHarness(state, () => import(url)));
+      modules.set(file, sandboxed(overrides, () => import(url)));
     }
     return modules.get(file);
   };
@@ -108,10 +135,13 @@ export function createRouteHarness({ seed = {}, tables = {}, identities: identit
    * @param {string} [options.rawBody] sent as is (malformed JSON, empty body)
    * @param {object} [options.headers] extra headers; an `authorization` here overrides `as`
    * @param {object} [options.params] dynamic route params, passed as a Promise like Next 16
+   * @param {Function} [options.fetch] fetch for this call only; `after` callbacks use the harness's fetch unless runAfter is given one
+   * @param {object} [options.env] env values for this call, on top of the harness's
    */
-  const call = async (routePath, method, { as = null, url, body, rawBody, headers = {}, params = {} } = {}) => {
+  const call = async (routePath, method, { as = null, url, body, rawBody, headers = {}, params = {}, fetch, env } = {}) => {
     const verb = method.toUpperCase();
-    const route = await loadRoute(routePath);
+    const overrides = { fetch, env };
+    const route = await loadRoute(routePath, overrides);
     const handler = route[verb];
     if (typeof handler !== 'function') {
       const allow = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].filter((name) => typeof route[name] === 'function');
@@ -134,21 +164,24 @@ export function createRouteHarness({ seed = {}, tables = {}, identities: identit
       headers: requestHeaders,
       body: payload,
     });
-    return runWithHarness(state, () => handler(request, { params: Promise.resolve(params) }));
+    return sandboxed(overrides, () => handler(request, { params: Promise.resolve(params) }));
   };
 
-  /** Runs the callbacks the routes passed to `after()`, including ones queued while running. */
-  const runAfter = async () => {
+  /**
+   * Runs the callbacks the routes passed to `after()`, including ones queued while running,
+   * with the same sandbox. Pass `{ fetch, env }` when the callbacks need a provider.
+   */
+  const runAfter = async (overrides = {}) => {
     while (state.afterQueue.length) {
       const task = state.afterQueue.shift();
-      await runWithHarness(state, () => (typeof task === 'function' ? task() : task));
+      await sandboxed(overrides, () => (typeof task === 'function' ? task() : task));
     }
   };
 
   /** 'returned' (default): auth-js returns a 5xx error. 'thrown': network failure. 'off': back to normal. */
   const forceAuthOutage = (mode = 'returned') => db.setAuthOutage(mode);
 
-  return { db, identities, call, runAfter, forceAuthOutage };
+  return { db, identities, call, runAfter, forceAuthOutage, blockedFetches };
 }
 
 /** Silences console.error for one test and returns the mock, so a test can also assert on it. */

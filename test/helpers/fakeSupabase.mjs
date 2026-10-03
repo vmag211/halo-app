@@ -28,6 +28,7 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   const users = new Map(); // auth user id -> { id, name, email, isAnonymous }
   const rpcHandlers = new Map();
   const rpcCalls = [];
+  const queryLog = [];
   let authOutage = 'off';
 
   const declare = (name, declaration) => {
@@ -54,7 +55,7 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   });
 
   const db = {
-    from: (name) => new QueryBuilder((table) => store.get(table), name),
+    from: (name) => new QueryBuilder((table) => store.get(table), name, queryLog),
 
     /** Dispatches to a handler registered with registerRpc; unknown names fail like PostgREST. */
     rpc: async (name, args = {}) => {
@@ -102,6 +103,14 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
     /** Registers `handler(args, db)` for rpc(name). Throw rpcError(code, message) to fail. */
     registerRpc: (name, handler) => { rpcHandlers.set(name, handler); },
     rpcCalls,
+
+    /**
+     * Every statement the routes ran, in order: { table, operation, filters, rows, values }.
+     * `filters` are the parsed filter nodes ({ type: 'cmp', column, op, value }, ...), `rows`
+     * the insert/upsert/delete payload and `values` the update payload. For audits such as
+     * "every query on an owned table carried the owner filter".
+     */
+    queryLog,
 
     /** Adds rows to a table (declaring it if new). Constraints apply, so a bad row throws. */
     seed: (name, rows) => { declare(name).seed(rows); },

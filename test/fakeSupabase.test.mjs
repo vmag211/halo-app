@@ -349,3 +349,31 @@ test('seeding rejects rows that break a declared key, so a bad fixture fails lou
     /seed for "t".*duplicate key/,
   );
 });
+
+test('queryLog records every statement with its filters and payloads, in order', async () => {
+  const db = makeDb();
+  await db.from('items').select('*').eq('owner', 'a').gte('n', 6);
+  await db.from('items').update({ label: 'renamed' }).eq('owner', 'a').eq('id', 1).select('id');
+  await db.from('items').insert([{ id: 9, owner: 'b' }]);
+  await db.from('items').upsert({ id: 1, owner: 'a', n: 50 }, { onConflict: 'id' });
+  await db.from('items').delete().eq('owner', 'b').in('id', [3, 4]).select('id');
+  await db.from('missing_table').select('*'); // a statement against a table that does not exist is still logged
+
+  assert.deepEqual(db.queryLog.map((entry) => [entry.table, entry.operation]), [
+    ['items', 'select'], ['items', 'update'], ['items', 'insert'], ['items', 'upsert'], ['items', 'delete'], ['missing_table', 'select'],
+  ]);
+  const [select, update, insert, upsert, remove] = db.queryLog;
+  assert.deepEqual(select.filters, [
+    { type: 'cmp', column: 'owner', op: 'eq', value: 'a' },
+    { type: 'cmp', column: 'n', op: 'gte', value: 6 },
+  ]);
+  assert.deepEqual([update.values, update.rows], [{ label: 'renamed' }, []]);
+  assert.deepEqual(update.filters.map((filter) => filter.column), ['owner', 'id']);
+  assert.deepEqual(insert.rows, [{ id: 9, owner: 'b' }]);
+  assert.deepEqual(upsert.rows, [{ id: 1, owner: 'a', n: 50 }]);
+  assert.deepEqual(remove.filters.map((filter) => [filter.column, filter.op]), [['owner', 'eq'], ['id', 'in']]);
+
+  const logged = db.queryLog.length;
+  db.rows('items'); // reading the fake for assertions is not a statement
+  assert.equal(db.queryLog.length, logged);
+});

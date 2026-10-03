@@ -1,6 +1,6 @@
 /**
  * A route written only to exercise the harness (dynamic params, `after`,
- * request.nextUrl, the stubs). Not part of the app.
+ * request.nextUrl, the stubs, raw bodies). Not part of the app.
  */
 import { NextResponse, after } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
@@ -25,6 +25,19 @@ export async function POST(request, context) {
       },
       { status: 201, headers: { 'X-Echo': 'yes' } },
     );
+  } catch (err) {
+    return authErrorResponse(err) ?? NextResponse.json({ error: 'echo failed' }, { status: 500 });
+  }
+}
+
+/** Reports the request body exactly as it arrived, so a test can prove `rawBody` is not rewritten. */
+export async function PUT(request) {
+  try {
+    await requireUser(request);
+    return NextResponse.json({
+      raw: await request.text(),
+      contentType: request.headers.get('content-type'),
+    });
   } catch (err) {
     return authErrorResponse(err) ?? NextResponse.json({ error: 'echo failed' }, { status: 500 });
   }
