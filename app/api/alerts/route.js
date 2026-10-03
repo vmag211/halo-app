@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
+import { requestIdFor, internalError } from '@/lib/apiErrors';
 
 /**
  * Alerts inbox (§19).
@@ -25,6 +26,7 @@ function isUndefinedColumnError(error) {
 }
 
 export async function GET(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
     const base = () =>
@@ -36,11 +38,12 @@ export async function GET(request) {
 
     const alerts = data || [];
     const unread = alerts.filter((a) => a.read !== true).length;
-    return NextResponse.json({ count: alerts.length, unread, alerts });
+    return NextResponse.json({ count: alerts.length, unread, alerts }, { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`Alerts failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
 

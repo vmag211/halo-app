@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizePrefs, NOTIFICATION_TYPES } from '@/lib/alertInputs';
+import { requestIdFor, internalError } from '@/lib/apiErrors';
 
 /**
  * GET /api/notifications → { preferences: { air_quality_change, weather_advisory,
@@ -17,13 +18,15 @@ async function read(userId) {
 }
 
 export async function GET(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    return NextResponse.json(await read(userId));
+    return NextResponse.json(await read(userId), { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`Notifications failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
 
