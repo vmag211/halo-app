@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
+import { expectEnvelope } from './helpers/envelope.mjs';
 import { localDate, addDays } from './helpers/isolationSeed.mjs';
 
 const TODAY = localDate();
@@ -144,6 +145,12 @@ test('auth failures keep their status and message and carry the request id in he
   assert.equal(h.db.queryLog.length, 0);
 });
 
+test('a client x-request-id is echoed in header and body on the 401 as well', async () => {
+  const h = harness();
+  const none = await h.call('/api/history', 'GET', { url: '/api/history', headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(none, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+});
+
 test('a database failure is a 500 envelope with no database text; the real error is logged with the request id', async (t) => {
   const logged = muteConsoleError(t);
   const h = createRouteHarness({ tables: {} }); // daily_scores missing: PostgREST answers PGRST205 with its own wording
@@ -200,4 +207,58 @@ test('the owner filter is kept: only the caller\'s rows are read', async () => {
   assert.deepEqual(body.history.map((row) => row.score), [81]);
   const read = h.db.queryLog.find((query) => query.table === 'daily_scores');
   assert.ok(read.filters.some((f) => f.op === 'eq' && f.column === 'profile_id' && f.value === h.identities.alice.id));
+});
+
+// ----------------------------------------------- the latest refresh of a date wins
+
+const at = (date, minute) => `${date}T12:${String(minute).padStart(2, '0')}:00Z`;
+
+test('the latest refresh of a date wins, whatever order the rows are stored in', async () => {
+  // Stored out of order on purpose: for each date neither the first nor the last row stored is the newest.
+  const h = harness(({ alice }) => [
+    reading(alice.id, day(2), { score: 60, created_at: at(day(2), 20) }),
+    reading(alice.id, day(2), { score: 80, created_at: at(day(2), 50) }), // newest of day(2)
+    reading(alice.id, day(2), { score: 40, created_at: at(day(2), 5) }),
+    reading(alice.id, day(1), { score: 90, created_at: at(day(1), 1) }),
+    reading(alice.id, day(1), { score: 70, created_at: at(day(1), 30) }),
+    reading(alice.id, day(1), { score: 30, created_at: at(day(1), 59) }), // newest of day(1)
+  ]);
+  const body = await (await get(h, '/api/history')).json();
+  assert.deepEqual(body.history.map((row) => [row.date, row.score]), [[day(2), 80], [day(1), 30]]);
+  assert.equal(body.count, 2);
+  assert.equal(body.truncated, false);
+});
+
+test('a refresh that has a later created_at beats one that has a later score, and another household\'s newer row is ignored', async () => {
+  const h = harness(({ alice, bob }) => [
+    reading(alice.id, day(1), { score: 95, created_at: at(day(1), 10) }),
+    reading(alice.id, day(1), { score: 20, created_at: at(day(1), 11) }),
+    reading(bob.id, day(1), { score: 55, created_at: at(day(1), 58) }),
+  ]);
+  const body = await (await get(h, '/api/history')).json();
+  assert.deepEqual(body.history.map((row) => row.score), [20]);
+});
+
+test('when the row cut lands inside the oldest kept day, every date that appears still has its newest row', async () => {
+  // Three dates with four refreshes each, scores rising with created_at (newest = 13, 23, 33).
+  const h = harness(({ alice }) => [
+    ...refreshes(alice.id, day(3), 4, (n) => ({ score: 10 + n })),
+    ...refreshes(alice.id, day(2), 4, (n) => ({ score: 20 + n })),
+    ...refreshes(alice.id, day(1), 4, (n) => ({ score: 30 + n })),
+  ]);
+  h.db.setMaxRows(10); // rows come back date descending, newest first: day(1) x4, day(2) x4, then only the two newest of day(3)
+  const body = await (await get(h, '/api/history')).json();
+  assert.equal(body.truncated, true);
+  assert.deepEqual(body.history.map((row) => [row.date, row.score]), [[day(3), 13], [day(2), 23], [day(1), 33]]);
+});
+
+test('at the 5000 row limit the cut can fall inside a kept day, and that day still reports its newest row', async () => {
+  const h = harness(({ alice }) => [
+    ...refreshes(alice.id, day(20), 2, () => ({ score: 11 })),
+    ...refreshes(alice.id, day(10), 4999, (n) => ({ score: n === 4998 ? 99 : 50 })),
+    ...refreshes(alice.id, day(0), 2, (n) => ({ score: n === 1 ? 98 : 50 })),
+  ]);
+  const body = await (await get(h, '/api/history?days=90')).json();
+  assert.equal(body.truncated, true);
+  assert.deepEqual(body.history.map((row) => [row.date, row.score]), [[day(10), 99], [day(0), 98]]);
 });

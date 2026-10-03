@@ -5,7 +5,8 @@
  *   const body = await expectEnvelope(res, { status: 400, code: 'validation_failed' });
  *
  * Checks the status, the exact set of body keys, the legacy `error` string, that
- * `request_id` is a usable id and that the X-Request-Id header is the same id.
+ * `request_id` is a usable id and that the X-Request-Id header is the same id
+ * (and, with `requestId`, that it is the id the caller sent).
  * Returns the parsed body for further assertions.
  */
 import assert from 'node:assert/strict';
@@ -14,7 +15,7 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 const ENVELOPE_KEYS = ['code', 'error', 'field_errors', 'message', 'request_id', 'retryable'];
 
-export async function expectEnvelope(res, { status, code, retryable, extraKeys = [] }) {
+export async function expectEnvelope(res, { status, code, retryable, extraKeys = [], requestId }) {
   assert.equal(res.status, status);
   const body = await res.json();
   assert.deepEqual(Object.keys(body).sort(), [...ENVELOPE_KEYS, ...extraKeys].sort());
@@ -26,6 +27,8 @@ export async function expectEnvelope(res, { status, code, retryable, extraKeys =
   if (retryable !== undefined) assert.equal(body.retryable, retryable);
   assert.match(body.request_id, /^[A-Za-z0-9._-]{8,64}$/);
   assert.equal(res.headers.get('x-request-id'), body.request_id, 'the header and the body carry the same request id');
+  // `requestId`: the id the caller sent in x-request-id, which must come back unchanged.
+  if (requestId !== undefined) assert.equal(body.request_id, requestId, 'a well formed client request id is echoed');
   return body;
 }
 

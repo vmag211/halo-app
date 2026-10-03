@@ -45,6 +45,8 @@ test('findings: auth and database failures use the envelope; the database text s
   const none = createRouteHarness({ tables: {} });
   const unauth = await expectEnvelope(await none.call('/api/journal/findings', 'GET', {}), { status: 401, code: 'auth_required' });
   assert.equal(unauth.error, 'Sign-in required.');
+  const echoed = await none.call('/api/journal/findings', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(echoed, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
 
   const res = await none.call('/api/journal/findings', 'GET', { as: 'alice' }); // no tables: PGRST205
   const body = await expectEnvelope(res, { status: 500, code: 'internal_error', retryable: true });
@@ -107,6 +109,8 @@ test('summary: auth and database failures use the envelope; the database text st
   const logged = muteConsoleError(t);
   const none = createRouteHarness({ tables: {} });
   await expectEnvelope(await none.call('/api/journal/summary', 'GET', {}), { status: 401, code: 'auth_required' });
+  const echoed = await none.call('/api/journal/summary', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(echoed, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
 
   const res = await none.call('/api/journal/summary', 'GET', { as: 'alice', url: '/api/journal/summary?season=spring&year=2025' });
   const body = await expectEnvelope(res, { status: 500, code: 'internal_error', retryable: true });

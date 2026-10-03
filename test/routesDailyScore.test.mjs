@@ -89,6 +89,8 @@ test('another household\'s profile_id stays a 403 in the envelope, before anythi
     const body = await expectEnvelope(await score(ctx, `?profile_id=${claimed}`), { status: 403, code: 'forbidden' });
     assert.equal(body.error, 'That profile does not belong to this session.');
   }
+  const echoed = await score(ctx, `?profile_id=${ctx.id('bob')}`, { 'x-request-id': 'client-trace-0001' });
+  await expectEnvelope(echoed, { status: 403, code: 'forbidden', requestId: 'client-trace-0001' });
   assert.equal(ctx.h.db.queryLog.length, before);
   assert.equal((await score(ctx, `?profile_id=${ctx.id('alice')}`)).status, 200);
 });
@@ -100,6 +102,25 @@ test('a client request id is echoed in header and body; a missing session is a 4
 
   const none = await expectEnvelope(await ctx.h.call('/api/daily-score', 'GET', {}), { status: 401, code: 'auth_required' });
   assert.equal(none.error, 'Sign-in required.');
+  const echoed = await ctx.h.call('/api/daily-score', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(echoed, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+});
+
+test('the live paths (another point, fresh=1) are served with the request id too, and echo a client id', async (t) => {
+  quiet(t);
+  const ctx = setup({ seed: noHome });
+  const other = await score(ctx, '?lat=35.1&lng=-80.1');
+  assert.equal((await other.json()).cached, false);
+  assert.match(other.headers.get('x-request-id'), UUID, 'another point');
+  const echoed = await score(ctx, '?lat=35.1&lng=-80.1', { 'x-request-id': 'client-trace-0001' });
+  assert.equal(echoed.headers.get('x-request-id'), 'client-trace-0001');
+
+  const home = setup();
+  const fresh = await score(home, '?fresh=1');
+  assert.equal((await fresh.json()).cached, false);
+  assert.ok(home.outbound.length > 0, 'fresh=1 went to the providers');
+  assert.match(fresh.headers.get('x-request-id'), UUID, 'fresh=1');
+  assert.equal((await score(home, '?fresh=1', { 'x-request-id': 'client-trace-0001' })).headers.get('x-request-id'), 'client-trace-0001');
 });
 
 test('a refresh that is rate limited is a 429 envelope that keeps retry_after_seconds and adds Retry-After', async () => {

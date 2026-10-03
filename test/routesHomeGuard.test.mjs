@@ -95,6 +95,8 @@ test('a client request id is echoed; a missing session is a 401 envelope', async
   assert.equal((await expectEnvelope(res, { status: 400, code: 'validation_failed' })).request_id, 'client-trace-0001');
   const none = await expectEnvelope(await ctx.h.call('/api/home-guard', 'GET', {}), { status: 401, code: 'auth_required' });
   assert.equal(none.error, 'Sign-in required.');
+  const echoed = await ctx.h.call('/api/home-guard', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(echoed, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
 });
 
 test('a database failure is a 500 envelope with no database text; the real error is logged with the request id', async (t) => {

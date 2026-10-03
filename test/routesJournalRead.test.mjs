@@ -83,6 +83,8 @@ test('GET: auth failures and database failures use the envelope; the database te
   const logged = muteConsoleError(t);
   const none = await expectEnvelope(await createRouteHarness({ tables: {} }).call('/api/journal', 'GET', {}), { status: 401, code: 'auth_required' });
   assert.equal(none.error, 'Sign-in required.');
+  const echoed = await createRouteHarness({ tables: {} }).call('/api/journal', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(echoed, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
 
   const broken = createRouteHarness({ tables: {} }); // symptom_logs missing: PGRST205
   const res = await get(broken);
@@ -176,6 +178,8 @@ for (const [label, query] of [['nothing', ''], ['an empty id', '?id='], ['all=fa
 test('DELETE: auth failures and database failures use the envelope; the database text stays in the log', async (t) => {
   const logged = muteConsoleError(t);
   await expectEnvelope(await createRouteHarness({ tables: {} }).call('/api/journal', 'DELETE', { url: '/api/journal?all=true' }), { status: 401, code: 'auth_required' });
+  const echoed = await createRouteHarness({ tables: {} }).call('/api/journal', 'DELETE', { url: '/api/journal?all=true', headers: { 'x-request-id': 'client-trace-0001' } });
+  await expectEnvelope(echoed, { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
 
   const broken = createRouteHarness({ tables: {} });
   const body = await expectEnvelope(await del(broken, '?all=true'), { status: 500, code: 'internal_error', retryable: true });
