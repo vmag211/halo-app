@@ -3,6 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { journalFindings } from '@/lib/journalAnalysis';
 import { fetchHistory } from '@/lib/journalHistory';
 import { localDate, addDays } from '@/lib/localDate';
+import { requestIdFor, internalError } from '@/lib/apiErrors';
 
 /**
  * GET /api/journal/findings
@@ -11,8 +12,12 @@ import { localDate, addDays } from '@/lib/localDate';
  * with co-occurrence rates + the permanent disclaimer (§14.6). Excludes
  * illness-flagged days and enforces the minimum-data thresholds. Uses the
  * household's local dates, the same ones readings and entries are stored under.
+ *
+ * Takes no input: the window is always the last 90 local days, and nothing in the
+ * query string is read.
  */
 export async function GET(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
 
@@ -31,10 +36,13 @@ export async function GET(request) {
     ]);
     if (eErr) throw new Error(eErr.message);
 
-    return NextResponse.json(journalFindings({ entries: entries || [], history }));
+    return NextResponse.json(journalFindings({ entries: entries || [], history }), {
+      headers: { 'X-Request-Id': requestId },
+    });
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`journal findings failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
