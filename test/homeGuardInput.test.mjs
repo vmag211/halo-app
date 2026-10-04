@@ -40,6 +40,20 @@ test('length caps: county 100, pwsid 20, water_source 40, home_year 10', () => {
   assert.deepEqual(parse(`home_year=${'1'.repeat(11)}`).fieldErrors.map((e) => [e.field, e.code]), [['home_year', 'text_too_long']]);
 });
 
+test('free text overrides refuse control characters (NUL, line breaks, escape, DEL, separators)', () => {
+  const reject = (query) => parse(query).fieldErrors?.map((e) => [e.field, e.code]);
+  assert.deepEqual(reject('county=Union%00County'), [['county', 'invalid_characters']]);
+  assert.deepEqual(reject('county=Union%0D%0ACounty'), [['county', 'invalid_characters']]);
+  assert.deepEqual(reject('county=Union%1BCounty'), [['county', 'invalid_characters']]);
+  assert.deepEqual(reject('county=Union%7FCounty'), [['county', 'invalid_characters']]);
+  assert.deepEqual(reject('county=Union%E2%80%A8County'), [['county', 'invalid_characters']]); // U+2028
+  assert.deepEqual(reject('water_source=we%00ll'), [['water_source', 'invalid_characters']]);
+  assert.deepEqual(reject('home_year=19%0088'), [['home_year', 'invalid_characters']]);
+  assert.deepEqual(reject('pwsid=NC01%0060010'), [['pwsid', 'invalid_characters']]);
+  assert.equal(parse('county=Union%20County').ok, true, 'ordinary text and spaces are untouched');
+  assert.equal(parse('county=Caf%C3%A9%20County').ok, true, 'accented letters are not control characters');
+});
+
 test('pwsid must look like a public water system id: two capital letters and five to nine digits', () => {
   for (const good of ['NC0160010', 'SC4010001', 'AK12345', 'NC123456789']) assert.equal(parse(`pwsid=${good}`).ok, true, good);
   for (const bad of ['nc0160010', 'NC12', 'N0160010', 'NC016001X', "NC1' OR '1'='1", 'NC0160010%20X', 'NC-0160010', '0160010']) {
