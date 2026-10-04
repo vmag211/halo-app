@@ -93,6 +93,26 @@ test('alerts legacy: the identity is the token; a body profile_id or user_id cha
   assert.ok(h.db.queryLog.filter((q) => q.operation === 'update').every((q) => q.filters.some((f) => f.op === 'eq' && f.column === 'profile_id' && f.value === h.identities.alice.id)));
 });
 
+test('alerts: dismissing or restoring another household\'s alert changes nothing and answers like a missing id, and every update is scoped to the caller', async () => {
+  const h = harness();
+  const bobRows = () => JSON.stringify(h.db.rows('alerts').filter((row) => row.profile_id === h.identities.bob.id));
+  const bobBefore = bobRows();
+  for (const dismissed of [true, false]) {
+    const foreign = await post(h, { id: BOB_1, dismissed });
+    const missing = await post(h, { id: MISSING, dismissed });
+    assert.deepEqual([foreign.status, await foreign.json()], [missing.status, await missing.json()], `dismissed: ${dismissed}`);
+    assert.equal(bobRows(), bobBefore, `dismissed: ${dismissed} left bob's alert alone`);
+  }
+  assert.equal(h.db.rows('alerts').find((row) => row.id === BOB_1).dismissed, false);
+  const updates = h.db.queryLog.filter((q) => q.table === 'alerts' && q.operation === 'update');
+  assert.equal(updates.length, 4);
+  assert.ok(updates.every((q) => q.filters.some((f) => f.op === 'eq' && f.column === 'profile_id' && f.value === h.identities.alice.id)));
+  // bob's own request for the same alert does dismiss it, so the case above is not passing for another reason
+  const own = await h.call('/api/alerts', 'POST', { as: 'bob', body: { id: BOB_1, dismissed: true } });
+  assert.deepEqual(await own.json(), { ok: true, updated: 1 });
+  assert.equal(h.db.rows('alerts').find((row) => row.id === BOB_1).dismissed, true);
+});
+
 // --------------------------------------------------- alerts POST input
 
 for (const [label, id] of [
