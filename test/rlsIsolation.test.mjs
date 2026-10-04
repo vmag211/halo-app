@@ -35,6 +35,7 @@ const OWNED_TABLES = {
   alerts: 'profile_id',             // 0006
   notification_prefs: 'profile_id', // 0010
   push_subscriptions: 'profile_id', // 0010
+  home_contexts: 'profile_id',      // 0016
 };
 
 /**
@@ -54,6 +55,7 @@ const OWNER_DIRECT_ACCESS = {
   alerts: ['select'],             // 0006: written with the service role only
   notification_prefs: ['select'], // 0010 policies; 0015 revokes insert, update, delete
   push_subscriptions: ['select'], // 0010: written with the service role only
+  home_contexts: ['select'],      // 0016: written through its two service-role functions only; anon may not even select
 };
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -71,6 +73,8 @@ const PUBLIC_FUNCTIONS = {
   handle_new_user: 'trigger',             // 0001: creates the profile row for a new auth user
   match_assistant_corpus: 'service_role', // 0008, 0013
   save_household: 'service_role',         // 0015: PUT /api/household in one transaction
+  transition_home_context: 'service_role',        // 0016: onboarding saves the home (first, same or a move)
+  update_home_context_attributes: 'service_role', // 0016: revisioned answers about the current home
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -95,6 +99,15 @@ const OWNED_ROW = {
     endpoint: `https://fcm.googleapis.com/fcm/send/${owner}-${n}`,
     p256dh: 'test-p256dh',
     auth: 'test-auth',
+  }),
+  // Seeds are sequence 1 (current); an attempt is sequence 2, closed, so it never meets the one-current index.
+  home_contexts: (owner, n) => ({
+    profile_id: owner,
+    sequence: n + 1,
+    origin: n === 0 ? 'onboard' : 'move',
+    lat: 35.409,
+    lng: -80.58,
+    ...(n === 0 ? {} : { effective_to: '2026-09-15T00:00:00Z', closed_reason: 'moved' }),
   }),
 };
 
@@ -122,6 +135,7 @@ const PROBE_COLUMN = {
   alerts: 'read',
   notification_prefs: 'air_quality_change',
   push_subscriptions: 'p256dh',
+  home_contexts: 'water_source',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

@@ -19,6 +19,7 @@ const hex12 = (n) => n.toString(16).padStart(12, '0');
 /** Valid UUIDs (the journal and alert routes reject anything else) that identify one household's row. */
 export const entryId = (who, n) => `${PREFIX[who]}-0000-4000-8000-${hex12(n)}`;
 export const alertId = (who, n) => `${PREFIX[who]}-1111-4000-8000-${hex12(n)}`;
+export const contextId = (who, n) => `${PREFIX[who]}-2222-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
 // On the Web Push hosts the subscribe route accepts (lib/pushInput.js), so a test can re-register them.
@@ -64,7 +65,7 @@ export function markersOf(who, identity) {
     `${upper}-NOTE-MARKER`, `${upper}-COUGH-MARKER`, `${upper}-WHEEZE-MARKER`,
     `${upper}-ALERT-TITLE`, `${upper}-ALERT-MESSAGE`, `${upper}-DISMISSED-MARKER`,
     UTILITY[who].pws_name, ENDPOINT[who], `${upper}-P256DH-MARKER`, `${upper}-AUTH-MARKER`,
-    `${upper}-HOME-RISK-MARKER`, `${upper}-POLLUTANT-MARKER`, entryId(who, 1), alertId(who, 1),
+    `${upper}-HOME-RISK-MARKER`, `${upper}-POLLUTANT-MARKER`, entryId(who, 1), alertId(who, 1), contextId(who, 1),
   ];
 }
 
@@ -78,7 +79,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -89,6 +90,14 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
     rows.household_bands.push({ profile_id: id, ...BANDS[who] });
     rows.notification_prefs.push({ profile_id: id, ...PREFS[who] });
     rows.home_risks.push({ profile_id: id, summary: `${upper}-HOME-RISK-MARKER` });
+    // The current home (migration 0016), matching the profile.
+    const { lat, lng, county, state, pwsid, water_source, home_year, onboard_request_id } = PROFILE[who];
+    rows.home_contexts.push({
+      id: contextId(who, 1), profile_id: id, sequence: 1, revision: 1, origin: 'onboard',
+      lat, lng, county, state, pwsid, service_area_status: 'measured', water_source, home_year,
+      match_method: 'mapbox_geocode_arcgis_point', onboard_request_id, backfill_state: 'complete',
+      effective_from: `${day(30)}T12:00:00Z`, effective_to: null, closed_reason: null,
+    });
     rows.push_subscriptions.push({ profile_id: id, endpoint: ENDPOINT[who], p256dh: `${upper}-P256DH-MARKER`, auth: `${upper}-AUTH-MARKER` });
     rows.ucmr5_utilities.push({
       pwsid: UTILITY[who].pwsid,

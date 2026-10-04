@@ -6,8 +6,11 @@
  *   createRouteHarness({ tables: haloTables('profiles') })    // only some; the rest answer PGRST205
  *
  * Declared per table: primaryKey, unique (composite keys, including partial
- * unique indexes), ownerColumn (the column that cascades from the auth user on
- * delete) and defaults (column defaults a route's insert relies on).
+ * unique indexes whose predicate is only "<key column> is not null", which
+ * behave like a plain unique key because NULLs never collide), partialUnique
+ * (other partial unique indexes: name, columns and the "<column> is [not]
+ * null" predicate), ownerColumn (the column that cascades from the auth user
+ * on delete) and defaults (column defaults a route's insert relies on).
  *
  * These mirror supabase/migrations/*.sql. test/haloTables.test.mjs parses the
  * migrations and fails when a key, a unique constraint or an ON DELETE CASCADE
@@ -91,6 +94,21 @@ export const HALO_TABLES = {
     unique: [['endpoint']],
     ownerColumn: 'profile_id',
     defaults: { id: uuid, created_at: now },
+  },
+  home_contexts: {
+    primaryKey: 'id',
+    unique: [['profile_id', 'sequence'], ['profile_id', 'id']],
+    // 0016: at most one current context per household; closed ones never collide.
+    partialUnique: [{ name: 'home_contexts_one_current', columns: ['profile_id'], where: 'effective_to is null' }],
+    ownerColumn: 'profile_id',
+    defaults: {
+      id: uuid,
+      revision: 1,
+      backfill_state: 'not_started',
+      effective_from: now,
+      created_at: now,
+      updated_at: now,
+    },
   },
 
   // Reference and system tables: no owner, nothing cascades.

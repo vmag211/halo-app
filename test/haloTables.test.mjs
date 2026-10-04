@@ -39,11 +39,14 @@ function splitTopLevel(body) {
 
 const columnsOf = (text) => text.split(',').map((column) => column.trim());
 
-/** table -> { primaryKey: string[], unique: string[][], owner: string|null } as the migrations define them. */
+/**
+ * table -> { primaryKey: string[], unique: string[][], partialUnique: {name, columns, where}[], owner: string|null }
+ * as the migrations define them.
+ */
 function parseMigrations() {
   const tables = new Map();
   const table = (name) => {
-    if (!tables.has(name)) tables.set(name, { primaryKey: [], unique: [], owner: null, created: false });
+    if (!tables.has(name)) tables.set(name, { primaryKey: [], unique: [], partialUnique: [], owner: null, created: false });
     return tables.get(name);
   };
 
@@ -64,8 +67,14 @@ function parseMigrations() {
     }
   }
 
-  for (const match of sql.matchAll(/create unique index (?:if not exists )?\w+\s+on public\.(\w+)\s*\(([^)]*)\)/gi)) {
-    table(match[1]).unique.push(columnsOf(match[2]));
+  for (const match of sql.matchAll(/create unique index (?:if not exists )?(\w+)\s+on public\.(\w+)\s*\(([^)]*)\)(?:\s+where\s+([^;]+?))?\s*;/gi)) {
+    const [, name, tableName, columnText, whereText] = match;
+    const columns = columnsOf(columnText);
+    const where = whereText?.replace(/\s+/g, ' ').trim();
+    // "where <key column> is not null" leaves a plain unique key (NULLs never collide); any other predicate does not.
+    const notNull = where && /^(\w+) is not null$/i.exec(where);
+    if (!where || (notNull && columns.includes(notNull[1]))) table(tableName).unique.push(columns);
+    else table(tableName).partialUnique.push({ name, columns, where });
   }
 
   for (const match of sql.matchAll(/alter table public\.(\w+)\s+add constraint \w+\s+foreign key \((\w+)\)\s+references (?:public\.profiles|auth\.users) \(id\) on delete cascade/gi)) {
@@ -75,11 +84,13 @@ function parseMigrations() {
 }
 
 const normalizeKeys = (keys) => keys.map((key) => [...key].sort().join(',')).sort();
+const normalizePartial = (keys) =>
+  keys.map(({ name, columns, where }) => `${name}: (${[...columns].sort().join(',')}) where ${where}`).sort();
 
 test('the migration parser still finds the tables it is meant to read', () => {
   const found = [...parseMigrations()].filter(([, entry]) => entry.created).map(([name]) => name).sort();
   assert.deepEqual(found, [
-    'alerts', 'assistant_corpus', 'household_bands', 'learn_content', 'map_layers', 'notification_prefs',
+    'alerts', 'assistant_corpus', 'home_contexts', 'household_bands', 'learn_content', 'map_layers', 'notification_prefs',
     'push_subscriptions', 'symptom_logs', 'volunteer_orgs', 'water_snapshots',
   ]);
 });
@@ -91,8 +102,18 @@ test('declared keys, unique constraints and cascades match the migrations for ev
     assert.ok(declared, `${name} is created by a migration but not declared in test/helpers/tables.mjs`);
     assert.deepEqual([...[].concat(declared.primaryKey ?? [])].sort(), [...entry.primaryKey].sort(), `${name}: primary key`);
     assert.deepEqual(normalizeKeys(declared.unique ?? []), normalizeKeys(entry.unique), `${name}: unique constraints`);
+    assert.deepEqual(normalizePartial(declared.partialUnique ?? []), normalizePartial(entry.partialUnique), `${name}: partial unique indexes`);
     assert.equal(declared.ownerColumn ?? null, entry.owner, `${name}: ON DELETE CASCADE from profiles`);
   }
+});
+
+test('a partial unique index is read as a plain key only when its predicate is "<key column> is not null"', () => {
+  const parsed = parseMigrations();
+  assert.deepEqual(parsed.get('alerts').unique, [['profile_id', 'dedupe_key']]);
+  assert.deepEqual(parsed.get('alerts').partialUnique, []);
+  assert.deepEqual(parsed.get('home_contexts').partialUnique, [
+    { name: 'home_contexts_one_current', columns: ['profile_id'], where: 'effective_to is null' },
+  ]);
 });
 
 test('the pre-existing tables declare exactly the cascades 0001 gives them', () => {
@@ -124,7 +145,7 @@ test('every table the app and libs query is declared, so no test has to re-decla
 
 test('OWNED_TABLES lists every table with an owner column, and haloTables picks and validates names', () => {
   assert.deepEqual(Object.keys(OWNED_TABLES).sort(), [
-    'alerts', 'daily_scores', 'home_risks', 'household_bands', 'notification_prefs', 'profiles',
+    'alerts', 'daily_scores', 'home_contexts', 'home_risks', 'household_bands', 'notification_prefs', 'profiles',
     'push_subscriptions', 'symptom_logs',
   ]);
   assert.equal(OWNED_TABLES.profiles, 'id');

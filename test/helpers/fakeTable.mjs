@@ -4,6 +4,9 @@
  * Declared per table (all optional):
  *   primaryKey   'id' | ['a', 'b']     a null key column is a not-null violation
  *   unique       [['a', 'b'], ...]     composite unique constraints
+ *   partialUnique [{ name, columns, where }]  a partial unique index: the key is
+ *                unique among rows matching `where`, "<column> is null" or
+ *                "<column> is not null" (nothing else is understood)
  *   ownerColumn  'profile_id'          rows cascade away with that auth user
  *   defaults     { id: () => uuid }    filled in for columns an insert omits
  *
@@ -35,11 +38,24 @@ const toColumns = (value) => (value === undefined ? [] : [].concat(value));
 const isNil = (value) => value === null || value === undefined;
 const sameColumns = (a, b) => a.length === b.length && a.every((column) => b.includes(column));
 
+/** The rows a partial index covers, from its "<column> is [not] null" predicate. */
+function partialPredicate(where) {
+  const match = /^\s*(\w+) is (not )?null\s*$/i.exec(String(where));
+  if (!match) throw new Error(`FakeTable: the partial unique predicate "${where}" is not "<column> is [not] null"`);
+  const [, column, not] = match;
+  return (row) => isNil(row[column]) === !not;
+}
+
 export class FakeTable {
   constructor(name, declaration = {}) {
     this.name = name;
     this.primaryKey = toColumns(declaration.primaryKey);
     this.unique = (declaration.unique ?? []).map(toColumns);
+    this.partialUnique = (declaration.partialUnique ?? []).map(({ name: constraint, columns, where }) => ({
+      constraint,
+      columns: toColumns(columns),
+      covers: partialPredicate(where),
+    }));
     this.ownerColumn = declaration.ownerColumn ?? null;
     this.defaults = declaration.defaults ?? {};
     this.rows = [];
@@ -77,9 +93,10 @@ export class FakeTable {
   }
 
   #uniqueError(rows) {
-    for (const { columns, constraint } of this.keys()) {
+    const keys = [...this.keys(), ...this.partialUnique];
+    for (const { columns, constraint, covers = () => true } of keys) {
       const seen = new Set();
-      for (const row of rows) {
+      for (const row of rows.filter(covers)) {
         const values = columns.map((column) => row[column]);
         if (values.some(isNil)) continue; // NULLs never collide
         const signature = JSON.stringify(values);

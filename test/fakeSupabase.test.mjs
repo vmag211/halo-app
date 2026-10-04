@@ -172,6 +172,29 @@ test('an insert that breaks a primary key or unique constraint fails whole, Post
   assert.equal((await db.from('logs').insert([{ id: 7, owner: 'q', day: null, band: 'x' }, { id: 8, owner: 'q', day: null, band: 'x' }])).error, null);
 });
 
+test('a partial unique index applies only to the rows its predicate covers', async () => {
+  const db = createFakeSupabase({
+    tables: {
+      stays: {
+        primaryKey: 'id',
+        partialUnique: [{ name: 'stays_one_current', columns: ['owner'], where: 'ended is null' }],
+      },
+    },
+    seed: { stays: [{ id: 1, owner: 'a', ended: '2026-01-01' }, { id: 2, owner: 'a', ended: null }, { id: 3, owner: 'b' }] },
+  });
+  const second = await db.from('stays').insert({ id: 4, owner: 'a', ended: null });
+  assert.equal(second.error.code, '23505');
+  assert.match(second.error.message, /duplicate key value violates unique constraint "stays_one_current"/);
+  assert.equal((await db.from('stays').insert({ id: 5, owner: 'a', ended: '2026-02-01' })).error, null, 'closed rows never collide');
+  const reopen = await db.from('stays').update({ ended: null }).eq('id', 1);
+  assert.equal(reopen.error.code, '23505');
+  assert.equal(db.rows('stays').filter((row) => row.owner === 'a' && row.ended == null).length, 1);
+  assert.throws(
+    () => createFakeSupabase({ tables: { t: { partialUnique: [{ name: 'x', columns: ['a'], where: 'b > 1' }] } } }),
+    /is not "<column> is \[not\] null"/,
+  );
+});
+
 test('upsert merges on the declared conflict columns and keeps the other columns', async () => {
   const db = createFakeSupabase({
     tables: { prefs: { primaryKey: 'profile_id' } },
