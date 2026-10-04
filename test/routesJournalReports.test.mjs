@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { setup } from './helpers/isolationKit.mjs';
+import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
-import { localDate } from './helpers/isolationSeed.mjs';
+import { localDate, addDays } from './helpers/isolationSeed.mjs';
 
 const { lastEndedSeason, seasonRange } = await import('../lib/journalRetro.js');
 
@@ -18,7 +19,8 @@ test('findings legacy request: a household with enough data gets the old ready b
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.ready, true);
-  assert.deepEqual(Object.keys(body).sort(), ['disclaimer', 'findings', 'flaggedDays', 'ready', 'totalDays']);
+  assert.deepEqual(Object.keys(body).sort(), ['disclaimer', 'findings', 'flaggedDays', 'ready', 'totalDays', 'truncated']);
+  assert.equal(body.truncated, false);
   assert.match(res.headers.get('x-request-id'), UUID);
   assert.equal('request_id' in body, false);
 });
@@ -27,7 +29,8 @@ test('findings legacy request: a household without enough data still gets the no
   const ctx = setup();
   const res = await findings(ctx, 'alice');
   const body = await res.json();
-  assert.deepEqual(Object.keys(body).sort(), ['flaggedDays', 'needed', 'ready', 'totalDays']);
+  assert.deepEqual(Object.keys(body).sort(), ['flaggedDays', 'needed', 'ready', 'totalDays', 'truncated']);
+  assert.equal(body.truncated, false);
   assert.equal(body.ready, false);
   assert.match(res.headers.get('x-request-id'), UUID);
 });
@@ -62,7 +65,8 @@ test('summary legacy request: season and year give the old recap body, with the 
   const res = await summary(ctx, '?season=spring&year=2025');
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.deepEqual(Object.keys(body).sort(), ['factor', 'from', 'logged_days', 'season', 'statement', 'to', 'year']);
+  assert.deepEqual(Object.keys(body).sort(), ['factor', 'from', 'logged_days', 'season', 'statement', 'to', 'truncated', 'year']);
+  assert.equal(body.truncated, false);
   assert.deepEqual([body.season, body.year, body.logged_days], ['spring', 2025, 2]);
   assert.match(res.headers.get('x-request-id'), UUID);
   assert.equal('request_id' in body, false);
@@ -116,4 +120,72 @@ test('summary: auth and database failures use the envelope; the database text st
   const body = await expectEnvelope(res, { status: 500, code: 'internal_error', retryable: true });
   assert.doesNotMatch(JSON.stringify(body), /schema cache|symptom_logs|daily_scores|PGRST/);
   assert.ok(loggedText(logged).includes(body.request_id));
+});
+
+// ------------------------------------------------- bounded reads: truncated
+
+const TODAY = localDate();
+const reading = (profileId, date) => ({
+  profile_id: profileId, date, aqi: 40, uv_index: 3, mold_risk: 'low',
+  pollen_level: JSON.stringify({ tree: 1, grass: 1, weed: 1 }), created_at: `${date}T12:00:00Z`,
+});
+const logged = (profileId, date, n) => ({ profile_id: profileId, entry_date: date, band: n === 0 ? 'household' : `has_${n}`, symptoms: ['cough'], possibly_illness: false });
+
+/** A harness with the two tables the reports read, and a server row cap of `cap` rows. */
+function capped({ readings = [], entries = [], cap }) {
+  const h = createRouteHarness({
+    tables: haloTables('daily_scores', 'symptom_logs'),
+    seed: ({ alice }) => ({ daily_scores: readings.map((date) => reading(alice.id, date)), symptom_logs: entries.map(([date, n]) => logged(alice.id, date, n)) }),
+  });
+  h.db.setMaxRows(cap);
+  return h;
+}
+const thirtyDays = Array.from({ length: 30 }, (_, d) => addDays(TODAY, -d));
+const aprilDays = Array.from({ length: 30 }, (_, d) => addDays('2025-04-30', -d));
+
+test('findings: truncated is true when the readings were cut, and the days that count are the newest', async () => {
+  const h = capped({ readings: thirtyDays, cap: 10 });
+  const res = await h.call('/api/journal/findings', 'GET', { as: 'alice' });
+  const body = await res.json();
+  assert.deepEqual([res.status, body.ready, body.totalDays, body.truncated], [200, false, 10, true]);
+});
+
+test('findings: truncated is true when the symptom entries were cut, and false when neither read was', async () => {
+  const entries = Array.from({ length: 15 }, (_, n) => [addDays(TODAY, -(n % 5)), n]);
+  const cutEntries = await (await capped({ readings: [TODAY], entries, cap: 10 }).call('/api/journal/findings', 'GET', { as: 'alice' })).json();
+  assert.equal(cutEntries.truncated, true);
+  const whole = await (await capped({ readings: [TODAY], entries: entries.slice(0, 5), cap: 10 }).call('/api/journal/findings', 'GET', { as: 'alice' })).json();
+  assert.equal(whole.truncated, false);
+});
+
+test('summary: truncated is true when the readings or the symptom entries were cut, false when neither was', async () => {
+  const url = '/api/journal/summary?season=spring&year=2025';
+  const readingsCut = await (await capped({ readings: aprilDays, cap: 10 }).call('/api/journal/summary', 'GET', { as: 'alice', url })).json();
+  assert.equal(readingsCut.truncated, true);
+
+  const entries = Array.from({ length: 15 }, (_, n) => [addDays('2025-04-30', -(n % 5)), n]);
+  const entriesCut = await (await capped({ readings: aprilDays.slice(0, 3), entries, cap: 10 }).call('/api/journal/summary', 'GET', { as: 'alice', url })).json();
+  assert.equal(entriesCut.truncated, true);
+
+  const whole = await (await capped({ readings: aprilDays.slice(0, 3), entries: entries.slice(0, 4), cap: 10 }).call('/api/journal/summary', 'GET', { as: 'alice', url })).json();
+  assert.deepEqual([whole.truncated, whole.logged_days], [false, 4]);
+});
+
+test('the symptom entries are read newest first, so a cut drops the oldest entries', async () => {
+  // Ten rows on one old day (stored first) and ten on ten recent days: a cap of 10 keeps the ten recent rows.
+  const entries = [
+    ...Array.from({ length: 10 }, (_, n) => ['2025-03-01', n]),
+    ...Array.from({ length: 10 }, (_, n) => [addDays('2025-04-30', -n), 0]),
+  ];
+  const body = await (await capped({ entries, cap: 10 }).call('/api/journal/summary', 'GET', { as: 'alice', url: '/api/journal/summary?season=spring&year=2025' })).json();
+  assert.deepEqual([body.truncated, body.logged_days], [true, 10]);
+});
+
+test('findings reads the symptom entries newest first too: with a cut, the recent flagged days still count', async () => {
+  // Twelve rows on one old day (stored first) and one row on each of ten recent days; a cap of 12 keeps the ten recent rows.
+  const recent = Array.from({ length: 10 }, (_, d) => addDays(TODAY, -d));
+  const old = addDays(TODAY, -20);
+  const entries = [...Array.from({ length: 12 }, (_, n) => [old, n]), ...recent.map((date) => [date, 0])];
+  const body = await (await capped({ readings: [...recent, old], entries, cap: 12 }).call('/api/journal/findings', 'GET', { as: 'alice' })).json();
+  assert.deepEqual([body.truncated, body.totalDays, body.flaggedDays], [true, 11, 11]);
 });

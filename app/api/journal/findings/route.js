@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { journalFindings } from '@/lib/journalAnalysis';
-import { fetchHistory } from '@/lib/journalHistory';
+import { fetchHistoryWindow } from '@/lib/journalHistory';
 import { localDate, addDays } from '@/lib/localDate';
 import { requestIdFor, internalError } from '@/lib/apiErrors';
+import { JOURNAL_ROW_LIMIT, isTruncated } from '@/lib/boundedRead';
 
 /**
  * GET /api/journal/findings
@@ -15,6 +16,10 @@ import { requestIdFor, internalError } from '@/lib/apiErrors';
  *
  * Takes no input: the window is always the last 90 local days, and nothing in the
  * query string is read.
+ *
+ * `truncated` is true when either read left rows out (the readings at 5000 rows,
+ * the entries at 2000, or the database API's own row cap). Both read newest first,
+ * so what is left out is the oldest.
  */
 export async function GET(request) {
   const requestId = requestIdFor(request);
@@ -25,20 +30,26 @@ export async function GET(request) {
     const to = localDate();
     const from = addDays(to, -89);
 
-    const [history, { data: entries, error: eErr }] = await Promise.all([
-      fetchHistory(supabaseAdmin, userId, from, to),
+    const [{ history, truncated: historyTruncated }, { data, error: eErr, count }] = await Promise.all([
+      fetchHistoryWindow(supabaseAdmin, userId, from, to),
       supabaseAdmin
         .from('symptom_logs')
-        .select('entry_date, symptoms, possibly_illness')
+        .select('entry_date, symptoms, possibly_illness', { count: 'exact' })
         .eq('profile_id', userId)
         .gte('entry_date', from)
-        .lte('entry_date', to),
+        .lte('entry_date', to)
+        .order('entry_date', { ascending: false })
+        .limit(JOURNAL_ROW_LIMIT),
     ]);
     if (eErr) throw new Error(eErr.message);
+    const entries = data || [];
+    const truncated =
+      historyTruncated || isTruncated({ count, returned: entries.length, limit: JOURNAL_ROW_LIMIT });
 
-    return NextResponse.json(journalFindings({ entries: entries || [], history }), {
-      headers: { 'X-Request-Id': requestId },
-    });
+    return NextResponse.json(
+      { ...journalFindings({ entries, history }), truncated },
+      { headers: { 'X-Request-Id': requestId } },
+    );
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
