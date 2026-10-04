@@ -13,14 +13,18 @@
 --
 -- Sections (each is one key of the result):
 --   tables                       every public table: columns (type, default,
---                                nullability), RLS flags, constraints, indexes
+--                                nullability), RLS flags, constraints (primary
+--                                key, unique, check, exclusion; NOT NULL is the
+--                                column's nullable flag), indexes
 --   policies                     every policy on a public table (pg_policies)
 --   foreign_keys                 every foreign key on a public table, with its
 --                                ON DELETE action
 --   functions                    every public function (extension members
 --                                excluded): security definer flag, proacl
 --   table_grants                 effective table privileges for anon and
---                                authenticated (service_role for comparison)
+--                                authenticated (service_role for comparison),
+--                                plus column-level grants to anon,
+--                                authenticated and PUBLIC
 --   function_grants              effective EXECUTE for anon and authenticated
 --   triggers                     user triggers on public tables and auth.users
 --   extensions                   installed extensions and their schemas
@@ -56,7 +60,11 @@ audit_tables as (
         'validated', con.convalidated
       ) order by con.conname)
       from pg_catalog.pg_constraint con
-      where con.conrelid = t.oid and con.contype <> 'f'
+      -- Foreign keys have their own section. NOT NULL is reported per column
+      -- (nullable); Postgres 18 also stores it as constraint rows (contype 'n')
+      -- that older servers do not have, so they are left out to keep the two
+      -- sides comparable.
+      where con.conrelid = t.oid and con.contype not in ('f', 'n')
     ), '[]'::json),
     'indexes', coalesce((
       select json_agg(pg_catalog.pg_get_indexdef(i.indexrelid) order by ic.relname)
@@ -134,7 +142,21 @@ audit_table_grants as (
       where pg_catalog.has_table_privilege('authenticated', t.oid, privilege)),
     'service_role', array(
       select privilege from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) as privilege
-      where pg_catalog.has_table_privilege('service_role', t.oid, privilege))
+      where pg_catalog.has_table_privilege('service_role', t.oid, privilege)),
+    -- Grants on single columns, which the table-level lists above do not show:
+    -- after `revoke update` plus `grant update (some_column)`, UPDATE is gone
+    -- from the table list but those columns can still be written.
+    'column_grants', coalesce((
+      select json_agg(json_build_object(
+        'column', a.attname,
+        'grantee', case when acl.grantee = 0 then 'PUBLIC' else pg_catalog.pg_get_userbyid(acl.grantee) end,
+        'privilege', acl.privilege_type
+      ) order by a.attname, pg_catalog.pg_get_userbyid(acl.grantee), acl.privilege_type)
+      from pg_catalog.pg_attribute a
+      cross join lateral pg_catalog.aclexplode(a.attacl) as acl
+      where a.attrelid = t.oid and a.attnum > 0 and not a.attisdropped and a.attacl is not null
+        and (acl.grantee = 0 or pg_catalog.pg_get_userbyid(acl.grantee) in ('anon', 'authenticated'))
+    ), '[]'::json)
   ) order by t.relname), '[]'::json) as value
   from pg_catalog.pg_class t
   join pg_catalog.pg_namespace n on n.oid = t.relnamespace

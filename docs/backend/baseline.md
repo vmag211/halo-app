@@ -46,7 +46,7 @@ Tests that use it:
 
 ### Known finding: 0007 cannot be re-run after 0013
 
-`0007_assistant_corpus.sql` says it is safe to re-run, but running it again after `0013` fails: it re-creates the HNSW index on `assistant_corpus.embedding`, and `0013` widened that column to 2,048 dimensions, above HNSW's 2,000 limit (`column cannot have more than 2000 dimensions for hnsw index`). Run in order on a fresh database, everything works. The test is kept as a `todo` in `test/dbMigrations.test.mjs` so it stays visible without failing the suite. Fixing it means editing an applied migration (for example guarding the index), which is Vibhav's call.
+`0007_assistant_corpus.sql` says it is safe to re-run, but running it again after `0013` fails: it re-creates the HNSW index on `assistant_corpus.embedding`, and `0013` widened that column to 2,048 dimensions, above HNSW's 2,000 limit (`column cannot have more than 2000 dimensions for hnsw index`). Run in order on a fresh database, everything works. `test/dbMigrations.test.mjs` pins the failure (it asserts that re-applying 0007 still fails with that error), so the suite stays green and any change to it is noticed. Task 7 is to guard 0007's index creation and turn that pin into a success assertion.
 
 ## Running the audit (Vibhav)
 
@@ -76,6 +76,8 @@ The first command builds the reconstructed database in PGlite and runs the same 
 Differences that are expected and can be ignored:
 
 - `server_version_num`.
+- Catalog formatting that depends on the Postgres major version, for example extra privilege letters in `default_privileges` (Postgres 17 added `m`, MAINTAIN). The reconstructed side is PGlite's Postgres 18.
+- NOT NULL is reported only as each column's `nullable` flag. Postgres 18 also stores every NOT NULL as a constraint row; the audit leaves those rows out of `constraints` on purpose, so a missing `..._not_null` constraint on the deployed side is not a missing migration.
 - Owner names inside `proacl` and `default_privileges` (`supabase_admin` or `postgres` on Supabase).
 - Extra rows in `extensions`, `roles` (`authenticator`) and `auth_users_columns` (Supabase's `auth.users` has many more columns), and extra `default_privileges` entries for Supabase's own roles.
 - `supabase_migrations_ledger`: `null` locally; on Supabase it lists whatever was recorded there (migrations pasted into the SQL editor are usually not recorded).
@@ -84,14 +86,14 @@ Differences that matter, and what to do:
 
 - **Columns, types, nullability, defaults, constraints, indexes of a pre-0001 table** (`profiles`, `daily_scores`, `home_risks`, `ucmr5_utilities`): update `supabase/baseline/reconstructed_baseline.sql` to match, then run `npm test`.
 - **Anything that a migration creates** (a missing column, policy, index or table from `0002` onward): the deployed database is behind the migrations. List which migration is missing; do not change the baseline for it.
-- **`rls_enabled` false on any table, a policy that is not in the migrations, or a grant to `anon` or `authenticated` beyond the defaults**: treat it as a possible exposure and raise it before anything else.
+- **`rls_enabled` false on any table, a policy that is not in the migrations, or a grant to `anon` or `authenticated` beyond the defaults (including any entry in a table's `column_grants`)**: treat it as a possible exposure and raise it before anything else.
 
 ## Adding a table or function (later packages)
 
 `test/rlsIsolation.test.mjs` fails when the schema and its declarations disagree:
 
-- A new `public` table must be added to `OWNED_TABLES` (with its owner column, an `OWNED_ROW` sample row and an `OWNER_DIRECT_ACCESS` line) or to `PUBLIC_REFERENCE_TABLES` (`read` or `none`, with a `REFERENCE_ROW` sample row). Row level security must be on.
+- A new `public` table must be added to `OWNED_TABLES` (with its owner column, an `OWNED_ROW` sample row and an `OWNER_DIRECT_ACCESS` line) or to `PUBLIC_REFERENCE_TABLES` (`read` or `none`, with a `REFERENCE_ROW` sample row). Either way it also needs a `PROBE_COLUMN`: a column that is neither a key nor the owner column, which the update probes self-assign. Row level security must be on.
 - Every policy on an owned table must compare against `auth.uid()`.
-- `OWNER_DIRECT_ACCESS` lists what an owner may do to their own rows directly through the database, bypassing route validation (privilege and policy together). A migration that changes it, such as revoking owner writes, changes that table's one line.
+- `OWNER_DIRECT_ACCESS` lists what an owner may do to their own rows directly through the database, bypassing route validation (privilege and policy together). A grant on even one column counts as access, so `revoke update` followed by `grant update (some_column)` still leaves `update` in the line. A migration that changes it, such as revoking owner writes, changes that table's one line.
 - A new `public` function must be added to `PUBLIC_FUNCTIONS` (`service_role` or `trigger`). Functions are executable by `anon` and `authenticated` by default, so a `service_role` function must revoke them, as `0008` does.
 - A view or materialized view in `public` fails the suite until it has its own deliberate decision and test, because a view skips row level security unless it is created with `security_invoker`.

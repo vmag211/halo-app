@@ -29,15 +29,15 @@ import {
 const migrations = listMigrations();
 
 /**
- * Re-applying these over the fully migrated schema is a known failure. It is
- * recorded, not fixed: fixing it means editing a migration that is already
- * applied, which is a decision for Vibhav. node:test reports a failing todo
- * test without failing the run; remove the entry once the file is fixed.
+ * Migrations that are known NOT to re-apply over the fully migrated schema, with
+ * the error they fail with. The failure is pinned, so the day it changes this
+ * test says so.
  */
-const REPLAY_TODO = {
+const REPLAY_FAILS = {
   // 0007 re-creates an HNSW index on assistant_corpus.embedding, which 0013
-  // widened to 2,048 dimensions; HNSW allows at most 2,000.
-  '0007_assistant_corpus': 'known: 0007 cannot be re-run after 0013 (HNSW index over 2,048 dimensions); see docs/backend/baseline.md',
+  // widened to 2,048 dimensions; HNSW allows at most 2,000. Task 7 will guard
+  // 0007's index creation and flip this to a success assertion (remove the entry).
+  '0007_assistant_corpus': /2000 dimensions/,
 };
 
 const AUDIT_SECTIONS = [
@@ -86,16 +86,23 @@ test('one pass of every migration gives a schema with row level security on ever
 });
 
 for (const migration of migrations) {
-  test(`${migration.name} re-applies over the fully migrated schema`, { todo: REPLAY_TODO[migration.name] }, async () => {
-    await db.applyMigration(migration);
-  });
+  const knownFailure = REPLAY_FAILS[migration.name];
+  if (knownFailure) {
+    test(`${migration.name} still fails to re-apply over the fully migrated schema (known, pinned)`, async () => {
+      await assert.rejects(db.applyMigration(migration), knownFailure);
+    });
+  } else {
+    test(`${migration.name} re-applies over the fully migrated schema`, async () => {
+      await db.applyMigration(migration);
+    });
+  }
 }
 
 test('replaying every migration leaves the schema exactly as one pass did', async () => {
   assert.deepEqual(await runAudit(db), onePass);
 });
 
-test('the catalog audit is a single statement that only reads', () => {
+test('the catalog audit is exactly one statement and starts with WITH (runAudit runs it read-only)', () => {
   const statements = readFileSync(AUDIT_FILE, 'utf8')
     .replace(/--[^\n]*/g, '')
     .split(';')
@@ -145,6 +152,47 @@ test('the catalog audit runs in a read-only transaction and describes the migrat
   );
   assert.equal(audit.functions.find((fn) => fn.function === 'handle_new_user').security_definer, true);
   assert.equal(audit.supabase_migrations_ledger, null, 'no supabase_migrations schema here, so the ledger is null, not an error');
+});
+
+test('the catalog audit leaves NOT NULL out of constraints, so Postgres 18 and older servers compare', async () => {
+  // Postgres 18 stores each NOT NULL as a pg_constraint row (contype 'n'); older majors do not.
+  // Nullability is already reported per column.
+  const audit = await runAudit(db);
+  const types = new Set(['primary key', 'unique', 'check', 'exclusion']);
+  const unexpected = audit.tables.flatMap((table) =>
+    table.constraints.filter((constraint) => !types.has(constraint.type)).map((constraint) => `${table.table}.${constraint.name} (${constraint.type})`),
+  );
+  assert.deepEqual(unexpected, []);
+  assert.equal(audit.tables.find((table) => table.table === 'profiles').columns.find((column) => column.name === 'id').nullable, false);
+});
+
+test('the catalog audit reports column-level grants to anon and authenticated', async () => {
+  const audit = await runAudit(db);
+  assert.ok(audit.table_grants.every((grant) => Array.isArray(grant.column_grants)), 'every table_grants entry has column_grants');
+
+  // Rolled back: narrow profiles updates to two columns and give anon one column of a service-only table.
+  const narrowed = await db.pg.transaction(async (tx) => {
+    await tx.exec(`revoke update on public.profiles from authenticated;
+      grant update (county, water_source) on public.profiles to authenticated;
+      grant select (pwsid) on public.water_snapshots to anon;`);
+    const { rows } = await tx.query(readFileSync(AUDIT_FILE, 'utf8'));
+    await tx.rollback();
+    return rows[0].halo_baseline_audit.table_grants;
+  });
+  const columnGrants = Object.fromEntries(narrowed.map((grant) => [grant.table, grant.column_grants]));
+  // The revoke cleared any earlier UPDATE column grants on profiles, so these two are all of them.
+  assert.deepEqual(
+    columnGrants.profiles.filter((grant) => grant.grantee === 'authenticated' && grant.privilege === 'UPDATE'),
+    [
+      { column: 'county', grantee: 'authenticated', privilege: 'UPDATE' },
+      { column: 'water_source', grantee: 'authenticated', privilege: 'UPDATE' },
+    ],
+  );
+  assert.ok(
+    columnGrants.water_snapshots.some((grant) => grant.column === 'pwsid' && grant.grantee === 'anon' && grant.privilege === 'SELECT'),
+    'anon SELECT on water_snapshots.pwsid is reported',
+  );
+  assert.equal(narrowed.find((grant) => grant.table === 'profiles').authenticated.includes('UPDATE'), false, 'no table-level UPDATE left');
 });
 
 test('the catalog audit returns no table rows', async () => {

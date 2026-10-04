@@ -40,9 +40,10 @@ const OWNED_TABLES = {
 /**
  * What an owner can do to their own rows directly through the database, which
  * bypasses every route's validation. A command counts when the authenticated
- * role holds the privilege and a policy covers it; every other command must be
- * denied. One line per table: change a line only with the migration that
- * changes that table's surface.
+ * role holds the privilege (on the table, or on any one of its columns) and a
+ * policy covers it; every other command must be denied. One line per table, in
+ * any order: change a line only with the migration that changes that table's
+ * surface.
  */
 const OWNER_DIRECT_ACCESS = {
   profiles: ['select', 'insert', 'update'],                  // 0001: no delete policy
@@ -106,6 +107,28 @@ const REFERENCE_ROW = {
   map_layers: (n) => ({ layer: `test-${n}`, payload: {} }),
 };
 
+/**
+ * For every declared table, a column that is neither a key nor the owner column, the kind an
+ * owner could legitimately change. Update probes self-assign it (`set c = c`), so a grant
+ * narrowed to some columns is still detected as update access.
+ */
+const PROBE_COLUMN = {
+  profiles: 'county',
+  daily_scores: 'aqi',
+  home_risks: 'created_at', // its only column besides the keys
+  household_bands: 'has_child',
+  symptom_logs: 'note',
+  alerts: 'read',
+  notification_prefs: 'air_quality_change',
+  push_subscriptions: 'p256dh',
+  ucmr5_utilities: 'pws_name',
+  volunteer_orgs: 'description',
+  learn_content: 'what_it_is',
+  assistant_corpus: 'passage',
+  water_snapshots: 'fingerprint',
+  map_layers: 'payload',
+};
+
 const COMMANDS = ['select', 'insert', 'update', 'delete'];
 const DENIED = /row-level security|permission denied/;
 
@@ -142,15 +165,21 @@ async function visibleRows(role, userId, table, where = '', values = []) {
  * row level security or a missing privilege stopped it (an error, or zero rows).
  * Any other error means the attempt itself is broken, so it is rethrown.
  */
-async function attempt(role, userId, statement, values = []) {
+async function attempt(role, userId, statement, values = [], options = {}) {
   try {
-    const { affectedRows } = await db.asRole(role, userId, (tx) => tx.query(statement, values));
+    const { affectedRows } = await db.asRole(role, userId, (tx) => tx.query(statement, values), options);
     return affectedRows > 0 ? 'allowed' : 'denied';
   } catch (error) {
     if (DENIED.test(error.message)) return 'denied';
     throw error;
   }
 }
+
+/** An update that changes nothing (`set <probe> = <probe>`) on the rows matching `where`: [statement, values]. */
+const probeUpdate = (table, where = '', values = []) => {
+  const probe = ident(PROBE_COLUMN[table]);
+  return [`update public.${ident(table)} set ${probe} = ${probe} ${where}`.trimEnd(), values];
+};
 
 async function catalogTables() {
   const { rows } = await db.query(
@@ -162,8 +191,8 @@ async function catalogTables() {
   return rows;
 }
 
-async function policiesOf(table) {
-  const { rows } = await db.query(
+async function policiesOf(table, runner = db) {
+  const { rows } = await runner.query(
     `select policyname as name, cmd, permissive, roles, qual, with_check
        from pg_policies where schemaname = 'public' and tablename = $1 order by policyname`,
     [table],
@@ -171,17 +200,22 @@ async function policiesOf(table) {
   return rows;
 }
 
-/** The commands the authenticated role can run on its own rows: privilege and a covering policy. */
-async function catalogSurface(table) {
-  const { rows: [privileges] } = await db.query(
-    `select has_table_privilege('authenticated', $1::regclass, 'SELECT') as select,
-            has_table_privilege('authenticated', $1::regclass, 'INSERT') as insert,
-            has_table_privilege('authenticated', $1::regclass, 'UPDATE') as update,
+/**
+ * The commands the authenticated role can run on its own rows: privilege and a covering policy,
+ * sorted. A grant on even one column counts (has_any_column_privilege is true for a table-level
+ * grant or any column grant), so narrowing writes to some columns is still reported as access.
+ * `runner` is anything with query(), such as an asRole transaction trying other grants.
+ */
+async function catalogSurface(table, runner = db) {
+  const { rows: [privileges] } = await runner.query(
+    `select has_any_column_privilege('authenticated', $1::regclass, 'SELECT') as select,
+            has_any_column_privilege('authenticated', $1::regclass, 'INSERT') as insert,
+            has_any_column_privilege('authenticated', $1::regclass, 'UPDATE') as update,
             has_table_privilege('authenticated', $1::regclass, 'DELETE') as delete,
             (select relrowsecurity from pg_class where oid = $1::regclass) as rls`,
     [`public.${table}`],
   );
-  const policies = await policiesOf(table);
+  const policies = await policiesOf(table, runner);
   const covered = (command) =>
     !privileges.rls ||
     policies.some(
@@ -190,7 +224,7 @@ async function catalogSurface(table) {
         (policy.cmd === 'ALL' || policy.cmd === command.toUpperCase()) &&
         policy.roles.some((role) => role === 'public' || role === 'authenticated'),
     );
-  return COMMANDS.filter((command) => privileges[command] && covered(command));
+  return COMMANDS.filter((command) => privileges[command] && covered(command)).sort();
 }
 
 before(async () => {
@@ -250,7 +284,23 @@ test('every declared table exists, is declared once and has its sample row and a
     assert.ok(REFERENCE_ROW[name], `${name}: add a REFERENCE_ROW sample row`);
     assert.ok(['read', 'none'].includes(access), `${name}: reference access must be 'read' or 'none', not ${access}`);
   }
+  for (const name of [...Object.keys(OWNED_TABLES), ...Object.keys(PUBLIC_REFERENCE_TABLES)]) {
+    assert.ok(PROBE_COLUMN[name], `${name}: add a PROBE_COLUMN (a non-key column the update probes can self-assign)`);
+  }
   assert.deepEqual(Object.keys(OWNER_DIRECT_ACCESS).sort(), Object.keys(OWNED_TABLES).sort());
+});
+
+test('every probe column exists and is neither a primary key column nor the owner column', async () => {
+  for (const [table, probe] of Object.entries(PROBE_COLUMN)) {
+    const { rows } = await db.query(
+      `select exists (select 1 from pg_index i where i.indrelid = a.attrelid and i.indisprimary and a.attnum = any (i.indkey)) as in_primary_key
+         from pg_attribute a where a.attrelid = $1::regclass and a.attname = $2 and a.attnum > 0 and not a.attisdropped`,
+      [`public.${table}`, probe],
+    );
+    assert.equal(rows.length, 1, `PROBE_COLUMN ${table}.${probe} does not exist`);
+    assert.equal(rows[0].in_primary_key, false, `PROBE_COLUMN ${table}.${probe} is a primary key column`);
+    assert.notEqual(probe, OWNED_TABLES[table], `PROBE_COLUMN ${table}.${probe} is the owner column`);
+  }
 });
 
 test('the owned tables and owner columns agree with the route harness declarations', () => {
@@ -297,10 +347,23 @@ test('the owner direct-access surface in the catalog matches OWNER_DIRECT_ACCESS
   for (const table of Object.keys(OWNED_TABLES)) {
     assert.deepEqual(
       await catalogSurface(table),
-      OWNER_DIRECT_ACCESS[table],
+      [...OWNER_DIRECT_ACCESS[table]].sort(),
       `public.${table}: what the authenticated role may do (privileges and policies) changed; ` +
         'update OWNER_DIRECT_ACCESS only together with the migration that changes it',
     );
+  }
+});
+
+test('a column-level grant still counts as direct access, in the catalog surface and in behaviour', async () => {
+  // How a later migration might narrow writes: revoke the table privilege, then grant one column back.
+  const columnGrant = (tx) =>
+    tx.exec('revoke update on public.profiles from authenticated; grant update (county) on public.profiles to authenticated;');
+  const fullRevoke = (tx) => tx.exec('revoke update on public.profiles from authenticated;');
+  for (const [label, prepare, allowed] of [['column grant', columnGrant, true], ['full revoke', fullRevoke, false]]) {
+    const surface = await db.asRole('authenticated', ALICE, (tx) => catalogSurface('profiles', tx), { prepare });
+    assert.equal(surface.includes('update'), allowed, `${label}: catalog surface is [${surface.join(', ')}]`);
+    const outcome = await attempt('authenticated', ALICE, ...probeUpdate('profiles', 'where id = $1', [ALICE]), { prepare });
+    assert.equal(outcome, allowed ? 'allowed' : 'denied', `${label}: alice updating her own profile directly`);
   }
 });
 
@@ -395,7 +458,7 @@ for (const [table, owner] of Object.entries(OWNED_TABLES)) {
 
   test(`${table}: alice cannot update or delete bob's rows, or hand her own rows to bob`, async () => {
     const outcomes = {
-      'update bob': await attempt('authenticated', ALICE, `update public.${ident(table)} set ${column} = ${column} where ${column} = $1`, [BOB]),
+      'update bob': await attempt('authenticated', ALICE, ...probeUpdate(table, `where ${column} = $1`, [BOB])),
       'delete bob': await attempt('authenticated', ALICE, `delete from public.${ident(table)} where ${column} = $1`, [BOB]),
       'move own to bob': await attempt('authenticated', ALICE, `update public.${ident(table)} set ${column} = $1 where ${column} = $2`, [BOB, ALICE]),
     };
@@ -406,7 +469,7 @@ for (const [table, owner] of Object.entries(OWNED_TABLES)) {
     const newcomer = newcomerFor(table);
     const outcomes = {
       insert: await attempt('authenticated', newcomer, ...insertStatement(table, OWNED_ROW[table](newcomer, 1))),
-      update: await attempt('authenticated', ALICE, `update public.${ident(table)} set ${column} = ${column} where ${column} = $1`, [ALICE]),
+      update: await attempt('authenticated', ALICE, ...probeUpdate(table, `where ${column} = $1`, [ALICE])),
       delete: await attempt('authenticated', ALICE, `delete from public.${ident(table)} where ${column} = $1`, [ALICE]),
     };
     const expected = Object.fromEntries(['insert', 'update', 'delete'].map((command) => [command, surface.includes(command) ? 'allowed' : 'denied']));
@@ -418,7 +481,7 @@ for (const [table, owner] of Object.entries(OWNED_TABLES)) {
     assert.ok(seen === 0 || seen === 'denied', `anon can read ${seen} ${table} rows`);
     const outcomes = {
       insert: await attempt('anon', null, ...insertStatement(table, OWNED_ROW[table](ALICE, 1))),
-      update: await attempt('anon', null, `update public.${ident(table)} set ${column} = ${column}`),
+      update: await attempt('anon', null, ...probeUpdate(table)),
       delete: await attempt('anon', null, `delete from public.${ident(table)}`),
     };
     assert.deepEqual(outcomes, { insert: 'denied', update: 'denied', delete: 'denied' });
@@ -438,10 +501,9 @@ for (const [table, access] of Object.entries(PUBLIC_REFERENCE_TABLES)) {
       if (access === 'read') assert.equal(seen, all, `${role} reads ${table}`);
       else assert.ok(seen === 0 || seen === 'denied', `${role} can read ${seen} ${table} rows`);
 
-      const [firstColumn] = Object.keys(REFERENCE_ROW[table](1));
       const outcomes = {
         insert: await attempt(role, userId, ...insertStatement(table, REFERENCE_ROW[table](1))),
-        update: await attempt(role, userId, `update public.${ident(table)} set ${ident(firstColumn)} = ${ident(firstColumn)}`),
+        update: await attempt(role, userId, ...probeUpdate(table)),
         delete: await attempt(role, userId, `delete from public.${ident(table)}`),
       };
       assert.deepEqual(outcomes, { insert: 'denied', update: 'denied', delete: 'denied' }, `${role} writing ${table}`);

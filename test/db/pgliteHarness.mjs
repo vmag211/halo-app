@@ -24,7 +24,9 @@
  * for a signed-in request. The transaction is rolled back afterwards unless the
  * caller passes { commit: true }, so a test cannot leak state into the next. An
  * error inside the callback rolls back and rethrows. One failed statement aborts
- * the transaction, so check one denied operation per asRole call.
+ * the transaction, so check one denied operation per asRole call. The option
+ * { prepare: (tx) => ... } runs first as the owner in the same transaction, for
+ * example to try a different set of grants, and is rolled back with it.
  *
  * Postgres notices (for example "relation already exists, skipping") are not
  * printed: PGlite only logs them at debug level 1 and above, and the harness
@@ -113,14 +115,18 @@ export async function createDb({ upTo = Infinity, migrations = true } = {}) {
    * @param {'anon'|'authenticated'|'service_role'} role
    * @param {string|null} userId
    * @param {(tx: import('@electric-sql/pglite').Transaction) => Promise<T>} fn
-   * @param {{ commit?: boolean }} [options] commit: keep the changes (default: roll back)
+   * @param {{ commit?: boolean, prepare?: (tx: import('@electric-sql/pglite').Transaction) => Promise<unknown> }} [options]
+   *   commit: keep the changes (default: roll back).
+   *   prepare: runs first, as the migration owner, in the same transaction (so it is rolled back
+   *   with it), for example to try a different grant before switching to `role`.
    * @returns {Promise<T>}
    */
-  async function asRole(role, userId, fn, { commit = false } = {}) {
+  async function asRole(role, userId, fn, { commit = false, prepare } = {}) {
     if (!ROLES.includes(role)) throw new Error(`asRole: unknown role "${role}" (expected one of ${ROLES.join(', ')})`);
     if (userId != null && !UUID.test(userId)) throw new Error(`asRole: "${userId}" is not a uuid`);
     const claims = userId == null ? { role } : { sub: userId, role };
     return pg.transaction(async (tx) => {
+      if (prepare) await prepare(tx);
       // role is one of ROLES, so it is safe to place in the statement.
       await tx.exec(`set local role ${role}`);
       await tx.query(
