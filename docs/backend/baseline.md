@@ -86,6 +86,7 @@ Differences that matter, and what to do:
 
 - **Columns, types, nullability, defaults, constraints, indexes of a pre-0001 table** (`profiles`, `daily_scores`, `home_risks`, `ucmr5_utilities`): update `supabase/baseline/reconstructed_baseline.sql` to match, then run `npm test`.
 - **Anything that a migration creates** (a missing column, policy, index or table from `0002` onward): the deployed database is behind the migrations. List which migration is missing; do not change the baseline for it.
+- **`INSERT`, `UPDATE` or `DELETE` for `anon` or `authenticated` on `profiles`, `household_bands`, `symptom_logs` or `notification_prefs`** (in `table_grants` or their `column_grants`): `0015` revokes these, so the deployed database does not have `0015` yet. The same goes for a missing `save_household` in `functions` or missing `symptom_logs_*_check` constraints.
 - **`rls_enabled` false on any table, a policy that is not in the migrations, or a grant to `anon` or `authenticated` beyond the defaults (including any entry in a table's `column_grants`)**: treat it as a possible exposure and raise it before anything else.
 
 ## Adding a table or function (later packages)

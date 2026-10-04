@@ -16,6 +16,7 @@ import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { OWNED_TABLES } from './helpers/tables.mjs';
 import { OTHER, quiet, setup, stable } from './helpers/isolationKit.mjs';
 import { MISSING_ID, PREFS, PROFILE, BANDS, UTILITY, alertId, entryId, addDays } from './helpers/isolationSeed.mjs';
+import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
 
 const { LEARN_CONTENT } = await import('@/lib/learnContent');
 
@@ -38,7 +39,7 @@ const ROUTE_COVERAGE = {
   'GET /api/history': 'isolation: read matrix, identity-from-token',
   'GET /api/home-guard': 'isolation: read matrix, identity-from-token',
   'GET /api/household': 'isolation: read matrix, identity-from-token',
-  'PUT /api/household': 'isolation: only the caller\'s band and profile rows change',
+  'PUT /api/household': 'isolation: only the caller\'s band and profile rows change, on the save_household and two-step paths',
   'GET /api/journal': 'isolation: read matrix, identity-from-token',
   'POST /api/journal': 'isolation: row owned by the caller even with another household\'s profile_id and id in the body',
   'DELETE /api/journal': 'isolation: foreign id deletes 0 and looks like a missing id; all=true scoped',
@@ -321,21 +322,27 @@ test('POST /api/journal/retrospective is read only, ignores a profile_id in the 
   assert.deepEqual(snapshot(ctx, OWNED), before, 'the route wrote nothing');
 });
 
-test('PUT /api/household changes only the caller\'s rows, whatever ids the body carries', async () => {
-  const ctx = setup();
-  const before = bobsRows(ctx, OWNED);
-  const res = await ctx.call('alice', '/api/household', 'PUT', {
-    body: { has_toddler: true, has_senior: false, renter_mode: true, locale: 'es', profile_id: ctx.id('bob'), id: ctx.id('bob'), user_id: ctx.id('bob') },
-  });
-  assert.equal(res.status, 200);
+for (const transactional of [false, true]) {
+  test(`PUT /api/household changes only the caller's rows, whatever ids the body carries (${transactional ? 'save_household' : 'two-step write before 0015'})`, async (t) => {
+    quiet(t); // the two-step path warns once that save_household is missing
+    const ctx = setup();
+    if (transactional) registerSaveHousehold(ctx.h.db);
+    const before = bobsRows(ctx, OWNED);
+    const res = await ctx.call('alice', '/api/household', 'PUT', {
+      body: { has_toddler: true, has_senior: false, renter_mode: true, locale: 'es', profile_id: ctx.id('bob'), id: ctx.id('bob'), user_id: ctx.id('bob'), p_profile_id: ctx.id('bob') },
+    });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).transactional, transactional);
 
-  const [band] = ctx.rowsOf('household_bands', 'alice');
-  assert.deepEqual([band.has_toddler, band.has_senior, band.has_pregnant], [true, false, false]);
-  const [profile] = ctx.rowsOf('profiles', 'alice');
-  assert.deepEqual([profile.renter_mode, profile.locale], [true, 'es']);
-  assert.deepEqual(bobsRows(ctx, OWNED), before);
-  assert.equal(ctx.h.db.rows('household_bands').length, 2);
-});
+    const [band] = ctx.rowsOf('household_bands', 'alice');
+    assert.deepEqual([band.has_toddler, band.has_senior, band.has_pregnant], [true, false, false]);
+    const [profile] = ctx.rowsOf('profiles', 'alice');
+    assert.deepEqual([profile.renter_mode, profile.locale], [true, 'es']);
+    assert.deepEqual(bobsRows(ctx, OWNED), before);
+    assert.equal(ctx.h.db.rows('household_bands').length, 2);
+    assert.ok(ctx.h.db.rpcCalls.every((call) => call.args.p_profile_id === ctx.id('alice')), 'save_household only ever got the caller\'s id');
+  });
+}
 
 test('PATCH /api/profile changes only the caller\'s profile, whatever id the body carries', async () => {
   const ctx = setup();

@@ -18,9 +18,17 @@ import { parseHouseholdBody } from '@/lib/profileInput';
  *                          other than en or es is a 400 with field_errors, and the
  *                          household is left exactly as it was in all of those.
  *
+ * The PUT saves through public.save_household (migration 0015), which writes the
+ * composition and the preferences in one transaction, so either all of it is
+ * saved or none of it; the answer then says `transactional: true`. Until 0015 is
+ * applied (PostgREST answers PGRST202, or Postgres 42883, for the missing
+ * function) it saves in two steps as before, logs one warning per process and
+ * says `transactional: false`. Any other failure of the function is a 500 and
+ * nothing is saved.
+ *
  * Owner-scoped: identity is the verified session token. Composition never
  * changes a measurement or a score — only which wording and actions appear.
- * (Requires migration 0002.)
+ * (Requires migration 0002; 0015 for the single transaction.)
  */
 
 export async function GET(request) {
@@ -62,6 +70,63 @@ export async function GET(request) {
 
 const PUT_MAX_BYTES = 2048;
 
+/** The error codes for "save_household does not exist here yet": PostgREST's, then Postgres's. */
+const RPC_UNAVAILABLE = new Set(['PGRST202', '42883']);
+let warnedNoTransaction = false;
+
+/**
+ * One call to save_household. Returns the saved state, or null when the function is
+ * not available yet (migration 0015 not applied); throws on any other failure.
+ */
+async function saveInOneTransaction(userId, value) {
+  const { data, error } = await supabaseAdmin.rpc('save_household', {
+    p_profile_id: userId,
+    p_bands: value.bands,
+    // Explicit nulls: PostgREST finds the function by the names of the arguments sent.
+    p_renter_mode: value.renter_mode ?? null,
+    p_locale: value.locale ?? null,
+  });
+  if (error && RPC_UNAVAILABLE.has(error.code)) {
+    if (!warnedNoTransaction) {
+      warnedNoTransaction = true;
+      console.warn(
+        `Household save: the save_household function is not available (${error.code}), so migration 0015 ` +
+          'is probably not applied yet. Saving the household and its preferences in two steps, without a transaction.',
+      );
+    }
+    return null;
+  }
+  if (error) throw new Error(`Failed to save household (${error.code}): ${error.message}`);
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !data.household || typeof data.household !== 'object') {
+    throw new Error('Failed to save household: save_household returned no saved state');
+  }
+  return data;
+}
+
+/** The write before migration 0015: the composition, then the preferences, as two statements. */
+async function saveInTwoSteps(userId, value) {
+  // The seven known boolean keys only (a key left out is false); anything else is ignored.
+  const bands = { profile_id: userId, updated_at: new Date().toISOString(), ...value.bands };
+
+  const { error: bandErr } = await supabaseAdmin
+    .from('household_bands')
+    .upsert(bands, { onConflict: 'profile_id' });
+  if (bandErr) throw new Error(`Failed to save household: ${bandErr.message}`);
+
+  // Profile preferences travel with the same call when supplied.
+  const profileUpdate = {};
+  if (value.renter_mode !== undefined) profileUpdate.renter_mode = value.renter_mode;
+  if (value.locale !== undefined) profileUpdate.locale = value.locale;
+  if (Object.keys(profileUpdate).length > 0) {
+    profileUpdate.id = userId;
+    const { error: profErr } = await supabaseAdmin
+      .from('profiles')
+      .upsert(profileUpdate, { onConflict: 'id' });
+    if (profErr) throw new Error(`Failed to save preferences: ${profErr.message}`);
+  }
+  return { household: bands, renter_mode: profileUpdate.renter_mode, locale: profileUpdate.locale };
+}
+
 export async function PUT(request) {
   const requestId = requestIdFor(request);
   try {
@@ -73,32 +138,17 @@ export async function PUT(request) {
     const input = parseHouseholdBody(body.value);
     if (!input.ok) return validationError(input.fieldErrors, requestId);
 
-    // The seven known boolean keys only (a key left out is false); anything else is ignored.
-    const bands = { profile_id: userId, updated_at: new Date().toISOString(), ...input.value.bands };
+    const transaction = await saveInOneTransaction(userId, input.value);
+    const saved = transaction ?? (await saveInTwoSteps(userId, input.value));
 
-    const { error: bandErr } = await supabaseAdmin
-      .from('household_bands')
-      .upsert(bands, { onConflict: 'profile_id' });
-    if (bandErr) throw new Error(`Failed to save household: ${bandErr.message}`);
-
-    // Profile preferences travel with the same call when supplied.
-    const profileUpdate = {};
-    if (input.value.renter_mode !== undefined) profileUpdate.renter_mode = input.value.renter_mode;
-    if (input.value.locale !== undefined) profileUpdate.locale = input.value.locale;
-    if (Object.keys(profileUpdate).length > 0) {
-      profileUpdate.id = userId;
-      const { error: profErr } = await supabaseAdmin
-        .from('profiles')
-        .upsert(profileUpdate, { onConflict: 'id' });
-      if (profErr) throw new Error(`Failed to save preferences: ${profErr.message}`);
-    }
-
+    // renter_mode and locale are echoed only when they were sent, as before.
     return NextResponse.json(
       {
-        household: normalizeBands(bands),
+        household: normalizeBands(saved.household),
         household_set: true,
-        renter_mode: profileUpdate.renter_mode ?? undefined,
-        locale: profileUpdate.locale ?? undefined,
+        renter_mode: input.value.renter_mode !== undefined ? saved.renter_mode : undefined,
+        locale: input.value.locale !== undefined ? saved.locale : undefined,
+        transactional: transaction !== null,
       },
       { headers: { 'X-Request-Id': requestId } },
     );

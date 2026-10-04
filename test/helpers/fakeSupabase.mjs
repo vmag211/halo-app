@@ -23,6 +23,8 @@ export const tokenFor = (name) => `${TOKEN_PREFIX}${name}`;
 
 const AUTH_OUTAGE_MESSAGE = 'fetch failed';
 
+const sameNames = (a, b) => a.length === b.length && a.every((name) => b.includes(name));
+
 export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } = {}) {
   const store = new Map();
   const users = new Map(); // auth user id -> { id, name, email, isAnonymous }
@@ -58,18 +60,36 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   const db = {
     from: (name) => new QueryBuilder((table) => store.get(table), name, queryLog, () => maxRows),
 
-    /** Dispatches to a handler registered with registerRpc; unknown names fail like PostgREST. */
+    /**
+     * Dispatches to a handler registered with registerRpc; unknown names fail like PostgREST.
+     * A function registered with `args` is found only when the call names exactly those
+     * parameters (after the JSON trip, so an undefined argument is missing), as PostgREST
+     * matches by argument names.
+     */
     rpc: async (name, args = {}) => {
-      rpcCalls.push({ name, args: wire(args) });
-      const handler = rpcHandlers.get(name);
-      if (!handler) {
+      const sent = wire(args);
+      rpcCalls.push({ name, args: sent });
+      const registered = rpcHandlers.get(name);
+      if (!registered) {
         return {
           data: null,
           error: pgError('PGRST202', `Could not find the function public.${name} in the schema cache`),
         };
       }
+      const { handler, params } = registered;
+      if (params && !sameNames(Object.keys(sent), params)) {
+        return {
+          data: null,
+          error: pgError(
+            'PGRST202',
+            `Could not find the function public.${name}(${Object.keys(sent).sort().join(', ')}) in the schema cache`,
+            null,
+            `Perhaps you meant to call the function public.${name}(${[...params].sort().join(', ')})`,
+          ),
+        };
+      }
       try {
-        return { data: wire((await handler(wire(args), db)) ?? null), error: null };
+        return { data: wire((await handler(sent, db)) ?? null), error: null };
       } catch (error) {
         if (error?.name === 'PostgrestError') return { data: null, error };
         throw error;
@@ -101,8 +121,11 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
 
     // Test controls below; the routes never call these.
 
-    /** Registers `handler(args, db)` for rpc(name). Throw rpcError(code, message) to fail. */
-    registerRpc: (name, handler) => { rpcHandlers.set(name, handler); },
+    /**
+     * Registers `handler(args, db)` for rpc(name). Throw rpcError(code, message) to fail.
+     * `args`: the function's parameter names; when given, a call must name exactly these.
+     */
+    registerRpc: (name, handler, { args: params } = {}) => { rpcHandlers.set(name, { handler, params }); },
     rpcCalls,
 
     /**

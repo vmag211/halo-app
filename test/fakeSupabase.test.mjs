@@ -292,6 +292,29 @@ test('rpc dispatches to registered handlers and reports unknown functions like P
   assert.deepEqual(db.rpcCalls.map((call) => call.name), ['save_household', 'count_items', 'refuse', 'boom']);
 });
 
+test('rpc with declared parameters finds the function only by its exact argument names, like PostgREST', async () => {
+  const db = makeDb();
+  const seen = [];
+  db.registerRpc('pair', (args) => { seen.push(args); return { ok: true }; }, { args: ['p_a', 'p_b'] });
+
+  // An undefined argument is dropped on the way (JSON), so the call names one parameter and matches nothing.
+  const dropped = await db.rpc('pair', { p_a: 1, p_b: undefined });
+  assert.deepEqual([dropped.data, dropped.error.code], [null, 'PGRST202']);
+  assert.equal(dropped.error.message, 'Could not find the function public.pair(p_a) in the schema cache');
+  assert.equal(dropped.error.hint, 'Perhaps you meant to call the function public.pair(p_a, p_b)');
+  const extra = await db.rpc('pair', { p_a: 1, p_b: 2, p_c: 3 });
+  assert.equal(extra.error.code, 'PGRST202');
+  assert.deepEqual(seen, [], 'the handler never ran for a call PostgREST could not match');
+
+  // null is a value, so it counts as given; key order does not matter.
+  assert.deepEqual(await db.rpc('pair', { p_b: null, p_a: 1 }), { data: { ok: true }, error: null });
+  assert.deepEqual(seen, [{ p_b: null, p_a: 1 }]);
+
+  // Without declared parameters any arguments reach the handler, as before.
+  db.registerRpc('loose', (args) => args);
+  assert.deepEqual((await db.rpc('loose', { x: 1, y: undefined })).data, { x: 1 });
+});
+
 const people = [{ id: 'u-a', name: 'alice', email: 'alice@example.test' }, { id: 'u-b', name: 'bob', isAnonymous: true }];
 
 test('auth.getUser follows the identity table', async () => {

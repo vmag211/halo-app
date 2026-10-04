@@ -46,14 +46,14 @@ const OWNED_TABLES = {
  * surface.
  */
 const OWNER_DIRECT_ACCESS = {
-  profiles: ['select', 'insert', 'update'],                  // 0001: no delete policy
-  daily_scores: ['select'],                                   // 0001: written with the service role only
-  home_risks: ['select'],                                     // 0001
-  household_bands: ['select', 'insert', 'update', 'delete'],  // 0002
-  symptom_logs: ['select', 'insert', 'update', 'delete'],     // 0003
-  alerts: ['select'],                                         // 0006: written with the service role only
-  notification_prefs: ['select', 'insert', 'update'],         // 0010: no delete policy
-  push_subscriptions: ['select'],                             // 0010: written with the service role only
+  profiles: ['select'],           // 0001 policies; 0015 revokes insert, update, delete (written through the routes only)
+  daily_scores: ['select'],       // 0001: written with the service role only
+  home_risks: ['select'],         // 0001
+  household_bands: ['select'],    // 0002 policies; 0015 revokes insert, update, delete
+  symptom_logs: ['select'],       // 0003 policies; 0015 revokes insert, update, delete
+  alerts: ['select'],             // 0006: written with the service role only
+  notification_prefs: ['select'], // 0010 policies; 0015 revokes insert, update, delete
+  push_subscriptions: ['select'], // 0010: written with the service role only
 };
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -70,6 +70,7 @@ const PUBLIC_REFERENCE_TABLES = {
 const PUBLIC_FUNCTIONS = {
   handle_new_user: 'trigger',             // 0001: creates the profile row for a new auth user
   match_assistant_corpus: 'service_role', // 0008, 0013
+  save_household: 'service_role',         // 0015: PUT /api/household in one transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';

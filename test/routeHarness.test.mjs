@@ -99,7 +99,8 @@ test('forceAuthOutage() turns every authenticated call into the 503 envelope, an
   assert.equal((await h.call('/api/household', 'GET', { as: 'alice' })).status, 200);
 });
 
-test('PUT /api/household persists to the fake and leaves the other household alone', async () => {
+test('PUT /api/household persists to the fake and leaves the other household alone', async (t) => {
+  t.mock.method(console, 'warn', () => {}); // no save_household registered: the route warns once and saves in two steps
   const h = twoHouseholds();
   const res = await h.call('/api/household', 'PUT', {
     as: 'alice',
