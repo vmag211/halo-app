@@ -144,6 +144,23 @@ for (const failing of ['alice', 'bob']) {
   });
 }
 
+test('a stored endpoint outside the allowlist is never pushed to by the daily job and its row is kept', async (t) => {
+  const { ctx, subscriptions } = twoDevicesAndOne(t);
+  // Rows stored before the allowlist existed, or through the parser differential it closed.
+  const stray = [
+    { profile_id: ctx.id('alice'), endpoint: 'https://legacy.example.test/send/old-device', p256dh: 'ALICE-OLD-P256DH', auth: 'ALICE-OLD-AUTH' },
+    { profile_id: ctx.id('bob'), endpoint: 'https://evil.test;.fcm.googleapis.com/x', p256dh: 'BOB-STRAY-P256DH', auth: 'BOB-STRAY-AUTH' },
+  ];
+  ctx.h.db.seed('push_subscriptions', stray);
+  const before = subscriptions();
+  const res = await runCron(ctx);
+  assert.equal(res.status, 200);
+  assert.deepEqual((await res.json()).push, { configured: true, sent: 3, failed: 0, expired_removed: 0 });
+  assert.deepEqual(Object.keys(deliveries(ctx)).sort(), Object.values(DEVICE).map((device) => device.endpoint).sort(), 'only the allowed devices were pushed to');
+  assert.ok(ctx.h.webPush.sent.every((send) => !stray.some((row) => row.endpoint === send.endpoint)));
+  assert.deepEqual(subscriptions(), before, 'the stray rows are skipped, not deleted');
+});
+
 test('without VAPID values push is off: nothing is sent and no subscription is touched', async (t) => {
   const { ctx, before, subscriptions } = twoDevicesAndOne(t, { vapid: {} });
   const res = await runCron(ctx);
