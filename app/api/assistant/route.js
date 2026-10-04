@@ -3,6 +3,8 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL, DISCLAIMER, NO_SOURCE, suggestedQuestions } from '@/lib/assistant';
 import { answerQuestion } from '@/lib/assistantRag';
 import { gatherHouseholdContext } from '@/lib/assistantContextData';
+import { ERROR_CODES, apiError, internalError, requestIdFor, validationError } from '@/lib/apiErrors';
+import { readJsonBody, parseText } from '@/lib/validate';
 
 // Pages the assistant can be opened from; anything else is ignored.
 const PAGES = new Set(['today', 'home', 'homeguard', 'map', 'journal', 'act', 'settings', 'learn']);
@@ -29,35 +31,60 @@ import { assistantLimiter, assistantGlobalLimiter, checkLimit } from '@/lib/rate
 
 const MODEL_KEY = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || null;
 
+// A question is a sentence or two: the cap bounds the model prompt, and the body cap
+// leaves room for it plus the page.
+const QUESTION_MAX = 1000;
+const POST_MAX_BYTES = 8192;
+
+/**
+ * The question to ask, trimmed, or a field error that keeps the sentences this route
+ * has always used. Tabs and line breaks stay (a pasted question can have them); other
+ * control characters do not, because the text is written into the model prompt.
+ */
+function parseQuestion(raw) {
+  const field = (code, message) => ({ error: { field: 'question', code, message } });
+  if (raw === undefined || raw === null) return field('question_required', 'Ask a question to get started.');
+  const text = parseText(raw, { maxLength: QUESTION_MAX, rejectControl: true, allowNewlines: true });
+  if (!text.ok && text.code === 'invalid_text') return field('invalid_text', 'Ask a question to get started.');
+  if (!text.ok && text.code === 'text_too_long') return field('text_too_long', 'That question is too long.');
+  if (!text.ok) return field(text.code, text.message);
+  if (text.value === '') return field('question_required', 'Ask a question to get started.');
+  return { value: text.value };
+}
+
 export async function GET(request) {
+  const requestId = requestIdFor(request);
   try {
     await requireUser(request);
     const page = new URL(request.url).searchParams.get('page') || '';
-    return NextResponse.json({ suggestions: suggestedQuestions(page), disclaimer: DISCLAIMER });
+    return NextResponse.json({ suggestions: suggestedQuestions(page), disclaimer: DISCLAIMER }, { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
-    const r = authErrorResponse(err);
+    const r = authErrorResponse(err, requestId);
     if (r) return r;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`assistant suggestions failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
 
 export async function POST(request) {
+  const requestId = requestIdFor(request);
+  const headers = { 'X-Request-Id': requestId };
   try {
     const { userId } = await requireUser(request);
-    const body = await request.json().catch(() => ({}));
-    const question = typeof body.question === 'string' ? body.question.trim() : '';
-    const page = typeof body.page === 'string' && PAGES.has(body.page.toLowerCase()) ? body.page.toLowerCase() : null;
+    const body = await readJsonBody(request, { maxBytes: POST_MAX_BYTES });
+    if (!body.ok) {
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
+    }
+    // An unknown page is ignored, not refused: it only steers which facts are weighted.
+    const page = typeof body.value.page === 'string' && PAGES.has(body.value.page.toLowerCase()) ? body.value.page.toLowerCase() : null;
 
-    if (!question) {
-      return NextResponse.json({ error: 'Ask a question to get started.' }, { status: 400 });
-    }
-    if (question.length > 1000) {
-      return NextResponse.json({ error: 'That question is too long.' }, { status: 400 });
-    }
+    const asked = parseQuestion(body.value.question);
+    if (asked.error) return validationError([asked.error], requestId);
+    const question = asked.value;
 
     // Structural refusal runs before anything else.
     if (isDiagnosticRequest(question)) {
-      return NextResponse.json({ declined: true, message: DIAGNOSTIC_REFUSAL, disclaimer: DISCLAIMER, citations: [] });
+      return NextResponse.json({ declined: true, message: DIAGNOSTIC_REFUSAL, disclaimer: DISCLAIMER, citations: [] }, { headers });
     }
 
     // Grounded-answer path is gated on a model key + an ingested corpus.
@@ -70,7 +97,7 @@ export async function POST(request) {
         disclaimer: DISCLAIMER,
         citations: [],
         note: 'The assistant needs an embedding/model key and an ingested source corpus (migrations 0007 + 0008) to answer.',
-      });
+      }, { headers });
     }
 
     // Two bounds on the paid model path (§37.2). The per-user check fails open, so
@@ -88,16 +115,16 @@ export async function POST(request) {
         })
       : false;
     if (!perUser || !global) {
+      // The envelope, plus the fields the assistant panel already reads from a 429.
+      const limited = apiError({
+        status: 429,
+        code: ERROR_CODES.RATE_LIMITED,
+        message: "You've reached the question limit for now. Please try again in a little while.",
+        requestId,
+      });
       return NextResponse.json(
-        {
-          answer: null,
-          configured: true,
-          rateLimited: true,
-          message: "You've reached the question limit for now. Please try again in a little while.",
-          disclaimer: DISCLAIMER,
-          citations: [],
-        },
-        { status: 429 },
+        { answer: null, configured: true, rateLimited: true, disclaimer: DISCLAIMER, citations: [], ...(await limited.json()) },
+        { status: 429, headers: limited.headers },
       );
     }
 
@@ -122,9 +149,9 @@ export async function POST(request) {
         context,
         page,
       });
-      return NextResponse.json({ configured: true, ...result });
+      return NextResponse.json({ configured: true, ...result }, { headers });
     } catch (ragErr) {
-      console.error('Assistant pipeline error:', ragErr.message);
+      console.error(`Assistant pipeline error (request ${requestId}):`, ragErr.message);
       return NextResponse.json({
         answer: null,
         configured: true,
@@ -134,11 +161,12 @@ export async function POST(request) {
         message: "I couldn't reach my sources just now. Please try again in a moment.",
         disclaimer: DISCLAIMER,
         citations: [],
-      });
+      }, { headers });
     }
   } catch (err) {
-    const r = authErrorResponse(err);
+    const r = authErrorResponse(err, requestId);
     if (r) return r;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`assistant failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
