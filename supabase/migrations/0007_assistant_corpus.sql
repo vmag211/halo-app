@@ -28,9 +28,24 @@ create table if not exists public.assistant_corpus (
 -- centres, and with the default probes=1 a small corpus (the starter ingest is
 -- ~14 passages) would return no rows for most questions — silently turning
 -- every answer into "no source". HNSW works at any size and needs no rebuild.
-create index if not exists assistant_corpus_embedding
-  on public.assistant_corpus
-  using hnsw (embedding extensions.vector_cosine_ops);
+--
+-- Re-run guard: 0013 later widens the column to 2,048 dimensions and drops this
+-- index, because HNSW allows at most 2,000. The index is therefore only created
+-- while the column's declared dimension is 2,000 or fewer, which is always true
+-- on a first run (1,536). Running this file again after 0013 then skips it
+-- instead of failing.
+do $$
+begin
+  if (select a.atttypmod
+        from pg_attribute a
+       where a.attrelid = 'public.assistant_corpus'::regclass
+         and a.attname = 'embedding'
+         and not a.attisdropped) between 1 and 2000 then
+    create index if not exists assistant_corpus_embedding
+      on public.assistant_corpus
+      using hnsw (embedding extensions.vector_cosine_ops);
+  end if;
+end $$;
 
 alter table public.assistant_corpus enable row level security;
 

@@ -44,9 +44,9 @@ Tests that use it:
 - `test/dbMigrations.test.mjs`: each migration applies in order on the baseline and again straight away; each re-applies over the fully migrated schema without changing it; the audit query is one read-only statement that returns one JSON document and no table rows.
 - `test/rlsIsolation.test.mjs`: the guardrail and the cross-household checks (see "Adding a table or function" below).
 
-### Known finding: 0007 cannot be re-run after 0013
+### 0007 after 0013
 
-`0007_assistant_corpus.sql` says it is safe to re-run, but running it again after `0013` fails: it re-creates the HNSW index on `assistant_corpus.embedding`, and `0013` widened that column to 2,048 dimensions, above HNSW's 2,000 limit (`column cannot have more than 2000 dimensions for hnsw index`). Run in order on a fresh database, everything works. `test/dbMigrations.test.mjs` pins the failure (it asserts that re-applying 0007 still fails with that error), so the suite stays green and any change to it is noticed. Task 7 is to guard 0007's index creation and turn that pin into a success assertion.
+`0013` widens `assistant_corpus.embedding` to 2,048 dimensions and drops 0007's HNSW index, because HNSW allows at most 2,000 (`column cannot have more than 2000 dimensions for hnsw index`). `0007_assistant_corpus.sql` therefore creates that index only while the column has 2,000 dimensions or fewer: on a fresh database (1,536) it builds the index exactly as before, and running it again after `0013` skips the index instead of failing. `test/dbMigrations.test.mjs` checks both: the index exists after a fresh `0001` to `0007`, and every migration, `0007` included, re-applies over the fully migrated schema without changing it.
 
 ## Running the audit (Vibhav)
 

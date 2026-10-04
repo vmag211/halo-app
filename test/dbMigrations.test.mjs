@@ -28,18 +28,6 @@ import {
 
 const migrations = listMigrations();
 
-/**
- * Migrations that are known NOT to re-apply over the fully migrated schema, with
- * the error they fail with. The failure is pinned, so the day it changes this
- * test says so.
- */
-const REPLAY_FAILS = {
-  // 0007 re-creates an HNSW index on assistant_corpus.embedding, which 0013
-  // widened to 2,048 dimensions; HNSW allows at most 2,000. Task 7 will guard
-  // 0007's index creation and flip this to a success assertion (remove the entry).
-  '0007_assistant_corpus': /2000 dimensions/,
-};
-
 const AUDIT_SECTIONS = [
   'audit_version', 'server_version_num', 'tables', 'policies', 'foreign_keys', 'functions', 'table_grants',
   'function_grants', 'triggers', 'extensions', 'roles', 'default_privileges', 'auth_users_columns',
@@ -86,20 +74,29 @@ test('one pass of every migration gives a schema with row level security on ever
 });
 
 for (const migration of migrations) {
-  const knownFailure = REPLAY_FAILS[migration.name];
-  if (knownFailure) {
-    test(`${migration.name} still fails to re-apply over the fully migrated schema (known, pinned)`, async () => {
-      await assert.rejects(db.applyMigration(migration), knownFailure);
-    });
-  } else {
-    test(`${migration.name} re-applies over the fully migrated schema`, async () => {
-      await db.applyMigration(migration);
-    });
-  }
+  test(`${migration.name} re-applies over the fully migrated schema`, async () => {
+    await db.applyMigration(migration);
+  });
 }
 
 test('replaying every migration leaves the schema exactly as one pass did', async () => {
   assert.deepEqual(await runAudit(db), onePass);
+});
+
+test('0007 still builds its HNSW index on a fresh database, and a re-run after 0013 leaves it off', async () => {
+  const indexes = async (target) =>
+    (await target.query(`select indexdef from pg_indexes where schemaname = 'public' and indexname = 'assistant_corpus_embedding'`)).rows
+      .map((row) => row.indexdef);
+  const fresh = await createDb({ upTo: 7 });
+  try {
+    assert.deepEqual(await indexes(fresh), [
+      'CREATE INDEX assistant_corpus_embedding ON public.assistant_corpus USING hnsw (embedding extensions.vector_cosine_ops)',
+    ]);
+  } finally {
+    await fresh.close();
+  }
+  // db has had every migration applied twice over, 0007 after 0013 included: 2,048 dimensions, no HNSW index.
+  assert.deepEqual(await indexes(db), []);
 });
 
 test('the catalog audit is exactly one statement and starts with WITH (runAudit runs it read-only)', () => {
