@@ -1,10 +1,12 @@
 import { NextResponse, after } from 'next/server';
 import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { normalizeWaterSource } from '@/lib/waterSource';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, validateHomeYear, parseRequestId, locationMoved, isUsZipCode } from '@/lib/geocode';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode } from '@/lib/geocode';
 import { localDate } from '@/lib/localDate';
 import { backfillHousehold } from '@/lib/backfill';
+import { ERROR_CODES, apiError, internalError, requestIdFor, validationError } from '@/lib/apiErrors';
+import { readJsonBody } from '@/lib/validate';
+import { parseOnboardBody } from '@/lib/onboardInput';
 
 // The history backfill runs after the response (see below) within this budget.
 export const maxDuration = 60;
@@ -20,7 +22,15 @@ function isUndefinedColumnError(error) {
   );
 }
 
+// The body is an address, an optional request id and two optional answers.
+const POST_MAX_BYTES = 4096;
+const NO_COORDINATES = 'Could not find coordinates for this address';
+
 export async function POST(request) {
+  const requestId = requestIdFor(request);
+  const headers = { 'X-Request-Id': requestId };
+  const limited = (message) => apiError({ status: 429, code: ERROR_CODES.RATE_LIMITED, message, requestId });
+  const noCoordinates = () => apiError({ status: 404, code: ERROR_CODES.NOT_FOUND, message: NO_COORDINATES, requestId });
   try {
     // --- IDENTITY ---
     // The profile id comes from the verified session token, never from the body.
@@ -28,30 +38,25 @@ export async function POST(request) {
     // pass any UUID and overwrite another household's address and coordinates.
     const { userId } = await requireUser(request);
 
-    const body = await request.json();
-    const address = body.address;
+    const body = await readJsonBody(request, { maxBytes: POST_MAX_BYTES });
+    if (!body.ok) {
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
+    }
 
     // Older clients still send profile_id. We ignore it for identity, but a
     // mismatch means the client is confused about who it is, and quietly writing
     // to the token's profile instead would hide that.
-    assertProfileMatches(body.profile_id, userId);
+    assertProfileMatches(body.value.profile_id, userId);
 
-    // Optional onboarding answers. Neither is required to geocode, but both
-    // feed HomeGuard later: water_source decides whether we look up a utility
-    // or hand back a private-well testing plan, and home_year drives the
-    // lead-plumbing risk check.
-    const waterSource = normalizeWaterSource(body.water_source);
-    const year = validateHomeYear(body.home_year);
-    if (!year.ok) {
-      return NextResponse.json({ error: year.error }, { status: 400 });
-    }
-    const homeYear = year.value;
-    // Stored with the location so the app can confirm a timed-out request.
-    const requestId = parseRequestId(body.request_id);
-
-    if (!address) {
-      return NextResponse.json({ error: 'Address is required' }, { status: 400 });
-    }
+    // The address, the client's request id and the optional onboarding answers
+    // (lib/onboardInput.js). water_source and home_year are not required to
+    // geocode, but both feed HomeGuard later: water_source decides whether we
+    // look up a utility or hand back a private-well testing plan, and home_year
+    // drives the lead-plumbing risk check. The request id is stored with the
+    // location so the app can confirm a timed-out request.
+    const input = parseOnboardBody(body.value);
+    if (!input.ok) return validationError(input.fieldErrors, requestId);
+    const { address, requestId: onboardRequestId, waterSource, homeYear } = input.value;
 
     // --- RATE LIMIT CHECKS ---
     // Per-user first: the Mapbox window below is global, so one abusive client
@@ -62,10 +67,7 @@ export async function POST(request) {
     });
 
     if (!withinUserQuota) {
-      return NextResponse.json(
-        { error: 'Too many address lookups from this device today. Please try again tomorrow.' },
-        { status: 429 },
-      );
+      return limited('Too many address lookups from this device today. Please try again tomorrow.');
     }
 
     // Fails open: a limiter outage costs some geocoding budget, but failing
@@ -77,10 +79,7 @@ export async function POST(request) {
     });
 
     if (!withinGlobalQuota) {
-      return NextResponse.json(
-        { error: 'Daily address search limit reached. Please try again tomorrow.' },
-        { status: 429 }
-      );
+      return limited('Daily address search limit reached. Please try again tomorrow.');
     }
 
     // --- MAPBOX GEOCODING API ---
@@ -98,15 +97,16 @@ export async function POST(request) {
 
     const mapboxData = await mapboxResponse.json();
 
-    if (!mapboxData.features || mapboxData.features.length === 0) {
-      return NextResponse.json({ error: 'Could not find coordinates for this address' }, { status: 404 });
-    }
+    if (!mapboxData.features || mapboxData.features.length === 0) return noCoordinates();
 
     // lat/lng here are Mapbox's precise point — used for the utility lookup
     // below, then rounded before anything is stored. zip is returned for
     // compatibility but no longer stored (nothing uses it, and the privacy
     // statement doesn't list it).
-    const { lat, lng, county, state, zip } = parseMapboxFeature(mapboxData.features[0]);
+    const place = parseMapboxFeature(mapboxData.features[0]);
+    // A feature with no usable centre is the same answer as no feature at all.
+    if (!place) return noCoordinates();
+    const { lat, lng, county, state, zip } = place;
 
     // --- ARCGIS FEATURESERVER API (Spatial Query) ---
     let arcgisOutcome = null;
@@ -157,7 +157,7 @@ export async function POST(request) {
     if (state) profileUpdate.state = state;
     if (waterSource !== null) profileUpdate.water_source = waterSource;
     if (homeYear !== null) profileUpdate.home_year = homeYear;
-    if (requestId !== null) profileUpdate.onboard_request_id = requestId;
+    if (onboardRequestId !== null) profileUpdate.onboard_request_id = onboardRequestId;
 
     // The location on file before this write, to tell a move from a re-submit.
     const { data: before } = await supabaseAdmin.from('profiles').select('lat, lng').eq('id', userId).maybeSingle();
@@ -229,14 +229,14 @@ export async function POST(request) {
       home_year: homeYear,
       // Echoed only if it was stored (null before migration 0014).
       onboard_request_id: profileUpdate.onboard_request_id ?? null,
-    });
+    }, { headers });
 
   } catch (error) {
-    const authResponse = authErrorResponse(error);
+    const authResponse = authErrorResponse(error, requestId);
     if (authResponse) return authResponse;
 
     // Details go to the log: database and provider messages are not for users.
-    console.error('Onboard failed:', error);
-    return NextResponse.json({ error: 'Could not save this address. Please try again.' }, { status: 500 });
+    console.error(`Onboard failed (request ${requestId}):`, error);
+    return internalError(requestId);
   }
 }
