@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { normalizePrefs, NOTIFICATION_TYPES } from '@/lib/alertInputs';
-import { requestIdFor, internalError } from '@/lib/apiErrors';
+import { normalizePrefs } from '@/lib/alertInputs';
+import { apiError, requestIdFor, internalError, validationError } from '@/lib/apiErrors';
+import { readJsonBody } from '@/lib/validate';
+import { parseNotificationUpdate } from '@/lib/alertWriteInput';
 
 /**
  * GET /api/notifications → { preferences: { air_quality_change, weather_advisory,
@@ -30,32 +32,29 @@ export async function GET(request) {
   }
 }
 
+const PUT_MAX_BYTES = 2048;
+
 export async function PUT(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    const body = await request.json().catch(() => null);
-    const incoming = body?.preferences;
-    if (!incoming || typeof incoming !== 'object') {
-      return NextResponse.json({ error: 'Send { preferences: { type: boolean } }.' }, { status: 400 });
+    const body = await readJsonBody(request, { maxBytes: PUT_MAX_BYTES });
+    if (!body.ok) {
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
     }
-    const update = {};
-    for (const [k, v] of Object.entries(incoming)) {
-      if (!NOTIFICATION_TYPES.includes(k)) {
-        return NextResponse.json({ error: `Unknown notification type: ${k}` }, { status: 400 });
-      }
-      if (typeof v !== 'boolean') {
-        return NextResponse.json({ error: `${k} must be true or false.` }, { status: 400 });
-      }
-      update[k] = v;
-    }
+    const input = parseNotificationUpdate(body.value);
+    if (!input.ok) return validationError(input.fieldErrors, requestId);
+
+    // The owner key comes last, so nothing in the validated input can override it.
     const { error } = await supabaseAdmin
       .from('notification_prefs')
-      .upsert({ profile_id: userId, ...update, updated_at: new Date().toISOString() }, { onConflict: 'profile_id' });
+      .upsert({ ...input.value, updated_at: new Date().toISOString(), profile_id: userId }, { onConflict: 'profile_id' });
     if (error) throw new Error(error.message);
-    return NextResponse.json(await read(userId));
+    return NextResponse.json(await read(userId), { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`Notifications update failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }

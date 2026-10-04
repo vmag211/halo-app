@@ -9,7 +9,7 @@ const alert = (profileId, prefix, n, extra = {}) => ({
   id: id(prefix, n), profile_id: profileId, type: 'air_quality_change', severity: 'elevated',
   title: `Alert ${n}`, message: `Message ${n}`, dedupe_key: `${prefix}-${n}`, fired_at: `2026-09-${String(10 + n).padStart(2, '0')}T10:00:00Z`, ...extra,
 });
-const ALERT_KEYS = ['alerts', 'count', 'unread'];
+const ALERT_KEYS = ['alerts', 'count', 'truncated', 'unread'];
 const PREF_KEYS = ['air_quality_change', 'new_water_results', 'radon_season', 'season_summary', 'weather_advisory'];
 
 // A table that is not in `tables` is not seeded either, so it answers like an unapplied migration (PGRST205).
@@ -58,7 +58,7 @@ test('alerts legacy request: count, unread and the alerts, newest first, dismiss
   assert.match(res.headers.get('x-request-id'), UUID);
   const body = await res.json();
   assert.deepEqual(Object.keys(body).sort(), ALERT_KEYS);
-  assert.deepEqual([body.count, body.unread], [2, 1]);
+  assert.deepEqual([body.count, body.unread, body.truncated], [2, 1, false]);
   assert.deepEqual(body.alerts.map((a) => a.title), ['Alert 2', 'Alert 1']);
   assert.deepEqual(Object.keys(body.alerts[0]).sort(), ['created_at', 'dedupe_key', 'dismissed', 'fired_at', 'id', 'message', 'profile_id', 'read', 'severity', 'title', 'type']);
   assert.equal('request_id' in body, false, 'success bodies do not carry request_id');
@@ -66,13 +66,78 @@ test('alerts legacy request: count, unread and the alerts, newest first, dismiss
 
 test('alerts: an empty inbox is a plain empty list', async () => {
   const body = await (await get(harness(), 'alerts')).json();
-  assert.deepEqual(body, { count: 0, unread: 0, alerts: [] });
+  assert.deepEqual(body, { count: 0, unread: 0, truncated: false, alerts: [] });
 });
 
 test('alerts: at most the newest 100 are listed (unchanged)', async () => {
   const h = harness({ seed: ({ alice }) => ({ alerts: Array.from({ length: 105 }, (_, i) => alert(alice.id, 'a11ce000', i + 1, { fired_at: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString() })) }) });
   const body = await (await get(h, 'alerts')).json();
   assert.deepEqual([body.count, body.alerts[0].title, body.alerts.at(-1).title], [100, 'Alert 105', 'Alert 6']);
+});
+
+// A household with `n` alerts at one minute intervals, newest last; `extra` adds fields to each.
+const inbox = (profileId, n, prefix, extra = () => ({})) =>
+  Array.from({ length: n }, (_, i) => alert(profileId, prefix, i + 1, { fired_at: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(), title: `${prefix}-${i + 1}`, ...extra(i) }));
+const alertsOf = (h, callerId) => h.db.queryLog.filter((q) => q.table === 'alerts' && q.operation === 'select')
+  .every((q) => q.filters.some((f) => f.op === 'eq' && f.column === 'profile_id' && f.value === callerId));
+
+test('alerts: unread is the exact count of unread alerts that are not dismissed, even beyond the 100 listed, and the list says it was cut', async () => {
+  const h = harness({
+    seed: ({ alice, bob }) => ({
+      alerts: [
+        ...inbox(alice.id, 120, 'a11ce000', (i) => (i < 10 ? { read: true } : {})), // 110 unread, 10 read
+        ...inbox(alice.id, 15, 'a11ce111', () => ({ dismissed: true })), // unread but dismissed: counted nowhere
+        ...inbox(bob.id, 30, 'b0b00000'), // another household's unread alerts
+      ],
+    }),
+  });
+  const res = await get(h, 'alerts');
+  const body = await res.json();
+  assert.deepEqual([body.count, body.unread, body.truncated], [100, 110, true]);
+  assert.equal(body.alerts.length, 100);
+  assert.ok(body.alerts.every((a) => a.profile_id === h.identities.alice.id && a.dismissed !== true));
+  assert.equal(body.alerts[0].title, 'a11ce000-120', 'the newest are the ones kept');
+  assert.ok(alertsOf(h, h.identities.alice.id), 'every alerts read, the list and the unread count, is filtered to the caller');
+  assert.equal(h.db.queryLog.filter((q) => q.table === 'alerts').length, 2, 'one list read and one head count');
+  const bob = await (await get(h, 'alerts', 'bob')).json();
+  assert.deepEqual([bob.count, bob.unread, bob.truncated], [30, 30, false], 'bob\'s own inbox is not touched by alice\'s 135');
+});
+
+test('alerts: truncated is false at exactly 100 alerts and true at 101; dismissed alerts do not count towards the cut', async () => {
+  for (const [n, dismissed, expected] of [[100, 0, false], [101, 0, true], [100, 25, false], [99, 0, false]]) {
+    const h = harness({
+      seed: ({ alice }) => ({ alerts: [...inbox(alice.id, n, 'a11ce000'), ...inbox(alice.id, dismissed, 'a11ce111', () => ({ dismissed: true }))] }),
+    });
+    const body = await (await get(h, 'alerts')).json();
+    assert.deepEqual([body.count, body.truncated], [Math.min(n, 100), expected], `${n} alerts and ${dismissed} dismissed`);
+  }
+});
+
+test('alerts: a server row cap below our own limit is still reported as truncated (the exact count decides)', async () => {
+  const h = harness({ seed: ({ alice }) => ({ alerts: inbox(alice.id, 80, 'a11ce000') }) });
+  h.db.setMaxRows(50);
+  const body = await (await get(h, 'alerts')).json();
+  assert.deepEqual([body.count, body.unread, body.truncated], [50, 80, true]);
+});
+
+test('alerts: if the unread count does not come back, unread falls back to the page\'s own unread alerts, never to zero', async () => {
+  const h = harness({ seed: twoInboxes });
+  const from = h.db.from.bind(h.db);
+  h.db.from = (name) => { // the head count answers without a count, as a proxy that drops the header would
+    const real = from(name);
+    const select = real.select.bind(real);
+    real.select = (columns, options) => {
+      const builder = select(columns, options);
+      if (options?.head) {
+        const then = builder.then.bind(builder);
+        builder.then = (resolve, reject) => then((result) => ({ ...result, count: null })).then(resolve, reject);
+      }
+      return builder;
+    };
+    return real;
+  };
+  const body = await (await get(h, 'alerts')).json();
+  assert.deepEqual([body.count, body.unread, body.truncated], [2, 1, false]);
 });
 
 test('alerts: before migration 0010 (no dismissed column) the inbox is still served, dismissed alerts simply are not filtered', async () => {
@@ -83,6 +148,7 @@ test('alerts: before migration 0010 (no dismissed column) the inbox is still ser
   assert.match(res.headers.get('x-request-id'), UUID);
   const body = await res.json();
   assert.deepEqual([body.count, body.alerts.map((a) => a.title)], [3, ['Alert 3', 'Alert 2', 'Alert 1']]);
+  assert.deepEqual([body.unread, body.truncated], [2, false], 'unread and truncated are still served, over every alert since none can be dismissed');
 });
 
 test('alerts: only the caller\'s alerts are read, whatever ids the request names', async () => {
