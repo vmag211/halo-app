@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { BAND_KEYS } from '@/lib/household';
 import { localDate } from '@/lib/localDate';
-import { parseDateRange, parseUuid } from '@/lib/validate';
-import { requestIdFor, validationError, internalError } from '@/lib/apiErrors';
+import { parseDateRange, parseUuid, readJsonBody } from '@/lib/validate';
+import { requestIdFor, apiError, validationError, internalError } from '@/lib/apiErrors';
 import { JOURNAL_ROW_LIMIT, isTruncated } from '@/lib/boundedRead';
+import { parseJournalEntry } from '@/lib/journalInput';
 
 /**
  * Symptom journal (§14).
@@ -12,7 +12,12 @@ import { JOURNAL_ROW_LIMIT, isTruncated } from '@/lib/boundedRead';
  *                                       default the last 90 days, at most 366 days
  *                                       and 2000 rows; `truncated` says when rows
  *                                       were cut, always the oldest)
- *   POST   /api/journal              → save/update an entry (one per date+band)
+ *   POST   /api/journal              → save/update an entry (one per date+band).
+ *                                       The body is read with an 8192 byte limit and
+ *                                       validated field by field (lib/journalInput.js):
+ *                                       invalid JSON is a 400, an oversize body a 413,
+ *                                       a bad field a 400 with field_errors, and
+ *                                       nothing is saved in any of those cases.
  *   DELETE /api/journal?id=<uuid>    → delete one entry  (swipe to delete, §47.4)
  *   DELETE /api/journal?all=true     → delete every entry (clear journal, §31.5)
  *
@@ -23,9 +28,8 @@ import { JOURNAL_ROW_LIMIT, isTruncated } from '@/lib/boundedRead';
  * than duplicating. Requires migration 0003.
  */
 
-const SEVERITIES = new Set(['mild', 'moderate', 'bad']);
-// Whose entry this is: one of the seven household groups, or the household.
-const BANDS = new Set([...BAND_KEYS, 'household']);
+// The write limits (note, symptoms, severities, bands, earliest date) are in lib/limits.js.
+const POST_MAX_BYTES = 8192;
 
 export async function GET(request) {
   const requestId = requestIdFor(request);
@@ -70,37 +74,19 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    const body = await request.json().catch(() => ({}));
-
-    const entry_date = typeof body.entry_date === 'string' ? body.entry_date : null;
-    if (!entry_date || !/^\d{4}-\d{2}-\d{2}$/.test(entry_date)) {
-      return NextResponse.json({ error: 'A valid entry_date (YYYY-MM-DD) is required.' }, { status: 400 });
+    const body = await readJsonBody(request, { maxBytes: POST_MAX_BYTES });
+    if (!body.ok) {
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
     }
-    const severity = body.severity == null ? null : String(body.severity).toLowerCase();
-    if (severity !== null && !SEVERITIES.has(severity)) {
-      return NextResponse.json({ error: 'severity must be mild, moderate, or bad.' }, { status: 400 });
-    }
-
-    const band = typeof body.band === 'string' && body.band ? body.band : 'household';
-    if (!BANDS.has(band)) {
-      return NextResponse.json(
-        { error: `band must be one of: ${[...BANDS].join(', ')}.` },
-        { status: 400 },
-      );
-    }
+    const input = parseJournalEntry(body.value, { today: localDate() });
+    if (!input.ok) return validationError(input.fieldErrors, requestId);
 
     const row = {
       profile_id: userId,
-      entry_date,
-      band,
-      symptoms: Array.isArray(body.symptoms) ? body.symptoms.map(String).slice(0, 20) : [],
-      severity,
-      // Escaped on display by the client; capped here.
-      note: typeof body.note === 'string' ? body.note.slice(0, 500) : null,
-      retrospective: body.retrospective === true,
-      possibly_illness: body.possibly_illness === true,
+      ...input.value,
       updated_at: new Date().toISOString(),
     };
 
@@ -110,11 +96,12 @@ export async function POST(request) {
       .select()
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return NextResponse.json({ entry: data });
+    return NextResponse.json({ entry: data }, { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error(`journal POST failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
 

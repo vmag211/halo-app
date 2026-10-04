@@ -9,6 +9,7 @@ import {
   parseEnum,
   parseUuid,
   parseText,
+  parseBoolean,
   readJsonBody,
 } from '../lib/validate.js';
 
@@ -548,4 +549,22 @@ test('readJsonBody reports an unreadable body as 400 instead of throwing', async
 test('validate source has no em dashes', () => {
   const source = readFileSync(new URL('../lib/validate.js', import.meta.url), 'utf8');
   assert.equal(source.includes('\u2014'), false);
+});
+
+// ---------------------------------------------------------------- parseBoolean
+
+test('parseBoolean accepts true and false and nothing that merely looks like one', () => {
+  assert.deepEqual(parseBoolean(true), { ok: true, value: true });
+  assert.deepEqual(parseBoolean(false), { ok: true, value: false });
+  for (const bad of ['true', 'false', 1, 0, 'yes', '', [], {}, [true], null, undefined, NaN]) {
+    assert.equal(failureOf(parseBoolean(bad)).code, 'invalid_boolean', String(bad));
+  }
+});
+
+test('parseBoolean fallback stands in only for null and undefined, never for a wrong value', () => {
+  assert.deepEqual(parseBoolean(undefined, { fallback: false }), { ok: true, value: false });
+  assert.deepEqual(parseBoolean(null, { fallback: true }), { ok: true, value: true });
+  assert.equal(failureOf(parseBoolean('', { fallback: false })).code, 'invalid_boolean');
+  assert.equal(failureOf(parseBoolean('true', { fallback: false })).code, 'invalid_boolean');
+  assert.equal(parseBoolean(true, { fallback: false }).value, true);
 });
