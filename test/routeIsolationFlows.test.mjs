@@ -16,7 +16,10 @@ const REFERENCE = ['ucmr5_utilities', 'volunteer_orgs', 'map_layers', 'learn_con
 
 const bobsRows = (ctx, tables = OWNED) => Object.fromEntries(tables.map((table) => [table, ctx.rowsOf(table, 'bob')]));
 const everything = (ctx, tables) => Object.fromEntries(tables.map((table) => [table, ctx.h.db.rows(table)]));
-const subscription = (endpoint, tag = 'k') => ({ endpoint, keys: { p256dh: `${tag}-p256dh`, auth: `${tag}-auth` } });
+// Keys must be base64url text of 16 or more characters, like a browser's.
+const keysFor = (tag) => ({ p256dh: `${tag}-p256dh-0123456789`, auth: `${tag}-auth-0123456789` });
+const subscription = (endpoint, tag = 'k') => ({ endpoint, keys: keysFor(tag) });
+const ALICE_SECOND_DEVICE = 'https://fcm.googleapis.com/fcm/send/alice-second-device';
 
 // ---- Push subscriptions ----
 
@@ -26,7 +29,7 @@ test('POST /api/push/subscribe: an endpoint another household owns is not taken 
   assert.equal(bobsDevice.endpoint, ENDPOINT.bob);
   const aliceBefore = ctx.rowsOf('push_subscriptions', 'alice');
 
-  const fresh = await ctx.call('alice', '/api/push/subscribe', 'POST', { body: subscription('https://push.example.test/send/alice-second-device', 'fresh') });
+  const fresh = await ctx.call('alice', '/api/push/subscribe', 'POST', { body: subscription(ALICE_SECOND_DEVICE, 'fresh') });
   const clash = await ctx.call('alice', '/api/push/subscribe', 'POST', { body: subscription(ENDPOINT.bob, 'TAKEOVER') });
 
   // Indistinguishable from a normal success: same status, body and content type.
@@ -39,7 +42,7 @@ test('POST /api/push/subscribe: an endpoint another household owns is not taken 
   assert.deepEqual(ctx.rowsOf('push_subscriptions', 'bob'), [bobsDevice]);
   assert.equal(ctx.h.db.rows('push_subscriptions').filter((row) => row.endpoint === ENDPOINT.bob).length, 1);
   assert.ok(!JSON.stringify(ctx.h.db.rows('push_subscriptions')).includes('TAKEOVER'));
-  assert.deepEqual(ctx.rowsOf('push_subscriptions', 'alice').map((row) => row.endpoint).sort(), [...aliceBefore.map((row) => row.endpoint), 'https://push.example.test/send/alice-second-device'].sort());
+  assert.deepEqual(ctx.rowsOf('push_subscriptions', 'alice').map((row) => row.endpoint).sort(), [...aliceBefore.map((row) => row.endpoint), ALICE_SECOND_DEVICE].sort());
 });
 
 test('POST /api/push/subscribe: a household can still re-register its own device, and its keys refresh in place', async () => {
@@ -50,10 +53,10 @@ test('POST /api/push/subscribe: a household can still re-register its own device
 
   const mine = ctx.rowsOf('push_subscriptions', 'alice');
   assert.equal(mine.length, 1); // refreshed, not duplicated
-  assert.deepEqual([mine[0].endpoint, mine[0].p256dh, mine[0].auth], [ENDPOINT.alice, 'ROTATED-p256dh', 'ROTATED-auth']);
+  assert.deepEqual([mine[0].endpoint, mine[0].p256dh, mine[0].auth], [ENDPOINT.alice, keysFor('ROTATED').p256dh, keysFor('ROTATED').auth]);
   assert.deepEqual(bobsRows(ctx), bobBefore);
 
-  const brandNew = await ctx.call('alice', '/api/push/subscribe', 'POST', { body: subscription('https://push.example.test/send/alice-phone') });
+  const brandNew = await ctx.call('alice', '/api/push/subscribe', 'POST', { body: subscription('https://fcm.googleapis.com/fcm/send/alice-phone') });
   assert.deepEqual(await brandNew.json(), { ok: true });
   assert.equal(ctx.rowsOf('push_subscriptions', 'alice').length, 2);
 });
@@ -63,7 +66,7 @@ test('DELETE /api/push/subscribe: another household\'s endpoint is not removed a
   const bobBefore = bobsRows(ctx);
 
   const foreign = await ctx.call('alice', '/api/push/subscribe', 'DELETE', { body: { endpoint: ENDPOINT.bob } });
-  const missing = await ctx.call('alice', '/api/push/subscribe', 'DELETE', { body: { endpoint: 'https://push.example.test/send/nobody' } });
+  const missing = await ctx.call('alice', '/api/push/subscribe', 'DELETE', { body: { endpoint: 'https://fcm.googleapis.com/fcm/send/nobody' } });
   assert.deepEqual([foreign.status, await foreign.json()], [missing.status, await missing.json()]);
   assert.deepEqual(bobsRows(ctx), bobBefore);
 

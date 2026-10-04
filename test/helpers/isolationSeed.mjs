@@ -21,9 +21,10 @@ export const entryId = (who, n) => `${PREFIX[who]}-0000-4000-8000-${hex12(n)}`;
 export const alertId = (who, n) => `${PREFIX[who]}-1111-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
+// On the Web Push hosts the subscribe route accepts (lib/pushInput.js), so a test can re-register them.
 export const ENDPOINT = {
-  alice: 'https://push.example.test/send/alice-device',
-  bob: 'https://push.example.test/send/bob-device',
+  alice: 'https://fcm.googleapis.com/fcm/send/alice-device',
+  bob: 'https://updates.push.services.mozilla.com/wpush/v2/bob-device',
 };
 
 const PROFILE = {

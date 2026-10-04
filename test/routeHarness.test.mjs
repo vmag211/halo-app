@@ -175,7 +175,7 @@ test('POST /api/journal upserts on the declared composite key', async () => {
 
 test('POST /api/push/subscribe goes through the stubbed rate limiter and the endpoint unique key', async () => {
   const h = twoHouseholds();
-  const subscription = { endpoint: 'https://push.example.test/abc', keys: { p256dh: 'p', auth: 'a' } };
+  const subscription = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123456789' } };
   const res = await h.call('/api/push/subscribe', 'POST', { as: 'alice', body: subscription });
   assert.deepEqual(await res.json(), { ok: true });
   assert.equal(h.db.rows('push_subscriptions')[0].profile_id, h.identities.alice.id);

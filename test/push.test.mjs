@@ -1,19 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPushPayload, validateSubscription, isExpiredPushError, sendAlertPushes, pushConfigured } from '../lib/push.js';
+import { buildPushPayload, isExpiredPushError, sendAlertPushes, pushConfigured } from '../lib/push.js';
 
 test('payload carries the page to open for each alert type', () => {
   assert.deepEqual(buildPushPayload({ id: 'a1', type: 'new_water_results', title: 'T', message: 'M' }),
     { id: 'a1', type: 'new_water_results', title: 'T', message: 'M', url: '/home?risk=water' });
   assert.equal(buildPushPayload({ type: 'season_summary' }).url, '/journal?mode=trends');
   assert.equal(buildPushPayload({ type: 'unknown' }).url, '/today');
-});
-
-test('subscriptions need an https endpoint and both keys', () => {
-  assert.equal(validateSubscription({ endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: 'k', auth: 'a' } }).ok, true);
-  assert.equal(validateSubscription({ endpoint: 'http://insecure/x', keys: { p256dh: 'k', auth: 'a' } }).ok, false);
-  assert.equal(validateSubscription({ endpoint: 'https://x', keys: {} }).ok, false);
-  assert.equal(validateSubscription(null).ok, false);
 });
 
 test('404/410 mean expired; other errors do not', () => {
