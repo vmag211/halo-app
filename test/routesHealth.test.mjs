@@ -108,14 +108,35 @@ test('a failed database check is reported without database text; the real error 
   assert.deepEqual([thrown.reachable, thrown.ok, thrown.error], [false, false, 'unreachable']);
 });
 
-test('it reveals no household data: the providers are asked about a fixed point and only the public table is read', async () => {
-  const { h, calls } = harness();
-  await health(h);
-  assert.ok(calls.every((url) => !/35\.40881|-80\.57952|Cabarrus|alice/i.test(url)));
-  assert.deepEqual([...new Set(h.db.queryLog.map((q) => q.table))], ['ucmr5_utilities']);
-  const other = await h.call('/api/health', 'GET', { as: 'alice', url: `/api/health?profile_id=${h.identities.bob.id}&lat=1&lng=2` });
-  assert.equal(other.status, 200);
-  assert.ok(calls.every((url) => !url.includes('lat=1')), 'query values are not forwarded');
+// The one point every provider check asks about, written the way each provider's URL carries it.
+const FIXED_POINT = [
+  ['airnowapi.org', 'latitude=35.4&longitude=-80.5&'],
+  ['air-quality-api.open-meteo.com', 'latitude=35.4&longitude=-80.5&'],
+  ['api.open-meteo.com', 'latitude=35.4&longitude=-80.5&'],
+  ['pollen.googleapis.com', 'location.longitude=-80.5&location.latitude=35.4&'],
+  ['api.weather.gov', '/points/35.4,-80.5'],
+  ['services.arcgis.com', 'geometry=-80.5,35.4&'],
+];
+
+test('it reveals no household data: every provider is asked about the one fixed public point, whatever the household or the query holds', async () => {
+  const { h, calls } = harness({ tables: haloTables('ucmr5_utilities', 'profiles') });
+  // A household with its own coordinates, and a query that tries to point the checks elsewhere (or at someone else's home).
+  h.db.seed('profiles', [{ id: h.identities.alice.id, lat: 35.40881, lng: -80.57952, county: 'Cabarrus County' }]);
+  const res = await h.call('/api/health', 'GET', { as: 'alice', url: `/api/health?profile_id=${h.identities.bob.id}&lat=1&lng=2` });
+  assert.equal(res.status, 200);
+
+  assert.equal(calls.length, 8);
+  for (const [host, point] of FIXED_POINT) {
+    const urls = calls.filter((url) => url.includes(host) && !(host === 'api.open-meteo.com' && url.includes('air-quality')));
+    assert.equal(urls.length, 1, host);
+    assert.ok(urls[0].includes(point), `${host} is asked about the fixed point: ${urls[0].split('?')[0]}`);
+  }
+  for (const url of calls) {
+    for (const forbidden of ['35.40881', '80.57952', 'latitude=1&', 'longitude=2', 'lat=1', 'lng=2', 'Cabarrus', 'alice', h.identities.bob.id]) {
+      assert.equal(url.includes(forbidden), false, `${forbidden} must not reach a provider (${url.split('?')[0]})`);
+    }
+  }
+  assert.deepEqual([...new Set(h.db.queryLog.map((q) => q.table))], ['ucmr5_utilities'], 'the household profile is never read');
 });
 
 test('a missing session is a 401 envelope that echoes a client request id, and no provider is asked', async () => {
