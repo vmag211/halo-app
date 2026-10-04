@@ -10,14 +10,14 @@ import assert from 'node:assert/strict';
 import { auditOwnerScope, localDate, quiet, setup } from './helpers/isolationKit.mjs';
 import { ENDPOINT, PROFILE, alertId, entryId, addDays } from './helpers/isolationSeed.mjs';
 import { OWNED_TABLES } from './helpers/tables.mjs';
+import { keysFor } from './helpers/pushKeys.mjs';
 
 const OWNED = Object.keys(OWNED_TABLES);
 const REFERENCE = ['ucmr5_utilities', 'volunteer_orgs', 'map_layers', 'learn_content', 'water_snapshots'];
 
 const bobsRows = (ctx, tables = OWNED) => Object.fromEntries(tables.map((table) => [table, ctx.rowsOf(table, 'bob')]));
 const everything = (ctx, tables) => Object.fromEntries(tables.map((table) => [table, ctx.h.db.rows(table)]));
-// Keys must be base64url text of 16 or more characters, like a browser's.
-const keysFor = (tag) => ({ p256dh: `${tag}-p256dh-0123456789`, auth: `${tag}-auth-0123456789` });
+// Keys shaped like a browser's (87 and 22 characters), with the tag spelled inside.
 const subscription = (endpoint, tag = 'k') => ({ endpoint, keys: keysFor(tag) });
 const ALICE_SECOND_DEVICE = 'https://fcm.googleapis.com/fcm/send/alice-second-device';
 

@@ -3,11 +3,10 @@ import assert from 'node:assert/strict';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
+import { AUTH, BYPASS_ENDPOINTS, FOREIGN_HOST_ENDPOINTS, GENUINE_ENDPOINTS, P256DH, keysFor } from './helpers/pushKeys.mjs';
 
 const { PUSH_HOSTS } = await import('../lib/pushInput.js');
 const chr = (code) => String.fromCharCode(code);
-const P256DH = 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM'; // 87 characters
-const AUTH = 'tBHItJI5svbpez7KI4CCXg'; // 22 characters
 const FCM = 'https://fcm.googleapis.com/fcm/send/alice-new-phone-token';
 const ALICE_DEVICE = 'https://fcm.googleapis.com/fcm/send/alice-device-token';
 const BOB_DEVICE = 'https://updates.push.services.mozilla.com/wpush/v2/bob-device-token';
@@ -68,21 +67,18 @@ test('legacy POST: a browser subscription is stored for the caller; the answer i
 test('legacy POST: the same device registered again refreshes its keys in place; another household\'s endpoint is not taken over and answers the same', async () => {
   const h = harness();
   const bobBefore = JSON.stringify(rows(h).filter((row) => row.profile_id === h.identities.bob.id));
-  const refreshed = await subscribe(h, { endpoint: ALICE_DEVICE, keys: { p256dh: `${P256DH}x`, auth: `${AUTH}y` } });
+  const rotated = keysFor('ROTATED');
+  const refreshed = await subscribe(h, { endpoint: ALICE_DEVICE, keys: rotated });
   const clash = await subscribe(h, { endpoint: BOB_DEVICE, keys });
   assert.deepEqual([await refreshed.json(), await clash.json()], [{ ok: true }, { ok: true }]);
   const own = rows(h).filter((row) => row.endpoint === ALICE_DEVICE);
-  assert.deepEqual(own.map((row) => [row.p256dh, row.auth]), [[`${P256DH}x`, `${AUTH}y`]]);
+  assert.deepEqual(own.map((row) => [row.p256dh, row.auth]), [[rotated.p256dh, rotated.auth]]);
   assert.equal(JSON.stringify(rows(h).filter((row) => row.profile_id === h.identities.bob.id)), bobBefore);
 });
 
-test('every Web Push host is accepted, as is any subdomain of one, and an explicit :443', async () => {
+test('every Web Push host is accepted, as is any subdomain of one, an explicit :443 and the six forms real browsers send', async () => {
   const h = harness();
-  const accepted = [
-    ...PUSH_HOSTS.map((host) => `https://${host}/send/token-a`),
-    'https://updates.push.services.mozilla.com/wpush/v2/token', 'https://web.push.apple.com/QOnlyToken', 'https://wns2-par02p.notify.windows.com/w/?token=BQYAAAB%2bMjQ',
-    'https://FCM.GOOGLEAPIS.COM/fcm/send/upper-case-host', 'https://fcm.googleapis.com:443/fcm/send/explicit-port',
-  ];
+  const accepted = [...PUSH_HOSTS.map((host) => `https://${host}/send/token-a`), ...GENUINE_ENDPOINTS];
   assert.deepEqual(PUSH_HOSTS, ['fcm.googleapis.com', 'android.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com']);
   for (const endpoint of accepted) assert.equal((await subscribe(h, subscription(endpoint))).status, 200, endpoint);
   assert.ok(accepted.every((endpoint) => rows(h).some((row) => row.endpoint === endpoint)));
@@ -105,16 +101,17 @@ const BAD_ENDPOINTS = [
   ['an allowed host as the user name', 'https://fcm.googleapis.com@evil.example/x', INVALID],
   ['a user and password', 'https://user:secret@fcm.googleapis.com/x', INVALID], ['a password with no user name', 'https://:secret@fcm.googleapis.com/x', INVALID],
   ['a port other than 443', 'https://fcm.googleapis.com:8443/x', INVALID], ['port 80', 'https://fcm.googleapis.com:80/x', INVALID],
-  ['an IPv4 address', 'https://127.0.0.1/x', NOT_ALLOWED], ['a decimal IPv4 address', 'https://2130706433/x', NOT_ALLOWED],
-  ['a hex IPv4 address', 'https://0x7f.1/x', NOT_ALLOWED], ['an IPv6 address', 'https://[::1]/x', NOT_ALLOWED],
-  ['a cloud metadata address', 'https://169.254.169.254/latest/meta-data', NOT_ALLOWED],
-  ['a trailing dot host', 'https://fcm.googleapis.com./x', NOT_ALLOWED],
+  ['an IPv4 address', 'https://127.0.0.1/x', NOT_ALLOWED], ['a cloud metadata address', 'https://169.254.169.254/latest/meta-data', NOT_ALLOWED],
+  ['a punycode host that merely looks like an allowed one', 'https://xn--fcm-9na.googleapis.com/x', NOT_ALLOWED],
   ['a backslash that some parsers read as the end of the host', 'https://evil.example\\@fcm.googleapis.com/x', INVALID],
   ['a space', 'https://fcm.googleapis.com/fcm send', INVALID], ['a tab', `https://fcm.googleapis.com/fcm${chr(9)}send`, INVALID],
   ['a line break', `https://fcm.googleapis.com/fcm${chr(10)}send`, INVALID], ['a NUL', `https://fcm.googleapis.com/fcm${chr(0)}send`, INVALID],
   ['a non-ASCII character', `https://fcm.googleapis.com/fcm/s${chr(0xe9)}nd`, INVALID], ['a full width letter in the host', `https://${chr(0xff46)}cm.googleapis.com/x`, INVALID],
   ['over 2048 characters', `https://fcm.googleapis.com/${'a'.repeat(2049 - 'https://fcm.googleapis.com/'.length)}`, 'endpoint_too_long'],
 ];
+// The vectors that read as an allowed host to one URL parser and as another host to the other.
+for (const [label, endpoint] of BYPASS_ENDPOINTS) BAD_ENDPOINTS.push([label, endpoint, INVALID]);
+for (const [label, endpoint] of FOREIGN_HOST_ENDPOINTS) BAD_ENDPOINTS.push([label, endpoint, NOT_ALLOWED]);
 for (const [label, endpoint, code] of BAD_ENDPOINTS) {
   test(`POST endpoint: ${label} is a 400 and changes nothing`, async () => {
     await bad(subscribe, endpoint === undefined ? { keys } : subscription(endpoint), [['endpoint', code]]);
@@ -131,18 +128,31 @@ test('POST endpoint: exactly 2048 characters are accepted', async () => {
 // ----------------------------------------------------------- keys
 
 const BOTH = [['keys.p256dh', 'invalid_key'], ['keys.auth', 'invalid_key']];
-const pair = (text) => ({ p256dh: text, auth: text });
+const ONLY_P256DH = [['keys.p256dh', 'invalid_key']];
+const ONLY_AUTH = [['keys.auth', 'invalid_key']];
+const withP256dh = (p256dh) => ({ p256dh, auth: AUTH });
+const withAuth = (auth) => ({ p256dh: P256DH, auth });
 const BAD_KEYS = [
   ['missing', undefined, BOTH], ['null', null, BOTH], ['a string', 'keys', BOTH], ['a list', [P256DH, AUTH], BOTH], ['empty', {}, BOTH],
-  ['only p256dh', { p256dh: P256DH }, [['keys.auth', 'invalid_key']]], ['only auth', { auth: AUTH }, [['keys.p256dh', 'invalid_key']]],
-  ['numbers', { p256dh: 5, auth: 6 }, BOTH], ['empty strings', pair(''), BOTH],
-  ['too short (15 characters)', pair('a'.repeat(15)), BOTH], ['too long (201 characters)', pair('a'.repeat(201)), BOTH],
-  ['standard base64 with plus and slash', pair(`${'a'.repeat(20)}+/`), BOTH],
-  ['spaces inside', pair(`${'a'.repeat(10)} ${'a'.repeat(10)}`), BOTH],
-  ['padding in the middle', pair(`${'a'.repeat(10)}=${'a'.repeat(10)}`), BOTH],
-  ['three padding characters', pair(`${'a'.repeat(20)}===`), BOTH],
-  ['non-ASCII text', pair(`${'a'.repeat(20)}\u00e9`), BOTH],
-  ['a line break', pair(`${'a'.repeat(20)}${chr(10)}`), BOTH],
+  ['only p256dh', { p256dh: P256DH }, ONLY_AUTH], ['only auth', { auth: AUTH }, ONLY_P256DH],
+  ['numbers', { p256dh: 5, auth: 6 }, BOTH], ['empty strings', { p256dh: '', auth: '' }, BOTH],
+  ['short text for both', { p256dh: 'a'.repeat(16), auth: 'a'.repeat(16) }, BOTH],
+  ['a p256dh of 86 characters', withP256dh(P256DH.slice(0, 86)), ONLY_P256DH],
+  ['a p256dh of 88 characters with no padding (66 bytes)', withP256dh(`${P256DH}A`), ONLY_P256DH],
+  ['a p256dh with two padding characters', withP256dh(`${P256DH}==`), ONLY_P256DH],
+  ['a p256dh that is not an uncompressed point (first byte 0x08, not 0x04)', withP256dh(`C${P256DH.slice(1)}`), ONLY_P256DH],
+  ['a p256dh in standard base64 (plus and slash)', withP256dh(`${P256DH.slice(0, 85)}+/`), ONLY_P256DH],
+  ['a p256dh with a space inside', withP256dh(`${P256DH.slice(0, 40)} ${P256DH.slice(41)}`), ONLY_P256DH],
+  ['a p256dh with padding in the middle', withP256dh(`${P256DH.slice(0, 40)}=${P256DH.slice(41)}`), ONLY_P256DH],
+  ['a p256dh with a non-ASCII character', withP256dh(`${P256DH.slice(0, 86)}\u00e9`), ONLY_P256DH],
+  ['a p256dh with a line break', withP256dh(`${P256DH.slice(0, 86)}${chr(10)}`), ONLY_P256DH],
+  ['an auth of 21 characters', withAuth(AUTH.slice(0, 21)), ONLY_AUTH],
+  ['an auth of 23 characters', withAuth(`${AUTH}A`), ONLY_AUTH],
+  ['an auth with a single padding character', withAuth(`${AUTH}=`), ONLY_AUTH],
+  ['an auth with three padding characters', withAuth(`${AUTH}===`), ONLY_AUTH],
+  ['an auth in standard base64 (plus and slash)', withAuth(`${AUTH.slice(0, 20)}+/`), ONLY_AUTH],
+  ['an auth with a space inside', withAuth(`${AUTH.slice(0, 10)} ${AUTH.slice(11)}`), ONLY_AUTH],
+  ['an auth with a line break', withAuth(`${AUTH.slice(0, 21)}${chr(10)}`), ONLY_AUTH],
 ];
 for (const [label, value, expected] of BAD_KEYS) {
   test(`POST keys: ${label} is a 400 and changes nothing`, async () => {
@@ -150,9 +160,10 @@ for (const [label, value, expected] of BAD_KEYS) {
   });
 }
 
-test('POST keys: 16 and 200 characters are accepted, and so is trailing padding; they are stored as sent', async () => {
+test('POST keys: a browser\'s 87 and 22 characters are accepted, so is the padded form (88 with one =, 24 with ==); they are stored as sent', async () => {
   const h = harness();
-  for (const [endpoint, p256dh, auth] of [[`${FCM}-16`, 'a'.repeat(16), 'b'.repeat(16)], [`${FCM}-200`, 'a-_'.repeat(66) + 'ab', 'b_-'.repeat(66) + 'cd'], [`${FCM}-pad`, `${P256DH}=`, `${AUTH}==`]]) {
+  const cases = [[`${FCM}-plain`, P256DH, AUTH], [`${FCM}-pad`, `${P256DH}=`, `${AUTH}==`], [`${FCM}-tag`, keysFor('Abc-_1').p256dh, keysFor('Abc-_1').auth]];
+  for (const [endpoint, p256dh, auth] of cases) {
     assert.equal((await subscribe(h, { endpoint, keys: { p256dh, auth } })).status, 200, endpoint);
     assert.deepEqual(rows(h).filter((row) => row.endpoint === endpoint).map((row) => [row.p256dh, row.auth]), [[p256dh, auth]]);
   }

@@ -8,6 +8,7 @@ import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs
 import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { createRouteHooks } from './helpers/routeHooks.mjs';
 import { haloTables } from './helpers/tables.mjs';
+import { AUTH, P256DH } from './helpers/pushKeys.mjs';
 
 const TABLES = haloTables('profiles', 'household_bands', 'symptom_logs', 'daily_scores', 'push_subscriptions');
 
@@ -175,7 +176,7 @@ test('POST /api/journal upserts on the declared composite key', async () => {
 
 test('POST /api/push/subscribe goes through the stubbed rate limiter and the endpoint unique key', async () => {
   const h = twoHouseholds();
-  const subscription = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123456789' } };
+  const subscription = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: P256DH, auth: AUTH } };
   const res = await h.call('/api/push/subscribe', 'POST', { as: 'alice', body: subscription });
   assert.deepEqual(await res.json(), { ok: true });
   assert.equal(h.db.rows('push_subscriptions')[0].profile_id, h.identities.alice.id);
