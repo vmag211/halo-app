@@ -84,10 +84,11 @@ export async function POST(request) {
     const input = parseJournalEntry(body.value, { today: localDate() });
     if (!input.ok) return validationError(input.fieldErrors, requestId);
 
+    // The owner key comes last, so nothing in the validated input can override it.
     const row = {
-      profile_id: userId,
       ...input.value,
       updated_at: new Date().toISOString(),
+      profile_id: userId,
     };
 
     const { data, error } = await supabaseAdmin

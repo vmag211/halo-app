@@ -113,7 +113,8 @@ export async function PATCH(request) {
     const input = parseProfilePatch(body.value);
     if (!input.ok) return validationError(input.fieldErrors, requestId);
 
-    const { error } = await supabaseAdmin.from('profiles').upsert({ id: userId, ...input.value }, { onConflict: 'id' });
+    // The owner key comes last, so nothing in the validated input can override it.
+    const { error } = await supabaseAdmin.from('profiles').upsert({ ...input.value, id: userId }, { onConflict: 'id' });
     if (error) throw new Error(`Could not update profile: ${error.message}`);
 
     return NextResponse.json(await profileResponse(userId), { headers: { 'X-Request-Id': requestId } });
