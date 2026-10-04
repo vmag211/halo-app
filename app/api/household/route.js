@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { BAND_KEYS, normalizeBands } from '@/lib/household';
-import { requestIdFor, internalError } from '@/lib/apiErrors';
+import { normalizeBands } from '@/lib/household';
+import { readJsonBody } from '@/lib/validate';
+import { requestIdFor, apiError, validationError, internalError } from '@/lib/apiErrors';
+import { parseHouseholdBody } from '@/lib/profileInput';
 
 /**
  * Household composition (§8, §16.2).
  *   GET  /api/household  → the seven group booleans (+ renter_mode, locale)
- *   PUT  /api/household  → upsert composition and profile preferences
+ *   PUT  /api/household  → upsert composition and profile preferences. The PUT
+ *                          replaces the composition: a group key left out (or null)
+ *                          is false, and the answer lists all seven. The body is
+ *                          read with a 2048 byte limit and checked before anything
+ *                          is written (lib/profileInput.js): invalid JSON is a 400,
+ *                          an oversize body a 413, a group that is not true or
+ *                          false, a renter_mode that is not a boolean or a locale
+ *                          other than en or es is a 400 with field_errors, and the
+ *                          household is left exactly as it was in all of those.
  *
  * Owner-scoped: identity is the verified session token. Composition never
  * changes a measurement or a score — only which wording and actions appear.
@@ -50,14 +60,21 @@ export async function GET(request) {
   }
 }
 
+const PUT_MAX_BYTES = 2048;
+
 export async function PUT(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    const body = await request.json().catch(() => ({}));
+    const body = await readJsonBody(request, { maxBytes: PUT_MAX_BYTES });
+    if (!body.ok) {
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
+    }
+    const input = parseHouseholdBody(body.value);
+    if (!input.ok) return validationError(input.fieldErrors, requestId);
 
-    // Only accept the seven known boolean keys; ignore anything else.
-    const bands = { profile_id: userId, updated_at: new Date().toISOString() };
-    for (const k of BAND_KEYS) bands[k] = body[k] === true;
+    // The seven known boolean keys only (a key left out is false); anything else is ignored.
+    const bands = { profile_id: userId, updated_at: new Date().toISOString(), ...input.value.bands };
 
     const { error: bandErr } = await supabaseAdmin
       .from('household_bands')
@@ -66,8 +83,8 @@ export async function PUT(request) {
 
     // Profile preferences travel with the same call when supplied.
     const profileUpdate = {};
-    if (typeof body.renter_mode === 'boolean') profileUpdate.renter_mode = body.renter_mode;
-    if (body.locale === 'en' || body.locale === 'es') profileUpdate.locale = body.locale;
+    if (input.value.renter_mode !== undefined) profileUpdate.renter_mode = input.value.renter_mode;
+    if (input.value.locale !== undefined) profileUpdate.locale = input.value.locale;
     if (Object.keys(profileUpdate).length > 0) {
       profileUpdate.id = userId;
       const { error: profErr } = await supabaseAdmin
@@ -76,16 +93,19 @@ export async function PUT(request) {
       if (profErr) throw new Error(`Failed to save preferences: ${profErr.message}`);
     }
 
-    return NextResponse.json({
-      household: normalizeBands(bands),
-      household_set: true,
-      renter_mode: profileUpdate.renter_mode ?? undefined,
-      locale: profileUpdate.locale ?? undefined,
-    });
+    return NextResponse.json(
+      {
+        household: normalizeBands(bands),
+        household_set: true,
+        renter_mode: profileUpdate.renter_mode ?? undefined,
+        locale: profileUpdate.locale ?? undefined,
+      },
+      { headers: { 'X-Request-Id': requestId } },
+    );
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error('Household failed:', err);
-    return NextResponse.json({ error: 'Could not save your household. Please try again.' }, { status: 500 });
+    console.error(`Household save failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }

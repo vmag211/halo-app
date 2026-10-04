@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeBands } from '@/lib/household';
-import { normalizeWaterSource } from '@/lib/waterSource';
-import { validateHomeYear } from '@/lib/geocode';
-import { requestIdFor, internalError } from '@/lib/apiErrors';
+import { readJsonBody } from '@/lib/validate';
+import { requestIdFor, apiError, validationError, internalError } from '@/lib/apiErrors';
+import { parseProfilePatch } from '@/lib/profileInput';
 
 /**
  * GET   /api/profile — the household's stored location, home details and
@@ -11,6 +11,12 @@ import { requestIdFor, internalError } from '@/lib/apiErrors';
  * PATCH /api/profile { water_source?, home_year? } — change home details
  *                      without re-sending the address (onboarding step 4,
  *                      Settings → Your home, HomeGuard's "are you on a well?").
+ *                      A key that is present counts even when null (null clears
+ *                      the answer); at least one of the two is required, other
+ *                      keys are ignored. The body is read with a 2048 byte limit
+ *                      and checked before anything is written (lib/profileInput.js):
+ *                      invalid JSON is a 400, an oversize body a 413, a bad value a
+ *                      400 with field_errors, and the profile is left as it was.
  *
  * `onboarded` — an address has been processed (coordinates stored).
  * `onboarding_complete` — coordinates AND a water source are stored, i.e. the
@@ -94,33 +100,27 @@ export async function GET(request) {
   }
 }
 
+const PATCH_MAX_BYTES = 2048;
+
 export async function PATCH(request) {
+  const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
-    const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object') {
-      return NextResponse.json({ error: 'Send a JSON body with water_source and/or home_year.' }, { status: 400 });
+    const body = await readJsonBody(request, { maxBytes: PATCH_MAX_BYTES });
+    if (!body.ok) {
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
     }
+    const input = parseProfilePatch(body.value);
+    if (!input.ok) return validationError(input.fieldErrors, requestId);
 
-    const update = {};
-    if ('water_source' in body) update.water_source = normalizeWaterSource(body.water_source);
-    if ('home_year' in body) {
-      const year = validateHomeYear(body.home_year);
-      if (!year.ok) return NextResponse.json({ error: year.error }, { status: 400 });
-      update.home_year = year.value;
-    }
-    if (Object.keys(update).length === 0) {
-      return NextResponse.json({ error: 'Nothing to change: send water_source and/or home_year.' }, { status: 400 });
-    }
-
-    const { error } = await supabaseAdmin.from('profiles').upsert({ id: userId, ...update }, { onConflict: 'id' });
+    const { error } = await supabaseAdmin.from('profiles').upsert({ id: userId, ...input.value }, { onConflict: 'id' });
     if (error) throw new Error(`Could not update profile: ${error.message}`);
 
-    return NextResponse.json(await profileResponse(userId));
+    return NextResponse.json(await profileResponse(userId), { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
-    const authResponse = authErrorResponse(err);
+    const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error('Profile failed:', err);
-    return NextResponse.json({ error: 'Could not load your profile. Please try again.' }, { status: 500 });
+    console.error(`Profile update failed (request ${requestId}):`, err);
+    return internalError(requestId);
   }
 }
