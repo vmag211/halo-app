@@ -27,6 +27,12 @@
  * the route should see. A route that reads env at import (assistant) sees the
  * `env` of the harness's first call to it.
  *
+ * `h.webPush` is the stand-in for the `web-push` library (see stubs/webPush.mjs):
+ * `h.webPush.sent` lists the notifications the code tried to send (endpoint, keys,
+ * payload), and `failWith(endpoint, status)` / `failNetwork(endpoint)` make an
+ * endpoint fail like a push service. The VAPID variables are scrubbed like every
+ * other secret, so a test that needs push to be configured passes fake ones in `env`.
+ *
  * Helpers re-exported for tests: tokenFor(name), rpcError(code, message) for
  * registered fake RPCs (`h.db.registerRpc`), muteConsoleError(t).
  */
@@ -38,6 +44,7 @@ import { createFakeSupabase, tokenFor } from './fakeSupabase.mjs';
 import { blockedFetch, withSandbox } from './sandbox.mjs';
 import { runWithHarness } from './stubs/context.mjs';
 import { NextRequest } from './stubs/nextServer.mjs';
+import { createWebPushState } from './stubs/webPush.mjs';
 
 export { tokenFor } from './fakeSupabase.mjs';
 export { rpcError } from './fakeSupabase.mjs';
@@ -104,7 +111,8 @@ export function createRouteHarness({
     seed: typeof seed === 'function' ? seed(identities) : seed,
     identities: Object.values(identities),
   });
-  const state = { db, afterQueue: [], rateLimit };
+  const webPush = createWebPushState();
+  const state = { db, afterQueue: [], rateLimit, webPush };
   const modules = new Map();
   const blockedFetches = [];
   const defaultFetch = harnessFetch ?? blockedFetch(blockedFetches);
@@ -183,7 +191,7 @@ export function createRouteHarness({
   /** 'returned' (default): auth-js returns a 5xx error. 'thrown': network failure. 'off': back to normal. */
   const forceAuthOutage = (mode = 'returned') => db.setAuthOutage(mode);
 
-  return { db, identities, call, runAfter, forceAuthOutage, blockedFetches };
+  return { db, identities, call, runAfter, forceAuthOutage, blockedFetches, webPush };
 }
 
 /** Silences console.error for one test and returns the mock, so a test can also assert on it. */

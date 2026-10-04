@@ -300,6 +300,7 @@ test('hooks: serverAuth and ratelimit are replaced however they are imported, an
   assert.equal(at('./serverAuth.js', pathToFileURL(path.join(REPO_ROOT, 'lib/other.js')).href).url, stub('serverAuth.mjs'));
   assert.equal(at('next/server').url, stub('nextServer.mjs'));
   assert.equal(at('@supabase/supabase-js').url, stub('supabaseJs.mjs'));
+  assert.equal(at('web-push').url, stub('webPush.mjs'));
 
   const real = at('@/lib/household');
   assert.equal(real.url, pathToFileURL(path.join(REPO_ROOT, 'lib/household.js')).href);

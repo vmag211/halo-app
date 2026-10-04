@@ -11,6 +11,8 @@
  *      next/server           -> stubs/nextServer.mjs  (NextResponse, after)
  *      @supabase/supabase-js -> stubs/supabaseJs.mjs  (home-guard builds its own
  *                                                      client at import)
+ *      web-push              -> stubs/webPush.mjs     (records sends, never opens
+ *                                                      a connection)
  *  - Repo .js files under app/ and lib/ are loaded as ES modules outright. The
  *    package has no "type" field, so Node would otherwise sniff each file and
  *    print MODULE_TYPELESS_PACKAGE_JSON.
@@ -44,6 +46,7 @@ export function createRouteHooks({ repoRoot, stubDir }) {
   const bareStubs = new Map([
     ['next/server', stub('nextServer.mjs')],
     ['@supabase/supabase-js', stub('supabaseJs.mjs')],
+    ['web-push', stub('webPush.mjs')],
   ]);
   const esmPrefixes = ESM_DIRS.map((dir) => repo(`${dir}/`));
 
