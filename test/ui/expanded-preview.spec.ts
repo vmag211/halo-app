@@ -18,7 +18,7 @@ const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main navig
 
 test('revised overview preserves factors and moves navigation ownership', async ({ page }) => {
   await page.goto(root);
-  await expect(mainNav(page).getByRole('link')).toHaveText(['Today', 'Homeguard', 'Act', 'Plan']);
+  await expect(mainNav(page).getByRole('link')).toHaveText(['Today', 'Homeguard', 'Explore', 'My Week']);
   await expect(page.locator('.halo-ph-factor-grid a')).toHaveCount(4);
   await expect(page.locator('.halo-ph-factor-grid')).not.toContainText('PFAS');
   await mainNav(page).getByRole('link', { name: 'Homeguard' }).click();
@@ -31,14 +31,14 @@ test('revised overview preserves factors and moves navigation ownership', async 
   await expect(page.getByText('Workflow outline · Not a finished screen')).toHaveCount(0);
   await page.getByRole('link', { name: 'Back to Homeguard' }).click();
   await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
-  await mainNav(page).getByRole('link', { name: 'Plan', exact: true }).click();
+  await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('link', { name: 'Journal and Patterns' }).click();
-  await expect(mainNav(page).getByRole('link', { name: 'Plan' })).toHaveAttribute('aria-current', 'page');
+  await expect(mainNav(page).getByRole('link', { name: 'My Week' })).toHaveAttribute('aria-current', 'page');
 });
 
 test('planned follow-up save, edit, status, deduplication and return are one in-memory action', async ({ page }) => {
   await page.goto(routine);
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Save a practical step' });
   await dialog.getByLabel('Action title').fill('Review the kitchen filter schedule');
   await dialog.getByLabel('All-day date (optional)').fill('2026-10-04');
@@ -47,7 +47,7 @@ test('planned follow-up save, edit, status, deduplication and return are one in-
   await page.getByRole('button', { name: 'Open saved action' }).click();
   await expect(page.getByLabel('Action title')).toHaveValue('Review the kitchen filter schedule');
   await page.getByRole('button', { name: 'Close and keep draft' }).click();
-  await mainNav(page).getByRole('link', { name: 'Plan', exact: true }).click();
+  await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your week, with room to breathe' })).toBeVisible();
   await page.getByLabel('Choose a day').fill('2026-10-04');
   await expect(page.locator('.halo-expanded-agenda-row:visible')).toHaveCount(1);
@@ -61,7 +61,7 @@ test('failure retains edits; Back cancels pending save and retains draft', async
   await page.goto(routine);
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Simulate failed action save').check();
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await page.getByLabel('Action title').fill('Review filter instructions');
   await page.getByRole('button', { name: 'Save sample action' }).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toContainText('sample save failed');
@@ -69,7 +69,7 @@ test('failure retains edits; Back cancels pending save and retains draft', async
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByLabel('Simulate failed action save').uncheck();
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await expect(page.getByLabel('Action title')).toHaveValue('Review filter instructions');
   await page.getByRole('button', { name: 'Save sample action' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -78,7 +78,7 @@ test('failure retains edits; Back cancels pending save and retains draft', async
 
 test('offline actions cannot save or imply queued work', async ({ page }) => {
   await page.goto(`${routine}&scenario=offline`);
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save sample action' })).toBeDisabled();
   await expect(page.getByText(/this review does not queue saves/)).toBeVisible();
 });

@@ -75,7 +75,7 @@ test('moisture keeps a user-entered zero and measured source without a safety re
   await expect(page.getByText('0 % RH · User entered', { exact: true })).toBeVisible();
   await expect(page.getByText('Example hygrometer', { exact: true })).toBeVisible();
   await expect(page.getByText(/It is not a mold identification or a diagnosis/)).toBeVisible();
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Save a practical step' });
   await dialog.getByRole('button', { name: 'Save sample action' }).click();
   await expect(dialog).not.toBeVisible();

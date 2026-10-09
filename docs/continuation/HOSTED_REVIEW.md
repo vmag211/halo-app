@@ -1,6 +1,16 @@
 # Hosted wireframe preservation reference
 
-## Current review, October 9, 2026
+## Current review: Explore, October 9, 2026
+
+Version 23 is deployed at the same URL with the existing public audience. Visible tabs are Today, Homeguard, Explore and My Week. Explore now contains the A01-A06 rough sample screens: hub/map entrance, organizations, opportunities and participation, project steps, independent outreach drafts and text-only private field notes. See `components/expanded/EXPLORE_REVIEW.md` for coverage and deliberate limits. No live source, registration, agency receipt or private persistence is implied.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_c3a87faaad748191a6d9ee1c4d3ab67c`.
+- Source commit: `e36bf5d9fe658f0258a0f3e23b7cd8041e17cb2a`.
+- Successful deployment ID: `appgdep_6ac97107fdc88191a64bd54bb282db30`.
+- Archive hash: `sha256:5dacd68f5af8b1beefded00fde4fbd95e3103767c77a3d06024213507ed04470`.
+- Verification: main TypeScript, isolated static build, scoped lint, ownership/date logic tests, Explore interaction and light/dark narrow-layout checks, existing expanded/Homeguard/hosted regressions, map suite and map-return recheck, and both approval archive integrity checks. Two outdated exact-label test selectors were corrected and their tests passed. No screenshot baseline was updated. Physical Safari, real source verification and authenticated production workflows remain unverified.
+
+## Earlier Homeguard review, October 9, 2026
 
 Version 22 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Homeguard's four-link footer is now a Home workspace with distinct section layouts, shared sample-record counts and continuation, direct record/create entries, a focus-aware overview jump, and successful PDF creation metadata. These remain sample review workflows awaiting visual approval and production integration.
 

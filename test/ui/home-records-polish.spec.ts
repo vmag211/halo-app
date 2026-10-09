@@ -21,20 +21,20 @@ async function scenario(page: Page, value: string) {
   await control.selectOption(value);
 }
 
-test('deleting a routine is deliberate and leaves the linked observation and saved Plan action intact', async ({ page }) => {
+test('deleting a routine is deliberate and leaves the linked observation and saved My Week action intact', async ({ page }) => {
   await page.goto(url('maintenance', 'observation-edit', 'sample-moisture'));
   await page.getByLabel('Linked routine (optional)').selectOption('sample-filter');
   await page.getByRole('button', { name: 'Save observation', exact: true }).click();
   await page.getByRole('button', { name: 'Open linked routine', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Kitchen filter upkeep', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const action = page.getByRole('dialog', { name: 'Save a practical step' });
   await expect(action.getByLabel('Action title')).toHaveValue('Follow up on Kitchen filter upkeep');
   await action.getByRole('button', { name: 'Save sample action' }).click();
   await expect(page.getByRole('button', { name: 'Open saved action' })).toBeVisible();
   await page.getByRole('button', { name: 'Delete routine', exact: true }).click();
   const deletion = page.getByRole('dialog', { name: 'Delete this routine?' });
-  await expect(deletion).toContainText('Separate moisture observations, tests and saved Plan actions are kept.');
+  await expect(deletion).toContainText('Separate moisture observations, tests and saved My Week actions are kept.');
   await deletion.getByRole('button', { name: 'No, keep it', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Kitchen filter upkeep', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Delete routine', exact: true }).click();
@@ -46,7 +46,7 @@ test('deleting a routine is deliberate and leaves the linked observation and sav
   await expect(page.getByLabel('Linked routine (optional)')).toHaveValue('sample-filter');
   await expect(page.getByLabel('Linked routine (optional)').locator('option:checked')).toHaveText('Previously linked routine (removed)');
   // Preserve the origin action even when its record is gone, rather than silently completing or deleting it.
-  await page.getByRole('link', { name: 'Plan', exact: true }).click();
+  await page.getByRole('link', { name: 'My Week', exact: true }).click();
   await expect(page.getByText('Follow up on Kitchen filter upkeep', { exact: true }).first()).toBeVisible();
 });
 

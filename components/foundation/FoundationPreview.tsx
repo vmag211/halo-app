@@ -60,7 +60,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
   return <div className="halo-f-review" data-mode={mode}>
     <details className="halo-f-review-tools">
       <summary>{expanded ? 'Expanded app review · Not approved' : c.review}</summary><p>{c.status}</p>
-      {expanded && <><p>The four-tab revision uses Plan as the working fourth-tab label. New connections are additive. Workflow outlines are not finished screens, and sample actions are not saved to an account.</p><ExpandedReviewControls /></>}
+      {expanded && <><p>The four-tab revision uses My Week as the working fourth-tab label. New connections are additive. Workflow outlines are not finished screens, and sample actions are not saved to an account.</p><ExpandedReviewControls /></>}
       <p>Today covers air quality, UV, pollen, and mold. PFAS belongs only to Homeguard and does not contribute to Today. Scores and contribution shares in this review are illustrative sample values, not live API results.</p>
       <label>{c.scenario}<select aria-label={c.scenario} value={scenario} onChange={e => changeScenario(e.target.value as FoundationScenario)}>{sections.map(section => <optgroup key={section} label={section}>{foundationScenarios.filter(s => s[1] === section).map(([key, , label]) => <option key={key} value={key}>{label}</option>)}</optgroup>)}</select></label>
       <div className="halo-f-tool-grid"><label>{c.appearance}<select aria-label={c.appearance} value={mode} onChange={e => setMode(e.target.value)}><option value="system">{c.system}</option><option value="light">{c.light}</option><option value="dark">{c.dark}</option></select></label><label>{c.scale}<select aria-label={c.scale} value={scale} onChange={e => setScale(e.target.value)}>{['100', '115', '130', '150'].map(n => <option key={n} value={n}>{n}%</option>)}</select></label></div>
@@ -238,7 +238,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
   if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} />;
   if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
-    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} /> : <ExpandedPlan href={expandedHref} />;
+    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} /> : <ExpandedPlan href={expandedHref} />;
   } else if (showExpanded && (route === 'today' || route === 'home')) {
     content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
   }

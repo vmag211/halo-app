@@ -25,7 +25,7 @@ export function DeletableRecord({ title, deletion, children }: { title: string; 
     // Capture a surviving focus target before successful removal unmounts this row.
     const next = row.current?.nextElementSibling?.querySelector<HTMLElement>('button');
     const previous = row.current?.previousElementSibling?.querySelector<HTMLElement>('button');
-    const heading = row.current?.closest('.hg-workspace')?.querySelector<HTMLElement>('[data-home-heading]');
+    const heading = row.current?.closest('.hg-workspace, .halo-explore')?.querySelector<HTMLElement>('[data-home-heading], h2[tabindex]');
     if (await deletion.remove()) {
       setConfirming(false);
       requestAnimationFrame(() => (next?.isConnected ? next : previous?.isConnected ? previous : heading)?.focus({ preventScroll: true }));
@@ -61,7 +61,7 @@ export function ActionButton({ title, reason, factor, originId, date, buttonLabe
   const state = useExpandedPreview(); const workspace = useHomeWorkspace();
   const key = `home:${originId}`;
   const exists = state?.actions.some(action => action.key === key);
-  return <button className="hg-button-secondary" disabled={!state || workspace.scenario === 'offline'} type="button" onClick={() => state?.open({ key, title, reason, origin: factor, date })}>{exists ? <Check size={17} aria-hidden="true" /> : <CalendarPlus size={17} aria-hidden="true" />}{exists ? buttonLabel ? `Open ${buttonLabel.toLowerCase()}` : 'Open saved action' : buttonLabel || 'Save to Plan'}</button>;
+  return <button className="hg-button-secondary" disabled={!state || workspace.scenario === 'offline'} type="button" onClick={() => state?.open({ key, title, reason, origin: factor, date })}>{exists ? <Check size={17} aria-hidden="true" /> : <CalendarPlus size={17} aria-hidden="true" />}{exists ? buttonLabel ? `Open ${buttonLabel.toLowerCase()}` : 'Open saved action' : buttonLabel || 'Save to My Week'}</button>;
 }
 
 export function downloadPreview(name: string, content: string, type = 'application/json') {

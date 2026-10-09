@@ -166,7 +166,7 @@ test('grower preparation saves user-reported progress and an official handoff se
   await page.getByRole('button', { name: 'Open contact options', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Visit official contact page' })).toHaveAttribute('href', /deq.nc.gov/);
   await expect(page.getByLabel('Your progress')).toHaveValue('Contacted, awaiting response');
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const action = page.getByRole('dialog', { name: 'Save a practical step' });
   await expect(action.getByLabel('All-day date (optional)')).toHaveValue('2026-10-08');
   await expect(action).toContainText('Preferred follow-up: 2026-10-08');

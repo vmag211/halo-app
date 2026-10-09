@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- October 9 navigation: visible tabs are Today, Homeguard, Explore, My Week. Explore replaces Act; My Week replaces Plan. Internal `act`/`plan` keys and planned route paths remain stable. Yogi accepted the open Homeguard workspace direction and requested rough Explore wireframes next. This is not approval of the new Explore designs or production backend integration.
+
 - For frontend continuation in a new chat, start with `docs/continuation/START_HERE.md` and `docs/continuation/HALO_FRONTEND_CONTEXT.md`. They identify the current checkpoint, newer decisions, implemented versus preview scope, source files and hosted review. Read the full linked product requirements for the feature being worked on. A checkpoint preserves work; it does not approve a wireframe or establish backend readiness.
 
 - Read `docs/WIREFRAME_WORKFLOW.md` before frontend work. Yogi is the sole frontend person; assignments and parallel lanes in supplied documents are superseded. On October 1, 2026, Yogi approved Today, Homeguard, factor details, household guidance, Luna, and their shared shell for production implementation. The exact source baseline is `72a2c5150ecfe354fa6b534781e8b6b090d0bda1`; the immutable archive is `docs/foundation/approved/2026-10-01`. Map, Journal, Act and the full standalone Settings workflows still require wireframe review. Never overwrite the approved archive.

@@ -37,7 +37,7 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
   const alive = useRef(true);
   useEffect(() => { generation.current++; alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
-    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison))/.test(key))) return;
+    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:note:|explore:outreach-drafts)/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);

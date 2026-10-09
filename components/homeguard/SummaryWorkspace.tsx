@@ -14,7 +14,7 @@ import SummaryReport from './SummaryReport';
 
 type SummaryRecord = { id: string; title: string; revision?: number; [key: string]: unknown };
 const sectionLabels: Record<SummarySection, string> = { scores: 'Today & Homeguard scores', factors: 'Factors & sources', tests: 'Test reports', actions: 'Saved actions', maintenance: 'Maintenance records', observations: 'Moisture observations', gardens: 'Garden records' };
-const sectionDescriptions: Record<SummarySection, string> = { scores: 'Both scores and what they include.', factors: 'All seven factors with original source dates.', tests: 'Choose which test results to include.', actions: 'Selected steps from your Plan.', maintenance: 'Equipment, schedules and completed work.', observations: 'Notes and measurements you recorded.', gardens: 'Selected growing sites and their context.' };
+const sectionDescriptions: Record<SummarySection, string> = { scores: 'Both scores and what they include.', factors: 'All seven factors with original source dates.', tests: 'Choose which test results to include.', actions: 'Selected steps from My Week.', maintenance: 'Equipment, schedules and completed work.', observations: 'Notes and measurements you recorded.', gardens: 'Selected growing sites and their context.' };
 const recordSections: SummarySection[] = ['tests', 'actions', 'maintenance', 'observations', 'gardens'];
 const dateFields = ['observedAt', 'collectedAt', 'collectionStart', 'collected', 'collectionDate', 'date', 'proposedDate', 'plannedDate', 'lastCompleted', 'installed', 'createdAt'];
 const scalar = (value: unknown) => typeof value === 'string' || typeof value === 'number' ? String(value) : '';

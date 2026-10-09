@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, Hand, House, Sunrise } from 'lucide-react';
+import { CalendarDays, Compass, House, Sunrise } from 'lucide-react';
 import { appTabs, type AppTab } from '@/lib/frontend/navigation';
 
-const icons = { today: Sunrise, home: House, act: Hand, plan: CalendarDays };
+const icons = { today: Sunrise, home: House, act: Compass, plan: CalendarDays };
 export default function AppNavigation({ active, href, onNavigate, live = false, onUnavailable }: {
   active: AppTab | null;
   href?: (tab: AppTab) => string;

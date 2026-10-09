@@ -4,6 +4,8 @@ October 3, 2026. This revision aligns the existing HALO frontend with the expand
 
 ## Open the revision
 
+October 9 Explore stage: the visible labels are Explore and My Week. Internal keys remain `act` and `plan`. Explore's former outlines now open rough interactive organization/opportunity/project/outreach/field-note screens. Read [Explore review coverage and limits](EXPLORE_REVIEW.md). The map retains its sample renderer; private drafts remain in memory and shared actions reuse My Week. The latest hosted metadata is in `docs/continuation/HOSTED_REVIEW.md`.
+
 October 9 Homeguard overview refinement: the former four-link footer is now an open Home workspace with distinct test milestones, maintenance entries, illustrated Food and Garden entrances and a document-style summary. Its counts, test continuation, next scheduled routine, recent observation and garden continuation read the existing in-memory collections. Loading/error states suppress record counts; empty and offline states remain distinct. The score area has a keyboard-focusable workspace jump. The summary shows its last PDF creation date only after local PDF generation succeeds. This remains an editable sample review, with no new production route or backend adapter. Existing approval archives are unchanged.
 
 Use `/foundation/preview/expanded`. Links into existing factor, household and overview routes retain `edition=expanded`. `/foundation/preview` without that parameter remains the historical comparison surface. Never update the sealed October 1 archive to accept new screenshots.

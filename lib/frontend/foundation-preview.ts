@@ -4,7 +4,7 @@ export const foundationScenarios = [
   ['shell-home', 'App shell', 'Home header'],
   ['shell-map', 'App shell', 'Map header and wider canvas'],
   ['shell-journal', 'App shell', 'Journal header'],
-  ['shell-act', 'App shell', 'Act header'],
+  ['shell-act', 'App shell', 'Explore header'],
   ['shell-settings', 'App shell', 'Settings and Back'],
   ['shell-no-alerts', 'App shell', 'No unread badge'],
   ['shell-badge-cap', 'App shell', 'Unread badge capped at 9+'],
@@ -62,8 +62,8 @@ export const previewTabs = ['today', 'home', 'map', 'journal', 'act'] as const;
 export type PreviewTab = typeof previewTabs[number];
 export type PreviewRoute = PreviewTab | 'settings' | 'plan';
 export type PreviewSheet = 'learn' | 'alerts' | 'assistant' | 'map';
-export const routeTitles: Record<PreviewRoute, string> = { today: 'Today', home: 'Homeguard', map: 'Map', journal: 'Journal', act: 'Act', settings: 'Settings', plan: 'Plan' };
-export const tabLabels: Record<PreviewTab, string> = { today: 'Today', home: 'Homeguard', map: 'Map', journal: 'Journal', act: 'Act' };
+export const routeTitles: Record<PreviewRoute, string> = { today: 'Today', home: 'Homeguard', map: 'Map', journal: 'Journal', act: 'Explore', settings: 'Settings', plan: 'My Week' };
+export const tabLabels: Record<PreviewTab, string> = { today: 'Today', home: 'Homeguard', map: 'Map', journal: 'Journal', act: 'Explore' };
 export const sampleFactors = [
   { key: 'air', title: 'Air quality', summary: 'AQI 37', severity: 'good', share: 12, provenance: 'measured' },
   { key: 'uv', title: 'UV index', summary: '5.2', severity: 'moderate', share: 64, provenance: null },

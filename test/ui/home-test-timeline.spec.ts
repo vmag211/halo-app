@@ -82,18 +82,18 @@ test('full motion fills the bar, runs Luna to the latest recorded stage and stag
   await expect(page.locator('.hg-progress-list li:not(.is-complete) .hg-test-progress-marker svg')).toHaveCount(0);
 });
 
-test('follow-up is recorded only after saving the same shared Plan action, not opening its dialog', async ({ page }) => {
+test('follow-up is recorded only after saving the same shared My Week action, not opening its dialog', async ({ page }) => {
   await page.goto(recordRoute);
   const followup = page.locator('.hg-progress-list li').filter({ has: page.getByText('Follow-up', { exact: true }) });
   await expect(followup).not.toHaveClass(/is-complete/);
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Save a practical step' });
   await expect(followup).not.toHaveClass(/is-complete/);
   await dialog.getByLabel('Action title').fill('Ask about the original report');
   await dialog.getByRole('button', { name: 'Save sample action', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(followup).toHaveClass(/is-complete/);
-  await expect(followup).toContainText('Saved in Plan for later');
+  await expect(followup).toContainText('Saved in My Week for later');
   await page.getByRole('button', { name: 'Edit saved follow-up', exact: true }).click();
   const existing = page.getByRole('dialog', { name: 'Your saved action' });
   await expect(existing.getByLabel('Action title')).toHaveValue('Ask about the original report');

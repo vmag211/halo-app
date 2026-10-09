@@ -101,18 +101,18 @@ test('offline and failed food saves retain the draft without fabricating persist
   await expect(page.getByRole('heading', { name: 'Example saved catch', exact: true })).toBeVisible();
 });
 
-test('food note Plan action has one stable identity through opening and editing', async ({ page }) => {
+test('food note My Week action has one stable identity through opening and editing', async ({ page }) => {
   await openNoteForm(page);
   await page.getByLabel('Food note name').fill('Example catch question');
   await page.getByRole('button', { name: 'Save food note', exact: true }).click();
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Save sample action', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open saved action', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit note', exact: true }).click();
   await page.getByLabel('Food note name').fill('Example renamed question');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open saved action', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save to Plan', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save to My Week', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open saved action', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Update sample action', exact: true })).toBeVisible();
@@ -187,7 +187,7 @@ test('food add errors keep draft and never create a false kitchen item', async (
   await expect(page.getByRole('button', { name: 'Example oats PFAS Unknown Lead Unknown', exact: true })).toBeVisible();
 });
 
-test('inventory needs no question and still offers an editable useful Plan follow-up', async ({ page }) => {
+test('inventory needs no question and still offers an editable useful My Week follow-up', async ({ page }) => {
   await page.getByLabel('Find a food').fill('milk');
   await page.getByRole('button', { name: 'Milk', exact: true }).click();
   await page.getByText('Add details (optional)', { exact: true }).click();
@@ -198,7 +198,7 @@ test('inventory needs no question and still offers an editable useful Plan follo
   await expect(page.getByLabel('Question to keep (optional)', { exact: true })).toHaveValue('');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.getByText('A POSSIBLE NEXT STEP', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Save to Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('Check whether a current PFAS or lead notice applies to Milk.');
   await page.getByRole('dialog').getByRole('button', { name: 'Save sample action', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open saved action', exact: true })).toBeVisible();

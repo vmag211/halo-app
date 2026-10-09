@@ -4,8 +4,8 @@ import { loadFrontend } from './frontend-test-loader.mjs';
 const { appTabs, routeOwner, deliveredStagePath } = await loadFrontend('navigation');
 const { actionDraftError, validActionDate, destinations, followThrough } = await loadFrontend('expanded-preview');
 
-test('four-tab ownership moves Map to Act and Journal to Plan, not live delivery', () => {
-  assert.deepEqual(appTabs.map(tab => tab.label), ['Today', 'Homeguard', 'Act', 'Plan']);
+test('four-tab ownership moves Map to Explore and Journal to My Week, not live delivery', () => {
+  assert.deepEqual(appTabs.map(tab => tab.label), ['Today', 'Homeguard', 'Explore', 'My Week']);
   for (const path of ['/map', '/map/district?layer=water', '/act/projects']) assert.equal(routeOwner(path), 'act');
   for (const path of ['/journal', '/journal/patterns', '/plan/actions/a']) assert.equal(routeOwner(path), 'plan');
   for (const path of ['/factors/pfas', '/factors/radon', '/factors/lead', '/household/senior', '/home/tests']) assert.equal(routeOwner(path), 'home');

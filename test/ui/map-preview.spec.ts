@@ -300,7 +300,7 @@ test('canvas keyboard pan, zoom and locate redraw the atlas; layer switching pre
   await expect.poll(pixels).toBe(initial);
 });
 
-test('map under Act retains selected layer within the preview session', async ({ page }) => {
+test('map under Explore retains selected layer within the preview session', async ({ page }) => {
   await openReadyMap(page);
   await page.getByRole('radio', { name: 'Air', exact: true }).click();
   // The local Next dev indicator overlaps the first mobile tab. Exercise the
@@ -308,8 +308,8 @@ test('map under Act retains selected layer within the preview session', async ({
   await page.getByRole('link', { name: 'Today', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/foundation\/preview\/?\?.*tab=today/);
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Act', exact: true }).click();
-  await page.getByRole('link', { name: /Explore the environmental map/ }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Explore', exact: true }).click();
+  await page.getByRole('link', { name: /Open the environmental map/ }).click();
   await expect(page).toHaveURL(/\/foundation\/preview\/map/);
   await expect(page.getByRole('radio', { name: 'Air', exact: true })).toHaveAttribute('aria-checked', 'true');
 });

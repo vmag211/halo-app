@@ -18,7 +18,9 @@ The short Google Doc for Naggi is an overview, not the development specification
 
 ## Navigation and product organization
 
-- Main tabs: Today, Homeguard, Act, Plan. The current four-tab review uses that arrangement even if an older paragraph still says Plan needs confirmation.
+October 9 update: Yogi chose the visible labels **Explore** (formerly Act) and **My Week** (formerly Plan), and requested rough Explore wireframes. `components/expanded/EXPLORE_REVIEW.md` records the A01-A06 sample interaction inventory and remaining contracts. Internal `act`/`plan` keys and planned paths remain stable. Earlier names below and in preserved specifications identify the same capability groups.
+
+- Main tabs: Today, Homeguard, Explore, My Week. The current four-tab review uses that arrangement.
 - Personal Hero is now called Today. Older source/component names such as `PersonalHero` can remain internally.
 - Map is a subpage within Act, called Explore your area where appropriate. Its earlier separate-tab proposal is historical.
 - Journal, Patterns, seasonal recap and planning belong under Plan rather than separate bottom tabs.

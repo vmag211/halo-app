@@ -2,8 +2,8 @@
 export const appTabs = [
   { key: 'today', label: 'Today', href: '/today', delivered: true },
   { key: 'home', label: 'Homeguard', href: '/home', delivered: true },
-  { key: 'act', label: 'Act', href: '/act', delivered: false },
-  { key: 'plan', label: 'Plan', href: '/plan', delivered: false },
+  { key: 'act', label: 'Explore', href: '/act', delivered: false },
+  { key: 'plan', label: 'My Week', href: '/plan', delivered: false },
 ] as const;
 export type AppTab = typeof appTabs[number]['key'];
 

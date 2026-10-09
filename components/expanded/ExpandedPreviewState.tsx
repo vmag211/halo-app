@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import { actionDraftError, type ActionSeed, type PreviewAction } from '@/lib/frontend/expanded-preview';
 import type { HouseholdBands } from '@/lib/frontend/home-household';
 import { HomeWorkspaceReviewControls } from '@/components/homeguard/HomeWorkspaceState';
+import { ExploreReviewControls } from './ExploreWorkspace';
 
 type Draft = { seed: ActionSeed; title: string; date: string };
 type PreviewState = {
@@ -60,7 +61,7 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
 export function ExpandedReviewControls() {
   const state = useExpandedPreview();
   if (!state) return null;
-  return <><div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={state.fail} onChange={e => state.setFail(e.target.checked)} />Simulate failed action save</label><button type="button" onClick={state.reset}>Reset sample actions</button></div><HomeWorkspaceReviewControls /></>;
+  return <><div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={state.fail} onChange={e => state.setFail(e.target.checked)} />Simulate failed action save</label><button type="button" onClick={state.reset}>Reset sample actions</button></div><HomeWorkspaceReviewControls /><ExploreReviewControls /></>;
 }
 
 export function ExpandedActionDialog({ offline }: { offline: boolean }) {
@@ -92,7 +93,7 @@ export function ExpandedActionDialog({ offline }: { offline: boolean }) {
   return <BottomSheet id="expanded-action" title={exists ? 'Your saved action' : 'Save a practical step'} height="standard" onClose={() => { if (timer.current) clearTimeout(timer.current); setPending(false); setError(''); state.close(); }}>
     <form className="halo-expanded-form" onSubmit={e => { e.preventDefault(); submit(); }}>
       <p className="halo-f-meta">Design review only. Actions stay in memory during this visit, not in your HALO account. Use sample text only.</p>
-      {exists && <Callout tone="info"><p>This step is already in your sample Plan. Update the same action here.</p></Callout>}
+      {exists && <Callout tone="info"><p>This step is already in My Week. Update the same action here.</p></Callout>}
       <label>Action title<input maxLength={160} required value={draft.title} disabled={pending} onChange={e => state.setDraft({ ...draft, title: e.target.value })} /></label>
       <p>{draft.seed.reason}</p>
       <label>All-day date (optional)<input type="date" value={draft.date} disabled={pending} onChange={e => state.setDraft({ ...draft, date: e.target.value })} /></label>

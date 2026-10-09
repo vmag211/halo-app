@@ -39,6 +39,6 @@ test('general household guidance has no save-step controls or leftover save-only
     await expect(page.locator('.halo-family, .halo-home-member')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save this step', exact: true })).toHaveCount(0);
     await expect(page.getByText('Keep a useful household step', { exact: true })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Open your sample Plan' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open My Week' })).toBeVisible();
   }
 });
