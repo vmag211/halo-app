@@ -3,6 +3,12 @@
 -- home's readings are never shown as the new home's history (HO-066, HO-099).
 -- Run once in the Supabase SQL editor, AFTER 0015. Safe to re-run.
 --
+-- Run it at a quiet time. Adding the column to daily_scores takes Postgres's
+-- strongest table lock (ACCESS EXCLUSIVE: no reading or writing of
+-- daily_scores meanwhile), and the SQL editor runs the whole file as one
+-- transaction, so that lock is held until the end: through the index build
+-- and the backfill. Today's readings and history wait for as long as it runs.
+--
 -- Four things happen here:
 --   1. public.home_contexts: one row per stay at one located home. At most one
 --      per household is current (effective_to is null). Owners may read their
@@ -82,6 +88,11 @@
 --       or has_any_column_privilege('anon', 'public.home_contexts', 'UPDATE')
 --       or has_table_privilege('anon', 'public.home_contexts', 'DELETE'))
 --       as no_direct_writes,
+--     has_table_privilege('service_role', 'public.home_contexts', 'SELECT')
+--       and has_table_privilege('service_role', 'public.home_contexts', 'INSERT')
+--       and has_table_privilege('service_role', 'public.home_contexts', 'UPDATE')
+--       and has_table_privilege('service_role', 'public.home_contexts', 'DELETE')
+--       as service_role_can_write,
 --     not (has_function_privilege('anon', 'public.transition_home_context(uuid, jsonb, jsonb, uuid)', 'EXECUTE')
 --       or has_function_privilege('authenticated', 'public.transition_home_context(uuid, jsonb, jsonb, uuid)', 'EXECUTE')
 --       or has_function_privilege('anon', 'public.update_home_context_attributes(uuid, uuid, integer, jsonb)', 'EXECUTE')
@@ -111,7 +122,9 @@
 -- routes do not use contexts yet, they can turn false: a household onboarded
 -- after this file has no context, a reading written since has none, and a
 -- household that changes address moves its profile but not its context.
--- Running this file again fixes the first two, not the third.
+-- Running this file again fixes the first two, not the third. (The first
+-- also fixes itself: transition_home_context makes a located household's
+-- missing legacy context before it does anything else; see section 3a.)
 
 -- ---------------------------------------------------------------------------
 -- 1. home_contexts
@@ -226,12 +239,22 @@ create index if not exists daily_scores_profile_context_date
 -- it is ignored.
 --
 -- In one transaction, after locking the household's profile row:
+--   * No context at all, but a located profile (the old onboard route stored
+--     an address after this file ran): first the legacy context section 4
+--     would have made is made from the profile, and the household's readings
+--     with no context are linked to it, exactly as section 4 does. It is then
+--     the current context for everything below, so a new address is a move
+--     from it (and today's reading for the old address is deleted) and the
+--     same address updates it in place. Keep this insert the same as section
+--     4's; test/homeContextDb.test.mjs compares the rows the two make.
 --   * Same request id as the current context's onboard_request_id: a retry.
---     The current context comes back with moved false and nothing changes. A
---     request id that matches only an earlier, closed context is a new request
---     (a closed context is never reopened).
---   * No current context: sequence max + 1 (1 for a new household), origin
---     'onboard'.
+--     The current context comes back with moved false and nothing changes
+--     (beyond making the legacy context just above, when that happened: the
+--     old route's request id is copied into it). A request id that matches
+--     only an earlier, closed context is a new request (a closed context is
+--     never reopened).
+--   * Still no current context (the profile has no location): sequence
+--     max + 1 (1 for a new household), origin 'onboard'.
 --   * A move: the current context closes (effective_to = now(), closed_reason
 --     'moved') and the next sequence opens with origin 'move', starting at the
 --     same instant. The household's readings that have no context (written
@@ -345,6 +368,29 @@ begin
 
   select * into cur from public.home_contexts where profile_id = p_profile_id and effective_to is null;
   has_current := found;
+
+  -- Located before it had a context: make the legacy context first (the same
+  -- insert and the same linking as section 4, for this one household).
+  if not has_current then
+    insert into public.home_contexts (
+      profile_id, sequence, origin, lat, lng, county, state, pwsid, water_source,
+      home_year, match_method, onboard_request_id, backfill_state
+    )
+    select p.id, 1, 'legacy_migration', p.lat, p.lng, p.county, p.state, p.pwsid, p.water_source,
+           p.home_year, 'legacy_profile', p.onboard_request_id, 'not_applicable'
+      from public.profiles p
+     where p.id = p_profile_id
+       and p.lat is not null
+       and not exists (select 1 from public.home_contexts h where h.profile_id = p.id)
+    returning * into cur;
+    has_current := found;
+
+    if has_current then
+      update public.daily_scores
+         set home_context_id = cur.id
+       where profile_id = p_profile_id and home_context_id is null;
+    end if;
+  end if;
 
   if has_current and p_request_id is not null and cur.onboard_request_id = p_request_id then
     return jsonb_build_object('context', to_jsonb(cur), 'moved', false, 'previous_context_id', null);
@@ -542,6 +588,9 @@ grant execute on function public.update_home_context_attributes(uuid, uuid, int,
 -- ---------------------------------------------------------------------------
 -- 4. Legacy contexts for households located before this migration
 -- ---------------------------------------------------------------------------
+-- transition_home_context makes the same row, the same way, for a household
+-- located after this file ran (section 3a): keep the two inserts alike.
+--
 -- Safe to re-run: a household that has any context gets no other, and a
 -- reading that has a context is never re-pointed. A reading without one is
 -- linked only while the legacy context is still current (after a move, an

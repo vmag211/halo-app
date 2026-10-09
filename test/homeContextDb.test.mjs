@@ -307,10 +307,14 @@ test('no API role may insert, update or delete a context, on the table or on any
     );
     assert.deepEqual(privileges, { select: role === 'authenticated', insert: false, update: false, delete: false, truncate: false }, role);
   }
+  // Each privilege on its own: has_table_privilege with a list is true when ANY one of them is held.
   const { rows: [service] } = await db.query(
-    `select has_table_privilege('service_role', 'public.home_contexts', 'SELECT, INSERT, UPDATE, DELETE') as writes`,
+    `select has_table_privilege('service_role', 'public.home_contexts', 'SELECT') as select,
+            has_table_privilege('service_role', 'public.home_contexts', 'INSERT') as insert,
+            has_table_privilege('service_role', 'public.home_contexts', 'UPDATE') as update,
+            has_table_privilege('service_role', 'public.home_contexts', 'DELETE') as delete`,
   );
-  assert.equal(service.writes, true, 'the service role still writes contexts');
+  assert.deepEqual(service, { select: true, insert: true, update: true, delete: true }, 'the service role holds each table privilege the server uses');
 
   const attempts = {
     insert: `insert into public.home_contexts (profile_id, sequence, origin) values ('${BOB}', 9, 'onboard')`,
@@ -354,19 +358,138 @@ test('first onboard: with no context, sequence 1 opens (origin onboard, revision
   });
 });
 
-test('a household whose profile has no location yet gets its first context the same way, and so does one located before contexts existed', async () => {
+test('a household whose profile has no location gets its first context: sequence 1, origin onboard, nothing closed or linked', async () => {
   await asService(async (tx) => {
     assert.equal((await profileOf(tx, CAROL)).lat, null);
+    await addReadings(tx, CAROL, [[0, null, 70]]);
     const first = await transition(tx, CAROL, HOME_B);
-    assert.deepEqual([first.moved, first.context.sequence, first.context.origin], [false, 1, 'onboard']);
-
-    // Alice's profile already has a location (written by the old onboard path) and a reading for today, but no context.
-    await tx.query(`update public.profiles set lat = 36.1, lng = -79.8, county = 'Guilford County' where id = $1`, [ALICE]);
-    await addReadings(tx, ALICE, [[0, null, 55]]);
-    const located = await transition(tx, ALICE, HOME_A);
-    assert.deepEqual([located.moved, located.previous_context_id, located.context.sequence, located.context.origin], [false, null, 1, 'onboard']);
-    assert.deepEqual(await readingsOf(tx, ALICE), [[0, null, 55]], 'not a move: nothing is deleted or relinked');
+    assert.deepEqual([first.moved, first.previous_context_id, first.context.sequence, first.context.origin], [false, null, 1, 'onboard']);
+    assert.equal((await contextsOf(tx, CAROL)).length, 1);
+    assert.deepEqual(await readingsOf(tx, CAROL), [[0, null, 70]]);
   });
+});
+
+/** A home the old onboard route stored on the profile (rounded, as it stores it), with no context. */
+const OLD_HOME = Object.freeze({
+  lat: 36.069, lng: -79.792, county: 'Guilford County', state: 'NC', pwsid: 'NC0241010',
+  water_source: 'utility', home_year: 1975, onboard_request_id: request(50),
+});
+
+/** What the old onboard route leaves after 0016 runs: the profile located, and no context. */
+async function locateTheOldWay(tx, profileId, home = OLD_HOME) {
+  await tx.query(
+    `update public.profiles set lat = $2, lng = $3, county = $4, state = $5, pwsid = $6, water_source = $7,
+            home_year = $8, onboard_request_id = $9 where id = $1`,
+    [profileId, home.lat, home.lng, home.county, home.state, home.pwsid, home.water_source, home.home_year, home.onboard_request_id],
+  );
+}
+
+test('located before it had a context: a new address closes a legacy context made from the profile and opens sequence 2', async () => {
+  await asService(async (tx) => {
+    await locateTheOldWay(tx, ALICE);
+    await addReadings(tx, ALICE, [[-2, null, 51], [-1, null, 52], [0, null, 53]]);
+    const bobBefore = await readingsOf(tx, BOB);
+
+    const result = await transition(tx, ALICE, HOME_A, request(1));
+    const [legacy, opened] = await contextsOf(tx, ALICE);
+    assert.deepEqual([result.moved, result.previous_context_id, result.context.id], [true, legacy.id, opened.id]);
+    assert.deepEqual(
+      [legacy.sequence, legacy.origin, legacy.revision, legacy.closed_reason, legacy.match_method, legacy.backfill_state, legacy.service_area_status],
+      [1, 'legacy_migration', 1, 'moved', 'legacy_profile', 'not_applicable', null],
+    );
+    assert.ok(legacy.effective_to instanceof Date, 'the old address\'s context is closed');
+    assert.deepEqual(
+      [legacy.lat, legacy.lng, legacy.county, legacy.state, legacy.pwsid, legacy.water_source, legacy.home_year, legacy.onboard_request_id],
+      [36.069, -79.792, 'Guilford County', 'NC', 'NC0241010', 'utility', 1975, request(50)],
+    );
+    assert.deepEqual([opened.sequence, opened.origin, opened.revision, opened.effective_to, opened.lat, opened.lng], [2, 'move', 1, null, 35.409, -80.58]);
+    assert.equal(opened.effective_from.getTime(), legacy.effective_to.getTime());
+
+    // The old address's readings belong to its closed context; its reading for today is deleted.
+    assert.deepEqual(await readingsOf(tx, ALICE), [[-2, legacy.id, 51], [-1, legacy.id, 52]]);
+    assert.deepEqual(await readingsOf(tx, BOB), bobBefore);
+    const profile = await profileOf(tx, ALICE);
+    assert.deepEqual([profile.lat, profile.lng, profile.county, profile.pwsid, profile.onboard_request_id], [35.409, -80.58, 'Cabarrus County', 'NC0125010', request(1)]);
+  });
+});
+
+test('located before it had a context: the same rounded point updates that legacy context in place (revision 2, still sequence 1)', async () => {
+  await asService(async (tx) => {
+    await locateTheOldWay(tx, ALICE);
+    await addReadings(tx, ALICE, [[-1, null, 61], [0, null, 62]]);
+    const result = await transition(tx, ALICE, { lat: 36.0691, lng: -79.7921, water_source: 'well' }, request(2));
+    const contexts = await contextsOf(tx, ALICE);
+    assert.equal(contexts.length, 1, 'no second context');
+    const [legacy] = contexts;
+    assert.deepEqual([result.moved, result.previous_context_id, result.context.id], [false, null, legacy.id]);
+    assert.deepEqual([legacy.sequence, legacy.origin, legacy.revision, legacy.effective_to], [1, 'legacy_migration', 2, null]);
+    assert.deepEqual(
+      [legacy.county, legacy.pwsid, legacy.water_source, legacy.home_year, legacy.onboard_request_id],
+      ['Guilford County', 'NC0241010', 'well', 1975, request(2)],
+    );
+    assert.deepEqual(await readingsOf(tx, ALICE), [[-1, legacy.id, 61], [0, legacy.id, 62]], 'the same home keeps today and links everything');
+  });
+});
+
+test('located before it had a context: a retry of the request the old route stored returns the legacy context, moved false, profile untouched', async () => {
+  await asService(async (tx) => {
+    await locateTheOldWay(tx, ALICE);
+    const before = await profileOf(tx, ALICE);
+    const retry = await transition(tx, ALICE, HOME_A, OLD_HOME.onboard_request_id);
+    const contexts = await contextsOf(tx, ALICE);
+    assert.equal(contexts.length, 1);
+    assert.deepEqual(
+      [retry.moved, retry.previous_context_id, retry.context.id, contexts[0].revision, contexts[0].origin],
+      [false, null, contexts[0].id, 1, 'legacy_migration'],
+    );
+    assert.deepEqual(await profileOf(tx, ALICE), before, 'the profile row was not rewritten');
+  });
+});
+
+test('located before it had a context: a failed utility lookup keeps the stored utility at that address, and leaves it with the old home on a move', async () => {
+  // Same address: the legacy context holds the profile's utility, and the failure overwrites neither it nor the profile.
+  await asService(async (tx) => {
+    await locateTheOldWay(tx, ALICE);
+    await transition(tx, ALICE, { lat: OLD_HOME.lat, lng: OLD_HOME.lng, service_area_status: 'lookup_failed' });
+    const [same] = await contextsOf(tx, ALICE);
+    assert.deepEqual([same.origin, same.revision, same.pwsid, same.service_area_status], ['legacy_migration', 2, 'NC0241010', null]);
+    assert.equal((await profileOf(tx, ALICE)).pwsid, 'NC0241010');
+  });
+  // A new address: the old utility stays on the closed context of the old home; the new home has none yet.
+  await asService(async (tx) => {
+    await locateTheOldWay(tx, ALICE);
+    await transition(tx, ALICE, { lat: HOME_A.lat, lng: HOME_A.lng, service_area_status: 'lookup_failed' });
+    const [legacy, opened] = await contextsOf(tx, ALICE);
+    assert.deepEqual([legacy.pwsid, legacy.closed_reason], ['NC0241010', 'moved']);
+    assert.deepEqual([opened.pwsid, opened.service_area_status], [null, 'lookup_failed']);
+    assert.equal((await profileOf(tx, ALICE)).pwsid, null);
+  });
+});
+
+test('the legacy context is made only for a household with no context at all, so it never collides with an existing sequence', async () => {
+  await asService(async (tx) => {
+    // A state no function produces, made by hand: only a closed context, and a located profile.
+    await tx.query(
+      `insert into public.home_contexts (profile_id, sequence, origin, lat, lng, effective_to, closed_reason) values ($1, 1, 'onboard', 1, 1, now(), 'moved')`,
+      [ALICE],
+    );
+    await locateTheOldWay(tx, ALICE);
+    const result = await transition(tx, ALICE, HOME_A);
+    assert.deepEqual([result.moved, result.context.sequence, result.context.origin], [false, 2, 'onboard']);
+    assert.deepEqual((await contextsOf(tx, ALICE)).map((row) => [row.sequence, row.origin]), [[1, 'onboard'], [2, 'onboard']]);
+  });
+});
+
+test('located before it had a context: the profile point decides a move exactly as a context with that point would', async () => {
+  for (const [label, current, next, expected] of COORDINATE_CASES) {
+    if (current === null || current.lat === null) continue; // no location: the first context opens, as tested above
+    const moved = await asService(async (tx) => {
+      await tx.query('update public.profiles set lat = $2, lng = $3 where id = $1', [ALICE, current.lat, current.lng]);
+      return (await transition(tx, ALICE, next)).moved;
+    });
+    assert.equal(moved, expected, `${label}: SQL`);
+    assert.equal(shouldOpenNewContext(current, next), expected, `${label}: JavaScript, given the profile point`);
+  }
 });
 
 test('the same rounded point again updates the context in place: revision goes up, id and sequence stay, given attributes change and the rest are kept', async () => {
@@ -424,10 +547,16 @@ test('a move closes the current context and opens the next one; only the closed 
     const profile = await profileOf(tx, ALICE);
     assert.deepEqual([profile.lat, profile.lng, profile.county, profile.pwsid, profile.water_source, profile.home_year], [35.227, -80.843, 'Mecklenburg County', 'NC0160010', 'well', 1962]);
 
-    // A third home: sequence 3 and the second context closes too.
+    // A writer that read the context just before the move stores today's home A reading late, linked to
+    // the closed first context; today's home B reading is linked to the second.
+    await addReadings(tx, ALICE, [[0, oldId, 45], [0, opened.id, 46]]);
+
+    // A third home: sequence 3 and the second context closes too. Only the second context's today row goes:
+    // the late row belongs to the first context, which this move does not close.
     const third = await transition(tx, ALICE, { lat: 36.07, lng: -79.79 }, request(3));
     assert.deepEqual([third.moved, third.previous_context_id, third.context.sequence], [true, opened.id, 3]);
     assert.deepEqual((await contextsOf(tx, ALICE)).map((row) => row.effective_to === null), [false, false, true]);
+    assert.deepEqual(await readingsOf(tx, ALICE), [[-1, oldId, 41], [-1, oldId, 42], [0, oldId, 45]]);
   });
 });
 
@@ -868,6 +997,77 @@ test('running 0016 again makes no second context and re-points no reading; it on
   }
 });
 
+test('the legacy context transition_home_context makes for a contextless household is the row the migration would have made', async () => {
+  // Two households located before 0016 ran (the migration makes their legacy contexts) and two located the
+  // same way after it (transition_home_context makes them). Each pair then gets the same call.
+  const EARLY_SAME = 'e1000000-0000-4000-8000-000000000001';
+  const LATE_SAME = 'e2000000-0000-4000-8000-000000000002';
+  const EARLY_MOVE = 'e3000000-0000-4000-8000-000000000003';
+  const LATE_MOVE = 'e4000000-0000-4000-8000-000000000004';
+  const legacy = await createDb({ upTo: 15 });
+  try {
+    await legacy.exec(`insert into auth.users (id) values ('${EARLY_SAME}'), ('${LATE_SAME}'), ('${EARLY_MOVE}'), ('${LATE_MOVE}')`);
+    const locate = (ids) =>
+      legacy.asService(
+        async (tx) => {
+          for (const id of ids) {
+            await locateTheOldWay(tx, id);
+            // No home_context_id column here: before 0016 it does not exist.
+            await tx.query(`insert into public.daily_scores (profile_id, date, aqi) values ($1, ${TODAY} - 1, 1), ($1, ${TODAY}, 2)`, [id]);
+          }
+        },
+        { commit: true },
+      );
+    await locate([EARLY_SAME, EARLY_MOVE]);
+    await legacy.applyMigration(MIGRATION);
+    await locate([LATE_SAME, LATE_MOVE]);
+    assert.equal((await legacy.query('select count(*)::int as n from public.home_contexts')).rows[0].n, 2, 'only the early pair has contexts so far');
+
+    await legacy.asService(
+      async (tx) => {
+        for (const id of [EARLY_SAME, LATE_SAME]) await transition(tx, id, { lat: OLD_HOME.lat, lng: OLD_HOME.lng });
+        for (const id of [EARLY_MOVE, LATE_MOVE]) await transition(tx, id, { lat: HOME_A.lat, lng: HOME_A.lng });
+      },
+      { commit: true },
+    );
+
+    // Everything but the ids and the timestamps, with readings by the sequence of their context.
+    const VOLATILE = ['id', 'profile_id', 'effective_from', 'effective_to', 'created_at', 'updated_at'];
+    const shape = async (profileId) => {
+      const { rows: contexts } = await legacy.query('select * from public.home_contexts where profile_id = $1 order by sequence', [profileId]);
+      const sequenceOf = Object.fromEntries(contexts.map((row) => [row.id, row.sequence]));
+      const { rows: readings } = await legacy.query(
+        `select (date - ${TODAY})::int as day, aqi, home_context_id from public.daily_scores where profile_id = $1 order by date, aqi`,
+        [profileId],
+      );
+      return {
+        contexts: contexts.map((row) => ({
+          ...Object.fromEntries(Object.entries(row).filter(([column]) => !VOLATILE.includes(column))),
+          closed: row.effective_to !== null,
+        })),
+        readings: readings.map((row) => [row.day, row.aqi, sequenceOf[row.home_context_id] ?? null]),
+      };
+    };
+    const earlySame = await shape(EARLY_SAME);
+    const earlyMove = await shape(EARLY_MOVE);
+    assert.deepEqual(await shape(LATE_SAME), earlySame);
+    assert.deepEqual(await shape(LATE_MOVE), earlyMove);
+
+    // Not vacuous: the legacy row carries the profile's values, and the move closed it.
+    assert.deepEqual(
+      earlySame.contexts.map((row) => [row.sequence, row.origin, row.revision, row.closed, row.pwsid, row.home_year, row.onboard_request_id]),
+      [[1, 'legacy_migration', 2, false, 'NC0241010', 1975, request(50)]],
+    );
+    assert.deepEqual(earlySame.readings, [[-1, 1, 1], [0, 2, 1]]);
+    assert.deepEqual(earlyMove.contexts.map((row) => [row.sequence, row.origin, row.closed, row.match_method]), [
+      [1, 'legacy_migration', true, 'legacy_profile'], [2, 'move', false, null],
+    ]);
+    assert.deepEqual(earlyMove.readings, [[-1, 1, 1]]);
+  } finally {
+    await legacy.close();
+  }
+});
+
 test('re-applying 0016 over itself leaves the schema, the grants and the data exactly as they were', async () => {
   const snapshot = async () => ({
     contexts: (await db.query('select * from public.home_contexts order by id')).rows,
@@ -958,6 +1158,7 @@ test('the read-only check in 0016\'s header passes on the migrated database, and
     home_contexts_rls_on: true,
     owner_select_policy_only: true,
     no_direct_writes: true,
+    service_role_can_write: true,
     functions_service_role_only: true,
     readings_link_checked: true,
     every_located_household_has_a_context: true,
