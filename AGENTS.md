@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- For frontend continuation in a new chat, start with `docs/continuation/START_HERE.md` and `docs/continuation/HALO_FRONTEND_CONTEXT.md`. They identify the current checkpoint, newer decisions, implemented versus preview scope, source files and hosted review. Read the full linked product requirements for the feature being worked on. A checkpoint preserves work; it does not approve a wireframe or establish backend readiness.
+
 - Read `docs/WIREFRAME_WORKFLOW.md` before frontend work. Yogi is the sole frontend person; assignments and parallel lanes in supplied documents are superseded. On October 1, 2026, Yogi approved Today, Homeguard, factor details, household guidance, Luna, and their shared shell for production implementation. The exact source baseline is `72a2c5150ecfe354fa6b534781e8b6b090d0bda1`; the immutable archive is `docs/foundation/approved/2026-10-01`. Map, Journal, Act and the full standalone Settings workflows still require wireframe review. Never overwrite the approved archive.
 
 - Do not use em dashes (U+2014) anywhere in app-facing text. This includes screens, buttons, errors, alerts, accessibility labels, and generated or source-provided copy. Use natural sentences, commas, colons, or parentheses without changing the meaning. This user decision supersedes punctuation in older specifications.

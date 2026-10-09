@@ -1,0 +1,28 @@
+/* Food & Garden finishing touches. These selectors do not change the approved factor pages. */
+.hg-workspace[data-home-section="food"] .hg-extent-toggle { width:100%; justify-content:flex-start; gap:12px; text-align:left; }
+.hg-workspace[data-home-section="food"] .hg-extent-toggle > svg { flex:0 0 19px; width:19px; height:19px; margin:0; border-radius:0; background:none; }
+.hg-extent-toggle > span { min-width:0; overflow-wrap:normal; }
+.hg-extent figure { padding:18px; border:1px solid var(--hg-line); border-radius:16px; background:var(--hg-wash); }
+.hg-extent figcaption p { margin:9px 0 16px; line-height:1.65; }
+.hg-workspace[data-home-section="food"] .hg-source-link { gap:9px; line-height:1.55; max-width:100%; }
+.hg-workspace[data-home-section="food"] .hg-source-link > svg { flex:0 0 15px; }
+.hg-workspace[data-home-section="food"] .hg-disclosure > summary:focus-visible { outline-offset:1px; border-radius:5px; }
+.hg-workspace[data-home-section="food"] .hg-disclosure > .hg-stack { gap:15px; padding-top:5px; }
+.hg-workspace[data-home-section="food"] .hg-disclosure > .hg-stack > p { margin:0; line-height:1.65; }
+.hg-workspace[data-home-section="food"] .hg-card > .hg-actions,
+.hg-workspace[data-home-section="food"] .hg-form + .hg-actions,
+.hg-workspace[data-home-section="food"] .hg-card > .hg-delete-button { margin-top:18px; }
+.hg-workspace[data-home-section="food"] .hg-card > .hg-source-link + .hg-actions { margin-top:14px; }
+.hg-workspace[data-home-section="food"] .hg-card > .hg-link + .hg-link { margin-top:12px; }
+.hg-food-reference-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:18px; }
+.hg-food-reference-actions > button:last-child { grid-column:1/-1; }
+.hg-workspace[data-home-section="food"] .hg-food-reference-actions > button { padding:10px; border-radius:12px; font-size:calc(.82rem * var(--halo-text-scale)); }
+.hg-workspace[data-home-section="food"] .hg-compare-panel { padding:16px; border:1px solid var(--hg-line); border-radius:15px; }
+.hg-workspace[data-home-section="food"] .hg-compare-panel > button { width:100%; margin-top:16px; }
+.hg-workspace[data-home-section="food"] .hg-origin-guidance + .hg-link { margin-top:16px; }
+.hg-workspace[data-home-section="food"] .hg-choice-chips button { border-radius:11px; }
+@media(max-width:360px) {
+  .hg-extent figure { padding:14px; }
+  .hg-food-reference-actions { grid-template-columns:minmax(0,1fr); }
+}
+.halo-f-app[data-text-scale="150"] .hg-food-reference-actions { grid-template-columns:minmax(0,1fr); }

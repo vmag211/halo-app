@@ -57,8 +57,6 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'We could not get readings for this sample. Missing data does not mean low risk.'}</p></Callout>}
     {overview?.notice && <Callout tone="notice"><p>{overview.notice}</p></Callout>}
     <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
-    {home && <HouseholdContext home />}
-    {home && memberHref && <HomeHousehold memberHref={memberHref} />}
     <div className="halo-ph-section-label"><h2>{home ? 'Around your home' : 'Your environment, closer up'}</h2><span>Explore a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
       const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? factor.severity === 'no_data' : missing || (partial && key === missingKey);
@@ -66,6 +64,8 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     })}</div>
     {!home && <HouseholdContext familyHref={familyHref} />}
     <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score.' : 'Today brings together air quality, UV, pollen, and mold conditions. Check each reading’s update time.'} Estimates are identified in each factor.</p>
+    {home && <HouseholdContext home />}
+    {home && memberHref && <HomeHousehold memberHref={memberHref} />}
   </div>;
 }
 
@@ -99,7 +99,7 @@ const pfasPracticalSteps = [
   'Ask your local health or environmental department what steps it recommends for your water supply. A utility sample does not measure your individual exposure.',
 ];
 
-export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading, evidence }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading; evidence?: ReactNode }) {
+export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading, evidence, showAllSteps = false }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading; evidence?: ReactNode; showAllSteps?: boolean }) {
   const { clock } = useSceneExperience();
   const runtime = useStageRuntime();
   const readings = runtime?.readings ?? factorReadings;
@@ -140,7 +140,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
     {!offline && !missing && householdNote && <Reveal><aside className="halo-ph-household-note"><Users size={23} aria-hidden="true" /><div><h3>What it means for your household</h3><p>{displayText(householdNote)}</p></div></aside></Reveal>}
     {['uv', 'pollen'].includes(factorKey) && trend}
     {content && <Reveal><section className="halo-ph-protection" id="protection" tabIndex={-1}><span className="halo-ph-kicker">{actionTitles[factorKey]}</span><h2>Small steps that help</h2>
-      <FactorSteps key={`${factorKey}:${content.protect.join('|')}`} factor={factorKey} tips={factorKey === 'pfas' ? pfasPracticalSteps : content.protect} />
+      <FactorSteps key={`${factorKey}:${content.protect.join('|')}`} factor={factorKey} tips={factorKey === 'pfas' ? pfasPracticalSteps : content.protect} showAll={showAllSteps} />
       {factorKey === 'pfas' && <a className="halo-ph-inline-link" href="https://www.epa.gov/water-research/identifying-drinking-water-filters-certified-reduce-pfas" target="_blank" rel="noopener noreferrer">EPA guidance on PFAS filters <ArrowUpRight size={15} aria-hidden="true" /></a>}
     </section></Reveal>}
     {['mold', 'pfas', 'radon', 'lead'].includes(factorKey) && trend}

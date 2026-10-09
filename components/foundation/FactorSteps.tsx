@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react';
 import { displayText } from '@/lib/frontend/onboarding';
 
 /** A manual, looping deck. Rear cards keep space but are not read or focused. */
-export default function FactorSteps({ tips, factor }: { tips: string[]; factor: string }) {
+export default function FactorSteps({ tips, factor, showAll = false }: { tips: string[]; factor: string; showAll?: boolean }) {
   const [active, setActive] = useState(0);
   if (!tips.length) return null;
   const previous = (active - 1 + tips.length) % tips.length;
@@ -21,5 +21,6 @@ export default function FactorSteps({ tips, factor }: { tips: string[]; factor: 
     })}</ol>
     {tips.length > 1 && <button className="halo-ph-step-arrow" aria-label={`Next step, step ${next + 1}`} aria-controls={`steps-${factor}`} onClick={() => setActive(next)}><ArrowDown size={23} aria-hidden="true" /></button>}
     <p className="halo-sr-only" role="status" aria-atomic="true">Step {active + 1} of {tips.length}. {displayText(tips[active])}</p>
+    {showAll && <details className="halo-expanded-scan"><summary>Read all steps together</summary><ol>{tips.map((tip, index) => <li key={index}>{displayText(tip)}</li>)}</ol></details>}
   </div>;
 }

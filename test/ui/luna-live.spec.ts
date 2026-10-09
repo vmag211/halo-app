@@ -4,6 +4,20 @@ import { jsonRoute, mockStage } from './stage-fixtures';
 const disclaimer = 'General information, not medical advice.';
 const answer = (text = 'A source-backed explanation [1].') => ({ answer: text, message: null, grounded: true, configured: true, reason: null, declined: false, uses_household_data: false, citations: [{ n: 1, label: 'EPA air information', url: 'https://www.epa.gov/air-research', retrieved: '2026-09-30' }], disclaimer });
 const suggestion = { suggestions: ['Explain my readings.'], disclaimer };
+test('Luna is available on live Settings with Settings request context', async ({ page }) => {
+  const requestedPages: (string | null)[] = [];
+  await mockStage(page, { assistant: async route => {
+    requestedPages.push(new URL(route.request().url()).searchParams.get('page'));
+    await jsonRoute(route, suggestion);
+  } });
+  const panel = await openLuna(page, '/settings');
+  await expect(panel.getByRole('button', { name: 'Explain my readings.', exact: true })).toBeVisible();
+  expect(requestedPages).toContain('settings');
+  await panel.getByRole('button', { name: 'Close Luna' }).click();
+  await expect(page.getByRole('button', { name: 'Open Luna', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/settings$/);
+});
+
 async function openLuna(page: Page, path = '/today') {
   await page.goto(path);
   await page.getByRole('button', { name: /^(Ask|Open) Luna$/ }).click();

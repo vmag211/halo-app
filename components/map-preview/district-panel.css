@@ -1,0 +1,98 @@
+.halo-map-district {
+  --district-muted: var(--halo-secondary, #6c8190);
+  color: var(--halo-ink, #183848);
+  font-family: var(--font-onest), sans-serif;
+  font-size: calc(.91rem * var(--halo-text-scale, 1));
+  line-height: 1.65;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.halo-map-district *, .halo-map-district *::before, .halo-map-district *::after { box-sizing: border-box; }
+.halo-map-district :is(h2,h3,p,figure,dl) { margin: 0; }
+.halo-map-district :is(button,summary,a):focus-visible { outline: 3px solid var(--halo-primary, #299eab); outline-offset: 4px; border-radius: 8px; }
+.halo-map-district-heading { text-align: center; padding: 12px 4px 24px; }
+.halo-map-district-kicker { display: inline-flex; align-items: center; gap: 8px; color: var(--halo-primary, #299eab); text-transform: uppercase; font-size: .73em; letter-spacing: .13em; font-weight: 700; }
+.halo-map-district h2 { font: 500 clamp(1.6rem, 5vw, 2rem)/1.2 var(--font-fraunces), Georgia, serif; margin: 12px 0 9px; }
+.halo-map-district h3 { font-weight: 650; font-size: 1.07em; line-height: 1.4; }
+.halo-map-district-heading > p, .halo-map-district-note { font-size: .87em; color: var(--district-muted); }
+.halo-map-district-hero { position: relative; text-align: center; padding: 26px 16px; border-radius: 28px 28px 10px 10px; background: color-mix(in srgb, var(--halo-primary, #299eab) 7%, var(--halo-card, #eef7fa)); border-top: 1px solid color-mix(in srgb, var(--halo-primary, #299eab) 35%, transparent); }
+.halo-map-district-hero-icon { display: flex; justify-content: center; color: var(--halo-primary, #299eab); margin-bottom: 11px; }
+.halo-map-district-total { display: block; font: 500 clamp(3.7rem, 14vw, 5.6rem)/1.04 var(--font-fraunces), Georgia, serif; font-variant-numeric: tabular-nums; letter-spacing: -.045em; }
+.halo-map-district-minimum { display: block; color: var(--district-muted); font-size: .85em; margin-bottom: 6px; }
+.halo-map-district-hero-caption { max-width: 31ch; margin: 10px auto 0 !important; font-weight: 500; }
+.halo-map-district-hero-facts { display: flex; justify-content: center; flex-wrap: wrap; gap: 9px 18px; margin: 22px 0 15px; font-size: .79em; }
+.halo-map-district-hero-facts b { font-size: 1.22em; font-weight: 700; }
+.halo-map-district-hero .halo-map-district-note { max-width: 52ch; margin: 10px auto 0; }
+.halo-map-district-coverage-note { margin-top: 13px !important; font-size: .85em; color: var(--halo-ink); }
+.halo-map-district-section { padding: 28px 0; border-bottom: 1px solid var(--halo-border, #dae6eb); }
+.halo-map-district-section > h3 { text-align: center; }
+.halo-map-district-section > .halo-map-district-note { margin: 10px 0 15px; }
+.halo-map-district-section-title { display: flex; justify-content: center; align-items: center; gap: 10px; }
+.halo-map-district-section-title svg { color: var(--halo-primary, #299eab); flex: 0 0 auto; }
+.halo-map-district-comparison { margin-top: 23px !important; }
+.halo-map-district-bar-row { margin-bottom: 18px; }
+.halo-map-district-bar-row > div:first-child { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 7px; }
+.halo-map-district-bar-row strong { font-variant-numeric: tabular-nums; }
+.halo-map-district-bar-track { height: 8px; border-radius: 10px; background: color-mix(in srgb, var(--halo-ink, #183848) 7%, transparent); overflow: hidden; }
+.halo-map-district-bar-track span { display: block; height: 100%; border-radius: inherit; }
+.halo-map-district-bar-track .is-district { background: var(--halo-primary, #299eab); }
+.halo-map-district-bar-track .is-state { background: color-mix(in srgb, var(--halo-primary, #299eab) 35%, var(--halo-ink, #183848)); }
+.halo-map-district-comparison figcaption { color: var(--district-muted); font-size: .8em; }
+.halo-map-district-explainer { margin-top: 16px; border: 1px solid var(--halo-border, #dae6eb); border-radius: 15px; padding: 0 12px; }
+.halo-map-district summary { cursor: pointer; min-height: 46px; }
+.halo-map-district-explainer summary { display: flex; align-items: center; gap: 8px; font-size: .86em; }
+.halo-map-district summary::-webkit-details-marker { display: none; }
+.halo-map-district summary > svg:last-child { margin-left: auto; flex: 0 0 auto; transition: transform 180ms ease; }
+.halo-map-district details[open] > summary > svg:last-child { transform: rotate(180deg); }
+.halo-map-district-explainer > p { color: var(--district-muted); font-size: .83em; padding-bottom: 13px; }
+.halo-map-district-county-list { border-top: 1px solid var(--halo-border, #dae6eb); margin-top: 18px; }
+.halo-map-district-county { display: block; width: 100%; text-align: left; padding: 15px 4px; color: inherit; background: transparent; border: 0; border-bottom: 1px solid var(--halo-border, #dae6eb); font: inherit; }
+.halo-map-district button.halo-map-district-county { cursor: pointer; transition: background 150ms; }
+.halo-map-district button.halo-map-district-county:hover { background: color-mix(in srgb, var(--halo-primary, #299eab) 6%, transparent); }
+.halo-map-district-county-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; line-height: 1.35; }
+.halo-map-district-county-name > svg { margin-left: auto; color: var(--district-muted); }
+.halo-map-district-partial { font-size: .69em; padding: 2px 7px; border: 1px solid var(--halo-border, #dae6eb); border-radius: 12px; color: var(--district-muted); font-weight: 500; }
+.halo-map-district-county-detail { display: flex; flex-wrap: wrap; gap: 5px 18px; font-size: .78em; margin-top: 9px; }
+.halo-map-district-severity { display: inline-flex; gap: 6px; align-items: center; }
+.halo-map-district-severity > span { width: 7px; height: 7px; flex: 0 0 auto; background: var(--severity-color, #78909c); border: 1px solid color-mix(in srgb, var(--halo-ink, #183848) 30%, transparent); border-radius: 50%; }
+.halo-map-district-severity[data-severity="good"] { --severity-color: #62bb98; }
+.halo-map-district-severity[data-severity="moderate"] { --severity-color: #d1b957; }
+.halo-map-district-severity[data-severity="elevated"] { --severity-color: #e69669; }
+.halo-map-district-severity[data-severity="high"] { --severity-color: #d782ac; }
+.halo-map-district-severity[data-severity="severe"] { --severity-color: #ad829f; }
+.halo-map-district-county-count { display: block; font-size: .76em; color: var(--district-muted); margin-top: 3px; }
+.halo-map-district-compounds { margin-top: 16px; }
+.halo-map-district-compound { border-top: 1px solid var(--halo-border, #dae6eb); }
+.halo-map-district-compound:last-child { border-bottom: 1px solid var(--halo-border, #dae6eb); }
+.halo-map-district-compound > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; font-size: .95em; font-weight: 600; }
+.halo-map-district-compound > summary > span:first-child { flex: 1 1 90px; }
+.halo-map-district-compound-count { font-size: .76em; font-weight: 500; color: var(--district-muted); }
+.halo-map-district-compound-body { padding-bottom: 17px; font-size: .89em; }
+.halo-map-district-compound-body dl { margin: 17px 0 9px; }
+.halo-map-district-compound-body dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, .7fr); gap: 12px; padding: 8px 0; border-top: 1px dashed var(--halo-border, #dae6eb); }
+.halo-map-district-compound-body dt { color: var(--district-muted); font-size: .87em; }
+.halo-map-district-compound-body dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.halo-map-district-unlocated { display: flex; gap: 12px; padding: 23px 0; }
+.halo-map-district-unlocated > svg { flex: 0 0 auto; margin-top: 3px; color: var(--halo-primary, #299eab); }
+.halo-map-district-unlocated > div { min-width: 0; }
+.halo-map-district-unlocated p { font-size: .84em; color: var(--district-muted); margin-top: 9px; }
+.halo-map-district-unlocated summary { display: flex; align-items: center; gap: 8px; font-size: .85em; font-weight: 600; padding-top: 5px; }
+.halo-map-district-unlocated ul { margin: 8px 0; padding-left: 18px; font-size: .86em; }
+.halo-map-district-sources { padding-top: 20px; border-top: 1px solid var(--halo-border, #dae6eb); font-size: .75em; color: var(--district-muted); }
+.halo-map-district-sources strong { color: var(--halo-ink, #183848); }
+.halo-map-district-sources p { margin-top: 9px; }
+.halo-map-district-error { padding: 30px 15px; text-align: center; background: color-mix(in srgb, var(--halo-primary, #299eab) 6%, transparent); border: 1px dashed var(--halo-border, #dae6eb); border-radius: 22px; margin-bottom: 28px; }
+.halo-map-district-error > svg { color: var(--halo-primary, #299eab); margin-bottom: 13px; }
+.halo-map-district-error p { font-size: .9em; color: var(--district-muted); margin: 13px 0; }
+.halo-map-district-retry { display: inline-flex; justify-content: center; align-items: center; gap: 9px; min-height: 46px; padding: 11px 15px; color: var(--halo-ink, #183848); background: var(--halo-card, #eef7fa); border: 1px solid var(--halo-border, #dae6eb); border-radius: 13px; cursor: pointer; font: inherit; font-size: .9em; }
+.halo-map-district-inline-notice { margin-top: 17px !important; padding: 14px; border-left: 2px solid var(--halo-primary, #299eab); background: color-mix(in srgb, var(--halo-primary, #299eab) 5%, transparent); font-size: .86em; }
+@media (max-width: 360px) {
+  .halo-map-district-hero { padding: 22px 12px; }
+  .halo-map-district-total { font-size: 3.8rem; }
+  .halo-map-district-hero-facts { flex-direction: column; gap: 4px; }
+  .halo-map-district-unlocated { gap: 8px; }
+  .halo-map-district-county-detail { gap: 5px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .halo-map-district * { transition: none !important; }
+}

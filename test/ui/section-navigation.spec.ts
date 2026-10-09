@@ -83,7 +83,7 @@ for (const appearance of ['light', 'dark']) test(`Today solid tints and rounded 
   await page.screenshot({ path: info.outputPath(`today-${appearance}.png`), fullPage: true });
   await page.goto(`/foundation/preview/factor/pfas/?tab=today&appearance=${appearance}&motion=reduce&scale=150`);
   await expect(page.getByRole('link', { name: 'Homeguard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(new URL(page.url()).searchParams.get('tab')).toBe('home');
+  await expect(page).toHaveURL(/[?&]tab=home(?:&|$)/);
   await page.setViewportSize({ width: 320, height: 850 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   const deck = page.getByRole('region', { name: 'Practical tips' });

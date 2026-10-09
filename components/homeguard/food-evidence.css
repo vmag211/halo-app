@@ -1,0 +1,38 @@
+.hg-food-evidence { border-top:1.5px solid var(--hg-line); padding-top:24px; }
+.hg-food-evidence > header { display:flex; justify-content:center; align-items:center; gap:12px; text-align:center; }
+.hg-food-evidence > header > svg { color:var(--hg-accent); flex-shrink:0; }
+.hg-food-evidence h3 { margin:5px 0; }
+.hg-food-evidence > .hg-meta { text-align:center; }
+.hg-evidence-tabs { display:flex; border-bottom:1px solid var(--hg-line); margin-top:20px; gap:14px; }
+.hg-pantry .hg-evidence-tabs button { display:block; flex:1; min-width:0; padding:12px 4px; border:0; border-bottom:3px solid transparent; border-radius:0; background:transparent; color:var(--halo-secondary); font:inherit; cursor:pointer; }
+.hg-evidence-tabs button strong,.hg-evidence-tabs button span { display:block; }
+.hg-evidence-tabs button span { font-size:calc(.7rem * var(--halo-text-scale)); margin-top:6px; line-height:1.5; min-height:3em; }
+.hg-pantry .hg-evidence-tabs button[aria-pressed="true"] { border-bottom-color:var(--hg-accent); color:var(--halo-ink); }
+.hg-evidence-reading { padding:22px 0; }
+.hg-evidence-reading > article { display:grid; gap:18px; }
+.hg-evidence-reading > article + article { margin-top:24px; padding-top:24px; border-top:1px solid var(--hg-line); }
+.hg-evidence-reading > article > p,.hg-evidence-reading > article > h4 { margin:0; line-height:1.65; }
+.hg-evidence-reading > article > .hg-meta { margin-bottom:-10px; }
+.hg-evidence-reading > div { display:grid; gap:16px; }
+.hg-evidence-reading > div > p,.hg-evidence-reading > div > h4 { margin:0; line-height:1.65; }
+.hg-evidence-reading h4 { font-size:calc(1.02rem * var(--halo-text-scale)); line-height:1.45; margin:7px 0 18px; }
+.hg-pantry .hg-evidence-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; padding:18px 0; border-block:1px solid var(--hg-line); }
+.hg-evidence-metrics dt { color:var(--halo-secondary); font-size:calc(.75rem * var(--halo-text-scale)); line-height:1.5; }
+.hg-evidence-metrics dd { font-family:var(--font-instrument),sans-serif; font-size:calc(1.4rem * var(--halo-text-scale)); line-height:1.4; font-weight:600; margin:7px 0 0; }
+.hg-evidence-metrics small { display:block; color:var(--halo-secondary); font-family:inherit; font-size:calc(.73rem * var(--halo-text-scale)); font-weight:400; }
+.hg-evidence-caution { border-left:2px solid var(--hg-accent); padding-left:13px; font-size:calc(.82rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.hg-evidence-next { padding:16px; border:1px solid var(--hg-line); border-radius:13px; background:var(--hg-wash); }
+.hg-evidence-next > strong { color:var(--hg-accent); font-size:calc(.82rem * var(--halo-text-scale)); }
+.hg-evidence-next > p { margin:7px 0 0; line-height:1.65; }
+.hg-pantry .hg-evidence-provenance { margin:0; display:grid; grid-template-columns:minmax(0,1fr); gap:13px; font-size:calc(.8rem * var(--halo-text-scale)); }
+.hg-evidence-provenance dt { color:var(--halo-secondary); }
+.hg-evidence-provenance dd { margin:3px 0 0; }
+.hg-pantry .hg-food-thumb { display:flex; flex:0 0 40px; width:40px; height:40px; align-items:center; justify-content:center; border-radius:9px; overflow:hidden; background:var(--hg-wash); color:var(--hg-accent); }
+.hg-kitchen-item .hg-food-thumb { flex-basis:62px; width:62px; height:62px; border-radius:12px; }
+.hg-pantry .hg-food-pick > .hg-food-name { font-size:calc(.8rem * var(--halo-text-scale)); }
+.hg-food-custom-link { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:48px; padding:12px 0; border:0; border-bottom:1px solid var(--hg-line); border-radius:0; background:transparent; text-align:left; color:var(--hg-accent); font:inherit; cursor:pointer; }
+.hg-food-add-form .hg-disclosure { margin-block:10px; }
+.hg-food-add-form .hg-disclosure > div { padding-top:16px; }
+.hg-food-evidence button:focus-visible,.hg-food-custom-link:focus-visible { outline:3px solid var(--hg-accent); outline-offset:3px; }
+@media(max-width:360px) { .hg-pantry .hg-evidence-metrics { grid-template-columns:1fr; gap:14px; } }
+.halo-f-app[data-text-scale="150"] .hg-evidence-metrics { grid-template-columns:1fr; }

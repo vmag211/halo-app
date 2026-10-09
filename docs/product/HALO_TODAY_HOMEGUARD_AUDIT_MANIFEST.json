@@ -1,0 +1,1796 @@
+{
+  "version": 1,
+  "audit_date_local": "2026-10-03",
+  "timezone": "America/New_York",
+  "scope": "Static source and requirements reconciliation for current Today, Homeguard and shared dependencies. Hash inventory is not a claim of line-by-line runtime validation.",
+  "frontend_head": "66a3246c5fde222754df100e1e5bb74784e7296d",
+  "frontend_branch": "codex/map-wireframes",
+  "frontend_has_uncommitted_changes": true,
+  "hosted_review": {
+    "version": 19,
+    "source_commit": "da641dc08dcb13f426975a29a6ca0274f416dc8c",
+    "kind": "sample-only static preview"
+  },
+  "original_packet": {
+    "path": "docs/product/ai/HALO_BACKEND_WORKING_SPEC.md",
+    "sha256": "fc1fec4b180dc5057b2edf1c2203143d85535b43364502e674d34e04d415be86",
+    "requirement_blocks": 1630,
+    "feature_packets": 45,
+    "source_families": 24,
+    "unchanged": true
+  },
+  "original_source_hash_drift": [
+    {
+      "path": "docs/product/HALO_BACKEND_BUILD_HANDOFF.md",
+      "originally_compiled_sha256": "2dff6d78f4ee897a2443af196352189d94f8ae418d12ecd4401e42949c6250f9",
+      "current_sha256": "73237099d250187c223f335f3d2d5f28e9c12f14b587beb21e646c1cdd3e5f79",
+      "unchanged_since_compilation": false
+    },
+    {
+      "path": "docs/product/HALO_BACKEND_AND_DATA_PLAN.md",
+      "originally_compiled_sha256": "5d3ca33d1a421d2c2154638625140bb562705637bfc29507ef0b84b1ae2cbc9c",
+      "current_sha256": "88abc2ab125c0ee4ec18de407085cc6095c1506be40d44d65d430fc81d6f1faa",
+      "unchanged_since_compilation": false
+    },
+    {
+      "path": "docs/product/HALO_SOURCE_ACQUISITION_GUIDE.md",
+      "originally_compiled_sha256": "4a3ae600e2f031fb3e7f3ae8a736d899bfaad1898cd8eddda4a5ee2af53d2e02",
+      "current_sha256": "4a3ae600e2f031fb3e7f3ae8a736d899bfaad1898cd8eddda4a5ee2af53d2e02",
+      "unchanged_since_compilation": true
+    },
+    {
+      "path": "docs/product/HALO_MASTER_PLAN.md",
+      "originally_compiled_sha256": "c1e1553ce4e2c3fb20a7ffc42c7d993c3d33af2ced8600d10613653ab5f37e80",
+      "current_sha256": "d2b219dd79c9e577366fa14b377dcb5ffa663fea5a82431d70fb30fe2ddf7d01",
+      "unchanged_since_compilation": false
+    },
+    {
+      "path": "docs/product/HALO_FRONTEND_BUILD_PLAN.md",
+      "originally_compiled_sha256": "0f6704f6d2303024db708f6b5a2e550b4f12c5a5e19c116aadbcaec0a0b30191",
+      "current_sha256": "df56faa7a679e0c7e7161a4b44880544e7a7d5ee3d0819c9106ebce9e83b07bb",
+      "unchanged_since_compilation": false
+    },
+    {
+      "path": "docs/product/HALO_FEATURE_ACCEPTANCE.md",
+      "originally_compiled_sha256": "7cfddb31a1ca901e0d8f2b6837b2aab02f637736f0a66d605490469fc891e439",
+      "current_sha256": "8c302af518c27d7636a98821bef6f1093c0479b732483fef0f36b545e1041035",
+      "unchanged_since_compilation": false
+    },
+    {
+      "path": "docs/foundation/STAGE_FRONTEND_HANDOFF.md",
+      "originally_compiled_sha256": "af6a28e2885a54d71750e360648b668fe5847355475b462a6db10e7d5580b73e",
+      "current_sha256": "af6a28e2885a54d71750e360648b668fe5847355475b462a6db10e7d5580b73e",
+      "unchanged_since_compilation": true
+    },
+    {
+      "path": "docs/WIREFRAME_WORKFLOW.md",
+      "originally_compiled_sha256": "cecc67e17a3d38cd36b6cfce4a9076ec924e04d34c9cc1e765537ad568497000",
+      "current_sha256": "6f296c9d2c5dc98646640f021a3ef65b27d017ffada23640dda08a2afd9528cc",
+      "unchanged_since_compilation": false
+    },
+    {
+      "path": "AGENTS.md",
+      "originally_compiled_sha256": "10fbf4db3fbb8205b39bae24a6fb3069906d10b1f8cfed1d74026aa767c5ca41",
+      "current_sha256": "10fbf4db3fbb8205b39bae24a6fb3069906d10b1f8cfed1d74026aa767c5ca41",
+      "unchanged_since_compilation": true
+    },
+    {
+      "path": "docs/map/README.md",
+      "originally_compiled_sha256": "b96e69521589cfe488bc3889bd993241a9922e2fc4332db9ccf30b662f4c326e",
+      "current_sha256": "b96e69521589cfe488bc3889bd993241a9922e2fc4332db9ccf30b662f4c326e",
+      "unchanged_since_compilation": true
+    },
+    {
+      "path": "docs/product/verification/SOURCE_CHECKS_2026-10-03.md",
+      "originally_compiled_sha256": "4b86f66b7a4d319bc5e4d22305b26614fff40caa4b49a5ff79479a70eaa633eb",
+      "current_sha256": "4b86f66b7a4d319bc5e4d22305b26614fff40caa4b49a5ff79479a70eaa633eb",
+      "unchanged_since_compilation": true
+    }
+  ],
+  "requirements": [
+    "HGX-00",
+    "HGX-01",
+    "HGX-02",
+    "HGX-03",
+    "HGX-04",
+    "HGX-05",
+    "HGX-06",
+    "HGX-07",
+    "HGX-08",
+    "HGX-09",
+    "HGX-10",
+    "HGX-11",
+    "HGX-12"
+  ],
+  "repositories": {
+    "main": {
+      "commit": "9f1ef88fe2d99aa82e96285ce7aa152e99a5acb0",
+      "route_count": 22,
+      "migration_count": 14,
+      "files": [
+        {
+          "path": "app/api/account/route.js",
+          "git_blob": "7545235df682cbf40341dc22416b0b2336ec092f"
+        },
+        {
+          "path": "app/api/alerts/route.js",
+          "git_blob": "e30b966c0e6e373fd077699aba15873f213bfbd3"
+        },
+        {
+          "path": "app/api/assistant/route.js",
+          "git_blob": "a84922b07c52cb52661ca52fe30db1e065cee548"
+        },
+        {
+          "path": "app/api/cron/daily/route.js",
+          "git_blob": "8b7c8acd9be0cd7cb78d6563de3d7066b6fd47b0"
+        },
+        {
+          "path": "app/api/daily-score/route.js",
+          "git_blob": "b1e1677784ab1ff0d2c34854af40ae917a172042"
+        },
+        {
+          "path": "app/api/district/route.js",
+          "git_blob": "4c06432bebeb51dd64acce87c0472572e5353265"
+        },
+        {
+          "path": "app/api/health/route.js",
+          "git_blob": "f1ff3db4ff7e35c310c5f10ab0ecb4741a2cd851"
+        },
+        {
+          "path": "app/api/history/route.js",
+          "git_blob": "fad96e2616189e21840763720354998a114f35b1"
+        },
+        {
+          "path": "app/api/home-guard/route.js",
+          "git_blob": "6f60dfca6b57b40f9456973a79e5291668057bc5"
+        },
+        {
+          "path": "app/api/household/route.js",
+          "git_blob": "93ed06fe0d668f2a0c92562798aff41d7dcca9cf"
+        },
+        {
+          "path": "app/api/journal/findings/route.js",
+          "git_blob": "2ff2be44b990409962f84edc88a288aedaddd07e"
+        },
+        {
+          "path": "app/api/journal/retrospective/route.js",
+          "git_blob": "66b0d74fac8abb74a1e053505fac854154db9dd0"
+        },
+        {
+          "path": "app/api/journal/route.js",
+          "git_blob": "5bfd8157b113386f0eb2de346dcc6e41a5e723c3"
+        },
+        {
+          "path": "app/api/journal/summary/route.js",
+          "git_blob": "8d8f9c32f32f3b093d9adbb4efb58fe69549aa15"
+        },
+        {
+          "path": "app/api/learn/route.js",
+          "git_blob": "52e2c174495c2f17235a18963fc8874831108121"
+        },
+        {
+          "path": "app/api/map/route.js",
+          "git_blob": "299235b5dcba09d305d9aff05e8c38d883fd1767"
+        },
+        {
+          "path": "app/api/notifications/route.js",
+          "git_blob": "dc340f4a217a5043db9a5be9fd3a3571decc158b"
+        },
+        {
+          "path": "app/api/onboard/route.js",
+          "git_blob": "c74de6d40286c053c7fdfd0776d8bf094af33d3c"
+        },
+        {
+          "path": "app/api/profile/route.js",
+          "git_blob": "d715fa140cf21b26c224b8037212263a89501445"
+        },
+        {
+          "path": "app/api/push/subscribe/route.js",
+          "git_blob": "5221ffb3af5ac6b00c9c10de64e6e6d2c3876bc4"
+        },
+        {
+          "path": "app/api/sources/route.js",
+          "git_blob": "460047eb242b93bae448c680c5f989caa8c4ef1a"
+        },
+        {
+          "path": "app/api/volunteer/route.js",
+          "git_blob": "28910ea5af5fb7c09d0be646cae6c86f8a900186"
+        },
+        {
+          "path": "lib/actionPlan.js",
+          "git_blob": "1f34ee1ad5e5785f437a81bef4c5b2c434297ae7"
+        },
+        {
+          "path": "lib/alertInputs.js",
+          "git_blob": "c958d4432f7751dbefbc0dda7f9ecd008988bab2"
+        },
+        {
+          "path": "lib/alertRules.js",
+          "git_blob": "ae1138e81b5e4328da2dc901c44b951c7ca9bc7d"
+        },
+        {
+          "path": "lib/api.js",
+          "git_blob": "2e264a305b5f8c973ccfdf759bd9fbc7c95cdbfd"
+        },
+        {
+          "path": "lib/assistant.js",
+          "git_blob": "88f64ce493381980e181ce0b57f1f6bf417e1c9f"
+        },
+        {
+          "path": "lib/assistantContext.js",
+          "git_blob": "381ab5aaf6eaff40fdbd0aa55ba3f502534a8405"
+        },
+        {
+          "path": "lib/assistantContextData.js",
+          "git_blob": "f69234c778dfe3d68cf6e9b1a1c61ea4eeb6ab07"
+        },
+        {
+          "path": "lib/assistantRag.js",
+          "git_blob": "71748cde847e92158a2dbac5138b93b370820db9"
+        },
+        {
+          "path": "lib/auth.js",
+          "git_blob": "20a97e67adfb734cf995dc6cdf968f524750c296"
+        },
+        {
+          "path": "lib/authResult.js",
+          "git_blob": "1a55cc2d7b0cf1b5b0254e4509517aa320e53527"
+        },
+        {
+          "path": "lib/backfill.js",
+          "git_blob": "39eff0b5f65b93a230129d8ad2c4509191a7ef38"
+        },
+        {
+          "path": "lib/cronAuth.js",
+          "git_blob": "36e53e6d848b96d6a2d9921bd7c39ba50a0851b5"
+        },
+        {
+          "path": "lib/dailyPayload.js",
+          "git_blob": "fdc46581c1459efe9a506a8f4546bb93f00e683c"
+        },
+        {
+          "path": "lib/dailyReadings.js",
+          "git_blob": "ed67d8fdf68826a3cd34479f37d7f03cc6acb792"
+        },
+        {
+          "path": "lib/data/leadInventoryNC.json",
+          "git_blob": "0fd6b2f5e33e554224d3ba9531e42827b0f47cac"
+        },
+        {
+          "path": "lib/data/nc08District.json",
+          "git_blob": "cb23cf6e6d34a2c806423941855ac4fe50b890ac"
+        },
+        {
+          "path": "lib/data/ncCounties.json",
+          "git_blob": "d714cc262674d815cff8693973bdcc91dca9ed84"
+        },
+        {
+          "path": "lib/district.js",
+          "git_blob": "fdf6661a54c22640c2799a684bb3652bd7bc87c7"
+        },
+        {
+          "path": "lib/districtView.js",
+          "git_blob": "a072cb68385ebc06e4e04668211dc079e540b693"
+        },
+        {
+          "path": "lib/explain.js",
+          "git_blob": "cc5f9b1b4a12c6bf241cae234d994ec08adc8962"
+        },
+        {
+          "path": "lib/geoContainment.js",
+          "git_blob": "0c3d82ee4f96299a6db71ef6a06167ffc9e5708e"
+        },
+        {
+          "path": "lib/geocode.js",
+          "git_blob": "bceda2fb92449fc0e7e1beb0d19eee661dc2426c"
+        },
+        {
+          "path": "lib/household.js",
+          "git_blob": "93698d7572bdb9d7272a06be32b623dd52b95667"
+        },
+        {
+          "path": "lib/journalAnalysis.js",
+          "git_blob": "729115cd6b086643f435dd880edee1d57a9ca162"
+        },
+        {
+          "path": "lib/journalHistory.js",
+          "git_blob": "eb5fc810978fe07bf901773f93b018e810a7b57f"
+        },
+        {
+          "path": "lib/journalRetro.js",
+          "git_blob": "65823d9387d27df8e95fe3f1f2bee7bcd5f8c68b"
+        },
+        {
+          "path": "lib/leadInventory.js",
+          "git_blob": "206c82bef9dfce9745be9d962f00ded1fbf57ad3"
+        },
+        {
+          "path": "lib/leadRisk.js",
+          "git_blob": "6cff19fb58dd579ed7ae280b300cda5c250f260f"
+        },
+        {
+          "path": "lib/learnContent.js",
+          "git_blob": "53e23e202f014824460818c1e81f2d3f0f47ee86"
+        },
+        {
+          "path": "lib/learnWhyYours.js",
+          "git_blob": "133846e4111b6dbfa87cbe58758ca43871505d55"
+        },
+        {
+          "path": "lib/localDate.js",
+          "git_blob": "da3c99ac467a5c97c8e3f8882e21a85e452bbfdf"
+        },
+        {
+          "path": "lib/mapBuild.js",
+          "git_blob": "0d6043fa205125e4846e6a69152ba803a0deb962"
+        },
+        {
+          "path": "lib/mapData.js",
+          "git_blob": "a7dd10db90f009ed12a3fa6873c58b7ae200a113"
+        },
+        {
+          "path": "lib/mapLayers.js",
+          "git_blob": "10de0d481cb84a9f0c40cdb5456d4a4aa51c5c61"
+        },
+        {
+          "path": "lib/push.js",
+          "git_blob": "2c84acb4b44c6293ebdf9f786315babcf52a5c4f"
+        },
+        {
+          "path": "lib/radonData.js",
+          "git_blob": "ac8bea2a8a6c4cbcc83fea1c2d78ccd60887ca49"
+        },
+        {
+          "path": "lib/ratelimit.js",
+          "git_blob": "55b2963df43d2323732a8abbe441b7fa91dd04c1"
+        },
+        {
+          "path": "lib/scoring.js",
+          "git_blob": "05fb5d0a305f2194b95fa4dc59e2383a44c64b66"
+        },
+        {
+          "path": "lib/serverAuth.js",
+          "git_blob": "6afad3880316c245cbddb71a50cbfc5377154a00"
+        },
+        {
+          "path": "lib/severity.js",
+          "git_blob": "a1e2ecd740c858f4edca7fabb05b3ddd97f3cdad"
+        },
+        {
+          "path": "lib/sources.js",
+          "git_blob": "e3b7c1c19740fb2f8815e7e3c9d0d6b71893a2a5"
+        },
+        {
+          "path": "lib/supabase.js",
+          "git_blob": "032a1c1494d0c8f8b3f30195d648987ab05f5908"
+        },
+        {
+          "path": "lib/volunteerMatch.js",
+          "git_blob": "b1e2f57a5b5a5a537328282ab98b1ce226df0c56"
+        },
+        {
+          "path": "lib/waterGeo.js",
+          "git_blob": "f4829f6782454910b83296a18374171f4d5b0c5e"
+        },
+        {
+          "path": "lib/waterPresentation.js",
+          "git_blob": "e529421b4bdf888bdf4c7f1cbc0629008e8ea05b"
+        },
+        {
+          "path": "lib/waterSource.js",
+          "git_blob": "3d8cf25877c52fd3f7e9dc8b351505c7b2f6931b"
+        },
+        {
+          "path": "lib/wellTestData.js",
+          "git_blob": "9429053d52e03a230c4e81ac54e2457d2c46f208"
+        },
+        {
+          "path": "supabase/migrations/0001_anon_auth.sql",
+          "git_blob": "2c87a48dcb3629af90d6380bb897997bde8e2e62"
+        },
+        {
+          "path": "supabase/migrations/0002_household_and_profile.sql",
+          "git_blob": "c1d59ff976be9502dc48cf3eae0111ccaa3cf40d"
+        },
+        {
+          "path": "supabase/migrations/0003_symptom_logs.sql",
+          "git_blob": "f2eff6c0bb31d96609bb087d083abab1ba0bf766"
+        },
+        {
+          "path": "supabase/migrations/0004_volunteer_orgs.sql",
+          "git_blob": "2b1a11b13629876e20976181fcef2ce6b04db060"
+        },
+        {
+          "path": "supabase/migrations/0005_learn_content.sql",
+          "git_blob": "49af105e5800c38ca985330afff2b04bec8d1e73"
+        },
+        {
+          "path": "supabase/migrations/0006_alerts.sql",
+          "git_blob": "f6101a9068b164c7a7663c7ef05701ee5167c2ea"
+        },
+        {
+          "path": "supabase/migrations/0007_assistant_corpus.sql",
+          "git_blob": "4d060d6a5facea521b396a4bfd6e459a6a6c089a"
+        },
+        {
+          "path": "supabase/migrations/0008_assistant_match_fn.sql",
+          "git_blob": "3dc90e1902037fc5c823d9e65f2ed443ba3ff41d"
+        },
+        {
+          "path": "supabase/migrations/0009_daily_details_and_state.sql",
+          "git_blob": "a624994221f2047d271bc73a5c8c5211ae33f4f8"
+        },
+        {
+          "path": "supabase/migrations/0010_alerts_notifications.sql",
+          "git_blob": "a5bfbb91595c2fac130aa41f3a65f11e96cd743f"
+        },
+        {
+          "path": "supabase/migrations/0011_map_layers.sql",
+          "git_blob": "662b6c7a7b3cf9e4825d7669d414ffe7b4eaccfb"
+        },
+        {
+          "path": "supabase/migrations/0012_volunteer_orgs_nc08.sql",
+          "git_blob": "bbace7b4d9e4eee3b59a6f94fdcd32a881b25b86"
+        },
+        {
+          "path": "supabase/migrations/0013_assistant_embed_2048.sql",
+          "git_blob": "6a292716d99918b072447e90f825fc76405337a9"
+        },
+        {
+          "path": "supabase/migrations/0014_onboard_request_id.sql",
+          "git_blob": "24423e4a94bd645adb40f8321e91a84bbcd77091"
+        }
+      ],
+      "routes": [
+        {
+          "path": "app/api/account/route.js",
+          "methods": [
+            "DELETE"
+          ]
+        },
+        {
+          "path": "app/api/alerts/route.js",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/assistant/route.js",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/cron/daily/route.js",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/daily-score/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/district/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/health/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/history/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/home-guard/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/household/route.js",
+          "methods": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "app/api/journal/findings/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/journal/retrospective/route.js",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/journal/route.js",
+          "methods": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "app/api/journal/summary/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/learn/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/map/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/notifications/route.js",
+          "methods": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "app/api/onboard/route.js",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/profile/route.js",
+          "methods": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "app/api/push/subscribe/route.js",
+          "methods": [
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "app/api/sources/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/volunteer/route.js",
+          "methods": [
+            "GET"
+          ]
+        }
+      ],
+      "migrations": [
+        "supabase/migrations/0001_anon_auth.sql",
+        "supabase/migrations/0002_household_and_profile.sql",
+        "supabase/migrations/0003_symptom_logs.sql",
+        "supabase/migrations/0004_volunteer_orgs.sql",
+        "supabase/migrations/0005_learn_content.sql",
+        "supabase/migrations/0006_alerts.sql",
+        "supabase/migrations/0007_assistant_corpus.sql",
+        "supabase/migrations/0008_assistant_match_fn.sql",
+        "supabase/migrations/0009_daily_details_and_state.sql",
+        "supabase/migrations/0010_alerts_notifications.sql",
+        "supabase/migrations/0011_map_layers.sql",
+        "supabase/migrations/0012_volunteer_orgs_nc08.sql",
+        "supabase/migrations/0013_assistant_embed_2048.sql",
+        "supabase/migrations/0014_onboard_request_id.sql"
+      ]
+    },
+    "backend": {
+      "commit": "76acc4f8a2f830e7d8e09eb03c666bc229192f06",
+      "route_count": 22,
+      "migration_count": 14,
+      "files": [
+        {
+          "path": "app/api/account/route.js",
+          "git_blob": "7545235df682cbf40341dc22416b0b2336ec092f"
+        },
+        {
+          "path": "app/api/alerts/route.js",
+          "git_blob": "9062f3be270fdccbcf37ae0f6b9126c8467c62b2"
+        },
+        {
+          "path": "app/api/assistant/route.js",
+          "git_blob": "a84922b07c52cb52661ca52fe30db1e065cee548"
+        },
+        {
+          "path": "app/api/cron/daily/route.js",
+          "git_blob": "8b7c8acd9be0cd7cb78d6563de3d7066b6fd47b0"
+        },
+        {
+          "path": "app/api/daily-score/route.js",
+          "git_blob": "df409c3b13ef637707ea07c1ee8714d092e95d62"
+        },
+        {
+          "path": "app/api/district/route.js",
+          "git_blob": "1acf82aa91c53e0e58652821ec98cd66af490e9a"
+        },
+        {
+          "path": "app/api/health/route.js",
+          "git_blob": "3901bbf8a221588bb4bd3b1a4027e502f2d74e7e"
+        },
+        {
+          "path": "app/api/history/route.js",
+          "git_blob": "a8689f74b9343d89efabda14cb6a1599e9a27e38"
+        },
+        {
+          "path": "app/api/home-guard/route.js",
+          "git_blob": "51508c3a9fad6deb24b6a3233e5237cf830c2264"
+        },
+        {
+          "path": "app/api/household/route.js",
+          "git_blob": "f55e9b953b52817c99641bbd5c265acf1b2d951e"
+        },
+        {
+          "path": "app/api/journal/findings/route.js",
+          "git_blob": "6f0fcc1aca559d751516eb1f6c0657fcd3667f86"
+        },
+        {
+          "path": "app/api/journal/retrospective/route.js",
+          "git_blob": "1451af31c491fa06aabd98d2041be73d4de11e68"
+        },
+        {
+          "path": "app/api/journal/route.js",
+          "git_blob": "21258bb94939d3232b9b09c927cfa57b09c05b26"
+        },
+        {
+          "path": "app/api/journal/summary/route.js",
+          "git_blob": "39e003b402550170203888890dd1b5bf74a5cd90"
+        },
+        {
+          "path": "app/api/learn/route.js",
+          "git_blob": "40a7957d099fb10df372e1c1f0d40e917800c3ce"
+        },
+        {
+          "path": "app/api/map/route.js",
+          "git_blob": "a05a4f45059a175593e6dc12253c23a4dd7a30b8"
+        },
+        {
+          "path": "app/api/notifications/route.js",
+          "git_blob": "f67070717c38bc2951f0d0fad61f3940490e56e8"
+        },
+        {
+          "path": "app/api/onboard/route.js",
+          "git_blob": "c74de6d40286c053c7fdfd0776d8bf094af33d3c"
+        },
+        {
+          "path": "app/api/profile/route.js",
+          "git_blob": "fc56b61c2dbdcf0f97841ca72c8ccf996eb5dbc8"
+        },
+        {
+          "path": "app/api/push/subscribe/route.js",
+          "git_blob": "d0b597a2a5ebe295d4a2a9c4d4e1dd50fbba3396"
+        },
+        {
+          "path": "app/api/sources/route.js",
+          "git_blob": "7e70c5b7cb2ad57a0e48da0ee86b6cbabf5faf0e"
+        },
+        {
+          "path": "app/api/volunteer/route.js",
+          "git_blob": "65481d0af030027f7e902b442fdaf2765a8f8e8a"
+        },
+        {
+          "path": "lib/actionPlan.js",
+          "git_blob": "1f34ee1ad5e5785f437a81bef4c5b2c434297ae7"
+        },
+        {
+          "path": "lib/alertInputs.js",
+          "git_blob": "c958d4432f7751dbefbc0dda7f9ecd008988bab2"
+        },
+        {
+          "path": "lib/alertRules.js",
+          "git_blob": "ae1138e81b5e4328da2dc901c44b951c7ca9bc7d"
+        },
+        {
+          "path": "lib/api.js",
+          "git_blob": "2e264a305b5f8c973ccfdf759bd9fbc7c95cdbfd"
+        },
+        {
+          "path": "lib/apiErrors.js",
+          "git_blob": "8c5d6c5cfa828b744a68dff4acfbd2001020d100"
+        },
+        {
+          "path": "lib/assistant.js",
+          "git_blob": "88f64ce493381980e181ce0b57f1f6bf417e1c9f"
+        },
+        {
+          "path": "lib/assistantContext.js",
+          "git_blob": "381ab5aaf6eaff40fdbd0aa55ba3f502534a8405"
+        },
+        {
+          "path": "lib/assistantContextData.js",
+          "git_blob": "f69234c778dfe3d68cf6e9b1a1c61ea4eeb6ab07"
+        },
+        {
+          "path": "lib/assistantRag.js",
+          "git_blob": "71748cde847e92158a2dbac5138b93b370820db9"
+        },
+        {
+          "path": "lib/auth.js",
+          "git_blob": "20a97e67adfb734cf995dc6cdf968f524750c296"
+        },
+        {
+          "path": "lib/authResult.js",
+          "git_blob": "1a55cc2d7b0cf1b5b0254e4509517aa320e53527"
+        },
+        {
+          "path": "lib/backfill.js",
+          "git_blob": "39eff0b5f65b93a230129d8ad2c4509191a7ef38"
+        },
+        {
+          "path": "lib/boundedRead.js",
+          "git_blob": "af166b1f61d2cf28ef331b86f2047e05dd59e970"
+        },
+        {
+          "path": "lib/cronAuth.js",
+          "git_blob": "36e53e6d848b96d6a2d9921bd7c39ba50a0851b5"
+        },
+        {
+          "path": "lib/dailyPayload.js",
+          "git_blob": "fdc46581c1459efe9a506a8f4546bb93f00e683c"
+        },
+        {
+          "path": "lib/dailyReadings.js",
+          "git_blob": "ed67d8fdf68826a3cd34479f37d7f03cc6acb792"
+        },
+        {
+          "path": "lib/data/leadInventoryNC.json",
+          "git_blob": "0fd6b2f5e33e554224d3ba9531e42827b0f47cac"
+        },
+        {
+          "path": "lib/data/nc08District.json",
+          "git_blob": "cb23cf6e6d34a2c806423941855ac4fe50b890ac"
+        },
+        {
+          "path": "lib/data/ncCounties.json",
+          "git_blob": "d714cc262674d815cff8693973bdcc91dca9ed84"
+        },
+        {
+          "path": "lib/directoryInput.js",
+          "git_blob": "83c31eeb7157b132bc9d3f390231a2178029618a"
+        },
+        {
+          "path": "lib/district.js",
+          "git_blob": "fdf6661a54c22640c2799a684bb3652bd7bc87c7"
+        },
+        {
+          "path": "lib/districtView.js",
+          "git_blob": "a072cb68385ebc06e4e04668211dc079e540b693"
+        },
+        {
+          "path": "lib/explain.js",
+          "git_blob": "cc5f9b1b4a12c6bf241cae234d994ec08adc8962"
+        },
+        {
+          "path": "lib/geoContainment.js",
+          "git_blob": "0c3d82ee4f96299a6db71ef6a06167ffc9e5708e"
+        },
+        {
+          "path": "lib/geocode.js",
+          "git_blob": "bceda2fb92449fc0e7e1beb0d19eee661dc2426c"
+        },
+        {
+          "path": "lib/homeGuardInput.js",
+          "git_blob": "845609aa0972fc17eb34c751bade0fc5214e8ce7"
+        },
+        {
+          "path": "lib/household.js",
+          "git_blob": "93698d7572bdb9d7272a06be32b623dd52b95667"
+        },
+        {
+          "path": "lib/journalAnalysis.js",
+          "git_blob": "729115cd6b086643f435dd880edee1d57a9ca162"
+        },
+        {
+          "path": "lib/journalHistory.js",
+          "git_blob": "15923ffaccde8b310d07029199c97b6b01ea47ea"
+        },
+        {
+          "path": "lib/journalInput.js",
+          "git_blob": "513869465868bce3b1fa68dcd6ad345c4f37c932"
+        },
+        {
+          "path": "lib/journalRetro.js",
+          "git_blob": "65823d9387d27df8e95fe3f1f2bee7bcd5f8c68b"
+        },
+        {
+          "path": "lib/leadInventory.js",
+          "git_blob": "206c82bef9dfce9745be9d962f00ded1fbf57ad3"
+        },
+        {
+          "path": "lib/leadRisk.js",
+          "git_blob": "6cff19fb58dd579ed7ae280b300cda5c250f260f"
+        },
+        {
+          "path": "lib/learnContent.js",
+          "git_blob": "53e23e202f014824460818c1e81f2d3f0f47ee86"
+        },
+        {
+          "path": "lib/learnWhyYours.js",
+          "git_blob": "133846e4111b6dbfa87cbe58758ca43871505d55"
+        },
+        {
+          "path": "lib/limits.js",
+          "git_blob": "807c3c400c06ade2e205a342cef4db29f9fff22b"
+        },
+        {
+          "path": "lib/localDate.js",
+          "git_blob": "da3c99ac467a5c97c8e3f8882e21a85e452bbfdf"
+        },
+        {
+          "path": "lib/mapBuild.js",
+          "git_blob": "0d6043fa205125e4846e6a69152ba803a0deb962"
+        },
+        {
+          "path": "lib/mapData.js",
+          "git_blob": "a7dd10db90f009ed12a3fa6873c58b7ae200a113"
+        },
+        {
+          "path": "lib/mapLayers.js",
+          "git_blob": "10de0d481cb84a9f0c40cdb5456d4a4aa51c5c61"
+        },
+        {
+          "path": "lib/profileInput.js",
+          "git_blob": "79464a339d80a91732e9a045d6df7e5acf94c35e"
+        },
+        {
+          "path": "lib/push.js",
+          "git_blob": "2c84acb4b44c6293ebdf9f786315babcf52a5c4f"
+        },
+        {
+          "path": "lib/radonData.js",
+          "git_blob": "ac8bea2a8a6c4cbcc83fea1c2d78ccd60887ca49"
+        },
+        {
+          "path": "lib/ratelimit.js",
+          "git_blob": "55b2963df43d2323732a8abbe441b7fa91dd04c1"
+        },
+        {
+          "path": "lib/retroInput.js",
+          "git_blob": "9656c53cd8528253935ebda64b86d437406d584a"
+        },
+        {
+          "path": "lib/scoring.js",
+          "git_blob": "05fb5d0a305f2194b95fa4dc59e2383a44c64b66"
+        },
+        {
+          "path": "lib/serverAuth.js",
+          "git_blob": "f6ef5d6482c156ff9f407ead4589005f28679533"
+        },
+        {
+          "path": "lib/severity.js",
+          "git_blob": "a1e2ecd740c858f4edca7fabb05b3ddd97f3cdad"
+        },
+        {
+          "path": "lib/sources.js",
+          "git_blob": "e3b7c1c19740fb2f8815e7e3c9d0d6b71893a2a5"
+        },
+        {
+          "path": "lib/supabase.js",
+          "git_blob": "032a1c1494d0c8f8b3f30195d648987ab05f5908"
+        },
+        {
+          "path": "lib/validate.js",
+          "git_blob": "ac62cd4bb883cf1cac9b162299ee658017ddd876"
+        },
+        {
+          "path": "lib/volunteerMatch.js",
+          "git_blob": "b1e2f57a5b5a5a537328282ab98b1ce226df0c56"
+        },
+        {
+          "path": "lib/waterGeo.js",
+          "git_blob": "f4829f6782454910b83296a18374171f4d5b0c5e"
+        },
+        {
+          "path": "lib/waterPresentation.js",
+          "git_blob": "e529421b4bdf888bdf4c7f1cbc0629008e8ea05b"
+        },
+        {
+          "path": "lib/waterSource.js",
+          "git_blob": "3d8cf25877c52fd3f7e9dc8b351505c7b2f6931b"
+        },
+        {
+          "path": "lib/wellTestData.js",
+          "git_blob": "9429053d52e03a230c4e81ac54e2457d2c46f208"
+        },
+        {
+          "path": "supabase/migrations/0001_anon_auth.sql",
+          "git_blob": "2c87a48dcb3629af90d6380bb897997bde8e2e62"
+        },
+        {
+          "path": "supabase/migrations/0002_household_and_profile.sql",
+          "git_blob": "c1d59ff976be9502dc48cf3eae0111ccaa3cf40d"
+        },
+        {
+          "path": "supabase/migrations/0003_symptom_logs.sql",
+          "git_blob": "f2eff6c0bb31d96609bb087d083abab1ba0bf766"
+        },
+        {
+          "path": "supabase/migrations/0004_volunteer_orgs.sql",
+          "git_blob": "2b1a11b13629876e20976181fcef2ce6b04db060"
+        },
+        {
+          "path": "supabase/migrations/0005_learn_content.sql",
+          "git_blob": "49af105e5800c38ca985330afff2b04bec8d1e73"
+        },
+        {
+          "path": "supabase/migrations/0006_alerts.sql",
+          "git_blob": "f6101a9068b164c7a7663c7ef05701ee5167c2ea"
+        },
+        {
+          "path": "supabase/migrations/0007_assistant_corpus.sql",
+          "git_blob": "4d060d6a5facea521b396a4bfd6e459a6a6c089a"
+        },
+        {
+          "path": "supabase/migrations/0008_assistant_match_fn.sql",
+          "git_blob": "3dc90e1902037fc5c823d9e65f2ed443ba3ff41d"
+        },
+        {
+          "path": "supabase/migrations/0009_daily_details_and_state.sql",
+          "git_blob": "a624994221f2047d271bc73a5c8c5211ae33f4f8"
+        },
+        {
+          "path": "supabase/migrations/0010_alerts_notifications.sql",
+          "git_blob": "a5bfbb91595c2fac130aa41f3a65f11e96cd743f"
+        },
+        {
+          "path": "supabase/migrations/0011_map_layers.sql",
+          "git_blob": "662b6c7a7b3cf9e4825d7669d414ffe7b4eaccfb"
+        },
+        {
+          "path": "supabase/migrations/0012_volunteer_orgs_nc08.sql",
+          "git_blob": "bbace7b4d9e4eee3b59a6f94fdcd32a881b25b86"
+        },
+        {
+          "path": "supabase/migrations/0013_assistant_embed_2048.sql",
+          "git_blob": "6a292716d99918b072447e90f825fc76405337a9"
+        },
+        {
+          "path": "supabase/migrations/0014_onboard_request_id.sql",
+          "git_blob": "24423e4a94bd645adb40f8321e91a84bbcd77091"
+        }
+      ],
+      "routes": [
+        {
+          "path": "app/api/account/route.js",
+          "methods": [
+            "DELETE"
+          ]
+        },
+        {
+          "path": "app/api/alerts/route.js",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/assistant/route.js",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/cron/daily/route.js",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/daily-score/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/district/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/health/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/history/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/home-guard/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/household/route.js",
+          "methods": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "app/api/journal/findings/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/journal/retrospective/route.js",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/journal/route.js",
+          "methods": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "app/api/journal/summary/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/learn/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/map/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/notifications/route.js",
+          "methods": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "app/api/onboard/route.js",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "app/api/profile/route.js",
+          "methods": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "app/api/push/subscribe/route.js",
+          "methods": [
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "app/api/sources/route.js",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "app/api/volunteer/route.js",
+          "methods": [
+            "GET"
+          ]
+        }
+      ],
+      "migrations": [
+        "supabase/migrations/0001_anon_auth.sql",
+        "supabase/migrations/0002_household_and_profile.sql",
+        "supabase/migrations/0003_symptom_logs.sql",
+        "supabase/migrations/0004_volunteer_orgs.sql",
+        "supabase/migrations/0005_learn_content.sql",
+        "supabase/migrations/0006_alerts.sql",
+        "supabase/migrations/0007_assistant_corpus.sql",
+        "supabase/migrations/0008_assistant_match_fn.sql",
+        "supabase/migrations/0009_daily_details_and_state.sql",
+        "supabase/migrations/0010_alerts_notifications.sql",
+        "supabase/migrations/0011_map_layers.sql",
+        "supabase/migrations/0012_volunteer_orgs_nc08.sql",
+        "supabase/migrations/0013_assistant_embed_2048.sql",
+        "supabase/migrations/0014_onboard_request_id.sql"
+      ]
+    }
+  },
+  "intake_evidence": {
+    "commit": "76acc4f8a2f830e7d8e09eb03c666bc229192f06",
+    "path": "docs/product/HALO_BACKEND_WORKING_SPEC.partial.md",
+    "line": 5,
+    "sha256_of_git_text": "2ed99c80b0d1bb489bcd066719150ed10835d1f94f46e33c132f9501f85afebe",
+    "cutoff": "BE-032",
+    "note": "Checked-in session reports missing remainder, not a claim about every later session."
+  },
+  "views": {
+    "tests": [
+      "list",
+      "overview",
+      "new",
+      "prepare",
+      "report",
+      "detail",
+      "edit",
+      "arranged",
+      "collect",
+      "awaiting",
+      "results",
+      "attachments",
+      "history",
+      "compare",
+      "export"
+    ],
+    "maintenance": [
+      "list",
+      "create",
+      "edit",
+      "detail",
+      "occurrence",
+      "observation",
+      "observation-edit",
+      "observation-detail"
+    ],
+    "food": [
+      "list",
+      "pantry",
+      "pantry-saved",
+      "pantry-custom",
+      "pantry-add",
+      "pantry-detail",
+      "pantry-note",
+      "pantry-edit",
+      "fish",
+      "fish-detail",
+      "fish-notes",
+      "fish-note-new",
+      "fish-note-detail",
+      "fish-note-edit",
+      "gardens",
+      "garden-new",
+      "garden-detail",
+      "garden-edit",
+      "garden-links",
+      "evidence",
+      "evidence-detail",
+      "growers",
+      "grower-detail",
+      "water",
+      "usage",
+      "usage-compare",
+      "usage-new",
+      "usage-detail",
+      "usage-edit"
+    ],
+    "summary": [
+      "list",
+      "selection",
+      "preview"
+    ]
+  },
+  "distinct_section_view_pairs": 55,
+  "plan_sources": [
+    {
+      "path": "docs/product/ai/HALO_BACKEND_WORKING_SPEC.md",
+      "sha256": "fc1fec4b180dc5057b2edf1c2203143d85535b43364502e674d34e04d415be86"
+    },
+    {
+      "path": "docs/product/HALO_TODAY_HOMEGUARD_BACKEND_SUPPLEMENT.md",
+      "sha256": "05bc7b71adb8131dd1f744b9934d944a690c0d50c00557bc8430a381909bda57"
+    },
+    {
+      "path": "docs/product/ai/HALO_BACKEND_SOURCE_COVERAGE.json",
+      "sha256": "c35388e1f7f40299a0a2f76f34df370e8ea65eb675707474e24550dcb1124374"
+    },
+    {
+      "path": "docs/product/HALO_BACKEND_AND_DATA_PLAN.md",
+      "sha256": "88abc2ab125c0ee4ec18de407085cc6095c1506be40d44d65d430fc81d6f1faa"
+    },
+    {
+      "path": "docs/product/HALO_FRONTEND_BUILD_PLAN.md",
+      "sha256": "df56faa7a679e0c7e7161a4b44880544e7a7d5ee3d0819c9106ebce9e83b07bb"
+    },
+    {
+      "path": "docs/product/HALO_FEATURE_ACCEPTANCE.md",
+      "sha256": "8c302af518c27d7636a98821bef6f1093c0479b732483fef0f36b545e1041035"
+    },
+    {
+      "path": "docs/product/HALO_FOOD_EVIDENCE_EXTENSION.md",
+      "sha256": "04fa8c0670394ad777f2ca7e30ffceedec272a13371cea6e95ea5b6bcfbac411"
+    },
+    {
+      "path": "docs/product/HALO_SOURCE_ACQUISITION_GUIDE.md",
+      "sha256": "4a3ae600e2f031fb3e7f3ae8a736d899bfaad1898cd8eddda4a5ee2af53d2e02"
+    }
+  ],
+  "frontend_and_test_files": [
+    {
+      "path": "app/foundation/preview/expanded/page.tsx",
+      "sha256": "40d46c69797264d3075e9eb0d1b3599386497d63a5bd568599655faf8a8b73a9"
+    },
+    {
+      "path": "app/foundation/preview/factor/[factor]/page.tsx",
+      "sha256": "7c894d71172c73c79df1be7c2880986375c47a46afb5144ed396ea3634d85696"
+    },
+    {
+      "path": "app/foundation/preview/family/page.tsx",
+      "sha256": "2d10074f402e05a3eaa3165294ee139443d9930c8a870a2847ff3f5706e13965"
+    },
+    {
+      "path": "app/foundation/preview/household/[member]/page.tsx",
+      "sha256": "72ea2e73914fd6b1ab098f279c21b1282adcc82d0b470db5dcf6af9b99141247"
+    },
+    {
+      "path": "app/foundation/preview/layout.tsx",
+      "sha256": "b0de2102e65358df4b37e395b348dae60207a9a677d4542490209d07dc2b3d4a"
+    },
+    {
+      "path": "app/foundation/preview/map/page.tsx",
+      "sha256": "cd5174e1f111ba90b86399d271a6ff14c10259d76ced7023ec59d721f68799c5"
+    },
+    {
+      "path": "app/foundation/preview/page.tsx",
+      "sha256": "3c655cf4607503823e06b30a8bde3a2220550df60d7f4357cf4f8ec03ccc1120"
+    },
+    {
+      "path": "app/foundation/preview/preview.css",
+      "sha256": "c144e9a0f3a931768ababd54d5f95c360858f4792d874493a10555592a97cb10"
+    },
+    {
+      "path": "components/expanded/ExpandedConnections.tsx",
+      "sha256": "b0641dd8eaf6e4d9c5990b0aab0808a06c35c06a5703752e035ea87a7261c6c9"
+    },
+    {
+      "path": "components/expanded/ExpandedPreviewState.tsx",
+      "sha256": "3cae3a909428cfb46b9f8bcae4931bf50e0b060f2878b8a220fc9acfaebad958"
+    },
+    {
+      "path": "components/expanded/README.md",
+      "sha256": "bbc1fd918bc721824b54e0a26335effb51695b7c1559d81ce43eff98823c136a"
+    },
+    {
+      "path": "components/expanded/expanded.css",
+      "sha256": "1f93afad01d3d935fc4f2ad05ec45787d87a61f003f87c3e391ba19a5bd9c8b4"
+    },
+    {
+      "path": "components/foundation/EnvironmentalScene.tsx",
+      "sha256": "a1b06537445e0fefc9378e448b2e391fa26ef17ad43e645df61a451907b3aeda"
+    },
+    {
+      "path": "components/foundation/FactorReadingGuide.tsx",
+      "sha256": "cbf4319e3c021a719ad7f84b125f225ced06146688a22e2ef9731a61c66d4f65"
+    },
+    {
+      "path": "components/foundation/FactorScoreCard.tsx",
+      "sha256": "cfb64e146db86bc54d8bfe7d77232076b9484cccd192521660e56c155932468d"
+    },
+    {
+      "path": "components/foundation/FactorSteps.tsx",
+      "sha256": "a586a238f0c0a5fde9560c1f4be895ec92e7a3ec21f68780d869cdc03de2f3e2"
+    },
+    {
+      "path": "components/foundation/FactorTrend.tsx",
+      "sha256": "134b1946ee0d2ef4671e0d56908a47912800ba953ac8ac6c534c44459af4c18e"
+    },
+    {
+      "path": "components/foundation/FamilyGuidance.tsx",
+      "sha256": "477d356611d658b3ff0dd31e11268b02f67e6513ec2b25035af702df25b46b4f"
+    },
+    {
+      "path": "components/foundation/FoundationPreview.tsx",
+      "sha256": "e162700f5d37bb1c9b5f1327e24683d92b6571e50ecc08af8865474b80322ef1"
+    },
+    {
+      "path": "components/foundation/HomeHousehold.tsx",
+      "sha256": "a942f9807f39a0da413c2231d698c254ba0ffc03df82d1848e5793198b065275"
+    },
+    {
+      "path": "components/foundation/LunaAssistant.tsx",
+      "sha256": "a67d96de1b81f1eccc972adfb71b69351d13f5cbc80a278861bec5941653ea9a"
+    },
+    {
+      "path": "components/foundation/LunaMark.tsx",
+      "sha256": "873bad63804ffc4ae0bdcd735a0f0770371d2186f930f68acfc68ebaeb8cf3eb"
+    },
+    {
+      "path": "components/foundation/PersonalHero.tsx",
+      "sha256": "56fe95f32dda205368433431bec6d65fbcd68f1ad1f06dbe1ebf7b6552c45be3"
+    },
+    {
+      "path": "components/foundation/PreviewHousehold.tsx",
+      "sha256": "6e39cd9e30e6aad19a3815531a845aac7e1bdac4ef7a54b9571615fef8d36d39"
+    },
+    {
+      "path": "components/foundation/PreviewSectionLink.tsx",
+      "sha256": "eb16b8e648a118e617f719132a9f6af0c3670b0117e751fe2c5df07036b5d74d"
+    },
+    {
+      "path": "components/foundation/RisingSun.tsx",
+      "sha256": "6ade2478584f0c224a3e0f481da355e7007e14cd7d08b0be12d1247a92d1bf32"
+    },
+    {
+      "path": "components/foundation/SceneExperience.tsx",
+      "sha256": "a2db295b47617b550f19cbc88eef7957793c3de0ea051af5f9462dd80edf0aaf"
+    },
+    {
+      "path": "components/foundation/SegmentedScore.tsx",
+      "sha256": "409399b953d7c2d85e0aa80482df3e5d7602b32bfca369722f6df83e37affcad"
+    },
+    {
+      "path": "components/foundation/StageRuntime.tsx",
+      "sha256": "dfd12311f983c49bdb75b92927ffd8e29f0dfb8267d0b12f1afa7fca73002d98"
+    },
+    {
+      "path": "components/foundation/environmental-scene.css",
+      "sha256": "a470a11bc5430f31ae5c15c54d70a828cf391e0539b248fa01f9324787b54c77"
+    },
+    {
+      "path": "components/foundation/home-household.css",
+      "sha256": "54b3bed056fddcf6ac619c1950527eb658a79fe741cc541897e0ee29256e2027"
+    },
+    {
+      "path": "components/foundation/luna-assistant.css",
+      "sha256": "fb7ca97546b8157d9b28444ad812713b271d9b216665dcb24f6a57127872da00"
+    },
+    {
+      "path": "components/foundation/personal-hero.css",
+      "sha256": "f204cf4a5de462324c43f840fc28fb14da0799f96aba976f15bdb4b3da82a21c"
+    },
+    {
+      "path": "components/foundation/refinement.css",
+      "sha256": "7e9f9dde930eff1f9fe5137f071878bb4df9453ba241f1e2d20e6403818c4d42"
+    },
+    {
+      "path": "components/foundation/rising-sun.css",
+      "sha256": "20e5b0dfecd5ab1550578d75734cfdd0ec35223553c639c33728d76943269388"
+    },
+    {
+      "path": "components/homeguard/FoodEvidence.tsx",
+      "sha256": "1b48284329b2d27834c0edf28b454731be2d3e682a634e8c8532f483ece619e5"
+    },
+    {
+      "path": "components/homeguard/FoodExtent.tsx",
+      "sha256": "fa90b445cd81a1f05247468b6af41b5d98adea35ccde4a1cdd74dd881b3e11ee"
+    },
+    {
+      "path": "components/homeguard/FoodFish.tsx",
+      "sha256": "e2c7a5af6cb0b0832d5757ccdeacb810fb5fdc48ec4660c99d62dbab5710b3f6"
+    },
+    {
+      "path": "components/homeguard/FoodGarden.tsx",
+      "sha256": "af0522b059a83e7d44874ce4c65a560f66c90bd668af94e1a2c44729af294aed"
+    },
+    {
+      "path": "components/homeguard/FoodGardenWorkspace.tsx",
+      "sha256": "fddf2767a14c31eefca93a530ffa1db4cd97679ab3d2dc33fcfa0fcfa1667601"
+    },
+    {
+      "path": "components/homeguard/FoodGrower.tsx",
+      "sha256": "75de531e791871e06f7a3b661c7f8eb143cfca91bcd3c39e824bea732318c966"
+    },
+    {
+      "path": "components/homeguard/FoodPantry.tsx",
+      "sha256": "e3f863f81214bd11042e49a17dce00e91e0f1ca575071c4357b1064c8b0c69b4"
+    },
+    {
+      "path": "components/homeguard/FoodShared.tsx",
+      "sha256": "c90949eec9a81ce206bd5ea2da2c9c763386bbd194d8fb674d89f87c2e420a71"
+    },
+    {
+      "path": "components/homeguard/FoodVisuals.tsx",
+      "sha256": "a1b63f636c74b16aa85a0508c0b7a8a089bab3ad6319543675965ce191387f1c"
+    },
+    {
+      "path": "components/homeguard/FoodWater.tsx",
+      "sha256": "7b39d7483e1b8805d053f956e2cf930b559ed4d58526b3d8ae7b39fe5b76d051"
+    },
+    {
+      "path": "components/homeguard/HomeWorkspaceScene.tsx",
+      "sha256": "207ed620974765de37d9293c95d3b2bd444c4325419ef0f47695a809093d4e58"
+    },
+    {
+      "path": "components/homeguard/HomeWorkspaceState.tsx",
+      "sha256": "078252ea560c2e437f5522d26151143a6c3d3c674c83865a54002ee46a3c7a80"
+    },
+    {
+      "path": "components/homeguard/HomeWorkspaceUI.tsx",
+      "sha256": "2eb1cb065ad504b86b73f4344fdcba377d8abc70872b74bd10633dfe5f144022"
+    },
+    {
+      "path": "components/homeguard/HomeguardWorkspace.tsx",
+      "sha256": "42616a8ccac688f9e3131416a56a46bbd63a530f82c1305b3890d8eaf058e93b"
+    },
+    {
+      "path": "components/homeguard/MaintenanceWorkspace.tsx",
+      "sha256": "d3c80ba4b08661694f3b6bc47e782d5edb02a0871f4238eb57542fb10d49e74d"
+    },
+    {
+      "path": "components/homeguard/PublishedFoodEvidence.tsx",
+      "sha256": "b1dc96f47cf81fa58a092caa1ac66838faf4074c9809240d89d1b8b6b4f2d1ce"
+    },
+    {
+      "path": "components/homeguard/README.md",
+      "sha256": "fbd3196be937b0b0a3be8f2b81e1ebdb451814de0f8eea0558d9078296ff6b26"
+    },
+    {
+      "path": "components/homeguard/SummaryReport.tsx",
+      "sha256": "bd04a47a7c220a510310323844c5050c5385755fc15efffd4c9486686695c5e0"
+    },
+    {
+      "path": "components/homeguard/SummaryWorkspace.tsx",
+      "sha256": "14b7970d239e689b6e1cf86fb2b22507b5a5e4e5df876758117a478e78a67c73"
+    },
+    {
+      "path": "components/homeguard/TestProgress.tsx",
+      "sha256": "3dc7fe76be8f0f589f13b4d597d1e4122a503bb71f3d91afc12d34df5a586e1c"
+    },
+    {
+      "path": "components/homeguard/TestsWorkspace.tsx",
+      "sha256": "bb7b61a43ae82d590905e3fa8d79effb4230c9be7db094ae24cb19bfb53c7260"
+    },
+    {
+      "path": "components/homeguard/food-evidence.css",
+      "sha256": "de01bd1ba546a14a1f1941f4d0fcd16579af0bba8834c6d98ded51461c2c45a3"
+    },
+    {
+      "path": "components/homeguard/food-pantry.css",
+      "sha256": "40836d381e4492e28d9e89fa9ba592adffcd597167c83f67781fa33cd218235a"
+    },
+    {
+      "path": "components/homeguard/food-polish.css",
+      "sha256": "bd29da47147550c219c04526aaf101b137d3f200bbe7e38f2487af1a81dc324d"
+    },
+    {
+      "path": "components/homeguard/homeguard-workspace.css",
+      "sha256": "58a63b64bec58f37f54a29b3e9d3b7920e8fbe139cec1953990420670c1b1071"
+    },
+    {
+      "path": "components/homeguard/records-polish.css",
+      "sha256": "7c42ef70f3edabe791d82fcdc3ff4da2b58218a456f7102ce5d0683ba2581e5f"
+    },
+    {
+      "path": "components/homeguard/summary-report.css",
+      "sha256": "04c4d718af222f2e0118dd89da9c0daf2ac1d51817e5c47ac103fe1e2393422c"
+    },
+    {
+      "path": "components/homeguard/test-progress.css",
+      "sha256": "0d7ba8eab6a5d5cca222c2f0037b4617e542a3fd2603e18b3a88deeaf9615cb1"
+    },
+    {
+      "path": "components/stage/HomeEvidence.tsx",
+      "sha256": "5eb8000d279ffd9e7379253b3bd1ac4d88aff9c75f9c71b59f6f0ba39d12135c"
+    },
+    {
+      "path": "components/stage/StageApp.tsx",
+      "sha256": "500fe1f6d515fe40f5e54b321afb3b25fb096b97f97da2a0bae938bb41495559"
+    },
+    {
+      "path": "components/stage/StageSession.tsx",
+      "sha256": "a636d2a450c8d378084c5a8b744cdf272f8d0bbcdf7619b8f9f244cf8826acea"
+    },
+    {
+      "path": "components/stage/StageSettings.tsx",
+      "sha256": "02632da5cbcba3f9d4e6cf011fb857e73ce148f56ce4d91e19bad456a2941e66"
+    },
+    {
+      "path": "components/stage/stage.css",
+      "sha256": "97940a74ce88030af24031d728da52d54ae05247162d471a9144e4df6bb05ecb"
+    },
+    {
+      "path": "components/ui/AppNavigation.tsx",
+      "sha256": "8f8bf29fece06e3c352030a72db91ddf768cf3b56baa04753bb35f8b124f0689"
+    },
+    {
+      "path": "docs/WIREFRAME_WORKFLOW.md",
+      "sha256": "6f296c9d2c5dc98646640f021a3ef65b27d017ffada23640dda08a2afd9528cc"
+    },
+    {
+      "path": "lib/frontend/api.ts",
+      "sha256": "3b6e4163e929593ace9118053a9f0ede59a7c5ba431df1dd3b18e1a6392fb2a0"
+    },
+    {
+      "path": "lib/frontend/copy.ts",
+      "sha256": "a04f4e45128c010021d29d362ffa86f1cf626fbec2877e08e724956a631879f6"
+    },
+    {
+      "path": "lib/frontend/copy/foundation-preview.ts",
+      "sha256": "22de4bff0d6b5506a6b6c65df8b4a3bf989178e7ae4b460f4a300b0d8f12783f"
+    },
+    {
+      "path": "lib/frontend/expanded-preview.ts",
+      "sha256": "335258a80ed47395417e2d2ea50745250ed6cd3f9b9aef53dfa28e5fcaa316a7"
+    },
+    {
+      "path": "lib/frontend/factor-preview.ts",
+      "sha256": "969402c1879b3fa8dd5cc3fca7c8b320cca86b52e4931b824114e97ce1936737"
+    },
+    {
+      "path": "lib/frontend/food-catalogue.ts",
+      "sha256": "e27c91dc4ed2eb8022d5c1e9947ba20f7a9565337199e07bf3f905e29b202134"
+    },
+    {
+      "path": "lib/frontend/food-evidence.ts",
+      "sha256": "7c0b26146bade84dc020ee7ce07c9fb57222dd4c6fce59823601c849ff7f3415"
+    },
+    {
+      "path": "lib/frontend/food-pfas-guide.ts",
+      "sha256": "e00d96ea05a0a489aad1df993eea55b1f73f5164e3f7288ef085b37846dbe65d"
+    },
+    {
+      "path": "lib/frontend/foundation-preview.ts",
+      "sha256": "b74e9d144f45642a381b40063352578767817b627f896422dfe7cf8345b7b06c"
+    },
+    {
+      "path": "lib/frontend/home-food-preview.ts",
+      "sha256": "ad5344b6e315f62b6efada1d6189f7495f0844f40730c62d9c63bc78d44b71bf"
+    },
+    {
+      "path": "lib/frontend/home-household.ts",
+      "sha256": "3ebd45fa95e23f047d9725f189929d047353971447dd7fc447f19fdfc92fc230"
+    },
+    {
+      "path": "lib/frontend/home-maintenance-preview.ts",
+      "sha256": "ab9297432158ad316c4570991e6e06eceab499a1d9889342325f7156eea82c25"
+    },
+    {
+      "path": "lib/frontend/home-test-preview.ts",
+      "sha256": "6f11b3cd7aedfbafcf254cc6b60b35ad492610870a3aafffe4d86c00484131e5"
+    },
+    {
+      "path": "lib/frontend/household-pdf.ts",
+      "sha256": "3cd81eed58b271942fd4f1305e571c9c36ea3a2f50a88d0ce49239ac6907e937"
+    },
+    {
+      "path": "lib/frontend/map-district-preview.ts",
+      "sha256": "cbd5554b24760becf6589771c4cfb735691963618252d77b0f8285e81f9f2386"
+    },
+    {
+      "path": "lib/frontend/map-preview.ts",
+      "sha256": "7e1440ac3c559d1b662887f53ce2894c0b26fb8ae1270a42501e30dab43c5a41"
+    },
+    {
+      "path": "lib/frontend/map-radon-fixture.ts",
+      "sha256": "a1615aa0d01bb0693c2002807cf23870992e20600a46871a71b334985886f6cf"
+    },
+    {
+      "path": "lib/frontend/mock.ts",
+      "sha256": "e6b10a7711ce109307e99a61997ed0cb7f69d003e1cc88d069607ffdeb3d5ae2"
+    },
+    {
+      "path": "lib/frontend/navigation.ts",
+      "sha256": "83ef615603e83c55168ba85b19b5b52d5b5578a56e8dea599aeb2293099b1730"
+    },
+    {
+      "path": "lib/frontend/onboarding.ts",
+      "sha256": "2c9537c6d10e2bec7bb34318a687857370abb682c461928d7457c69d1cd11864"
+    },
+    {
+      "path": "lib/frontend/scene-clock.ts",
+      "sha256": "86dfeae3fa8ec226baf82795ba82ac71d55b9376a2bf45b8dd07470ca192a297"
+    },
+    {
+      "path": "lib/frontend/stage-api.ts",
+      "sha256": "ee076b531391d47b3de9e5f99e605ce3d5312205268a9bab1fda1fe1c467a288"
+    },
+    {
+      "path": "lib/frontend/stage-data.ts",
+      "sha256": "4cfa8c66e9266e6b2eae5bade572b9996c3c7a391c3e77bcb559d9b293f4ac6c"
+    },
+    {
+      "path": "lib/frontend/stage-routing.ts",
+      "sha256": "06fd0e3de818f4c4687ae1522368212bfad149d5bb5d93def0841222974bb03a"
+    },
+    {
+      "path": "lib/frontend/stage-values.ts",
+      "sha256": "404c8964a82bc1c996ff9614d832cf34d7694ac13a8c6047de4097284032a84c"
+    },
+    {
+      "path": "lib/frontend/storage.ts",
+      "sha256": "5f382a683471f5f039d55939827ae769deb6d4344e4f4a6a08d152f4ac6ea6c9"
+    },
+    {
+      "path": "lib/frontend/types.ts",
+      "sha256": "428c6ee64232a3dbabbe072e64f15a097102d6260ad53478ea5eff45dfa1ff71"
+    },
+    {
+      "path": "lib/frontend/useHaloData.ts",
+      "sha256": "9a9f1790f2027a3c73fb7b52c0ddde9641e620179dd89b71b06afad4d9bf8723"
+    },
+    {
+      "path": "package.json",
+      "sha256": "4a5aa4040fdcd37f81b17aa50d6af104f2af7898c9d4d9545c5bcc4274cb8be9"
+    },
+    {
+      "path": "test/frontend-api.test.mjs",
+      "sha256": "8e12715facc5717e2d4e0e9c723417914d9ebd65949f5abbf4c43cf688c7a194"
+    },
+    {
+      "path": "test/frontend-auth.test.mjs",
+      "sha256": "2051802a457762ff00979eaf33ced721fac8955c8667301a4f34e63c6e1b99f9"
+    },
+    {
+      "path": "test/frontend-expanded.test.mjs",
+      "sha256": "1363dadc9ea26e68973500e715162507f370690506e6802fe602abf57f182b08"
+    },
+    {
+      "path": "test/frontend-food-evidence.test.mjs",
+      "sha256": "f8f7fa561c26600b561d6fd5028d8024cecac5a7b875d69d328856f439993eeb"
+    },
+    {
+      "path": "test/frontend-food-pfas.test.mjs",
+      "sha256": "161b57e7a99aed216350d9c2b27406ec7930e90fbe1bb08b92a99e29d94c4c51"
+    },
+    {
+      "path": "test/frontend-home-food.test.mjs",
+      "sha256": "bfd32aa160a66c8ef3476b9512526e6dd1f17c76c7157b1bd97a5279f70668b8"
+    },
+    {
+      "path": "test/frontend-home-maintenance.test.mjs",
+      "sha256": "8e95c1d84c35f85660aaf2bee7c59d1fa01d9c6caea7e52d3834f5dae6877a4d"
+    },
+    {
+      "path": "test/frontend-home-tests.test.mjs",
+      "sha256": "fbd9271254e5b817a73b47d0124e1a5a5cd763a45a6c2b90fd3bd634147601fa"
+    },
+    {
+      "path": "test/frontend-household-pdf.test.mjs",
+      "sha256": "df11aedc70a26f2e6aa7b8e9b0287dcfe12ab87983639d58390280f755dd91e9"
+    },
+    {
+      "path": "test/frontend-onboarding.test.mjs",
+      "sha256": "2cda755c8cc434da4d07f6ef3d83b06d90741ccfa96d210e4dd607880d856389"
+    },
+    {
+      "path": "test/frontend-scene-clock.test.mjs",
+      "sha256": "edb235988cea9c9131970531768cf0af731efd4ef076f258264fde5eba003a37"
+    },
+    {
+      "path": "test/frontend-stage-api.test.mjs",
+      "sha256": "aa0d2523478055dac7a53fb6343a5ca65cc75798e4e7f841315165b656589dfa"
+    },
+    {
+      "path": "test/frontend-stage-data.test.mjs",
+      "sha256": "33f5de6077dfa8f42b71e22013adea1bd3e94e41fefa450ddb763fa845cde201"
+    },
+    {
+      "path": "test/frontend-stage-routing.test.mjs",
+      "sha256": "de04c98011c8d4772678cc19bad92bf70f50bdcee141478ef2c31880b6607e2a"
+    },
+    {
+      "path": "test/frontend-test-loader.mjs",
+      "sha256": "a8da09f61c87f94dafe2f9982e349d8832ed0ed19b24e773bfc1d162f4e70012"
+    },
+    {
+      "path": "test/ui/expanded-preview.spec.ts",
+      "sha256": "300480544b592a962db0258cecc6ebc17f5597d974fcca9e24a3c25b8e8bc49d"
+    },
+    {
+      "path": "test/ui/home-food-evidence.spec.ts",
+      "sha256": "36af57eefba78fa95fedd5da53347972167e4f880ece626d81aef4e74462b7ae"
+    },
+    {
+      "path": "test/ui/home-food-polish.spec.ts",
+      "sha256": "b0bd263c200d6d53622ea579293b2dcc72f0e813043b5e80b8e8b67064d8dc01"
+    },
+    {
+      "path": "test/ui/home-food.spec.ts",
+      "sha256": "7c852cb02a89d7734738d020dbe704e6b5bc463f4a6a9e8ae6338140a2c56795"
+    },
+    {
+      "path": "test/ui/home-household.spec.ts",
+      "sha256": "6af41055d00fe1a534aa91589f58db6956d40f7f80f68b1e5d52cb50effd9bff"
+    },
+    {
+      "path": "test/ui/home-maintenance-summary.spec.ts",
+      "sha256": "e2cc6f5d71e36b2cf1677a4cc9f07593270799a62de3bdc8196b8244d060e84d"
+    },
+    {
+      "path": "test/ui/home-pantry.spec.ts",
+      "sha256": "c7b5472b5844b2c73afb5d27554705d21fff0aa7a3d247853c20ce7a75cbf6a5"
+    },
+    {
+      "path": "test/ui/home-polish.spec.ts",
+      "sha256": "bd0c121c177872afe12eae9694fc6300d31d6a7ae0a69c6100d493dec421df6c"
+    },
+    {
+      "path": "test/ui/home-records-polish.spec.ts",
+      "sha256": "decc5d7a53eb849a735619649ec30b30786391eb2225bd1c14045ccc01d4fc9f"
+    },
+    {
+      "path": "test/ui/home-refinement.spec.ts",
+      "sha256": "62221ba19ad4e280968ce29cc553ee7ecbcd16e664512543cd4fc043845dfe49"
+    },
+    {
+      "path": "test/ui/home-summary-pdf.spec.ts",
+      "sha256": "6be7c5003459f5a5406fc813c76d419302ddc4470d8243914e659a9aaf8cce41"
+    },
+    {
+      "path": "test/ui/home-test-timeline.spec.ts",
+      "sha256": "5add0693859d0cb9bc93b5f2d46a5b801156444e902adafb9e0c1c05162e3d23"
+    },
+    {
+      "path": "test/ui/home-tests.spec.ts",
+      "sha256": "5d8b752364cb3a74aa50d36af1121dfd7a78b35ea2809391c4924330a5740c75"
+    },
+    {
+      "path": "test/ui/home-workspace.spec.ts",
+      "sha256": "9e28db1d37c5b9e6caabe14d7a1bdfe9567ae147baf6088eef45cf6b09cf0a8c"
+    },
+    {
+      "path": "test/ui/homeguard-order.spec.ts",
+      "sha256": "5bfbec75fcf70130589fb3e7c3877ad49d8cf0a73971d981337ee1ffecdd8951"
+    },
+    {
+      "path": "test/ui/luna-assistant.spec.ts",
+      "sha256": "23767c753772b4d2b12f42a0467a48287d468fabcc8e3e7253aa23d5f73a5a33"
+    },
+    {
+      "path": "test/ui/luna-live.spec.ts",
+      "sha256": "b9bf2c99573012b6e8be6123068d83454adf35441f660951d4a1f5dce454bd87"
+    },
+    {
+      "path": "test/ui/luna-pages.spec.ts",
+      "sha256": "832ed063292100ec50453bc78f41d0405fe7bc6e7736562ef9bb98ff849fa597"
+    },
+    {
+      "path": "test/ui/section-navigation.spec.ts",
+      "sha256": "9af14dc9fd1cc88f0d72558b1de30226ea6742cfe7e1caf7bed4bae0b492f5a7"
+    },
+    {
+      "path": "test/ui/stage-expanded-navigation.spec.ts",
+      "sha256": "3a97e01251867ec0bb43ecfdb226699758077837ce260cc3704709cda8f95127"
+    }
+  ],
+  "verification": {
+    "local_npm_test": {
+      "passed": 426,
+      "failed": 0,
+      "scope": "Current local worktree logic tests; module-type warnings present."
+    },
+    "remote_backend_tests_rerun": false,
+    "live_provider_or_private_database_tests": false,
+    "production_mutations": false,
+    "app_source_changed_by_this_audit": false
+  }
+}

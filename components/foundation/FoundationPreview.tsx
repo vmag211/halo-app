@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Bell, BookOpen, CircleHelp, Hand, House, Info, Map as MapIcon, Notebook, Settings, Sunrise, WifiOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import SeverityPill from '@/components/ui/SeverityPill';
@@ -20,6 +20,11 @@ import { homeMemberKeys, memberCatalog, type HomeMemberKey } from '@/lib/fronten
 import type { MotionMode, SceneTime } from '@/lib/frontend/scene-clock';
 import LunaAssistant from './LunaAssistant';
 import LunaMark from './LunaMark';
+import AppNavigation from '@/components/ui/AppNavigation';
+import { ExpandedActionDialog, ExpandedMode, ExpandedReviewControls } from '@/components/expanded/ExpandedPreviewState';
+import { ExpandedAct, ExpandedConnections, ExpandedDestinationPage, ExpandedPlan, ExpandedSettings } from '@/components/expanded/ExpandedConnections';
+import { destinations, isDestination } from '@/lib/frontend/expanded-preview';
+import type { AppTab } from '@/lib/frontend/navigation';
 
 const tabIcons = { today: Sunrise, home: House, map: MapIcon, journal: Notebook, act: Hand };
 const topics = ['pfas', 'radon', 'lead', 'air', 'pollen', 'uv', 'mold'];
@@ -28,6 +33,7 @@ type SheetState = { type: PreviewSheet; height: 'standard' | 'tall' | 'content';
 type ToastState = { id: number; message: string; action?: () => void };
 
 export default function FoundationPreview({ initialScenario, initialFactor, initialFamily = false, initialMember, preferences = {} }: { initialScenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; preferences?: PreviewPreferences }) {
+  const expanded = preferences.expanded === true;
   const [scenario, setScenario] = useState(initialScenario);
   const [mode, setMode] = useState(preferences.appearance ?? 'system');
   const [scale, setScale] = useState(preferences.scale ?? '100');
@@ -53,7 +59,8 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
   }
   return <div className="halo-f-review" data-mode={mode}>
     <details className="halo-f-review-tools">
-      <summary>{c.review}</summary><p>{c.status}</p>
+      <summary>{expanded ? 'Expanded app review · Not approved' : c.review}</summary><p>{c.status}</p>
+      {expanded && <><p>The four-tab revision uses Plan as the working fourth-tab label. New connections are additive. Workflow outlines are not finished screens, and sample actions are not saved to an account.</p><ExpandedReviewControls /></>}
       <p>Today covers air quality, UV, pollen, and mold. PFAS belongs only to Homeguard and does not contribute to Today. Scores and contribution shares in this review are illustrative sample values, not live API results.</p>
       <label>{c.scenario}<select aria-label={c.scenario} value={scenario} onChange={e => changeScenario(e.target.value as FoundationScenario)}>{sections.map(section => <optgroup key={section} label={section}>{foundationScenarios.filter(s => s[1] === section).map(([key, , label]) => <option key={key} value={key}>{label}</option>)}</optgroup>)}</select></label>
       <div className="halo-f-tool-grid"><label>{c.appearance}<select aria-label={c.appearance} value={mode} onChange={e => setMode(e.target.value)}><option value="system">{c.system}</option><option value="light">{c.light}</option><option value="dark">{c.dark}</option></select></label><label>{c.scale}<select aria-label={c.scale} value={scale} onChange={e => setScale(e.target.value)}>{['100', '115', '130', '150'].map(n => <option key={n} value={n}>{n}%</option>)}</select></label></div>
@@ -62,7 +69,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
       <p>Scene lighting follows the device’s local clock, independently of app appearance. This is decorative scenery, not local weather or a sunrise forecast. Play animations overrides the device preference for this preview only.</p>
       <PreviewHouseholdPicker />
     </details>
-    <SceneProvider mode={motion} time={time}><Product key={`${scenario}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} /></SceneProvider>
+    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time}><Product expanded={expanded} key={`${scenario}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} /></SceneProvider></ExpandedMode>
   </div>;
 }
 
@@ -78,20 +85,45 @@ function startingSheet(scenario: FoundationScenario): SheetState | null {
   return { type: 'learn', height: 'standard', topic: 'air', state: ['loading', 'error', 'empty'].includes(state) ? state as SheetState['state'] : undefined };
 }
 
-function Product({ scenario, initialFactor, initialFamily, initialMember, appearance, scale, contrast, motion, time }: { scenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; appearance: string; scale: number; contrast: boolean; motion: MotionMode; time: SceneTime }) {
+function Product({ expanded, scenario, initialFactor, initialFamily, initialMember, appearance, scale, contrast, motion, time }: { expanded: boolean; scenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; appearance: string; scale: number; contrast: boolean; motion: MotionMode; time: SceneTime }) {
   const router = useRouter();
+  const search = useSearchParams();
+  const queryTab = search.get('tab');
+  const queryDestination = search.get('destination');
   const experience = useSceneExperience();
   const factorTab = initialFactor ? (['pfas', 'radon', 'lead'].includes(initialFactor) ? 'home' : 'today') : undefined;
   const [route, setRoute] = useState<PreviewRoute>(initialMember ? 'home' : factorTab ?? startingRoute(scenario));
+  const [destination, setDestination] = useState<string | null>(null);
+  useEffect(() => {
+    if (!factorTab || queryTab === factorTab) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', factorTab);
+    // Keep normalization synchronous: a delayed route replacement could erase
+    // a section hash the user selected while the transition was still pending.
+    window.history.replaceState(window.history.state, '', url);
+  }, [factorTab, queryTab]);
+  useEffect(() => {
+    if (!expanded || initialFactor || initialFamily || initialMember) return;
+    // URL state contains only reviewed public navigation, never form contents.
+    const target = isDestination(queryDestination) ? destinations[queryDestination].tab : queryTab;
+    queueMicrotask(() => {
+      if (['today', 'home', 'act', 'plan', 'settings'].includes(target ?? '')) setRoute(target as PreviewRoute);
+      setDestination(queryDestination);
+    });
+  }, [expanded, initialFactor, initialFamily, initialMember, queryTab, queryDestination]);
   const inDetail = !!(initialFactor || initialFamily || initialMember);
   const backTab = initialFamily ? 'today' : initialMember ? 'home' : route;
   function previewHref(tab: PreviewRoute, factor?: FactorKey) {
     const params = new URLSearchParams({ scenario, tab, appearance, scale: String(Math.round(scale * 100)), motion, time, contrast: String(contrast) });
+    if (expanded) params.set('edition', 'expanded');
     return `/foundation/preview${factor ? `/factor/${factor}` : ''}?${params}`;
   }
   const factorHref = (factor: FactorKey) => previewHref(['pfas', 'radon', 'lead'].includes(factor) ? 'home' : 'today', factor);
   const familyHref = previewHref('today').replace('/foundation/preview?', '/foundation/preview/family?');
   const memberHref = (member: HomeMemberKey) => previewHref('home').replace('/foundation/preview?', `/foundation/preview/household/${member}?`);
+  const expandedHref = (tab: string, target?: string) => `${previewHref(tab as PreviewRoute)}${target ? `&destination=${encodeURIComponent(target)}` : ''}`;
+  const mapHref = (layer: string) => `/foundation/preview/map?edition=expanded${layer ? `&layer=${layer}` : ''}&appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&time=${time}&contrast=${contrast}`;
+  const allowedRoutes = expanded ? [...previewTabs, 'settings', 'plan'] : [...previewTabs, 'settings'];
   const routeRef = useRef(route);
   const scrollMemory = useRef<Record<string, number>>({});
   const [sheet, setSheet] = useState<SheetState | null>(startingSheet(scenario));
@@ -103,7 +135,7 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
   const toastSequence = useRef(0);
   const [deleted, setDeleted] = useState(scenario === 'toast-undo');
   const [unread, setUnread] = useState(scenario === 'shell-no-alerts' ? 0 : scenario === 'shell-badge-cap' ? 12 : 3);
-  const [expanded, setExpanded] = useState<string | null>(scenario === 'card-loading' || scenario === 'card-no-data' ? 'air' : null);
+  const [expandedCard, setExpanded] = useState<string | null>(scenario === 'card-loading' || scenario === 'card-no-data' ? 'air' : null);
   const [resolved, setResolved] = useState(false);
   const [busy, setBusy] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -118,8 +150,8 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
     if (scenario === 'toast') setToast({ id: ++toastSequence.current, message: c.saved });
     if (scenario === 'toast-undo') setToast({ id: ++toastSequence.current, message: c.deleteConfirm, action: () => setDeleted(false) });
     const url = new URL(window.location.href);
-    if (factorTab) { url.searchParams.set('tab', factorTab); window.history.replaceState(window.history.state, '', url); }
-    else if (!initialMember && url.searchParams.has('tab') && [...previewTabs, 'settings'].includes(url.searchParams.get('tab') ?? '')) setRoute(url.searchParams.get('tab') as PreviewRoute);
+    if (!factorTab && !initialMember && !initialFamily && url.searchParams.has('tab') && allowedRoutes.includes(url.searchParams.get('tab') ?? '')) setRoute(url.searchParams.get('tab') as PreviewRoute);
+    if (expanded) setDestination(url.searchParams.get('destination'));
     const learn = url.searchParams.get('learn');
     if (learn && topics.includes(learn)) { setSheet({ type: 'learn', height: 'standard', topic: learn, generic: !['air', 'uv', 'pollen', 'mold'].includes(learn) }); sheetEntry.current = false; }
     else if (url.searchParams.has('sheet')) { sheetEntry.current = !!window.history.state?._foundationSheet; }
@@ -132,7 +164,8 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
     const onBack = () => {
       const location = new URL(window.location.href);
       const tab = location.searchParams.get('tab');
-      const nextRoute = factorTab ?? ([...previewTabs, 'settings'].includes(tab ?? '') ? tab as PreviewRoute : startingRoute(scenario));
+      const nextRoute = factorTab ?? (allowedRoutes.includes(tab ?? '') ? tab as PreviewRoute : startingRoute(scenario));
+      if (expanded) setDestination(location.searchParams.get('destination'));
       scrollMemory.current[routeRef.current] = window.scrollY;
       setRoute(nextRoute);
       const kind = location.searchParams.get('sheet') as PreviewSheet | null;
@@ -141,7 +174,9 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
       if (!kind) requestAnimationFrame(() => window.scrollTo(0, scrollMemory.current[nextRoute] ?? 0));
     };
     window.addEventListener('popstate', onBack); return () => window.removeEventListener('popstate', onBack);
-  }, [scenario, initialMember, factorTab]);
+  // Allowed routes depend only on the edition, not on review state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario, initialMember, factorTab, expanded]);
   function openSheet(next: SheetState) {
     const url = new URL(window.location.href); url.searchParams.delete('learn'); url.searchParams.set('sheet', next.type);
     if (sheetRef.current) window.history.replaceState({ ...window.history.state, _foundationSheet: sheetEntry.current }, '', url);
@@ -153,8 +188,10 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
     else { const url = new URL(window.location.href); url.searchParams.delete('sheet'); url.searchParams.delete('learn'); window.history.replaceState({ ...window.history.state, _foundationSheet: false }, '', url); setSheet(null); }
   }
   function navigate(next: PreviewRoute, fromSheet = false) {
+    if (next === 'map') { router.push(expanded ? mapHref('water') : `/foundation/preview/map?appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&contrast=${contrast}`); return; }
     if (inDetail) { router.push(previewHref(next)); return; }
     const url = new URL(window.location.href);
+    url.searchParams.delete('destination'); setDestination(null);
     if (fromSheet) { url.searchParams.delete('sheet'); url.searchParams.delete('learn'); window.history.replaceState({ ...window.history.state, _foundationSheet: false }, '', url); sheetEntry.current = false; setSheet(null); }
     scrollMemory.current[route] = window.scrollY;
     url.searchParams.set('tab', next); window.history.pushState({ ...window.history.state, _foundationSheet: false, _foundationSettingsReturn: next === 'settings' ? route : null }, '', url);
@@ -177,7 +214,7 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
   const isGate = (current.startsWith('gate-') && current !== 'gate-error') || current === 'not-found';
   const ariaTitle = foundationScenarios.find(s => s[0] === scenario)?.[2] ?? c.pageLabel;
   const toastElement = toast && <div className="halo-f-toast" role="status"><span>{toast.message}</span>{toast.action && <button onClick={() => { toast.action?.(); setToast(null); }}>{c.undo}</button>}</div>;
-  const readingView = current === 'cards' ? <Readings scenario={current} expanded={expanded} setExpanded={setExpanded} onLearn={() => openSheet({ type: 'learn', height: 'standard', topic: 'air' })} onSelect={expandFactor} /> : <PersonalHero scenario={current} factorHref={factorHref} familyHref={familyHref} memberHref={memberHref} home={route === 'home'} />;
+  const readingView = current === 'cards' ? <Readings scenario={current} expanded={expandedCard} setExpanded={setExpanded} onLearn={() => openSheet({ type: 'learn', height: 'standard', topic: 'air' })} onSelect={expandFactor} /> : <PersonalHero scenario={current} factorHref={factorHref} familyHref={familyHref} memberHref={memberHref} home={route === 'home'} />;
   let content: ReactNode = readingView;
   if (current === 'loading' || current === 'gate-loading') content = <Loading gate={current === 'gate-loading'} />;
   else if (current === 'error' || current === 'gate-error') content = <><Callout tone="error"><p>{current === 'gate-error' ? c.gateError : c.error}</p><Button variant="secondary" aria-label={c.retry} busy={busy} onClick={() => mockRequest(() => setResolved(true))}>{c.retry}</Button></Callout>{current === 'gate-error' && readingView}</>;
@@ -195,15 +232,24 @@ function Product({ scenario, initialFactor, initialFamily, initialMember, appear
   else if (current === 'identity') content = <Identity />;
   else if (current === 'cards') content = <><Intro title={c.labels.cardFamily} /><Card title={c.labels.staticCard}><p>{c.cardDetail}</p></Card><Card title={c.labels.tappableCard} onClick={() => openSheet({ type: 'learn', height: 'standard', topic: 'air' })}><p>{c.learn}</p></Card>{readingView}</>;
   else if (route !== 'today' && route !== 'home') content = <><Intro title={routeTitles[route]} body={c.notPage(routeTitles[route])} />{route === 'map' ? <div className="halo-f-map-placeholder"><MapIcon size={50} aria-hidden="true" /><p>{c.notPage('Map')}</p><Button variant="secondary" onClick={() => openSheet({ type: 'map', height: 'content' })}>{c.compact}</Button></div> : route === 'settings' ? <Controls household showToast={showToast} /> : readingView}</>;
-  if (initialFactor && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FactorDetail factorKey={initialFactor} scenario={current} factorHref={factorHref} parentHref={previewHref(route)} />;
+  if (initialFactor && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FactorDetail factorKey={initialFactor} scenario={current} factorHref={factorHref} parentHref={previewHref(route)} showAllSteps={expanded} />;
   if (initialFamily && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FamilyGuidance scenario={current} factorHref={factorHref} parentHref={previewHref('today')} />;
   if (initialMember && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <HomeMemberGuidance member={initialMember} scenario={current} memberHref={memberHref} factorHref={factorHref} parentHref={`${previewHref('home')}#household`} />;
+  const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
+  if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} />;
+  if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
+    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} /> : <ExpandedPlan href={expandedHref} />;
+  } else if (showExpanded && (route === 'today' || route === 'home')) {
+    content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
+  }
+  const activeTab = route === 'settings' ? null : destination && isDestination(destination) ? destinations[destination].tab : route === 'map' ? 'act' : route === 'journal' ? 'plan' : route as AppTab;
   return <div className="halo-app halo-f-app" data-testid="foundation-product" data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
     <EnvironmentalScene page variant={initialFactor ?? (route === 'home' ? 'home' : 'landscape')} />
     {!isGate && <header className="halo-f-header">{inDetail ? <Link className="halo-f-icon" href={previewHref(backTab)} aria-label={`Back to ${routeTitles[backTab]}`} prefetch={false}><ArrowLeft size={22} aria-hidden="true" /></Link> : route === 'settings' && <button className="halo-f-icon" aria-label={c.labels.back} onClick={backFromSettings}><ArrowLeft size={22} aria-hidden="true" /></button>}<h1>{initialMember ? memberCatalog[initialMember].label : initialFamily ? 'Your household' : initialFactor ? factorReadings[initialFactor].title : routeTitles[route]}</h1><div className="halo-f-header-actions">{route === 'today' && !inDetail && <button className="halo-f-icon halo-f-bell" aria-label={c.unread(unread)} onClick={() => openSheet({ type: 'alerts', height: 'standard' })}><Bell size={22} aria-hidden="true" />{unread > 0 && <span className="halo-f-badge">{unread > 9 ? '9+' : unread}</span>}</button>}{route !== 'settings' && <button className="halo-f-icon" aria-label={c.labels.settings} onClick={() => navigate('settings')}><Settings size={22} aria-hidden="true" /></button>}</div></header>}
     {offline && <div className="halo-f-offline"><WifiOff size={18} aria-hidden="true" /><p>{current === 'offline-empty' ? c.offlineEmpty : c.offline}</p></div>}
     <main className="halo-f-main" aria-label={ariaTitle}>{!isGate && <p className="halo-f-eyebrow">{initialFactor ? 'A closer look' : 'Your world, understood'} · Sample preview</p>}{current === 'stale' && <Callout tone="notice"><p>{c.stale}</p><button className="halo-text-button" onClick={() => mockRequest(() => setResolved(true))} disabled={busy}>{c.retry}</button></Callout>}{current === 'refreshing' && <p role="status" className="halo-f-refreshing"><span className="halo-spinner" aria-hidden="true" />{c.refreshing}</p>}{content}</main>
-    {!isGate && <><nav className="halo-f-tabs" aria-label={c.labels.navigation}>{previewTabs.map(tab => { const Icon = tabIcons[tab]; return <a key={tab} href={previewHref(tab)} aria-current={route === tab ? 'page' : undefined} onClick={e => { e.preventDefault(); if (route !== tab || inDetail) navigate(tab); }}><Icon size={23} aria-hidden="true" /><span>{tabLabels[tab]}</span></a>; })}</nav>{assistantEnabled && !sheet && route !== 'settings' && <button className="halo-f-assistant" aria-label={c.labels.assistant} onClick={() => openSheet({ type: 'assistant', height: 'tall' })}><LunaMark size={28} /></button>}</>}
+    {!isGate && <>{expanded ? <AppNavigation active={activeTab} href={previewHref} onNavigate={navigate} /> : <nav className="halo-f-tabs" aria-label={c.labels.navigation}>{previewTabs.map(tab => { const Icon = tabIcons[tab]; return <a key={tab} href={previewHref(tab)} aria-current={route === tab ? 'page' : undefined} onClick={e => { e.preventDefault(); if (route !== tab || inDetail) navigate(tab); }}><Icon size={23} aria-hidden="true" /><span>{tabLabels[tab]}</span></a>; })}</nav>}{assistantEnabled && !sheet && <button className="halo-f-assistant" aria-label={c.labels.assistant} onClick={() => openSheet({ type: 'assistant', height: 'tall' })}><LunaMark size={28} /></button>}</>}
+    {expanded && <ExpandedActionDialog offline={offline} />}
     {!sheet && toastElement}
     {sheet?.type === 'assistant' && <LunaAssistant onClose={closeSheet} factorHref={factorHref} factor={initialFactor} home={route === 'home'} offline={offline} missing={['no-data', 'card-no-data', 'offline-empty'].includes(current)} />}
     {sheet && sheet.type !== 'assistant' && <BottomSheet id="foundation-sheet" title={c.sheetTitles[sheet.type]} height={sheet.height} onClose={closeSheet}>

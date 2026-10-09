@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft, Bell, Hand, House, Map as MapIcon, Notebook, RefreshCw, Settings, Sunrise, WifiOff } from 'lucide-react';
+import { ArrowLeft, Bell, RefreshCw, Settings, WifiOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { BottomSheet, Callout, Skeleton } from '@/components/ui/Foundation';
 import SeverityPill from '@/components/ui/SeverityPill';
@@ -25,10 +25,11 @@ import type { AlertMutation } from '@/lib/frontend/stage-api';
 import type { MotionMode } from '@/lib/frontend/scene-clock';
 import './stage.css';
 import { HomeActionPlan, HomeEvidence } from './HomeEvidence';
+import AppNavigation from '@/components/ui/AppNavigation';
+import { deliveredStagePath, routeOwner } from '@/lib/frontend/navigation';
 
 export const factorHref = (key: FactorKey) => `/factors/${key}`;
 const memberHref = (key: HomeMemberKey) => `/household/${key}`;
-const tabItems = [{ key: 'today', label: 'Today', icon: Sunrise }, { key: 'home', label: 'Homeguard', icon: House }, { key: 'map', label: 'Map', icon: MapIcon }, { key: 'journal', label: 'Journal', icon: Notebook }, { key: 'act', label: 'Act', icon: Hand }] as const;
 type Sheet = 'assistant' | 'alerts' | null;
 type DevicePreferences = { scale: number; reduced: boolean; contrast: boolean };
 const defaultPreferences = { scale: 100, reduced: false, contrast: false };
@@ -52,10 +53,7 @@ export default function StageApp({ children }: { children: ReactNode }) {
     try { localStorage.setItem('halo.device.accessibility', JSON.stringify(next)); } catch { /* The current visit still works. */ }
   }
   const motion: MotionMode = preferences.reduced ? 'reduce' : 'system';
-  const factorRoute = /^\/factors\/([^/]+)$/.exec(pathname);
-  const memberRoute = /^\/household\/([^/]+)$/.exec(pathname);
-  const supported = ['/today', '/home', '/family', '/settings'].includes(pathname) ||
-    !!factorRoute && isFactorKey(factorRoute[1]) || !!memberRoute && homeMemberKeys.some(key => key === memberRoute[1]);
+  const supported = deliveredStagePath(pathname);
   if (!supported) return <>{children}</>;
   return <StageSession><SceneProvider mode={motion} time="live"><Frame preferences={preferences} updatePreferences={updatePreferences}>{children}</Frame></SceneProvider></StageSession>;
 }
@@ -172,7 +170,7 @@ function Frame({ children, preferences, updatePreferences }: { children: ReactNo
       </>}
       {children}
     </main>
-    {ready && <><nav className="halo-f-tabs" aria-label="Main navigation">{tabItems.map(tab => { const Icon = tab.icon; const available = tab.key === 'today' || tab.key === 'home'; return available ? <Link key={tab.key} prefetch={false} scroll={false} href={`/${tab.key}`} aria-current={!settings && (home ? tab.key === 'home' : tab.key === 'today') ? 'page' : undefined}><Icon size={23} aria-hidden="true" /><span>{tab.label}</span></Link> : <button key={tab.key} aria-disabled="true" aria-label={`${tab.label}, coming in a later stage`} onClick={() => setToast(`${tab.label} is not part of this release yet.`)}><Icon size={23} aria-hidden="true" /><span>{tab.label}</span></button>; })}</nav>{!settings && !sheet && process.env.NEXT_PUBLIC_HALO_ASSISTANT !== 'off' && <button className="halo-f-assistant" aria-label="Open Luna" onClick={() => openSheet('assistant')}><LunaMark size={28} /></button>}</>}
+    {ready && <><AppNavigation active={routeOwner(pathname)} live onUnavailable={label => setToast(`${label} is not part of this release yet.`)} />{!sheet && process.env.NEXT_PUBLIC_HALO_ASSISTANT !== 'off' && <button className="halo-f-assistant" aria-label="Open Luna" onClick={() => openSheet('assistant')}><LunaMark size={28} /></button>}</>}
     {toast && !sheet && <div className="halo-f-toast" role="status">{toast}</div>}
     {ready && sheet === 'assistant' && <LunaAssistant key={pathname} live={session.api} page={home ? 'homeguard' : settings ? 'settings' : 'today'} factor={factor} home={home} offline={session.offline} missing={!reading.data} onClose={closeSheet} factorHref={factorHref} onNavigate={routeFromSheet} />}
     {ready && sheet === 'alerts' && <BottomSheet id="halo-alerts" title="Alerts" height="standard" onClose={closeSheet}><AlertsContent onNavigate={routeFromSheet} /></BottomSheet>}
