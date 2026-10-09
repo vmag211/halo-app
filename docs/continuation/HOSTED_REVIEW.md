@@ -1,5 +1,17 @@
 # Hosted wireframe preservation reference
 
+## Current review, October 9, 2026
+
+Version 22 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Homeguard's four-link footer is now a Home workspace with distinct section layouts, shared sample-record counts and continuation, direct record/create entries, a focus-aware overview jump, and successful PDF creation metadata. These remain sample review workflows awaiting visual approval and production integration.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_cf0419fb27e881918fd07aafab3a0baf`.
+- Source commit: `5eb726d1e32d28898acbb334d8740ed01a1829f4`.
+- Successful deployment ID: `appgdep_6ac96c0c7a10819181db98685531b7af`.
+- Archive hash: `sha256:64f74fa3f22b1a26c79829eac976ad8fba1f68243cfba0380db9fb258c4e9fbc`.
+- Verification: static build, main TypeScript, 26 distinct browser checks across workspace/navigation/order/hosted isolation/PDF suites, and both immutable archive checks. Mobile checks include light/dark at 375px and 320px with 150% text. Physical Safari and authenticated backend workflows were not tested.
+
+## Transfer reference, October 8, 2026
+
 The existing Site metadata and saved version were checked on October 8, 2026. Latest saved version reported: 21. Live URL: https://halo-wireframe-review.yogirajapaturi.chatgpt.site . Site status: active.
 
 - Site ID: `appgprj_6abd679629688191ae2eea6173fb2b49`.

@@ -214,7 +214,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const isGate = (current.startsWith('gate-') && current !== 'gate-error') || current === 'not-found';
   const ariaTitle = foundationScenarios.find(s => s[0] === scenario)?.[2] ?? c.pageLabel;
   const toastElement = toast && <div className="halo-f-toast" role="status"><span>{toast.message}</span>{toast.action && <button onClick={() => { toast.action?.(); setToast(null); }}>{c.undo}</button>}</div>;
-  const readingView = current === 'cards' ? <Readings scenario={current} expanded={expandedCard} setExpanded={setExpanded} onLearn={() => openSheet({ type: 'learn', height: 'standard', topic: 'air' })} onSelect={expandFactor} /> : <PersonalHero scenario={current} factorHref={factorHref} familyHref={familyHref} memberHref={memberHref} home={route === 'home'} />;
+  const readingView = current === 'cards' ? <Readings scenario={current} expanded={expandedCard} setExpanded={setExpanded} onLearn={() => openSheet({ type: 'learn', height: 'standard', topic: 'air' })} onSelect={expandFactor} /> : <PersonalHero scenario={current} factorHref={factorHref} familyHref={familyHref} memberHref={memberHref} home={route === 'home'} homeWorkspace={expanded} />;
   let content: ReactNode = readingView;
   if (current === 'loading' || current === 'gate-loading') content = <Loading gate={current === 'gate-loading'} />;
   else if (current === 'error' || current === 'gate-error') content = <><Callout tone="error"><p>{current === 'gate-error' ? c.gateError : c.error}</p><Button variant="secondary" aria-label={c.retry} busy={busy} onClick={() => mockRequest(() => setResolved(true))}>{c.retry}</Button></Callout>{current === 'gate-error' && readingView}</>;

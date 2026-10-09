@@ -29,6 +29,9 @@ test('Luna generates a real, paginated PDF locally with a readable fallback', as
   expect(document.getTitle()).toBe('HALO household summary');
   expect(document.getPageCount()).toBeLessThan(10);
   await page.locator('.hg-report-builder').screenshot({ path: testInfo.outputPath('report-ready.png') });
+  await page.getByRole('link', { name: 'Back to Homeguard', exact: true }).click();
+  await expect(page.locator('#home-workspace')).toContainText('Last PDF created');
+  await expect(page.locator('#home-workspace').getByRole('link', { name: 'Create a new summary' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -51,6 +54,11 @@ test('font failure offers retry and accessible export, not a blank PDF', async (
   await page.getByRole('button', { name: 'Create household PDF' }).click();
   await expect(page.getByRole('region', { name: 'Household PDF' }).getByRole('alert')).toContainText('font could not load');
   await expect(page.getByRole('link', { name: 'Download PDF', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Back to Homeguard', exact: true }).click();
+  await expect(page.locator('#home-workspace')).not.toContainText('Last PDF created');
+  await page.locator('#home-workspace').getByRole('link', { name: 'Create summary' }).click();
+  await page.getByRole('button', { name: 'Create household PDF' }).click();
+  await expect(page.getByRole('region', { name: 'Household PDF' }).getByRole('alert')).toContainText('font could not load');
   await page.getByText('Other formats & printing', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Download accessible text' })).toBeEnabled();
   await page.unroute('**/fonts/instrument-sans-report.ttf');

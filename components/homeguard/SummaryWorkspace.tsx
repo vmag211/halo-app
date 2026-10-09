@@ -37,7 +37,7 @@ function resultLines(record: SummaryRecord): string[] {
 }
 
 export default function SummaryWorkspace(props: WorkspaceProps) {
-  const { collections, scenario } = useHomeWorkspace();
+  const { collections, scenario, setDraft } = useHomeWorkspace();
   const expanded = useExpandedPreview(); const { bands } = usePreviewHousehold();
   const [selection, setSelection] = useHomeDraft<SummarySelection>('summary-selection', defaultSummarySelection);
   const [waterContext, setWaterContext] = useHomeDraft<'utility' | 'well' | 'spring'>('summary-water-context', 'utility');
@@ -135,7 +135,7 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
   }
   if (props.view === 'preview') return <>
     <PageIntro eyebrow="Ready for your review" title="Your household summary" description="A useful copy of your selected information, ready to keep or share." icon={<FileText />} />
-    <SummaryReport report={{ title: selection.purpose, generated: generated || openedAt, introduction: lines.slice(0, scenario === 'stale' ? 4 : 3), sections: [...sections, { title: 'Omissions and scope', lines: lines.slice((scenario === 'stale' ? 4 : 3) + sections.reduce((count, section) => count + 1 + section.lines.length, 0)) }] }} />
+    <SummaryReport onReady={pages => setDraft('summary-last-created', () => ({ at: new Date().toISOString(), pages }))} report={{ title: selection.purpose, generated: generated || openedAt, introduction: lines.slice(0, scenario === 'stale' ? 4 : 3), sections: [...sections, { title: 'Omissions and scope', lines: lines.slice((scenario === 'stale' ? 4 : 3) + sections.reduce((count, section) => count + 1 + section.lines.length, 0)) }] }} />
     <button className="hg-button-secondary" onClick={() => { setStatus(''); props.navigate('selection'); }}>Edit included information</button>
     <details className="hg-record-tools hg-card"><summary>Other formats & printing</summary><div className="hg-actions"><button disabled={busy} onClick={() => exportSummary('file')}><Download size={18} />Download accessible text</button><button disabled={busy} onClick={() => exportSummary('image')}><ImageIcon size={18} />Save image</button><button disabled={busy} onClick={() => exportSummary('print')}><Printer size={18} />Print</button><button disabled={busy} onClick={() => exportSummary('share')}><Share2 size={18} />Share text</button></div></details>
     {status && <p role="status" className="hg-notice">{status}</p>}{error && <div role="alert" className="hg-notice"><p>{error}</p><p>Use any export button to retry. No public link was created.</p></div>}

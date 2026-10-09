@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Droplets, Flower2, House, Leaf, Pause, Play, ShieldCheck, Sprout, Sun, Users, Wind } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, Droplets, Flower2, House, Leaf, Pause, Play, ShieldCheck, Sprout, Sun, Users, Wind } from 'lucide-react';
 import SeverityPill from '@/components/ui/SeverityPill';
 import { Callout, ProvenancePill } from '@/components/ui/Foundation';
 import { learnTopic } from '@/lib/learnContent';
@@ -27,9 +27,9 @@ import { useStageRuntime } from './StageRuntime';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
-type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; familyHref?: string; memberHref?: MemberHref; home?: boolean };
+type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; familyHref?: string; memberHref?: MemberHref; home?: boolean; homeWorkspace?: boolean };
 
-export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false }: OverviewProps) {
+export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false, homeWorkspace = false }: OverviewProps) {
   const { clock } = useSceneExperience();
   const runtime = useStageRuntime();
   const overview = runtime ? (home ? runtime.home : runtime.today) : null;
@@ -57,6 +57,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'We could not get readings for this sample. Missing data does not mean low risk.'}</p></Callout>}
     {overview?.notice && <Callout tone="notice"><p>{overview.notice}</p></Callout>}
     <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
+    {home && homeWorkspace && <PreviewSectionLink className="how-text-action how-workspace-jump" target="home-workspace">Open your home workspace <ArrowDown size={17} aria-hidden="true" /></PreviewSectionLink>}
     <div className="halo-ph-section-label"><h2>{home ? 'Around your home' : 'Your environment, closer up'}</h2><span>Explore a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
       const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? factor.severity === 'no_data' : missing || (partial && key === missingKey);

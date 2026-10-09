@@ -6,19 +6,21 @@ import LunaMark from '@/components/foundation/LunaMark';
 import type { HouseholdReport, ReportProgress } from '@/lib/frontend/household-pdf';
 import './summary-report.css';
 
-export default function SummaryReport({ report }: { report: HouseholdReport }) {
+export default function SummaryReport({ report, onReady }: { report: HouseholdReport; onReady?: (pages: number) => void }) {
   const snapshot = JSON.stringify(report);
   const [attempt, setAttempt] = useState(0);
   // Each report or retry owns its resources and initial state. This also prevents
   // an old PDF link from appearing while a new selection starts generating.
-  return <ReportAttempt key={`${attempt}:${snapshot}`} snapshot={snapshot} onRetry={() => setAttempt(value => value + 1)} />;
+  return <ReportAttempt key={`${attempt}:${snapshot}`} snapshot={snapshot} onReady={onReady} onRetry={() => setAttempt(value => value + 1)} />;
 }
 
-function ReportAttempt({ snapshot, onRetry }: { snapshot: string; onRetry: () => void }) {
+function ReportAttempt({ snapshot, onRetry, onReady }: { snapshot: string; onRetry: () => void; onReady?: (pages: number) => void }) {
   const [progress, setProgress] = useState<ReportProgress>({ value: 4, label: 'Loading the local report tools' });
   const [ready, setReady] = useState<{ url: string; blob: Blob; pages: number }>();
   const [failure, setFailure] = useState(''); const [cancelled, setCancelled] = useState(false); const [status, setStatus] = useState('');
   const controller = useRef<AbortController | null>(null);
+  const readyCallback = useRef(onReady);
+  useEffect(() => { readyCallback.current = onReady; }, [onReady]);
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort; let objectUrl = '';
     void (async () => {
@@ -30,6 +32,7 @@ function ReportAttempt({ snapshot, onRetry }: { snapshot: string; onRetry: () =>
         const blob = new Blob([new Uint8Array(built.bytes)], { type: 'application/pdf' });
         objectUrl = URL.createObjectURL(blob); setReady({ url: objectUrl, blob, pages: built.pages });
         setProgress({ value: 100, label: 'Your PDF is ready' });
+        readyCallback.current?.(built.pages);
       } catch (error) { if (!abort.signal.aborted) setFailure(error instanceof Error ? error.message : 'The PDF could not be created. Your selections are still here.'); }
     })();
     return () => { abort.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };

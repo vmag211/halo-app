@@ -23,14 +23,14 @@ test('revised overview preserves factors and moves navigation ownership', async 
   await expect(page.locator('.halo-ph-factor-grid')).not.toContainText('PFAS');
   await mainNav(page).getByRole('link', { name: 'Homeguard' }).click();
   await expect(page.locator('.halo-home-house')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Your home, beyond the readings' })).toBeVisible();
-  await page.getByRole('link', { name: /Food and Garden/ }).click();
+  await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
+  await page.getByRole('link', { name: 'Explore Food and Garden' }).click();
   await expect(page.getByRole('heading', { name: 'Food, water & what you grow', exact: true })).toBeVisible();
   await expect(mainNav(page).getByRole('link', { name: 'Homeguard' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('navigation', { name: 'Homeguard sections' })).toBeVisible();
   await expect(page.getByText('Workflow outline · Not a finished screen')).toHaveCount(0);
   await page.getByRole('link', { name: 'Back to Homeguard' }).click();
-  await expect(page.getByRole('heading', { name: 'Your home, beyond the readings' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
   await mainNav(page).getByRole('link', { name: 'Plan', exact: true }).click();
   await page.getByRole('link', { name: 'Journal and Patterns' }).click();
   await expect(mainNav(page).getByRole('link', { name: 'Plan' })).toHaveAttribute('aria-current', 'page');

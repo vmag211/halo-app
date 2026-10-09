@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowUpRight, CalendarDays, ClipboardList, Droplets, Hand, MapPin, NotebookPen, Sprout, Wrench } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Droplets, Hand, MapPin, NotebookPen, Sprout } from 'lucide-react';
 import { destinations, followThrough, isDestination, type ExpandedDestination, type PreviewAction } from '@/lib/frontend/expanded-preview';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import { useExpandedMode, useExpandedPreview } from './ExpandedPreviewState';
@@ -12,10 +12,9 @@ import './expanded.css';
 import HomeguardWorkspace from '@/components/homeguard/HomeguardWorkspace';
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { TestRecord } from '@/lib/frontend/home-test-preview';
+import HomeOverviewWorkspace from './HomeOverviewWorkspace';
 
 type Href = (tab: string, destination?: string) => string;
-const homeKeys = ['tests', 'maintenance', 'food', 'summary'] as const;
-const homeIcons = [ClipboardList, Wrench, Sprout, NotebookPen];
 export function ExpandedConnections({ home, factor, household, href, mapHref, scenario }: {
   home: boolean; factor?: FactorKey; household?: boolean; href: Href; mapHref: (layer: string) => string; scenario: string;
 }) {
@@ -32,7 +31,7 @@ export function ExpandedConnections({ home, factor, household, href, mapHref, sc
     </div><HomeFactorRecords factor={factor} href={href} /></section>;
   }
   if (household) return <section className="halo-expanded-section"><h2>Follow through together</h2><p>Find your saved tasks and scheduled follow-ups in Plan.</p><Link className="halo-text-button" href={href('plan')}>Open your sample Plan</Link>{home && <Link className="halo-text-button" href={href('home', 'tests')}>Review home tests and records</Link>}</section>;
-  if (home) return <section className="halo-expanded-section"><span className="halo-ph-kicker">Care for the place you call home</span><h2>Your home, beyond the readings</h2><div className="halo-expanded-links">{homeKeys.map((key, index) => { const Icon = homeIcons[index]; return <Link key={key} href={href('home', key)} prefetch={false}><Icon size={22} /><span><strong>{destinations[key].title}</strong><small>{['Prepare, record and follow up', 'Keep care and observations together', 'Waterways, growing and local evidence', 'Review before you share'][index]}</small></span><ArrowUpRight size={17} /></Link>; })}</div></section>;
+  if (home) return <HomeOverviewWorkspace href={href} />;
   const saved = state.actions.filter(action => action.state !== 'completed')[0];
   return <section className="halo-expanded-section"><details className="halo-expanded-change"><summary>Understand changes in your readings</summary><p>{['no-data', 'offline-empty'].includes(scenario) ? 'There is not enough evidence to compare periods.' : 'A changed reading, a newly published sample and changed source coverage mean different things. The new backend will distinguish these before HALO explains a change.'}</p><p className="halo-f-meta">No numerical change or cause has been inferred from this sample.</p></details><div className="halo-expanded-links"><Link href={href('plan')} prefetch={false}><CalendarDays size={22} /><span><strong>{saved ? saved.title : 'Make room for a useful next step'}</strong><small>{saved ? 'Continue in your sample Plan' : 'Saved actions and your week, together'}</small></span><ArrowUpRight size={17} /></Link><Link href={href('plan', 'journal')} prefetch={false}><NotebookPen size={20} /><span>Optional daily check-in</span><ArrowUpRight size={17} /></Link></div></section>;
 }
