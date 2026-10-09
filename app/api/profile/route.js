@@ -4,6 +4,15 @@ import { normalizeBands } from '@/lib/household';
 import { readJsonBody } from '@/lib/validate';
 import { requestIdFor, apiError, validationError, internalError } from '@/lib/apiErrors';
 import { parseProfilePatch } from '@/lib/profileInput';
+import { roundCoord } from '@/lib/geocode';
+import { contextSummary } from '@/lib/homeContext';
+import {
+  homeContextConflict,
+  isConflictRefusal,
+  readCurrentHomeContext,
+  transitionHomeContext,
+  updateHomeContextAttributes,
+} from '@/lib/homeContextRpc';
 
 /**
  * GET   /api/profile — the household's stored location, home details and
@@ -17,6 +26,28 @@ import { parseProfilePatch } from '@/lib/profileInput';
  *                      and checked before anything is written (lib/profileInput.js):
  *                      invalid JSON is a 400, an oversize body a 413, a bad value a
  *                      400 with field_errors, and the profile is left as it was.
+ *
+ * Home contexts (migration 0016). The two answers describe the household's
+ * current home, so once 0016 is applied the PATCH saves them there and the
+ * database keeps the profile in step:
+ *   - with a current home, through update_home_context_attributes at the
+ *     revision read in this same request. A change to that home in between (a
+ *     stale revision, or a move that closed it) is a 409 `conflict` with
+ *     `reason` ('stale_revision' with the current `revision`, or
+ *     'context_closed'), and nothing of this request is saved. The 409 is new
+ *     for this route.
+ *   - located but with no home yet (an address stored by the old onboard
+ *     route), through transition_home_context with the stored point as it is
+ *     and every answer (the changed one and the one kept), which makes the
+ *     legacy home and saves the change in it. Known gap: a move by another
+ *     request between this request's read and that call is undone by it, and
+ *     logged.
+ *   - not located (not onboarded): the profile write below, as before.
+ * Saved through a home, the answer adds `home_context` (lib/homeContext.js
+ * contextSummary); otherwise it is exactly as before. Until 0016 is applied
+ * (PGRST205 or 42P01 for the table, PGRST202 or 42883 for the functions) the
+ * PATCH is the profile write below, unchanged, and one warning is logged per
+ * process.
  *
  * `onboarded` — an address has been processed (coordinates stored).
  * `onboarding_complete` — coordinates AND a water source are stored, i.e. the
@@ -102,6 +133,79 @@ export async function GET(request) {
 
 const PATCH_MAX_BYTES = 2048;
 
+let warnedNoHomeContexts = false;
+
+/** Before migration 0016: the PATCH saves to the profile as it always has. Says so once per process. */
+function withoutHomeContexts(code) {
+  if (!warnedNoHomeContexts) {
+    warnedNoHomeContexts = true;
+    console.warn(
+      `Profile update: home contexts are not available (${code}), so migration 0016 is probably not applied yet. ` +
+        'Saving water_source and home_year to the profile only, as before.',
+    );
+  }
+  return null;
+}
+
+/** A stored point transition_home_context takes as it is: both numbers, already rounded to 3 decimals. */
+const isStoredPoint = (profile) =>
+  !!profile && [profile.lat, profile.lng].every((value) => Number.isFinite(value) && roundCoord(value) === value);
+
+/** What a home context call came to: the saved row, a conflict for the client, or the profile write (null). */
+function settle(name, saved) {
+  if (saved.unavailable) return withoutHomeContexts(saved.code);
+  if (saved.refusal && isConflictRefusal(saved.refusal)) return { conflict: saved.refusal };
+  if (saved.refusal) throw new Error(`${name} refused the profile update: ${saved.refusal.code} (${saved.refusal.detail})`);
+  return { context: saved.context };
+}
+
+/**
+ * Saves the answers through the household's home context (see the comment at the top).
+ * Returns { context } when saved there, { conflict } for a 409, or null for the profile write.
+ */
+async function saveThroughHomeContext(userId, answers, requestId) {
+  const current = await readCurrentHomeContext(supabaseAdmin, userId);
+  if (current.unavailable) return withoutHomeContexts(current.code);
+  if (current.context) {
+    const saved = await updateHomeContextAttributes(supabaseAdmin, {
+      profileId: userId,
+      contextId: current.context.id,
+      expectedRevision: current.context.revision,
+      attributes: answers,
+    });
+    return settle('update_home_context_attributes', saved);
+  }
+
+  const { data: profile, error } = await supabaseAdmin
+    .from('profiles')
+    .select('lat, lng, county, state, pwsid, water_source, home_year')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read profile: ${error.message}`);
+  // Not located: there is no home to save the answers in yet.
+  if (!isStoredPoint(profile)) return null;
+
+  // The same point is not a move, so the legacy home is made from the profile and updated in
+  // place. Every answer is sent, so the one that is not changing is written as it was.
+  const saved = await transitionHomeContext(supabaseAdmin, {
+    profileId: userId,
+    location: { lat: profile.lat, lng: profile.lng, county: profile.county ?? null, state: profile.state ?? null },
+    attributes: {
+      pwsid: profile.pwsid ?? null,
+      water_source: Object.hasOwn(answers, 'water_source') ? answers.water_source : profile.water_source ?? null,
+      home_year: Object.hasOwn(answers, 'home_year') ? answers.home_year : profile.home_year ?? null,
+    },
+    requestId: null,
+  });
+  if (saved.moved) {
+    console.error(
+      `Profile update (request ${requestId}): the household's address changed while this request saved its home details, ` +
+        `so the save moved it back to the address the request had read (it closed home ${saved.previous_context_id}).`,
+    );
+  }
+  return settle('transition_home_context', saved);
+}
+
 export async function PATCH(request) {
   const requestId = requestIdFor(request);
   try {
@@ -113,11 +217,19 @@ export async function PATCH(request) {
     const input = parseProfilePatch(body.value);
     if (!input.ok) return validationError(input.fieldErrors, requestId);
 
-    // The owner key comes last, so nothing in the validated input can override it.
-    const { error } = await supabaseAdmin.from('profiles').upsert({ ...input.value, id: userId }, { onConflict: 'id' });
-    if (error) throw new Error(`Could not update profile: ${error.message}`);
+    const saved = await saveThroughHomeContext(userId, input.value, requestId);
+    if (saved?.conflict) return homeContextConflict(saved.conflict, requestId);
 
-    return NextResponse.json(await profileResponse(userId), { headers: { 'X-Request-Id': requestId } });
+    if (!saved) {
+      // The owner key comes last, so nothing in the validated input can override it.
+      const { error } = await supabaseAdmin.from('profiles').upsert({ ...input.value, id: userId }, { onConflict: 'id' });
+      if (error) throw new Error(`Could not update profile: ${error.message}`);
+    }
+
+    const answer = await profileResponse(userId);
+    return NextResponse.json(saved ? { ...answer, home_context: contextSummary(saved.context) } : answer, {
+      headers: { 'X-Request-Id': requestId },
+    });
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;

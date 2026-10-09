@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import './helpers/routeLoader.mjs'; // registers the module hooks, so lib files load as ESM without the typeless-package warning
 import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
 
-const { HISTORY_ROW_LIMIT, JOURNAL_ROW_LIMIT, isTruncated } = await import('../lib/boundedRead.js');
+const { HISTORY_ROW_LIMIT, JOURNAL_ROW_LIMIT, HOME_CONTEXTS_ROW_LIMIT, isTruncated } = await import('../lib/boundedRead.js');
 
 test('the row limits are the ones the brief fixes', () => {
   assert.equal(HISTORY_ROW_LIMIT, 5000);
   assert.equal(JOURNAL_ROW_LIMIT, 2000);
+});
+
+test('the home contexts list reads at most 100 homes', () => {
+  assert.equal(HOME_CONTEXTS_ROW_LIMIT, 100);
 });
 
 test('isTruncated: the exact count is the truth, so a full page that is everything is not truncated', () => {

@@ -93,6 +93,30 @@ test('apiError builds the documented JSON body and headers', async () => {
   });
 });
 
+test('apiError adds `extra` fields after the envelope, and none of them can replace an envelope field', async () => {
+  const res = apiError({
+    status: 409,
+    code: ERROR_CODES.CONFLICT,
+    message: 'Changed meanwhile.',
+    requestId: FIXED_ID,
+    extra: { reason: 'stale_revision', revision: 4, error: 'forged', code: 'forged', request_id: 'forged', retryable: true },
+  });
+  assert.deepEqual(await res.json(), {
+    error: 'Changed meanwhile.',
+    code: 'conflict',
+    message: 'Changed meanwhile.',
+    field_errors: [],
+    retryable: false,
+    request_id: FIXED_ID,
+    reason: 'stale_revision',
+    revision: 4,
+  });
+  for (const extra of [undefined, null, 'text', ['x']]) {
+    const plain = await apiError({ status: 404, code: ERROR_CODES.NOT_FOUND, message: 'x', requestId: FIXED_ID, extra }).json();
+    assert.deepEqual(Object.keys(plain).sort(), ['code', 'error', 'field_errors', 'message', 'request_id', 'retryable'], String(extra));
+  }
+});
+
 test('apiError keeps field_errors as { field, code, message } entries', async () => {
   const res = apiError({
     status: 400,

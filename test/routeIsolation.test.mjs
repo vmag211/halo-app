@@ -15,8 +15,9 @@ import path from 'node:path';
 import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { OWNED_TABLES } from './helpers/tables.mjs';
 import { OTHER, quiet, setup, stable } from './helpers/isolationKit.mjs';
-import { MISSING_ID, PREFS, PROFILE, BANDS, UTILITY, alertId, entryId, addDays } from './helpers/isolationSeed.mjs';
+import { MISSING_ID, PREFS, PROFILE, BANDS, UTILITY, alertId, contextId, entryId, addDays } from './helpers/isolationSeed.mjs';
 import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
+import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
 
 const { LEARN_CONTENT } = await import('@/lib/learnContent');
 
@@ -37,6 +38,9 @@ const ROUTE_COVERAGE = {
   'GET /api/district': 'isolation: read matrix',
   'GET /api/health': 'isolation: read matrix (no household data)',
   'GET /api/history': 'isolation: read matrix, identity-from-token',
+  'GET /api/home-contexts': 'isolation: read matrix, identity-from-token',
+  'GET /api/home-contexts/[id]': 'isolation: another household\'s context id is the identical 404 to a missing one',
+  'PATCH /api/home-contexts/[id]': 'isolation: another household\'s context id changes nothing and is the identical 404 to a missing one',
   'GET /api/home-guard': 'isolation: read matrix, identity-from-token',
   'GET /api/household': 'isolation: read matrix, identity-from-token',
   'PUT /api/household': 'isolation: only the caller\'s band and profile rows change, on the save_household and two-step paths',
@@ -52,7 +56,7 @@ const ROUTE_COVERAGE = {
   'PUT /api/notifications': 'isolation: only the caller\'s preferences change; smuggled profile_id rejected',
   'POST /api/onboard': 'isolation: 403 for a foreign profile_id; flows: move, backfill, lookup failure touch only the caller',
   'GET /api/profile': 'isolation: read matrix, identity-from-token',
-  'PATCH /api/profile': 'isolation: only the caller\'s profile changes, id in the body ignored',
+  'PATCH /api/profile': 'isolation: only the caller\'s profile and home change, id in the body ignored, with and without the 0016 functions',
   'POST /api/push/subscribe': 'flows: a foreign endpoint is not taken over and the answer matches a fresh success',
   'DELETE /api/push/subscribe': 'flows: a foreign endpoint is not removed and the answer matches a missing endpoint',
   'GET /api/sources': 'isolation: read matrix (newest reading is the caller\'s)',
@@ -88,6 +92,15 @@ const READS = [
       const mine = ctx.rows.daily_scores.filter((row) => row.profile_id === ctx.id(who) && row.date >= addDays(ctx.today, -89));
       assert.deepEqual(body.history.map((day) => day.date), mine.map((row) => row.date).sort());
       assert.deepEqual(body.history.map((day) => day.values.aqi), [...mine].sort((a, b) => (a.date < b.date ? -1 : 1)).map((row) => row.aqi));
+    },
+  },
+  {
+    name: 'GET /api/home-contexts',
+    route: '/api/home-contexts',
+    own: (who) => [PROFILE[who].county, contextId(who, 1)],
+    check: (body, who) => {
+      assert.deepEqual([body.current_id, body.count, body.truncated], [contextId(who, 1), 1, false]);
+      assert.deepEqual(body.items.map((item) => [item.id, item.location.county, item.water_source]), [[contextId(who, 1), PROFILE[who].county, PROFILE[who].water_source]]);
     },
   },
   {
@@ -344,18 +357,65 @@ for (const transactional of [false, true]) {
   });
 }
 
-test('PATCH /api/profile changes only the caller\'s profile, whatever id the body carries', async () => {
-  const ctx = setup();
-  const before = bobsRows(ctx, OWNED);
-  const res = await ctx.call('alice', '/api/profile', 'PATCH', {
-    body: { water_source: 'well', home_year: 1950, id: ctx.id('bob'), profile_id: ctx.id('bob'), county: 'Injected County', pwsid: 'NC0000000' },
+for (const withFunctions of [false, true]) {
+  test(`PATCH /api/profile changes only the caller's profile and home, whatever id the body carries (${withFunctions ? 'through the home context' : 'before 0016\'s functions'})`, async (t) => {
+    quiet(t); // without the functions the route warns once that they are missing
+    const ctx = setup();
+    if (withFunctions) registerHomeContextRpcs(ctx.h.db);
+    const before = bobsRows(ctx, OWNED);
+    const res = await ctx.call('alice', '/api/profile', 'PATCH', {
+      body: {
+        water_source: 'well', home_year: 1950, id: ctx.id('bob'), profile_id: ctx.id('bob'), county: 'Injected County', pwsid: 'NC0000000',
+        p_profile_id: ctx.id('bob'), p_context_id: contextId('bob', 1),
+      },
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    ctx.assertNoLeak('alice', body, 'PATCH /api/profile');
+    const [profile] = ctx.rowsOf('profiles', 'alice');
+    assert.deepEqual([profile.water_source, profile.home_year], ['well', 1950]);
+    assert.deepEqual([profile.county, profile.pwsid], [PROFILE.alice.county, PROFILE.alice.pwsid]); // only the two documented fields are accepted
+    const [home] = ctx.rowsOf('home_contexts', 'alice');
+    assert.deepEqual([home.revision, home.water_source, home.home_year], withFunctions ? [2, 'well', 1950] : [1, PROFILE.alice.water_source, PROFILE.alice.home_year]);
+    assert.equal(body.home_context?.id, withFunctions ? contextId('alice', 1) : undefined);
+    assert.deepEqual(bobsRows(ctx, OWNED), before);
+    assert.equal(ctx.h.db.rows('profiles').length, 2);
+    assert.ok(ctx.h.db.rpcCalls.length > 0 && ctx.h.db.rpcCalls.every((call) => call.args.p_profile_id === ctx.id('alice') && call.args.p_context_id === contextId('alice', 1)));
   });
-  assert.equal(res.status, 200);
-  const [profile] = ctx.rowsOf('profiles', 'alice');
-  assert.deepEqual([profile.water_source, profile.home_year], ['well', 1950]);
-  assert.deepEqual([profile.county, profile.pwsid], [PROFILE.alice.county, PROFILE.alice.pwsid]); // only the two documented fields are accepted
-  assert.deepEqual(bobsRows(ctx, OWNED), before);
-  assert.equal(ctx.h.db.rows('profiles').length, 2);
+}
+
+test('GET and PATCH /api/home-contexts/[id]: another household\'s context is the identical 404 to a missing one, and nothing changes', async () => {
+  const ctx = setup();
+  registerHomeContextRpcs(ctx.h.db);
+  const route = '/api/home-contexts/[id]';
+  const at = (id) => ({ url: `/api/home-contexts/${id}`, params: { id } });
+  const comparable = async (res) => {
+    const body = await res.json();
+    delete body.request_id;
+    return { status: res.status, body, headers: [...res.headers.entries()].filter(([name]) => name !== 'x-request-id') };
+  };
+  const before = snapshot(ctx, OWNED);
+  for (const who of WHO) {
+    const victim = contextId(OTHER[who], 1);
+    const foreignRead = await ctx.call(who, route, 'GET', at(victim));
+    const missingRead = await ctx.call(who, route, 'GET', at(MISSING_ID));
+    const foreignWrite = await ctx.call(who, route, 'PATCH', { ...at(victim), body: { expected_revision: 1, water_source: 'well' } });
+    const missingWrite = await ctx.call(who, route, 'PATCH', { ...at(MISSING_ID), body: { expected_revision: 1, water_source: 'well' } });
+    assert.equal(foreignRead.status, 404);
+    const expected = await comparable(missingRead);
+    for (const res of [foreignRead, foreignWrite, missingWrite]) {
+      const seen = await comparable(res);
+      assert.deepEqual(seen, expected, `${who}: a foreign id is indistinguishable from a missing one`);
+      ctx.assertNoLeak(who, seen.body, `${who} on ${OTHER[who]}'s home`);
+    }
+  }
+  assert.deepEqual(snapshot(ctx, OWNED), before, 'no household\'s rows changed');
+  assert.ok(ctx.h.db.rpcCalls.every((call) => [ctx.id('alice'), ctx.id('bob')].includes(call.args.p_profile_id)));
+
+  // the owner's own call does find and change it: the rows were there
+  const own = await ctx.call('bob', route, 'PATCH', { ...at(contextId('bob', 1)), body: { expected_revision: 1, water_source: 'well' } });
+  assert.equal(own.status, 200);
+  assert.equal((await own.json()).context.revision, 2);
 });
 
 test('PUT /api/notifications changes only the caller\'s preferences; a profile_id or an unknown key cannot redirect it', async () => {
