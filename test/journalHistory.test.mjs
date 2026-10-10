@@ -49,7 +49,8 @@ test('fetchHistory still answers a plain array: oldest date first, the newest re
 test('fetchHistoryWindow adds truncated: false when everything was read', async () => {
   const h = harness(({ alice }) => crowded(alice.id, 30, 2));
   const window = await fetchHistoryWindow(h.db, h.identities.alice.id, day(29), TODAY);
-  assert.deepEqual(Object.keys(window).sort(), ['history', 'truncated']);
+  assert.deepEqual(Object.keys(window).sort(), ['excludedEarlierHome', 'history', 'truncated']);
+  assert.equal(window.excludedEarlierHome, 0, 'before 0016 nothing is from an earlier home');
   assert.equal(window.truncated, false);
   assert.equal(window.history.length, 30);
 });

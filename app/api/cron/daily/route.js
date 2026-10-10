@@ -10,7 +10,7 @@ import { localDate, addDays } from '@/lib/localDate';
 import { recordToday } from '@/lib/backfill';
 import { parseNwsAdvisories, readingsFingerprint, normalizePrefs, justEndedSeason } from '@/lib/alertInputs';
 import { seasonSummary, seasonRange } from '@/lib/journalRetro';
-import { fetchHistory } from '@/lib/journalHistory';
+import { fetchHistory, UNLINKED_HOME } from '@/lib/journalHistory';
 import { pushConfigured, sendAlertPushes } from '@/lib/push';
 import { buildAndStoreAll } from '@/lib/mapBuild';
 import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
@@ -40,7 +40,9 @@ export const maxDuration = 60;
  *     household that stopped opening the app is not re-alerted about an old
  *     reading), NWS flood/heat advisories for the household's point, new water
  *     results, radon season (once per winter), and the season summary in the
- *     first week after a season ends.
+ *     first week after a season ends. The readings these use are the current
+ *     home's (and those with no home recorded), from the same bulk read: an
+ *     earlier home's reading is never compared with the new home's.
  *  5. Pushes new alerts to subscribed devices and removes expired subscriptions.
  *
  * Every date is the household-local (America/New_York) calendar day.
@@ -106,18 +108,31 @@ function contextLinkDropped(error) {
 
 /**
  * Each household's current home, in one bulk read for the whole run (lib/homeContextRpc.js
- * readCurrentHomeContexts: chunks of 100 households, never one read per household). An empty map
- * before 0016 or when the read fails: the readings are then recorded without a home, as before,
- * and the job goes on.
+ * readCurrentHomeContexts: chunks of 100 households, never one read per household).
+ *
+ * `linked` is false before 0016 or when the read fails: the readings are then recorded without a
+ * home, and the alert inputs read every reading of the household, both as before, and the job
+ * goes on. Otherwise `byProfile` has each household's current home (none: no home yet).
  */
 async function currentHomesFor(profiles) {
   try {
     const read = await readCurrentHomeContexts(supabaseAdmin, profiles.map((p) => p.id));
-    return read.unavailable ? new Map() : read.byProfile;
+    return read.unavailable ? { linked: false, byProfile: new Map() } : { linked: true, byProfile: read.byProfile };
   } catch (err) {
     console.error('Daily job: could not read the current homes; recording readings without them.', err.message);
-    return new Map();
+    return { linked: false, byProfile: new Map() };
   }
+}
+
+/**
+ * The home a household's alert inputs are read for (lib/journalHistory.js), from the bulk read:
+ * its current home, so an earlier home's reading is never compared with the current home's.
+ * Its own current home whatever its point, unlike the reading's link (contextIdForPoint).
+ */
+function historyHomeFrom(currentHomes, profileId) {
+  if (!currentHomes.linked) return UNLINKED_HOME;
+  const current = currentHomes.byProfile.get(profileId);
+  return { linked: true, current: current ? { id: current.id } : null };
 }
 
 async function runDaily(request) {
@@ -172,11 +187,13 @@ async function runDaily(request) {
     await mapLimit(profiles || [], 4, async (p) => {
       // 3. Today's reading, linked to this household's own current home when it is at the
       // profile's point (the point the reading is taken at); otherwise none (contextIdForPoint).
-      const homeContextId = contextIdForPoint(currentHomes.get(p.id), p);
+      const homeContextId = contextIdForPoint(currentHomes.byProfile.get(p.id), p);
       recording[await recordToday(supabaseAdmin, p, { today, homeContextId, onContextLinkDropped: contextLinkDropped })] += 1;
 
-      // 4. Alert inputs.
-      const history = await fetchHistory(supabaseAdmin, p.id, yesterday, today).catch(() => []);
+      // 4. Alert inputs: the current home's readings (and those with no home recorded), from the
+      // homes read above, never an earlier home's.
+      const home = historyHomeFrom(currentHomes, p.id);
+      const history = await fetchHistory(supabaseAdmin, p.id, yesterday, today, { home }).catch(() => []);
       const todayRow = history.find((h) => h.date === today);
       const yesterdayRow = history.find((h) => h.date === yesterday);
 
@@ -198,7 +215,7 @@ async function runDaily(request) {
           .lte('entry_date', to);
         hasJournalEntries = (entries || []).length > 0;
         if (hasJournalEntries) {
-          const seasonHistory = await fetchHistory(supabaseAdmin, p.id, from, to).catch(() => []);
+          const seasonHistory = await fetchHistory(supabaseAdmin, p.id, from, to, { home }).catch(() => []);
           const s = seasonSummary({ ...ended, entries, history: seasonHistory });
           seasonEnded = { ...ended, statement: s?.statement };
         }

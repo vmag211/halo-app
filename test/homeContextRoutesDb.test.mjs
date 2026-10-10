@@ -7,6 +7,9 @@
  *      the closed home's reading for today are checked in the database.
  *   2. PATCH /api/home-contexts/[id] at a stale revision: a 409 from the real
  *      update_home_context_attributes, with nothing changed.
+ *   3. GET /api/history after a real move: the default (current home) and context=all, with the
+ *      route's reads of home_contexts and daily_scores going to this database too
+ *      (db/pgliteSelect.mjs), so the columns it reads are the migrated schema's.
  *
  * What is real: every statement of those two functions, committed in PGlite (the migrations
  * applied as written). What is stubbed: the network (Mapbox and ArcGIS answer from the harness's
@@ -24,8 +27,9 @@ import { haloTables } from './helpers/tables.mjs';
 import { TRANSITION_HOME_CONTEXT_ARGS, UPDATE_HOME_CONTEXT_ATTRIBUTES_ARGS } from './helpers/fakeHomeContext.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 import { createDb } from './db/pgliteHarness.mjs';
+import { pgliteSelect } from './db/pgliteSelect.mjs';
 
-const { HOUSEHOLD_TZ } = await import('../lib/localDate.js');
+const { HOUSEHOLD_TZ, localDate, addDays } = await import('../lib/localDate.js');
 
 // The route harness's ids for alice, bob and carol.
 const ALICE = '00000000-0000-4000-8000-000000000001';
@@ -66,10 +70,10 @@ async function asServiceCall(sql, params) {
 }
 
 /** A route harness whose two home context functions are the real ones in this database. */
-function harnessOnDatabase() {
+function harnessOnDatabase(identities = { alice: {}, bob: {}, carol: {} }) {
   const h = createRouteHarness({
     tables: haloTables('profiles', 'daily_scores', 'home_contexts'),
-    identities: { alice: {}, bob: {}, carol: {} },
+    identities,
     env: { MAPBOX_TOKEN: 'pk.test-token' },
     fetch: async (url) => {
       const target = String(url);
@@ -81,7 +85,9 @@ function harnessOnDatabase() {
       return new Response('{}', { status: 503 });
     },
   });
-  assert.deepEqual([h.identities.alice.id, h.identities.bob.id, h.identities.carol.id], [ALICE, BOB, CAROL]);
+  for (const [name, id] of [['alice', ALICE], ['bob', BOB], ['carol', CAROL]]) {
+    if (h.identities[name]) assert.equal(h.identities[name].id, id);
+  }
   h.db.registerRpc(
     'transition_home_context',
     (args) => asServiceCall('select public.transition_home_context($1, $2::jsonb, $3::jsonb, $4) as result', [
@@ -238,4 +244,85 @@ test('PATCH /api/home-contexts/[id] on the real update_home_context_attributes: 
   const [row] = await homes(CAROL);
   assert.deepEqual([row.revision, row.water_source, row.home_year], [3, 'well', 1971]);
   assert.deepEqual([(await profile(CAROL)).water_source, (await profile(CAROL)).home_year], ['well', 1971]);
+});
+
+const DAVE = '00000000-0000-4000-8000-00000000000d';
+const ERIN = '00000000-0000-4000-8000-00000000000e';
+const R4 = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+test('GET /api/history on the real database after a real move: the current home by default, every home with context=all', async () => {
+  await db.exec(`insert into auth.users (id, is_anonymous) values ('${DAVE}', true), ('${ERIN}', true);`);
+  const h = harnessOnDatabase({ dave: { id: DAVE }, erin: { id: ERIN } });
+
+  // dave's first home and erin's, through the real transition_home_context.
+  const first = (await onboard(h, 'dave', { address: '2 Elm Court', request_id: R1 })).home_context;
+  const erinHome = (await onboard(h, 'erin', { address: '4 Pine Street', request_id: R4 })).home_context;
+  const insert = (sql, params) => db.asService((tx) => tx.query(sql, params), { commit: true });
+  // At the first home: days 5 to 1 and today, plus one reading with no home recorded (day 6).
+  await insert(
+    `insert into public.daily_scores (profile_id, home_context_id, date, score, aqi, created_at)
+       select $1, $2, ${TODAY} - n, 40 + n, 40 + n, now() - interval '3 hours' from generate_series(0, 5) n;
+     `,
+    [DAVE, first.id],
+  );
+  await insert(`insert into public.daily_scores (profile_id, home_context_id, date, score, aqi, created_at) values ($1, null, ${TODAY} - 6, 46, 46, now() - interval '3 hours')`, [DAVE]);
+  await insert(`insert into public.daily_scores (profile_id, home_context_id, date, score, aqi) select $1, $2, ${TODAY} - n, 90 + n, 150 from generate_series(0, 3) n`, [ERIN, erinHome.id]);
+
+  // The move: the real function closes the first home, links day 6 to it, deletes its reading for today.
+  const moved = await onboard(h, 'dave', { address: '9 Oak Lane', request_id: R2 });
+  assert.equal(moved.moved, true);
+  const second = moved.home_context;
+  // The new home's backfill for days 3 to 1 and its reading today; then a late reading of the old home for day 1.
+  await insert(`insert into public.daily_scores (profile_id, home_context_id, date, score, aqi, created_at) select $1, $2, ${TODAY} - n, 20 + n, 20 + n, now() - interval '1 hour' from generate_series(0, 3) n`, [DAVE, second.id]);
+  await insert(`insert into public.daily_scores (profile_id, home_context_id, date, score, aqi, created_at) values ($1, $2, ${TODAY} - 1, 99, 99, now())`, [DAVE, first.id]);
+
+  // From here the history reads go to this database too.
+  const fakeFrom = h.db.from;
+  h.db.from = (name) => (['daily_scores', 'home_contexts'].includes(name) ? pgliteSelect(db, name, h.db.queryLog) : fakeFrom(name));
+  const from = h.db.queryLog.length;
+  const history = async (query, as = 'dave') => {
+    const res = await h.call('/api/history', 'GET', { as, url: `/api/history${query}` });
+    assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
+    return res.json();
+  };
+  const points = (body) => body.history.map((point) => [point.date, point.score, point.home_context_id, point.comparability]);
+  const date = (n) => addDays(localDate(), -n);
+
+  const current = await history('?days=10');
+  assert.deepEqual(points(current), [
+    [date(3), 23, second.id, 'current_context'],
+    [date(2), 22, second.id, 'current_context'],
+    [date(1), 21, second.id, 'current_context'], // not the old home's later reading of that day
+    [date(0), 20, second.id, 'current_context'],
+  ]);
+  assert.deepEqual(current.context, { current_id: second.id, includes_earlier_homes: false });
+  assert.equal(current.truncated, false);
+
+  const all = await history('?days=10&context=all');
+  assert.deepEqual(points(all), [
+    [date(6), 46, first.id, 'earlier_home'], // linked to the first home by the move
+    [date(5), 45, first.id, 'earlier_home'],
+    [date(4), 44, first.id, 'earlier_home'],
+    [date(3), 43, first.id, 'earlier_home'],
+    [date(3), 23, second.id, 'current_context'],
+    [date(2), 42, first.id, 'earlier_home'],
+    [date(2), 22, second.id, 'current_context'],
+    [date(1), 21, second.id, 'current_context'],
+    [date(1), 99, first.id, 'earlier_home'], // the old home's latest refresh of day 1
+    [date(0), 20, second.id, 'current_context'], // the old home's today was deleted by the move
+  ]);
+  assert.deepEqual(all.context, { current_id: second.id, includes_earlier_homes: true });
+
+  const old = await history(`?days=10&context=${first.id}`);
+  assert.deepEqual(old.history.map((point) => point.score), [46, 45, 44, 43, 42, 99]);
+
+  // erin's home is not dave's: the same 404 as an id that does not exist.
+  const foreign = await expectEnvelope(await h.call('/api/history', 'GET', { as: 'dave', url: `/api/history?context=${erinHome.id}` }), { status: 404, code: 'not_found' });
+  assert.equal(foreign.error, 'We could not find that home.');
+  assert.deepEqual(points(await history('?days=10', 'erin')).map(([, score]) => score), [93, 92, 91, 90]);
+
+  for (const query of h.db.queryLog.slice(from)) {
+    const owner = query.filters.find((filter) => filter.column === 'profile_id');
+    assert.ok(owner && owner.op === 'eq' && [DAVE, ERIN].includes(owner.value), `${query.table}: owner-scoped`);
+  }
 });

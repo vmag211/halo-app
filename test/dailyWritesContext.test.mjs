@@ -183,7 +183,9 @@ for (const code of ['PGRST204', '42703']) {
     const body = await runJob(h);
     assert.deepEqual(body.readings, { recorded: 3, already_had_one: 0, failed: 0 });
     for (const who of ['alice', 'bob', 'carol']) assert.equal('home_context_id' in todayRow(h, who), false);
-    assert.equal(failed.length, 2, 'the two tagged inserts failed once each, then went in without the link');
+    assert.equal(failed.filter((call) => call.method === 'insert').length, 2, 'the two tagged inserts failed once each, then went in without the link');
+    // The alert inputs' history reads (one per household) also asked for the link, and read again without it.
+    assert.deepEqual(failed.filter((call) => call.method !== 'insert').map((call) => call.method), ['select', 'select', 'select']);
     assert.equal(logs.warn.mock.callCount(), 1, 'one warning for both, not one per household');
     assert.match(String(logs.warn.mock.calls[0].arguments[0]), new RegExp(`home_context_id.*${code}|${code}.*home_context_id`));
   });

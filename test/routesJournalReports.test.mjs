@@ -19,8 +19,10 @@ test('findings legacy request: a household with enough data gets the old ready b
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.ready, true);
-  assert.deepEqual(Object.keys(body).sort(), ['disclaimer', 'findings', 'flaggedDays', 'ready', 'totalDays', 'truncated']);
+  // The old fields, plus excluded_earlier_home (migration 0016): none of bob's readings is an earlier home's.
+  assert.deepEqual(Object.keys(body).sort(), ['disclaimer', 'excluded_earlier_home', 'findings', 'flaggedDays', 'ready', 'totalDays', 'truncated']);
   assert.equal(body.truncated, false);
+  assert.equal(body.excluded_earlier_home, 0);
   assert.match(res.headers.get('x-request-id'), UUID);
   assert.equal('request_id' in body, false);
 });
@@ -29,8 +31,9 @@ test('findings legacy request: a household without enough data still gets the no
   const ctx = setup();
   const res = await findings(ctx, 'alice');
   const body = await res.json();
-  assert.deepEqual(Object.keys(body).sort(), ['flaggedDays', 'needed', 'ready', 'totalDays', 'truncated']);
+  assert.deepEqual(Object.keys(body).sort(), ['excluded_earlier_home', 'flaggedDays', 'needed', 'ready', 'totalDays', 'truncated']);
   assert.equal(body.truncated, false);
+  assert.equal(body.excluded_earlier_home, 0);
   assert.equal(body.ready, false);
   assert.match(res.headers.get('x-request-id'), UUID);
 });

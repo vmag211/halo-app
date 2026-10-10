@@ -5,6 +5,14 @@ import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 import { localDate, addDays } from './helpers/isolationSeed.mjs';
 
+const { aqiSeverity, uvSeverity, pollenSeverity, moldSeverity } = await import('../lib/severity.js');
+
+/*
+ * These harnesses have no home_contexts table: the route as it runs before migration 0016, which
+ * must answer exactly as it always has, plus the additive fields. The route bound to the home is
+ * tested in routesHistoryContext.test.mjs.
+ */
+
 const TODAY = localDate();
 const day = (n) => addDays(TODAY, -n);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -39,14 +47,65 @@ test('legacy request: the old fields are all still there, with truncated and a r
   assert.equal(res.status, 200);
   const body = await res.json();
 
-  assert.deepEqual(Object.keys(body).sort(), ['count', 'from', 'history', 'to', 'truncated']);
+  // The old fields, plus `context` and each point's home_context_id and comparability (migration 0016).
+  assert.deepEqual(Object.keys(body), ['from', 'to', 'count', 'history', 'truncated', 'context']);
   assert.deepEqual([body.from, body.to, body.count, body.truncated], [day(89), TODAY, 2, false]);
+  assert.deepEqual(body.context, { current_id: null, includes_earlier_homes: false }, 'before 0016: no home');
   assert.deepEqual(body.history.map((row) => row.date), [day(2), day(1)], 'oldest first, one record per date');
-  assert.deepEqual(Object.keys(body.history[1]).sort(), ['air', 'date', 'mold', 'pollen', 'score', 'uv', 'values']);
+  assert.deepEqual(Object.keys(body.history[1]).sort(), ['air', 'comparability', 'date', 'home_context_id', 'mold', 'pollen', 'score', 'uv', 'values']);
+  assert.ok(body.history.every((row) => row.comparability === 'legacy_assumed' && row.home_context_id === null));
   assert.deepEqual(body.history[1].values, { aqi: 41, uv_index: 3, pollen: { tree: 1, grass: 2, weed: 0 }, mold_risk: 'low' });
   assert.equal(body.history[1].score, 81);
   assert.match(res.headers.get('x-request-id'), UUID);
   assert.equal('request_id' in body, false, 'success bodies do not carry request_id');
+});
+
+/**
+ * The body the route answered before home contexts (its mapping, copied as it was), for the
+ * household's rows newest first within a date.
+ */
+function bodyBeforeHomeContexts(rows, from, to) {
+  const byDate = new Map();
+  for (const row of rows) if (!byDate.has(row.date)) byDate.set(row.date, row);
+  const history = [...byDate.values()].reverse().map((row) => {
+    let pollen = { tree: null, grass: null, weed: null };
+    if (row.pollen_level) {
+      try { pollen = { ...pollen, ...JSON.parse(row.pollen_level) }; } catch { /* leave nulls */ }
+    }
+    const pollenVals = [pollen.tree, pollen.grass, pollen.weed].filter((v) => typeof v === 'number');
+    const pollenWorst = pollenVals.length ? Math.max(...pollenVals) : null;
+    return {
+      date: row.date,
+      score: row.score ?? null,
+      air: aqiSeverity(row.aqi),
+      uv: uvSeverity(row.uv_index),
+      pollen: pollenSeverity(pollenWorst),
+      mold: moldSeverity(row.mold_risk),
+      values: { aqi: row.aqi ?? null, uv_index: row.uv_index ?? null, pollen, mold_risk: row.mold_risk ?? null },
+    };
+  });
+  return { from, to, count: history.length, history, truncated: false };
+}
+
+test('before 0016 the body is exactly the old body plus the additive fields (context; home_context_id null and legacy_assumed per point)', async () => {
+  const stamp = (date, minute) => `${date}T12:${String(minute).padStart(2, '0')}:00Z`;
+  const rows = (id) => [
+    reading(id, day(1), { score: null, aqi: null, uv_index: null, pollen_level: null, mold_risk: null, created_at: stamp(day(1), 30) }),
+    reading(id, day(3), { score: 65, aqi: 130, uv_index: 7, pollen_level: JSON.stringify({ tree: 3, grass: null }), mold_risk: 'high', created_at: stamp(day(3), 40) }),
+    reading(id, day(3), { score: 60, aqi: 120, uv_index: 2, mold_risk: 'moderate', created_at: stamp(day(3), 10) }),
+    reading(id, day(2), { score: 71, pollen_level: 'not json', created_at: stamp(day(2), 0) }),
+    reading(id, day(5), { score: 40, aqi: 220, uv_index: 11, pollen_level: JSON.stringify({ weed: 5 }), created_at: stamp(day(5), 0), details: { recorded_by: 'daily_job' } }),
+  ];
+  const h = harness(({ alice, bob }) => [...rows(alice.id), ...rows(bob.id).map((row) => ({ ...row, score: 1 }))]);
+  const body = await (await get(h, '/api/history?days=30')).json();
+  const newestFirst = rows(h.identities.alice.id).sort((a, b) => (a.date === b.date ? (a.created_at < b.created_at ? 1 : -1) : a.date < b.date ? 1 : -1));
+  const before = bodyBeforeHomeContexts(newestFirst, day(29), TODAY);
+  assert.deepEqual(body, {
+    ...before,
+    history: before.history.map((point) => ({ ...point, home_context_id: null, comparability: 'legacy_assumed' })),
+    context: { current_id: null, includes_earlier_homes: false },
+  });
+  assert.deepEqual(body.history.map((point) => point.score), [40, 65, 71, null]);
 });
 
 test('no query means the last 90 days ending today; days sizes the window and to anchors it', async () => {

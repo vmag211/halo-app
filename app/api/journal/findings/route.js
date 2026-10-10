@@ -20,6 +20,13 @@ import { JOURNAL_ROW_LIMIT, isTruncated } from '@/lib/boundedRead';
  * `truncated` is true when either read left rows out (the readings at 5000 rows,
  * the entries at 2000, or the database API's own row cap). Both read newest first,
  * so what is left out is the oldest.
+ *
+ * Homes (migration 0016). The findings use only the household's current home's
+ * readings and those with no home recorded (comparability 'current_context' or
+ * 'legacy_assumed', lib/journalHistory.js): a reading taken at an earlier home
+ * describes another address. `excluded_earlier_home` (additive) is how many daily
+ * records of earlier homes in the window were left out, one per date and home; 0
+ * before 0016, when no reading has a home yet. The analysis itself is unchanged.
  */
 export async function GET(request) {
   const requestId = requestIdFor(request);
@@ -30,7 +37,7 @@ export async function GET(request) {
     const to = localDate();
     const from = addDays(to, -89);
 
-    const [{ history, truncated: historyTruncated }, { data, error: eErr, count }] = await Promise.all([
+    const [{ history, truncated: historyTruncated, excludedEarlierHome }, { data, error: eErr, count }] = await Promise.all([
       fetchHistoryWindow(supabaseAdmin, userId, from, to),
       supabaseAdmin
         .from('symptom_logs')
@@ -47,7 +54,7 @@ export async function GET(request) {
       historyTruncated || isTruncated({ count, returned: entries.length, limit: JOURNAL_ROW_LIMIT });
 
     return NextResponse.json(
-      { ...journalFindings({ entries, history }), truncated },
+      { ...journalFindings({ entries, history }), truncated, excluded_earlier_home: excludedEarlierHome },
       { headers: { 'X-Request-Id': requestId } },
     );
   } catch (err) {
