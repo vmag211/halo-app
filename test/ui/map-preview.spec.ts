@@ -309,7 +309,7 @@ test('map under Explore retains selected layer within the preview session', asyn
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/foundation\/preview\/?\?.*tab=today/);
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Explore', exact: true }).click();
-  await page.getByRole('link', { name: /Open the environmental map/ }).click();
+  await page.getByRole('link', { name: /Explore the map/ }).click();
   await expect(page).toHaveURL(/\/foundation\/preview\/map/);
   await expect(page.getByRole('radio', { name: 'Air', exact: true })).toHaveAttribute('aria-checked', 'true');
 });

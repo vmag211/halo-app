@@ -1,6 +1,17 @@
 # Hosted wireframe preservation reference
 
-## Current review: Explore visual refinement, October 9, 2026
+## Current review: Explore evergreen community workspace, October 10, 2026
+
+Version 25 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. This replaces the October 9 event-led page with an evergreen community hub, retaining all three locally bundled public-domain photos in regular rectangular frames. Volunteer opens official opportunity resources instead of a featured event feed. Community lessons connect map layers and note creation; expanded private notes support types/pins/search and deliberate Luna context previews. Outreach adds official contact guides, clearly simulated matching, independent contact/message/note selections and Gmail connection/confirmed-send/reconciliation previews. No real local lookup, account persistence, AI request, registration or email sending is connected. The map renderer, Today, Homeguard and approved archives remain unchanged. See `components/expanded/EXPLORE_REVIEW.md` and `EXPLORE_BACKEND_DELTA.md`.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_03d787c9b4d08191a0fd5e3603c8fe6a`.
+- Source commit: `ecf6f06f7969af7e021325a3ef38c2673dcabd3c`.
+- Successful deployment ID: `appgdep_6ac9c46616f08191aad6c8364b89cb70`.
+- Archive hash: `sha256:4441c6f8d3b33c79bc88c956349000db81dc6dd2370d45acdc027b9042c1c00e`.
+- Verification: 86 passing static browser checks across Explore, expanded shell, Homeguard overview/order, hosted isolation and Map; 31 passing Explore/hosted checks after the final plain-language copy and viewport-screenshot pass; 121 passing frontend logic tests; main TypeScript and isolated static build; 204 onboarding and 146 foundation preserved files unchanged. Checks include light/dark 375px, all sections at 320px/150% text, enlarged confirmation/Luna/route flows, contact-context rechecking, stale note snapshots, unknown send reconciliation, duplicate prevention, image failure and high contrast. API/provider calls are blocked. No approved screenshot baseline changed. Physical Safari, translations, authenticated backend permissions, real contact lookup, selected-note AI and actual OAuth/sending remain unverified.
+- Deployment confirmed successful at `2026-10-10T04:51:57.423593+00:00`. Only the isolated Site source was pushed, not the main application repository. This is a review publication, not visual approval or production integration.
+
+## Earlier review: Explore visual refinement, October 9, 2026
 
 Version 24 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Explore has a photo-led editorial layout, original community/letter/notebook sketches, warm and sage accents, distinct feature compositions and plain-language project/outreach labels. Supporting filters/review metadata/participation forms use disclosures. Essential event requirements/access and project constraints remain visible. The same A01-A06 sample flows are retained; this is not visual approval, live catalogue integration or production private persistence. See `components/expanded/EXPLORE_REVIEW.md` for the reference research, asset rights and boundaries.
 

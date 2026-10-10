@@ -47,7 +47,7 @@ function HomeFactorRecords({ factor, href }: { factor: FactorKey; href: Href }) 
 }
 
 export function ExpandedDestinationPage({ destination, href, mapHref }: { destination: string; href: Href; mapHref: (layer: string) => string }) {
-  if (['organizations', 'opportunities', 'projects', 'outreach', 'observations'].includes(destination)) return <ExploreWorkspace destination={destination} href={href} mapHref={mapHref} />;
+  if (['community', 'organizations', 'opportunities', 'projects', 'outreach', 'observations'].includes(destination)) return <ExploreWorkspace destination={destination} href={href} mapHref={mapHref} />;
   if (destination === 'tests' || destination === 'maintenance' || destination === 'food' || destination === 'summary') return <HomeguardWorkspace section={destination} href={href} />;
   if (!isDestination(destination)) return <section className="halo-expanded-section"><h2>This destination is unavailable</h2><Link href={href('today')}>Return to Today</Link></section>;
   const page = destinations[destination];

@@ -1,0 +1,58 @@
+'use client';
+
+import Link from 'next/link';
+import { useState } from 'react';
+import { ArrowRight, ArrowUpRight, Check, MapPin } from 'lucide-react';
+import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
+import { ExplorePhoto } from './ExploreVisuals';
+import { SaveExplore, areaLabel, blankArea } from './ExploreShared';
+import type { ExploreSection } from '@/lib/frontend/explore-preview';
+
+type Go = (section?: ExploreSection, view?: string, id?: string) => void;
+const sources = [
+  { id: 'parks', title: 'Parks & public lands', cause: 'Outdoors', description: 'Find volunteer roles and events through the National Park Service.', url: 'https://www.nps.gov/subjects/volunteer/become.htm', scope: 'United States. Search by location on the official site.' },
+  { id: 'wildlife', title: 'Wildlife & habitats', cause: 'Habitats', description: 'Explore ways to help through the U.S. Fish & Wildlife Service.', url: 'https://www.fws.gov/get-involved', scope: 'United States. Availability varies by refuge or program.' },
+  { id: 'water', title: 'Water & stream learning', cause: 'Water', description: 'Learn about North Carolina Stream Watch and its participation options.', url: 'https://www.deq.nc.gov/about/divisions/water-resources/water-resources-public-information/water-education-programs/water-education-and-outreach/nc-stream-watch', scope: 'North Carolina only. Some shared observations may be public.' },
+];
+
+export function ExploreAreaChooser() {
+  const [area, setArea] = useHomeDraft('explore:area', blankArea);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(area);
+  return <div className="ex-area"><button className="ex-area-toggle" aria-expanded={editing} onClick={() => { setDraft(area); setEditing(!editing); }}><MapPin size={16} aria-hidden="true" /><span>{areaLabel(area) || 'Choose an area'}</span><small>{areaLabel(area) ? 'Change' : 'Optional'}</small></button>{editing && <form className="ex-form ex-area-editor" onSubmit={event => { event.preventDefault(); setArea({ place: draft.place.trim(), state: draft.state.trim() }); setEditing(false); }}><label>City or county<input maxLength={80} placeholder="For example, Cabarrus County" value={draft.place} onChange={event => setDraft({ ...draft, place: event.target.value })} /></label><label>State<input maxLength={40} placeholder="For example, North Carolina" value={draft.state} onChange={event => setDraft({ ...draft, state: event.target.value })} /></label><p className="ex-meta">An area label for your own planning. No address or GPS is needed, and no local search is performed in this preview.</p><div className="ex-tools"><button type="submit">Use this area</button><button type="button" onClick={() => { setArea(blankArea); setDraft(blankArea); setEditing(false); }}>Clear area</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></div></form>}</div>;
+}
+
+export function VolunteeringFinder({ go }: { go: Go }) {
+  const [preferences, setPreferences] = useHomeDraft('explore:volunteer-preferences', { cause: 'Any interest', time: 'Flexible', access: '' });
+  const [area] = useHomeDraft('explore:area', blankArea);
+  const [checklist, setChecklist] = useHomeDraft('explore:volunteer-checklist', { date: false, access: false, age: false, equipment: false });
+  const [selected, setSelected] = useState('');
+  const matches = sources.filter(source => preferences.cause === 'Any interest' || source.cause === preferences.cause);
+  const source = sources.find(item => item.id === selected);
+  return <section className="ex-detail">
+    <ExplorePhoto scene="trail" className="ex-catalogue-photo" />
+    <div className="ex-section-heading"><h3>Find your way to help.</h3><p>Choose what interests you, then look for events with the people who organize them.</p></div>
+    <ExploreAreaChooser />
+    <div className="ex-form"><label>What interests you?<select value={preferences.cause} onChange={event => { setPreferences({ ...preferences, cause: event.target.value }); setSelected(''); }}>{['Any interest', 'Outdoors', 'Habitats', 'Water'].map(value => <option key={value}>{value}</option>)}</select></label><label>Time you can give (planning preference)<select value={preferences.time} onChange={event => setPreferences({ ...preferences, time: event.target.value })}>{['Flexible', 'A few hours', 'A day', 'Something ongoing'].map(value => <option key={value}>{value}</option>)}</select></label></div>
+    <p className="ex-meta">These filters organize the resource guides, not current events. Check actual dates, access and availability on the organizer's site.</p>
+    <div className="ex-resource-list">{matches.map(item => <article className="ex-resource" key={item.id}><small>{item.cause} · Official resource</small><h4>{item.title}</h4><p>{item.description}</p><button className="ex-text-button" onClick={() => setSelected(item.id)}>Explore this route <ArrowRight size={16} aria-hidden="true" /></button></article>)}</div>
+    {source && <section className="ex-route-detail" aria-label="Volunteer route"><h4>{source.title}</h4><p>{source.scope}</p><a className="ex-button" href={source.url} target="_blank" rel="noreferrer">Open official opportunities <ArrowUpRight size={16} aria-hidden="true" /></a><p className="ex-meta">Opens another site. HALO sends none of your area, preferences or notes. Opening it does not register you.</p><SaveExplore origin={`volunteer-route:${source.id}`} title={`Look for a volunteer opportunity: ${source.title}`} reason={`Review ${source.url}. ${areaLabel(area) ? `Area I chose: ${areaLabel(area)}. ` : ''}Time preference: ${preferences.time}. Confirm actual suitability with the organizer.`} /><button className="ex-text-button" onClick={() => setSelected('')}>Close this route</button></section>}
+    <details className="ex-disclosure"><summary>Before you commit</summary><p className="ex-meta">A general preparation checklist, not confirmation for a particular organizer or event.</p><div className="ex-checklist">{Object.entries({ date: 'Confirm the date, place and weather policy', access: 'Ask about accessibility and the work involved', age: 'Check age requirements and supervision', equipment: 'Confirm equipment, cost and preparation' }).map(([key, label]) => <label className="ex-check" key={key}><input type="checkbox" checked={checklist[key as keyof typeof checklist]} onChange={event => setChecklist({ ...checklist, [key]: event.target.checked })} />{label}</label>)}</div><label>Questions or access needs (private)<textarea maxLength={1000} value={preferences.access} onChange={event => setPreferences({ ...preferences, access: event.target.value })} /></label><p className="ex-meta">Checking these boxes is your preparation note, not organizer confirmation.</p></details>
+    <button className="ex-text-button" onClick={() => go('organizations')}>Meet community organizations <ArrowRight size={16} aria-hidden="true" /></button>
+    <button className="ex-text-button" onClick={() => go('outreach')}>Ask an organizer a question <ArrowRight size={16} aria-hidden="true" /></button>
+  </section>;
+}
+
+const communityTopics = [
+  { id: 'water', title: 'Water around you', label: 'Water', text: 'Public water records show what was sampled and when. They are not a measurement of your tap or a promise that a creek is safe.', question: 'Where does my drinking water come from, and which dated records can I read?', next: 'Check your provider or existing test records before deciding what to ask.' },
+  { id: 'air', title: 'Air & outdoor conditions', label: 'Air', text: 'A nearby air monitor describes an observation at its location and time. It does not measure your personal exposure.', question: 'Which air monitor is shown, and how recent is its reading?', next: 'Read the source and observation time, then use Today for household guidance.' },
+  { id: 'radon', title: 'The ground beneath us', label: 'Radon', text: 'A county radon zone describes regional context. Only an appropriate home test can establish a level in your home.', question: 'Where can I find reliable instructions for a home radon test?', next: 'Use Homeguard to review radon guidance and your own tests.' },
+  { id: 'facilities', title: 'Public facility records', label: 'Facilities', text: 'A public compliance record describes a facility and reporting period. Being nearby does not establish a cause or a household exposure.', question: 'What does this record actually say, and which office can explain it?', next: 'Open the original record and keep its date with your question.' },
+];
+
+export function CommunityGuide({ go, mapHref }: { go: Go; mapHref: (layer: string) => string }) {
+  const [topic, setTopic] = useHomeDraft('explore:community-topic', 'water');
+  const current = communityTopics.find(item => item.id === topic) ?? communityTopics[0];
+  const [, setPrompt] = useHomeDraft('explore:note-starter', '');
+  return <section className="ex-detail"><div className="ex-section-heading"><h3>Get to know your community.</h3><p>A little context helps you ask better questions and choose a useful next step.</p></div><div className="ex-topic-tabs" role="group" aria-label="Community topics">{communityTopics.map(item => <button key={item.id} aria-pressed={topic === item.id} onClick={() => setTopic(item.id)}>{item.label}</button>)}</div><article className="ex-community-lesson"><span className="ex-kicker">Understand the evidence</span><h4>{current.title}</h4><p>{current.text}</p><blockquote>{current.question}</blockquote><p>{current.next}</p><Link className="ex-button" prefetch={false} href={mapHref(current.id)}>Explore this map layer <ArrowUpRight size={16} aria-hidden="true" /></Link><button className="ex-text-button" onClick={() => { setPrompt(current.question); go('observations', 'new'); }}>Keep this question in My notes <ArrowRight size={16} aria-hidden="true" /></button></article><div className="ex-section-heading"><h4>From understanding to action</h4></div><div className="ex-checklist"><p><Check size={17} aria-hidden="true" />Read the source, date and geographic scope.</p><p><Check size={17} aria-hidden="true" />Write down what you know and what is still unknown.</p><p><Check size={17} aria-hidden="true" />Choose a qualified resource, community group or small next step.</p></div><button className="ex-text-button" onClick={() => go('projects')}>Explore practical ways to help <ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" onClick={() => go('outreach')}>Find the right contact <ArrowRight size={16} aria-hidden="true" /></button></section>;
+}
