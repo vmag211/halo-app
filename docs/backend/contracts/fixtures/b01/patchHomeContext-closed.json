@@ -1,0 +1,13 @@
+{
+  "operationId": "patchHomeContext",
+  "status": 409,
+  "body": {
+    "error": "This is no longer your current home.",
+    "code": "conflict",
+    "message": "This is no longer your current home.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001",
+    "reason": "context_closed"
+  }
+}

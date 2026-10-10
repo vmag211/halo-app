@@ -1,0 +1,19 @@
+{
+  "operationId": "putHousehold",
+  "status": 200,
+  "body": {
+    "household": {
+      "has_toddler": false,
+      "has_child": false,
+      "has_teen": false,
+      "has_adult": true,
+      "has_senior": false,
+      "has_pregnant": false,
+      "has_respiratory": false
+    },
+    "household_set": true,
+    "transactional": true,
+    "renter_mode": false,
+    "locale": "en"
+  }
+}

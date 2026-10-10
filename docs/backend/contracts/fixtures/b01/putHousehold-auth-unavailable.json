@@ -1,0 +1,12 @@
+{
+  "operationId": "putHousehold",
+  "status": 503,
+  "body": {
+    "error": "We could not check your session. Please try again.",
+    "code": "auth_unavailable",
+    "message": "We could not check your session. Please try again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b01-fixture-0001"
+  }
+}

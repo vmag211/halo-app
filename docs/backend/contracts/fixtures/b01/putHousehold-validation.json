@@ -1,0 +1,18 @@
+{
+  "operationId": "putHousehold",
+  "status": 400,
+  "body": {
+    "error": "This field needs another look.",
+    "code": "validation_failed",
+    "message": "This field needs another look.",
+    "field_errors": [
+      {
+        "field": "has_adult",
+        "code": "invalid_value",
+        "message": "This field needs another look."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b01-fixture-0001"
+  }
+}

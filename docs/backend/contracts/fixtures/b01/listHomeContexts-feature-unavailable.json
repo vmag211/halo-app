@@ -1,0 +1,12 @@
+{
+  "operationId": "listHomeContexts",
+  "status": 503,
+  "body": {
+    "error": "Home history is not available yet.",
+    "code": "feature_unavailable",
+    "message": "Home history is not available yet.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001"
+  }
+}

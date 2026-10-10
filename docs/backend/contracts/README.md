@@ -1,0 +1,11 @@
+# B01 executable API contract
+
+`b01.openapi.json` is OpenAPI 3.1, contract version `b01-1`. It documents six operations changed by B01, not the whole HALO API. Existing approved frontend types remain handwritten and unchanged; `test/contractsB01.test.mjs` checks actual handler responses against the executable schemas with Ajv 2020 and format validation. Types have not been generated or proven exhaustive against this document.
+
+`fixtures/b01/` contains synthetic wrappers `{ operationId, status, body }`. Only `body` is the wire response. Error request IDs are synthetic. A fixture represents shape and semantics, not an exact wording guarantee. Headers are documented in OpenAPI and checked in route conformance tests; they are not in the JSON fixture body.
+
+The fixtures cover success, empty collection/full replacement, authentication rejection/outage, validation, missing records, stale/closed conflicts, oversized writes, quota refusal, and missing migration fallback. Read-only endpoints do not receive bodies and do not emit payload-too-large; a missing detail is a 404 rather than an empty success. Household PUT cannot return an empty saved object: its empty request returns all seven booleans false. Onboarding without 0016 returns a null home context. `feature_unavailable` is a non-retryable 503, distinct from a retryable auth outage. Per-route responses list actual handler statuses; the shared envelope covers the remaining error codes used across HALO.
+
+Run `node --test test/contractsB01.test.mjs`. Routes run through the isolated harness with synthetic identities, fake provider responses and fake database RPCs; the separate PGlite suites test migrations, real RPC behaviour, route wiring and database ownership. These are local contracts, not a live integration or source-rights verification.
+
+Request schemas document structural constraints and canonical examples. Runtime parsing additionally trims text, normalizes legacy answers, uses the current calendar year, checks token ownership and enforces byte limits. Use the route validators for these context-dependent rules. Response schemas are strict about fields, including preventing owner/request-marker disclosure in home summaries.

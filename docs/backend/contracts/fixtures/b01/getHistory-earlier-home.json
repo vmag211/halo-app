@@ -1,0 +1,36 @@
+{
+  "operationId": "getHistory",
+  "status": 200,
+  "body": {
+    "from": "2026-10-01",
+    "to": "2026-10-01",
+    "count": 1,
+    "history": [
+      {
+        "date": "2026-10-01",
+        "score": 75,
+        "air": "good",
+        "uv": "moderate",
+        "pollen": "good",
+        "mold": "no_data",
+        "values": {
+          "aqi": 30,
+          "uv_index": 4,
+          "pollen": {
+            "tree": 1,
+            "grass": null,
+            "weed": null
+          },
+          "mold_risk": null
+        },
+        "home_context_id": "a11ce000-2222-4000-8000-000000000001",
+        "comparability": "earlier_home"
+      }
+    ],
+    "truncated": false,
+    "context": {
+      "current_id": "a11ce000-2222-4000-8000-000000000002",
+      "includes_earlier_homes": true
+    }
+  }
+}

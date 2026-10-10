@@ -1,3 +1,5 @@
+> Current B01 handoff (2026-10-10): see [checkpoint](backend/checkpoint.md), [requirements tracker](backend/requirements-tracker.md) and [your manual TODO](backend/YOUR_TODO.md). The September status below is preserved as historical context. The B01 continuation was tested locally and has not applied production migrations or merged to main.
+
 # HALO backend — status
 
 Branch `vmag211/backend`; `main` contains all of it (through `9f1ef88`, 2026-09-29).

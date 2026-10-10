@@ -1,0 +1,33 @@
+{
+  "operationId": "getHomeContext",
+  "status": 200,
+  "body": {
+    "context": {
+      "id": "a11ce000-2222-4000-8000-000000000001",
+      "sequence": 1,
+      "revision": 1,
+      "origin": "onboard",
+      "current": true,
+      "location": {
+        "lat": 35.4,
+        "lng": -80.5,
+        "county": "Example County",
+        "state": "NC"
+      },
+      "pwsid": null,
+      "service_area_status": "outside_known_area",
+      "water_source": "well",
+      "home_year": 1990,
+      "match_method": "mapbox_geocode_arcgis_point",
+      "backfill": {
+        "state": "not_started",
+        "from": null,
+        "to": null,
+        "updated_at": null
+      },
+      "effective_from": "2026-10-01T12:00:00Z",
+      "effective_to": null,
+      "closed_reason": null
+    }
+  }
+}

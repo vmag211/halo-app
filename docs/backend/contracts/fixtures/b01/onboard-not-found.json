@@ -1,0 +1,12 @@
+{
+  "operationId": "onboard",
+  "status": 404,
+  "body": {
+    "error": "We could not find coordinates for that address.",
+    "code": "not_found",
+    "message": "We could not find coordinates for that address.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001"
+  }
+}

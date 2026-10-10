@@ -1,0 +1,12 @@
+{
+  "operationId": "onboard",
+  "status": 403,
+  "body": {
+    "error": "You can only update your own household.",
+    "code": "forbidden",
+    "message": "You can only update your own household.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001"
+  }
+}

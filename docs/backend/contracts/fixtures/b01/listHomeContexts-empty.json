@@ -1,0 +1,10 @@
+{
+  "operationId": "listHomeContexts",
+  "status": 200,
+  "body": {
+    "items": [],
+    "count": 0,
+    "truncated": false,
+    "current_id": null
+  }
+}

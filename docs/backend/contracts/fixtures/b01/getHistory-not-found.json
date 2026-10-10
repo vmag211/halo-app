@@ -1,0 +1,12 @@
+{
+  "operationId": "getHistory",
+  "status": 404,
+  "body": {
+    "error": "We could not find that home.",
+    "code": "not_found",
+    "message": "We could not find that home.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001"
+  }
+}

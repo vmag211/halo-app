@@ -1,0 +1,14 @@
+{
+  "operationId": "patchHomeContext",
+  "status": 409,
+  "body": {
+    "error": "This home has changed. Reload before saving.",
+    "code": "conflict",
+    "message": "This home has changed. Reload before saving.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001",
+    "reason": "stale_revision",
+    "revision": 3
+  }
+}

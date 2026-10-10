@@ -1,0 +1,1752 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B01 backend contract",
+    "version": "b01-1",
+    "description": "Additive B01 surfaces. Errors use the shared envelope. Missing 0015 uses transactional:false; missing 0016 leaves onboard home_context:null and legacy history, while explicit home operations return feature_unavailable. This is not a capabilities endpoint or a claim of production verification. Only errors reachable by each handler are listed; shared schemas cover other routes too."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/home-contexts": {
+      "get": {
+        "operationId": "listHomeContexts",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeContextList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Auth or feature unavailable",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/home-contexts/{id}": {
+      "get": {
+        "operationId": "getHomeContext",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found without owner disclosure",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Auth or feature unavailable",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patchHomeContext",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found without owner disclosure",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision/context conflict",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Auth or feature unavailable",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeContextPatch"
+              }
+            }
+          },
+          "x-max-bytes": 2048
+        }
+      }
+    },
+    "/api/history": {
+      "get": {
+        "operationId": "getHistory",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found without owner disclosure",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Auth or feature unavailable",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 90
+            },
+            "description": "Validated even when from overrides it."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Inclusive, at least 2000-01-01; explicit range at most 366 days."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Inclusive, defaults to today in America/New_York; at most tomorrow."
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^([Aa][Ll][Ll])?$"
+                },
+                {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              ]
+            },
+            "description": "Missing/empty selects current home plus unlinked rows. all is case-insensitive, one point per date/home. UUID requires ownership; unavailable before 0016."
+          }
+        ]
+      }
+    },
+    "/api/household": {
+      "put": {
+        "operationId": "putHousehold",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Auth or feature unavailable",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HouseholdPut"
+              }
+            }
+          },
+          "x-max-bytes": 2048
+        }
+      }
+    },
+    "/api/onboard": {
+      "post": {
+        "operationId": "onboard",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found without owner disclosure",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Auth or feature unavailable",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardPost"
+              }
+            }
+          },
+          "x-max-bytes": 4096
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale_revision",
+              "context_closed"
+            ]
+          },
+          "revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "ConflictEnvelope": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ErrorEnvelope"
+          },
+          {
+            "properties": {
+              "code": {
+                "const": "conflict"
+              },
+              "retryable": {
+                "const": false
+              },
+              "reason": {
+                "enum": [
+                  "stale_revision",
+                  "context_closed"
+                ]
+              }
+            },
+            "required": [
+              "reason"
+            ],
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "stale_revision"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "revision"
+              ]
+            }
+          }
+        ]
+      },
+      "HomeContext": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "origin": {
+            "enum": [
+              "onboard",
+              "move",
+              "legacy_migration"
+            ]
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "lat": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": -90,
+                "maximum": 90
+              },
+              "lng": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": -180,
+                "maximum": 180
+              },
+              "county": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "lat",
+              "lng",
+              "county",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "pwsid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "service_area_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "water_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "utility",
+              "well",
+              "spring",
+              "other",
+              null
+            ]
+          },
+          "home_year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1700
+          },
+          "match_method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "backfill": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "not_started",
+                  "running",
+                  "complete",
+                  "partial",
+                  "failed",
+                  "not_applicable",
+                  null
+                ]
+              },
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "updated_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "state",
+              "from",
+              "to",
+              "updated_at"
+            ],
+            "additionalProperties": false
+          },
+          "effective_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effective_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closed_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "moved",
+              null
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sequence",
+          "revision",
+          "origin",
+          "current",
+          "location",
+          "pwsid",
+          "service_area_status",
+          "water_source",
+          "home_year",
+          "match_method",
+          "backfill",
+          "effective_from",
+          "effective_to",
+          "closed_reason"
+        ],
+        "additionalProperties": false
+      },
+      "HomeContextList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeContext"
+            },
+            "maxItems": 100
+          },
+          "current_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "current_id",
+          "count",
+          "truncated"
+        ],
+        "additionalProperties": false
+      },
+      "HomeContextResponse": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/HomeContext"
+          }
+        },
+        "required": [
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "HomeContextPatch": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "water_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "home_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1700
+              },
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null/empty clears. Numeric text is accepted if it resolves to a whole year from 1700 to the current year; whitespace is trimmed."
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "water_source"
+            ]
+          },
+          {
+            "required": [
+              "home_year"
+            ]
+          }
+        ]
+      },
+      "HistoryPoint": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "air": {
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "uv": {
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "pollen": {
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "mold": {
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "values": {
+            "type": "object",
+            "properties": {
+              "aqi": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "uv_index": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "pollen": {
+                "type": "object",
+                "properties": {
+                  "tree": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "grass": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "weed": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "tree",
+                  "grass",
+                  "weed"
+                ],
+                "additionalProperties": false
+              },
+              "mold_risk": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "aqi",
+              "uv_index",
+              "pollen",
+              "mold_risk"
+            ],
+            "additionalProperties": false
+          },
+          "home_context_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "comparability": {
+            "enum": [
+              "current_context",
+              "earlier_home",
+              "legacy_assumed"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "score",
+          "air",
+          "uv",
+          "pollen",
+          "mold",
+          "values",
+          "home_context_id",
+          "comparability"
+        ],
+        "additionalProperties": false
+      },
+      "HistoryResponse": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryPoint"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "current_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "includes_earlier_homes": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "current_id",
+              "includes_earlier_homes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "count",
+          "history",
+          "truncated",
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "HouseholdBands": {
+        "type": "object",
+        "properties": {
+          "has_toddler": {
+            "type": "boolean"
+          },
+          "has_child": {
+            "type": "boolean"
+          },
+          "has_teen": {
+            "type": "boolean"
+          },
+          "has_adult": {
+            "type": "boolean"
+          },
+          "has_senior": {
+            "type": "boolean"
+          },
+          "has_pregnant": {
+            "type": "boolean"
+          },
+          "has_respiratory": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "has_toddler",
+          "has_child",
+          "has_teen",
+          "has_adult",
+          "has_senior",
+          "has_pregnant",
+          "has_respiratory"
+        ],
+        "additionalProperties": false
+      },
+      "HouseholdPut": {
+        "type": "object",
+        "properties": {
+          "has_toddler": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_child": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_teen": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_adult": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_senior": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_pregnant": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_respiratory": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "renter_mode": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "locale": {
+            "enum": [
+              "en",
+              "es",
+              null
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "description": "Omitted/null band booleans become false. Unknown keys are ignored. Optional preferences are echoed only if sent."
+      },
+      "HouseholdResponse": {
+        "type": "object",
+        "properties": {
+          "household": {
+            "$ref": "#/components/schemas/HouseholdBands"
+          },
+          "household_set": {
+            "const": true
+          },
+          "renter_mode": {
+            "type": "boolean"
+          },
+          "locale": {
+            "enum": [
+              "en",
+              "es"
+            ]
+          },
+          "transactional": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "household",
+          "household_set",
+          "transactional"
+        ],
+        "additionalProperties": false
+      },
+      "OnboardPost": {
+        "type": "object",
+        "required": [
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200,
+            "description": "Trimmed before validation: 3 to 200 Unicode characters, no control characters."
+          },
+          "water_source": {
+            "description": "Legacy normalization accepts any JSON shape; unrecognized input maps to other, missing/null remains null."
+          },
+          "home_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1700
+              },
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null/empty clears. Numeric text is accepted if it resolves to a whole year from 1700 to the current year; whitespace is trimmed."
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "profile_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": true,
+        "description": "Address is trimmed and must not be blank. Optional legacy profile_id must equal the verified caller. Water source aliases are normalized by the route. Year upper bound is the current year."
+      },
+      "OnboardResponse": {
+        "type": "object",
+        "properties": {
+          "profile_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lng": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "zip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "county": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pwsid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "service_area_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "water_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "home_year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "onboard_request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "home_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "moved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profile_id",
+          "lat",
+          "lng",
+          "zip",
+          "county",
+          "state",
+          "pwsid",
+          "service_area_status",
+          "water_source",
+          "home_year",
+          "onboard_request_id",
+          "home_context",
+          "moved"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

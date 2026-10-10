@@ -1,0 +1,12 @@
+{
+  "operationId": "listHomeContexts",
+  "status": 401,
+  "body": {
+    "error": "Please sign in again.",
+    "code": "auth_required",
+    "message": "Please sign in again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b01-fixture-0001"
+  }
+}

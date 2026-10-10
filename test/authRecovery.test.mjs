@@ -5,15 +5,15 @@ import vm from 'node:vm';
 
 const source = (await readFile(new URL('../lib/auth.js', import.meta.url), 'utf8'))
   .replace("import { supabase } from './supabase';", '').replace(/^export /gm, '');
-function setup(status = 401) {
-  let session = { access_token: 'old', user: { id: 'original-household' } };
+function setup(status = 401, { initial = { access_token: 'old', user: { id: 'original-household' } }, sessionError = null } = {}) {
+  let session = initial;
   const calls = { signIn: 0, signOut: 0, requests: [] };
   const response = new Response(JSON.stringify({ error: 'Session rejected', draft: 'unchanged' }), { status });
   const context = vm.createContext({
     window: {}, process: { env: {} }, DOMException, setTimeout, clearTimeout,
     console: { warn() {} },
     supabase: { auth: {
-      async getSession() { return { data: { session }, error: null }; },
+      async getSession() { return { data: { session }, error: sessionError }; },
       async signOut() { calls.signOut++; session = null; },
       async signInAnonymously() {
         calls.signIn++;
@@ -68,4 +68,18 @@ test('explicit recovery replaces the session once and never replays the draft', 
   assert.equal(calls.signOut, 1);
   assert.equal(calls.signIn, 1);
   assert.equal(calls.requests.length, 1);
+});
+
+test('explicit recovery with no stored session creates only one new identity', async () => {
+  const { api, calls } = setup(401, { initial: null });
+  assert.equal((await api.recoverSession()).user.id, 'replacement-household');
+  assert.equal(calls.signIn, 1);
+  assert.equal(calls.requests.length, 0);
+});
+test('a failed session read during explicit recovery never signs out or creates an identity', async () => {
+  const { api, calls } = setup(401, { sessionError: new Error('temporary auth failure') });
+  await assert.rejects(api.recoverSession(), (error) => error.code === 'signin_failed');
+  assert.equal(calls.signOut, 0);
+  assert.equal(calls.signIn, 0);
+  assert.equal(calls.requests.length, 0);
 });

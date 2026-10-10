@@ -1,0 +1,12 @@
+{
+  "operationId": "onboard",
+  "status": 429,
+  "body": {
+    "error": "Please wait before trying again.",
+    "code": "rate_limited",
+    "message": "Please wait before trying again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b01-fixture-0001"
+  }
+}

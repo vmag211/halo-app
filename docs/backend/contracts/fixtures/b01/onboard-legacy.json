@@ -1,0 +1,19 @@
+{
+  "operationId": "onboard",
+  "status": 200,
+  "body": {
+    "profile_id": "00000000-0000-4000-8000-000000000001",
+    "lat": 35.4,
+    "lng": -80.5,
+    "zip": null,
+    "county": "Example County",
+    "state": "NC",
+    "pwsid": null,
+    "service_area_status": "outside_known_area",
+    "water_source": "well",
+    "home_year": 1990,
+    "onboard_request_id": null,
+    "home_context": null,
+    "moved": false
+  }
+}

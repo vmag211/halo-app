@@ -1,0 +1,12 @@
+{
+  "operationId": "getHomeContext",
+  "status": 500,
+  "body": {
+    "error": "Something went wrong on our side. Please try again.",
+    "message": "Something went wrong on our side. Please try again.",
+    "code": "internal_error",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b01-fixture-0001"
+  }
+}
