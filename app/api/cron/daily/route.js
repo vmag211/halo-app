@@ -13,6 +13,7 @@ import { seasonSummary, seasonRange } from '@/lib/journalRetro';
 import { fetchHistory } from '@/lib/journalHistory';
 import { pushConfigured, sendAlertPushes } from '@/lib/push';
 import { buildAndStoreAll } from '@/lib/mapBuild';
+import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -30,7 +31,10 @@ export const maxDuration = 60;
  *  2. Detects UCMR reloads that changed a utility's readings (water_snapshots).
  *     The first run only records a baseline, so it never fires a flood of alerts.
  *  3. Records today's reading for every onboarded household (item 10), so
- *     Journal has history even on days the app isn't opened.
+ *     Journal has history even on days the app isn't opened. Each reading is
+ *     linked to the household's current home (migration 0016), read for every
+ *     household at once before the pass (see currentHomesFor); none when the
+ *     household has no home yet, or before 0016.
  *  4. Evaluates alerts per household, honouring notification preferences:
  *     air quality worsening (only when there IS a reading dated today — a
  *     household that stopped opening the app is not re-alerted about an old
@@ -88,6 +92,34 @@ async function detectWaterChanges(utilities) {
   return { changed, baseline, updated: upserts.length };
 }
 
+let warnedNoContextLink = false;
+
+/** daily_scores has no home_context_id column (0016 not applied): readings go in without it. Once per process. */
+function contextLinkDropped(error) {
+  if (warnedNoContextLink) return;
+  warnedNoContextLink = true;
+  console.warn(
+    `Daily job: daily_scores has no home_context_id column (${error?.code ?? 'unknown'}), so migration 0016 is probably not applied yet. ` +
+      'Recording readings without their home.',
+  );
+}
+
+/**
+ * Each household's current home, in one bulk read for the whole run (lib/homeContextRpc.js
+ * readCurrentHomeContexts: chunks of 100 households, never one read per household). An empty map
+ * before 0016 or when the read fails: the readings are then recorded without a home, as before,
+ * and the job goes on.
+ */
+async function currentHomesFor(profiles) {
+  try {
+    const read = await readCurrentHomeContexts(supabaseAdmin, profiles.map((p) => p.id));
+    return read.unavailable ? new Map() : read.byProfile;
+  } catch (err) {
+    console.error('Daily job: could not read the current homes; recording readings without them.', err.message);
+    return new Map();
+  }
+}
+
 async function runDaily(request) {
   if (!isCronAuthorized(request.headers, request.url)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -135,10 +167,13 @@ async function runDaily(request) {
 
     const recording = { recorded: 0, already_had_one: 0, failed: 0 };
     const newAlerts = [];
+    const currentHomes = await currentHomesFor(profiles || []);
 
     await mapLimit(profiles || [], 4, async (p) => {
-      // 3. Today's reading.
-      recording[await recordToday(supabaseAdmin, p, { today })] += 1;
+      // 3. Today's reading, linked to this household's own current home when it is at the
+      // profile's point (the point the reading is taken at); otherwise none (contextIdForPoint).
+      const homeContextId = contextIdForPoint(currentHomes.get(p.id), p);
+      recording[await recordToday(supabaseAdmin, p, { today, homeContextId, onContextLinkDropped: contextLinkDropped })] += 1;
 
       // 4. Alert inputs.
       const history = await fetchHistory(supabaseAdmin, p.id, yesterday, today).catch(() => []);

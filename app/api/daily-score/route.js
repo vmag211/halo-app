@@ -7,6 +7,7 @@ import { formatDailyPayload, toIsoUtc } from '@/lib/dailyPayload';
 import { localDate } from '@/lib/localDate';
 import { parseCoordinates } from '@/lib/validate';
 import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } from '@/lib/apiErrors';
+import { contextIdForPoint, isMissingContextLink, readCurrentHomeContext } from '@/lib/homeContextRpc';
 
 /**
  * GET /api/daily-score[?lat=&lng=][&fresh=1]
@@ -21,7 +22,11 @@ import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } f
  * - Provider fetches (cache misses and refreshes) are limited to one per
  *   household per five minutes, so repeated pulls can't hammer AirNow, Pollen
  *   and NWS. The limiter fails open.
- * - Readings are stored with the household's local (America/New_York) date.
+ * - Readings are stored with the household's local (America/New_York) date,
+ *   and with the household's current home (migration 0016's home_context_id)
+ *   when that home is at the stored point the reading is for. Only the reading
+ *   for the household's own location is stored, so only it is linked. Before
+ *   0016 it is stored without the link, as before.
  * - `fresh` is literally "1"; any other value is the same as not sending it.
  * - Every response carries X-Request-Id; errors are the shared envelope.
  *
@@ -38,6 +43,34 @@ function isUndefinedColumnError(error) {
     /column .* does not exist/i.test(error.message || '') ||
     /could not find the .* column/i.test(error.message || '')
   );
+}
+
+let warnedNoContextLink = false;
+
+/** daily_scores has no home_context_id column (0016 not applied): the reading goes in without it. Once per process. */
+function contextLinkDropped(error) {
+  if (warnedNoContextLink) return;
+  warnedNoContextLink = true;
+  console.warn(
+    `Daily score: daily_scores has no home_context_id column (${error?.code ?? 'unknown'}), so migration 0016 is probably not applied yet. ` +
+      'Caching readings without their home.',
+  );
+}
+
+/**
+ * The household's current home for a reading taken at its stored point (lib/homeContextRpc.js
+ * contextIdForPoint), or null: no home yet, 0016 not applied, a home elsewhere, or the home could
+ * not be read (logged). With null the reading is cached without a home, as before.
+ */
+async function ownHomeContextId(profileId, point) {
+  try {
+    const current = await readCurrentHomeContext(supabaseAdmin, profileId);
+    if (current.unavailable) return null;
+    return contextIdForPoint(current.context, point);
+  } catch (error) {
+    console.error('Could not read the current home; caching the reading without it.', error.message);
+    return null;
+  }
 }
 
 // AirNow is a physical monitor; Open-Meteo is a model. A row with no recorded
@@ -221,17 +254,25 @@ export async function GET(request) {
       },
     };
 
-    const { error: insertError } = await supabaseAdmin
-      .from('daily_scores')
-      .insert([{ ...cacheRow, ...optionalColumns }]);
+    // The household's current home, when it is at the stored point this reading is for. Only
+    // this own-location row is ever linked; the link is dropped (once, with a warning) when the
+    // column does not exist yet, and every other column is kept.
+    const homeContextId = await ownHomeContextId(profileId, profileRow);
+    let link = homeContextId ? { home_context_id: homeContextId } : {};
+    const insert = (columns) => supabaseAdmin.from('daily_scores').insert([{ ...cacheRow, ...columns, ...link }]);
+
+    let { error: insertError } = await insert(optionalColumns);
+    if (insertError && homeContextId && isMissingContextLink(insertError)) {
+      contextLinkDropped(insertError);
+      link = {};
+      ({ error: insertError } = await insert(optionalColumns));
+    }
     if (insertError && isUndefinedColumnError(insertError)) {
       console.warn('Optional daily_scores column missing; caching without it.', insertError.message);
       const { details, ...withoutDetails } = optionalColumns;
-      const { error: retryError } = await supabaseAdmin
-        .from('daily_scores')
-        .insert([{ ...cacheRow, ...withoutDetails }]);
+      const { error: retryError } = await insert(withoutDetails);
       if (retryError && isUndefinedColumnError(retryError)) {
-        const { error: lastError } = await supabaseAdmin.from('daily_scores').insert([cacheRow]);
+        const { error: lastError } = await insert({});
         if (lastError) console.error('Failed to cache daily score:', lastError.message);
       } else if (retryError) {
         console.error('Failed to cache daily score:', retryError.message);
