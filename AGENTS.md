@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- October 10 completeness direction: treat the full frontend plan as the functional baseline, not a ceiling. For each stage, read its complete requirements and verify current backend code/contracts, then build complete supported flows and states, not just attractive placeholder screens. Simple presentation must preserve useful functionality. Identify valuable additions beyond the plan without unnecessary feature clutter, and clearly distinguish verified live support, sample-data previews and missing backend contracts. Document backend gaps for handoff; do not invent integrations or bypass existing review, approval and backend-ownership boundaries.
+
 - October 9 navigation: visible tabs are Today, Homeguard, Explore, My Week. Explore replaces Act; My Week replaces Plan. Internal `act`/`plan` keys and planned route paths remain stable. Yogi accepted the open Homeguard workspace direction and requested rough Explore wireframes next. This is not approval of the new Explore designs or production backend integration.
 
 - For frontend continuation in a new chat, start with `docs/continuation/START_HERE.md` and `docs/continuation/HALO_FRONTEND_CONTEXT.md`. They identify the current checkpoint, newer decisions, implemented versus preview scope, source files and hosted review. Read the full linked product requirements for the feature being worked on. A checkpoint preserves work; it does not approve a wireframe or establish backend readiness.
