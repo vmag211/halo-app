@@ -106,6 +106,22 @@ test('a full history: running, then complete with the dates covered; every row a
   assert.ok(rows.every((row) => row.date >= RANGE.from && row.date <= RANGE.to), 'never today');
 });
 
+test('a run killed before it ends (maxDuration) leaves running with the time it started, so a client can tell it is stale', async () => {
+  const { contextSummary } = await import('../lib/homeContext.js');
+  const db = database();
+  let reached;
+  const historyRequested = new Promise((resolve) => { reached = resolve; });
+  // The history request never answers: the function is stopped while the backfill waits on it.
+  const hanging = () => { reached(); return new Promise(() => {}); };
+  void run(db, { fetchImpl: hanging });
+  await historyRequested;
+  assert.deepEqual(stateWrites(db).map((q) => q.values), [
+    { backfill_state: 'running', backfill_from: RANGE.from, backfill_to: RANGE.to, backfill_updated_at: AT.toISOString() },
+  ]);
+  assert.deepEqual(contextSummary(home(db, HOME)).backfill, { state: 'running', from: RANGE.from, to: RANGE.to, updated_at: AT.toISOString() });
+  assert.equal(added(db).length, 0);
+});
+
 test('dates the history has nothing for make the run partial, and are listed; nothing is recorded for them', async () => {
   const empty = [addDays(TODAY, -3), addDays(TODAY, -10)];
   const db = database();

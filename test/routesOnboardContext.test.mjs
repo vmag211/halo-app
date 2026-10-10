@@ -183,6 +183,28 @@ test('a retry of the same request id answers the saved home as it is and writes 
   assert.equal(transitions(h).at(-1).args.p_request_id, R1, 'stored lower case');
 });
 
+test('a retry whose geocode now answers differently reports the saved home\'s location, the same as its home_context', async () => {
+  const h = harness();
+  const first = await ok(await post(h, { address: '2 Elm Court', request_id: R1 }));
+  const from = h.db.queryLog.length;
+
+  // The same request again, but the geocoder now places it elsewhere (here: another address's answer).
+  const retry = await ok(await post(h, { address: '7 Old Road', request_id: R1 }));
+  assert.equal(retry.moved, false);
+  assert.deepEqual(retry.home_context, first.home_context, 'the saved home, unchanged');
+  assert.deepEqual(
+    [retry.lat, retry.lng, retry.county, retry.state],
+    [first.home_context.location.lat, first.home_context.location.lng, first.home_context.location.county, first.home_context.location.state],
+  );
+  assert.deepEqual([retry.lat, retry.lng, retry.county, retry.state], [35.41, -80.61, 'Cabarrus County', 'NC'], 'not this request\'s geocode (35.5, -80.5, Old County)');
+  assert.deepEqual(Object.keys(retry), Object.keys(first), 'the same keys, in the same order');
+  // zip is never stored, so it is this request's geocode as before (here none: string or null).
+  for (const key of Object.keys(first).filter((name) => name !== 'zip')) assert.equal(typeof retry[key], typeof first[key], `${key} keeps its type`);
+  assert.equal(retry.zip, null);
+  assert.deepEqual(writes(h, from), [], 'a retry writes nothing');
+  assert.deepEqual(homesOf(h, 'alice').map((home) => [home.lat, home.lng, home.county]), [[35.41, -80.61, 'Cabarrus County']]);
+});
+
 // ------------------------------------------------------------------- move
 
 test('a move closes the old home and opens the next: moved true, the old home\'s reading for today is gone, its earlier days are kept and linked to it', async (t) => {
@@ -264,6 +286,34 @@ test('a household with no profile row gets the bare row the auth trigger would m
   assert.equal(transitions(h).length, 2, 'refused once (no profile), then saved');
   assert.deepEqual([profileOf(h, 'alice').lat, profileOf(h, 'alice').onboard_request_id], [35.41, R1]);
 });
+
+// Mapbox features whose centre is a list but not two finite numbers.
+const NON_NUMERIC_CENTRES = [['x', 'y'], [null, null], [-80.61], [-80.61, '35.41'], ['-80.61', 35.41], [{}, []]];
+
+for (const [label, options] of [
+  ['through the function', {}],
+  ['before 0016 (the legacy save)', { functions: false, tables: ['profiles', 'daily_scores'] }],
+]) {
+  test(`a geocoder feature whose centre is not two numbers is the no-coordinates 404 ${label}, and nothing is written`, async (t) => {
+    const warn = t.mock.method(console, 'warn', () => {});
+    for (const center of NON_NUMERIC_CENTRES) {
+      const h = harness({ alice: 'located', ...options });
+      const feature = { center, context: PLACES['2 Elm Court'].context };
+      const fetch = async (url) => (String(url).startsWith('https://api.mapbox.com/') ? Response.json({ features: [feature] }) : new Response('{}', { status: 503 }));
+      const tables = options.tables ?? ['profiles', 'daily_scores', 'home_contexts'];
+      const snapshot = () => JSON.stringify(Object.fromEntries(tables.map((table) => [table, h.db.rows(table)])));
+      const before = snapshot();
+      const body = await expectEnvelope(await post(h, { address: '2 Elm Court', request_id: R1 }, { fetch }), { status: 404, code: 'not_found', retryable: false });
+      assert.equal(body.error, 'Could not find coordinates for this address', JSON.stringify(center));
+      assert.equal(snapshot(), before, `nothing was written for ${JSON.stringify(center)}`);
+      assert.deepEqual(transitions(h), [], 'the function is never called');
+      assert.deepEqual(writes(h), []);
+      await h.runAfter();
+      assert.deepEqual(writes(h), [], 'and no backfill was queued');
+    }
+    assert.equal(warn.mock.callCount(), 0, 'the save is never reached, so no fallback warning either');
+  });
+}
 
 for (const [label, failure] of [
   ['a refusal (HALO_INVALID_INPUT)', () => { throw rpcError('P0001', 'HALO_INVALID_INPUT', 'p_location.lat must be a number'); }],

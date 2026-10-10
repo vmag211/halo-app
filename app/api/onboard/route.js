@@ -26,7 +26,10 @@ import { transitionHomeContext } from '@/lib/homeContextRpc';
  * The response is the same as before, plus `home_context` (lib/homeContext.js contextSummary of
  * the saved home) and `moved` (whether this request closed the previous home). On a failed
  * utility lookup, `pwsid` is the saved home's utility: at the same home the one on file, at a
- * new home none (the old home's utility does not describe the new one).
+ * new home none (the old home's utility does not describe the new one). A retry of a request
+ * already saved (the same request id) changes nothing and answers the saved home's `lat`, `lng`,
+ * `county` and `state`, as its `home_context` does, whatever this retry's geocode said. A geocoder
+ * answer whose centre is not two numbers is the same 404 as no answer, and saves nothing.
  *
  * Until 0016 is applied (the function or table is missing) the route saves to the profile and
  * clears today's reading on a move exactly as it always has, says so in one warning per
@@ -162,6 +165,17 @@ async function saveToProfile(userId, profileUpdate, serviceArea) {
   return { pwsid, moved };
 }
 
+/**
+ * True when the saved home carries this request's onboarding id: this request saved it, or it is
+ * a retry of the request that did (transition_home_context then returns it unchanged). Ids are
+ * compared as UUIDs, so case does not matter.
+ */
+function savedByThisRequest(homeContext, requestId) {
+  if (requestId === null || requestId === undefined) return false;
+  const stored = homeContext?.onboard_request_id;
+  return typeof stored === 'string' && stored.toLowerCase() === String(requestId).toLowerCase();
+}
+
 /** A new home: the five-minute provider limit must not block the results reveal's fresh reading. */
 async function resetDailyScoreLimit(userId) {
   try {
@@ -251,6 +265,9 @@ export async function POST(request) {
     const place = parseMapboxFeature(mapboxData.features[0]);
     // A feature with no usable centre is the same answer as no feature at all.
     if (!place) return noCoordinates();
+    // So is a centre that is not two finite numbers: there is no point to store (the home context
+    // function would refuse it, and the legacy save would store an empty location).
+    if (roundCoord(place.lat) === null || roundCoord(place.lng) === null) return noCoordinates();
     const { lat, lng, county, state, zip } = place;
 
     // --- ARCGIS FEATURESERVER API (Spatial Query) ---
@@ -320,6 +337,14 @@ export async function POST(request) {
       pwsid = serviceAreaStatus === 'lookup_failed' ? homeContext.pwsid ?? null : serviceArea.pwsid;
     }
 
+    // The location the answer reports. When the saved home carries this request's id, it is the
+    // home's: a retry of a request already saved gets the home as it was first saved (nothing is
+    // written again), so its lat, lng, county and state must not come from this retry's geocode,
+    // which may have drifted. For the request that saved it, they are the same values.
+    const answered = homeContext && savedByThisRequest(homeContext, onboardRequestId)
+      ? { lat: homeContext.lat ?? null, lng: homeContext.lng ?? null, county: homeContext.county ?? null, state: homeContext.state ?? null }
+      : { lat: profileUpdate.lat, lng: profileUpdate.lng, county, state };
+
     if (moved) await resetDailyScoreLimit(userId);
 
     // Backfill the last few weeks of readings so Journal has history from day
@@ -338,11 +363,11 @@ export async function POST(request) {
     // --- FINAL RESPONSE ---
     return NextResponse.json({
       profile_id: userId,
-      lat: profileUpdate.lat,
-      lng: profileUpdate.lng,
+      lat: answered.lat,
+      lng: answered.lng,
       zip,
-      county,
-      state,
+      county: answered.county,
+      state: answered.state,
       pwsid,
       service_area_status: serviceAreaStatus,
       water_source: waterSource,

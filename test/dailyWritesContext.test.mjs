@@ -189,19 +189,70 @@ for (const code of ['PGRST204', '42703']) {
   });
 }
 
-test('the current homes cannot be read (another error): the job records the readings without a link and logs it, never fails', async (t) => {
-  const logs = quiet(t);
-  const h = cronHarness();
+/**
+ * Makes the bulk read of the current homes answer `error` (the database's answer to the whole
+ * statement): the terminal call of the read resolves it, as supabase-js does.
+ */
+function homesReadAnswers(h, error) {
   const from = h.db.from;
   h.db.from = (name) => {
     const builder = from(name);
-    if (name === 'home_contexts') builder.is = () => Promise.resolve({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+    if (name === 'home_contexts') builder.limit = () => Promise.resolve({ data: null, error });
     return builder;
   };
+}
+
+test('the current homes cannot be read (a database error): logged as one, the readings are recorded without a link, the job goes on', async (t) => {
+  const logs = quiet(t);
+  const h = cronHarness();
+  homesReadAnswers(h, { code: '57014', message: 'canceling statement due to statement timeout' });
   const body = await runJob(h);
   assert.deepEqual(body.readings, { recorded: 3, already_had_one: 0, failed: 0 });
   for (const who of ['alice', 'bob', 'carol']) assert.equal('home_context_id' in todayRow(h, who), false);
-  assert.ok(logs.error.mock.calls.some((call) => /current homes/.test(call.arguments.join(' '))));
+  const logged = logs.error.mock.calls.map((call) => call.arguments.join(' '));
+  assert.ok(
+    logged.some((line) => /could not read the current homes/i.test(line) && line.includes('canceling statement due to statement timeout')),
+    'the real database error is logged, not taken for "0016 not applied"',
+  );
+  assert.equal(logs.warn.mock.callCount(), 0, 'no missing-schema warning: this is not 0016 missing');
+});
+
+for (const [code, message] of [
+  ['PGRST205', "Could not find the table 'public.home_contexts' in the schema cache"],
+  ['42P01', 'relation "public.home_contexts" does not exist'],
+]) {
+  test(`the current homes table is missing (${code}): 0016 not applied, so nothing is logged and the readings go in without a link`, async (t) => {
+    const logs = quiet(t);
+    const h = cronHarness();
+    homesReadAnswers(h, { code, message });
+    const body = await runJob(h);
+    assert.deepEqual(body.readings, { recorded: 3, already_had_one: 0, failed: 0 });
+    for (const who of ['alice', 'bob', 'carol']) assert.equal('home_context_id' in todayRow(h, who), false);
+    // (The other providers are down in this harness, and the job logs those.)
+    assert.equal(logs.error.mock.calls.filter((call) => /current homes|home_contexts/i.test(call.arguments.join(' '))).length, 0);
+    assert.equal(logs.warn.mock.callCount(), 0);
+  });
+}
+
+test('readCurrentHomeContexts: a database error is thrown with its message; only a missing table or function means 0016 is not applied', async () => {
+  const answering = (error) => {
+    const db = createFakeSupabase({ tables: haloTables('home_contexts') });
+    const from = db.from;
+    db.from = (name) => {
+      const builder = from(name);
+      builder.limit = () => Promise.resolve({ data: null, error });
+      return builder;
+    };
+    return db;
+  };
+  await assert.rejects(
+    () => readCurrentHomeContexts(answering({ code: '57014', message: 'canceling statement due to statement timeout' }), ['p1']),
+    /Could not read the current homes: canceling statement due to statement timeout/,
+  );
+  await assert.rejects(() => readCurrentHomeContexts(answering({ code: '42501', message: 'permission denied for table home_contexts' }), ['p1']), /permission denied/);
+  for (const code of ['PGRST205', '42P01', 'PGRST202', '42883']) {
+    assert.deepEqual(await readCurrentHomeContexts(answering({ code, message: 'missing' }), ['p1']), { unavailable: true, code });
+  }
 });
 
 // -------------------------------------------------------- GET /api/daily-score
