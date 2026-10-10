@@ -15,6 +15,7 @@ type PreviewState = {
   open: (seed: ActionSeed) => void; close: () => void; setDraft: (draft: Draft) => void;
   setFail: (fail: boolean) => void; save: () => void;
   changeState: (id: string, state: PreviewAction['state']) => void; reset: () => void;
+  addActions: (seeds: ActionSeed[], date: string) => boolean;
 };
 const State = createContext<PreviewState | null>(null);
 const Mode = createContext(false);
@@ -55,7 +56,16 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
     });
     close();
   };
-  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, changeState: (id, state) => setActions(previous => previous.map(action => action.id === id ? { ...action, state } : action)), reset: () => { close(); setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
+  const addActions = (seeds: ActionSeed[], date: string) => {
+    if (fail || !seeds.length || seeds.some(seed => actionDraftError(seed.title, date))) return false;
+    setActions(previous => seeds.reduce((next, seed) => {
+      // One canonical action per origin. Re-selecting a project step never resets its state or user-edited title/date.
+      if (next.some(action => action.key === seed.key)) return next;
+      return [...next, { ...seed, id: crypto.randomUUID(), date, state: 'saved' as const }];
+    }, previous));
+    return true;
+  };
+  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, changeState: (id, state) => setActions(previous => previous.map(action => action.id === id ? { ...action, state } : action)), reset: () => { close(); setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
 export function ExpandedReviewControls() {

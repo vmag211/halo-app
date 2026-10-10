@@ -60,7 +60,7 @@
 .ex-photo-paths small { font-size:calc(.81rem * var(--halo-text-scale)); }
 .ex-paths { display:grid; min-width:0; }
 .ex-hub-row { display:flex; align-items:center; gap:14px; width:100%; min-width:0; padding:18px 0; text-align:left; border:0; border-bottom:1px solid var(--halo-border); color:var(--halo-ink); background:transparent; }
-.ex-hub-row > span:not(.ex-hub-icon) { flex:1; min-width:0; }
+.ex-hub-row > span:not(.ex-hub-icon,.ex-photo) { flex:1; min-width:0; }
 .ex-hub-row strong { display:block; font-weight:650; font-size:calc(1.02rem * var(--halo-text-scale)); margin-bottom:4px; }
 .ex-hub-row small { font-size:calc(.8rem * var(--halo-text-scale)); }
 .ex-hub-icon { display:grid; place-items:center; color:var(--halo-primary); }
@@ -169,3 +169,60 @@
   .halo-explore .ex-button { border:2px solid ButtonText; color:ButtonText !important; background:ButtonFace; }
   .halo-explore :is(.ex-map-copy,.ex-personal-paths,.ex-luna-intro,.ex-route-detail,.ex-community-lesson) { border:1px solid CanvasText; }
 }
+
+/* Action workspaces use task-specific composition, not repeated dashboard tiles. */
+.ex-mini-map { display:grid; gap:12px; min-width:0; }
+.ex-mini-map-heading { display:grid; gap:6px; }
+.halo-explore .ex-mini-map-heading h3 { font:550 calc(1.35rem * var(--halo-text-scale))/1.3 var(--font-fraunces),Georgia,serif; }
+.ex-mini-map-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; }
+.ex-mini-map-tabs button { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:5px; min-height:44px; padding:8px 4px; border:0; border-bottom:2px solid transparent; color:var(--halo-secondary); background:transparent; font-size:calc(.76rem * var(--halo-text-scale)); }
+.ex-mini-map-tabs button[aria-pressed="true"] { color:var(--halo-primary); border-bottom-color:var(--halo-primary); font-weight:650; }
+.ex-mini-map-canvas { position:relative; height:208px; width:100%; overflow:hidden; border-radius:10px 10px 0 0; pointer-events:none; }
+.ex-mini-map-canvas .halo-map-atlas { min-height:0; }
+.ex-map-open-label { position:absolute; right:12px; top:12px; display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--halo-border); border-radius:7px; color:var(--halo-primary); background:var(--halo-card); font:650 calc(.73rem * var(--halo-text-scale))/1.4 var(--font-instrument),Arial,sans-serif; }
+.ex-map-preview-fallback { display:grid; place-items:center; height:100%; padding:25px; background:var(--ex-sage); text-align:center; }
+.ex-map-attribution { color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); }
+.ex-map-attribution a { display:inline-flex; align-items:center; min-height:44px; }
+.ex-community-thumb { flex:0 0 64px; width:64px; height:64px; }
+.ex-hub-row:has(.ex-community-thumb) > .ex-hub-icon { display:none; }
+.ex-outcome-workspace { display:grid; gap:18px; margin-top:10px; padding:24px 0; border-block:1px solid var(--halo-border); min-width:0; }
+.ex-outcome-workspace > header { display:flex; align-items:flex-start; gap:12px; }
+.ex-outcome-workspace > header > svg { color:var(--halo-primary); margin-top:3px; }
+.ex-outcome-workspace > header > div { display:grid; gap:8px; min-width:0; }
+.ex-outcome-workspace > header p { font-size:calc(.85rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.ex-outcome-status { display:grid; gap:6px; }
+.ex-outcome-status > span { display:flex; align-items:center; gap:8px; color:var(--halo-primary); font-weight:650; }
+.ex-recorded-result { display:grid; gap:8px; padding:18px; background:var(--ex-sage); border-left:3px solid var(--halo-primary); }
+.ex-next-step { display:grid; gap:7px; }
+.ex-activity-history { display:grid; gap:20px; list-style:none; margin:0; padding:8px 0 8px 18px; border-left:2px solid var(--halo-border); }
+.ex-activity-history > li { display:grid; gap:6px; position:relative; min-width:0; }
+.ex-activity-history > li::before { content:''; position:absolute; width:7px; height:7px; left:-22.5px; top:8px; background:var(--halo-primary); border-radius:2px; }
+.ex-commitments { display:grid; gap:20px; padding-top:22px; border-top:1px solid var(--halo-border); }
+.ex-commitment-row { display:grid; gap:8px; position:relative; width:100%; border:0; border-bottom:1px solid var(--halo-border); background:transparent; color:var(--halo-ink); padding:20px 38px 20px 0; text-align:left; }
+.ex-commitment-row > strong { font:550 calc(1.25rem * var(--halo-text-scale))/1.3 var(--font-fraunces),Georgia,serif; }
+.ex-commitment-row > svg { position:absolute; right:4px; bottom:22px; color:var(--halo-primary); }
+.ex-commitment-row > small { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+.ex-purpose-band { display:flex; align-items:flex-start; gap:12px; padding:20px; background:var(--ex-sage); border-radius:10px; }
+.ex-purpose-band > svg { color:var(--halo-primary); margin-top:3px; }
+.ex-purpose-band p { min-width:0; }
+.ex-followup-band { display:grid; gap:16px; padding:20px; background:var(--ex-paper); border:1px solid var(--halo-border); border-radius:10px; }
+.ex-project-progress { display:grid; gap:12px; }
+.ex-project-progress > div { display:grid; gap:6px; }
+.ex-project-progress progress { width:100%; height:10px; accent-color:var(--halo-primary); }
+.ex-step-coaching { display:grid; gap:9px; text-align:left; }
+.ex-step-coaching p { color:var(--halo-secondary); font-size:calc(.86rem * var(--halo-text-scale)); }
+.ex-project-step > label { text-align:left; }
+.ex-project-plan,.ex-project-reflection,.ex-community-actions { display:grid; gap:16px; padding:20px 0; border-top:1px solid var(--halo-border); }
+.ex-project-continuation { display:grid; gap:8px; padding:18px; background:var(--ex-lilac); border-radius:10px; }
+.ex-ongoing-work { display:grid; gap:10px; padding-top:20px; border-top:1px solid var(--halo-border); }
+.ex-ongoing-work > h3 { font:550 calc(1.35rem * var(--halo-text-scale))/1.3 var(--font-fraunces),Georgia,serif; }
+.ex-ongoing-work > p { font-size:calc(.84rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.ex-ongoing-work .ex-hub-row > svg:first-child { color:var(--halo-primary); }
+.ex-public-context { display:grid; gap:14px; padding:20px; background:var(--ex-sage); border-radius:10px; }
+.ex-public-context > article { display:grid; gap:8px; }
+.ex-map-to-note { margin-top:22px; padding-top:20px; border-top:1px solid var(--halo-border); }
+.ex-map-to-note a { display:inline-flex; align-items:center; gap:8px; min-height:44px; color:var(--halo-primary); font-weight:600; }
+.halo-f-app[data-text-scale="150"] .ex-mini-map-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.halo-f-app[data-text-scale="150"] .ex-hub-row:has(.ex-community-thumb) { flex-wrap:wrap; }
+.halo-f-app[data-contrast="high"] .ex-mini-map-canvas { border:1px solid var(--halo-ink); }
+@media(forced-colors:active) { .ex-mini-map-canvas canvas { display:none; } .ex-map-open-label { color:LinkText; background:Canvas; border:1px solid LinkText; } }

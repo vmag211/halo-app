@@ -4,6 +4,25 @@ Yogi requested a replacement of the October 9 Explore page: retain the real phot
 
 Open `/foundation/preview/expanded/?tab=act`. Visible labels are Explore and My Week; internal keys remain stable.
 
+## Later October 10 action-depth refinement
+
+Yogi requested substantive action outcomes across every feature and a compact map preview opening the full map. This refinement keeps the evergreen hub and regular photo shapes while introducing ongoing workspaces rather than more discovery widgets. It remains a sample review, not approval or production persistence.
+
+- Map: the existing Census/Natural Earth canvas now has a noninteractive preview mode inside a single full-map link. Four layer choices open the matching full-map layer; the layer also follows full-map selection on return. There is no private home pin in the preview. Failed geography retains the entry and other feature routes. Public-record details can explicitly become a private question with public date/scope references; the home pin cannot use that handoff.
+- Volunteer: keep a personally chosen opportunity without an event feed, organizer/HTTPS link, preparation/access questions, optional activity date, dated self-reported contacted/confirmed/participated/follow-up/closed updates, factual outcome, optional hours/reference, history, deliberate export and separate My Week preparation/follow-up actions. Opening official resources does not register or confirm attendance.
+- Community: each topic now has a practical result path into Homeguard testing/Today/outreach, a desired-answer goal, dated own updates, result/reference, check-back date, retained history and a canonical shared follow-up action. Topics retain independent workspaces. Reading a lesson never records a result.
+- Organizations: a private contact workspace records what the user wants from the group, their own contact/reply result and next step. Fictional directory verification remains explicitly unknown; contact progress is not a partnership or verified organizer response.
+- Projects: start an ongoing workspace, review prerequisites/materials, get tailored step coaching, select a deliberate bundle for My Week, retain existing action IDs/title/date/state, record private step notes, pause/resume, record whole-project completion only after all required steps and a factual result, then set a project-review goal and follow-up. Progress is action completion, not measured environmental benefit. The project rechecks completed action state instead of silently completing a step from browsing.
+- Notes: a note can become a private environmental question/case, retaining its original text, selected public map references, explicit Luna context, a recorded result/reference and follow-up. Deleting a note also removes its owned case/history and drafts, while independent tasks and deliberately retained outreach snapshots remain. Export defaults still do not include private place labels or unrelated records.
+- Outreach: each recipient has an independent resolution workspace for the answer/action sought, manually recorded reply, result and next decision. Send-only Gmail does not read replies. Submitted/unknown preview outcomes do not automatically mark a reply or successful resolution.
+- Hub: ongoing commitments, unfinished projects and open cases now have direct continuation paths. The original shared My Week action continuation stays available. All private state is visit-local and resets on reload until backend integration.
+
+The three nature photos remain, with the river photo now attached to community learning rather than serving as the map itself. Canvas interaction and credit links are omitted inside the preview link to prevent nested controls; visible public attribution remains outside it. The full-map default rendering, controls, geometry, observations and failure states are retained.
+
+Use `test/ui/explore-action-workspaces.spec.ts` and `test/frontend-explore-workspace.test.mjs` for the added loops, dates, quantities, URL validation, shared-step deduplication and privacy. `EXPLORE_BACKEND_DELTA.md` records the durable records/transactions needed before these become live account features.
+
+Verification for this refinement: 128 frontend logic tests, main TypeScript, static export and both preservation checks passed. The earlier broad UI run passed 100/100. The final broad run passed 100/101 with one simulated outreach-save timeout during packaging; the complete 15-check action suite then passed unchanged in a single-worker recheck, including that case and project completion/Homeguard-return. Screenshots load all three photos before capture. These are local static review checks, not authenticated provider/backend tests. Hosted provenance is in `docs/continuation/HOSTED_REVIEW.md`.
+
 ## Coverage
 
 | Surface | Implemented review behavior |

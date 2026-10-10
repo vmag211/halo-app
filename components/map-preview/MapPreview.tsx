@@ -10,6 +10,8 @@ import SeverityPill from '@/components/ui/SeverityPill';
 import { SceneProvider } from '@/components/foundation/SceneExperience';
 import LunaAssistant from '@/components/foundation/LunaAssistant';
 import LunaMark from '@/components/foundation/LunaMark';
+import MapRecordToExplore from '@/components/expanded/MapRecordToExplore';
+import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
 import MapCanvas, { type MapPoint, type MapView } from './MapCanvas';
 import { DistrictPanel } from './DistrictPanel';
 import { AreaBrief, MapInsightCard, MapKey } from './MapInsights';
@@ -55,10 +57,13 @@ export default function MapPreview() {
 
 function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:MapScenario;appearance:string;scale:number;motion:boolean;contrast:boolean}) {
   const restoredSession=useRef(session);
+  const [previewLayer,setPreviewLayer]=useHomeDraft<MapLayer>('explore:map-layer','water');
   const [layer,setLayer]=useState<MapLayer>('water'); const [compound,setCompound]=useState<Compound>('overall');
   const [quarter,setQuarter]=useState('latest'); const [draftQuarter,setDraftQuarter]=useState('latest');
   const [pendingQuarter,setPendingQuarter]=useState<string|null>(null); const [view,setView]=useState<MapView>(defaultView);
   const [sheet,setSheet]=useState<Sheet>(null); const [ready,setReady]=useState(false); const [resolved,setResolved]=useState(false);
+  const [filtersInitialized,setFiltersInitialized]=useState(false);
+  useEffect(()=>{if(filtersInitialized&&previewLayer!==layer)setPreviewLayer(layer);},[layer,filtersInitialized,previewLayer,setPreviewLayer]);
   const [rendererFailed,setRendererFailed]=useState(false); const [visibleCount,setVisibleCount]=useState<number|null>(null);
   const [visibleIds,setVisibleIds]=useState<string[]>([]); const [patterns,setPatterns]=useState(true);
   const [layerLoading,setLayerLoading]=useState(false); const [notice,setNotice]=useState(''); const [filter,setFilter]=useState('');
@@ -101,6 +106,7 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
       const saved=restoredSession.current; setLayer(saved.layer);setCompound(saved.compound);setQuarter(saved.quarter);setDraftQuarter(saved.quarter);setView(saved.view);
       const url=new URL(location.href);url.searchParams.set('layer',saved.layer); if(saved.compound!=='overall')url.searchParams.set('contaminant',saved.compound);if(saved.quarter!=='latest')url.searchParams.set('quarter',saved.quarter);history.replaceState(history.state,'',url);
     } else openFromUrl();
+    setFiltersInitialized(true);
     if(!hasHome)setView({lng:-79.9,lat:35.05,zoom:7});
     window.addEventListener('popstate',openFromUrl);
     return ()=>{window.removeEventListener('popstate',openFromUrl);pendingTimers.forEach(clearTimeout);if(quarterTimer.current)clearTimeout(quarterTimer.current);if(keyTimer.current)clearTimeout(keyTimer.current);};
@@ -182,6 +188,7 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
       {sheet.kind==='about'&&<div className="halo-map-detail"><h3>One place, four kinds of evidence.</h3><p>Water shows system-level samples. Radon shows county potential. Facilities show selected compliance records. Air shows monitoring stations, not a reading at every address.</p><p>Your home pin is approximate. Layer changes keep the same map position. Use the list for a keyboard-accessible alternative.</p><p>Quarter views contain only systems with a sample in that quarter. A missing marker does not mean there was no testing or no concern. These sample maps do not show contamination spreading.</p><p>District lines use the 119th Congress, 2023 map. The view does not claim to use the 2026 election boundaries.</p><a href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html" target="_blank" rel="noreferrer">U.S. Census boundary source</a><button onClick={()=>openSheet({kind:'results'})}>Browse locations as a list</button></div>}
       {sheet.kind==='results'&&<div className="halo-map-results"><label>Find a location in this layer<input type="search" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Name or system ID"/></label><p>{layer==='water'?'Includes systems without a mapped location. Sample values are statewide.':'This list is an alternative to selecting markers on the map.'}</p>{blocked?<Callout tone="notice"><p>No saved results for this layer.</p></Callout>:<>{(layer==='water'?visibleWater.map(w=>({id:w.pwsid,name:w.name,severity:waterSeverity(w,compound),sub:w.lat===null?'No mapped location':w.pwsid===sampleHome.pwsid&&hasHome?'Your sample water system':'Service-area center'})):points.map(p=>({id:p.id,name:p.name,severity:p.severity,sub:layer==='radon'?`Zone ${p.zone}`:layer==='air'?'Monitoring station':'Selected facility'}))).filter(p=>`${p.name} ${p.id}`.toLowerCase().includes(filter.toLowerCase())).map(p=><button key={p.id} onClick={()=>openSheet({kind:'feature',id:p.id})}><span><strong>{p.name}</strong><small>{p.sub}</small></span><SeverityPill severity={p.severity}/></button>)}{filter&&!(layer==='water'?visibleWater.map(w=>`${w.name} ${w.pwsid}`):points.map(p=>`${p.name} ${p.id}`)).some(s=>s.toLowerCase().includes(filter.toLowerCase()))&&<p role="status">No matching locations. Try a different name.</p>}</>}</div>}
       {sheet.kind==='feature'&&(blocked?<Callout tone="notice"><p>No readings are available for this location in the current state.</p><p>{offline?'Reconnect to load this layer.':'Load the layer before opening its readings.'}</p>{!offline&&<Button variant="secondary" onClick={retry}>Try again</Button>}</Callout>:loading?<p role="status">Loading location details.</p>:<FeatureDetails id={sheet.id} layer={layer} water={activeWater} hasHome={hasHome} onLearn={topic=>openSheet({kind:'learn',topic,id:sheet.id})} todayHref={foundationHref('today')}/>)}
+      {sheet.kind==='feature'&&!blocked&&!loading&&sheet.id!=='home'&&<MapRecordToExplore href={foundationHref('act')+'&destination=observations&exploreView=new'} evidence={{recordId:sheet.id,title:selectedTitle,layer,observedAt:layer==='water'?activeWater?.latest_sample_iso??null:layer==='air'?airStations.find(item=>item.id===sheet.id)?.last_reading_at??null:layer==='facilities'?facilities.find(item=>item.id===sheet.id)?.last_inspection??null:null,scope:layer==='water'?'Public-system sample context, not a tap test.':layer==='radon'?'County potential, not a home measurement.':layer==='air'?'Monitor observation, not personal exposure.':'Public facility record, not a household exposure finding.'}}/>}
       {sheet.kind==='learn'&&<MapLearn topic={sheet.topic} water={blocked||loading?undefined:activeWater} compound={compound} county={sheet.id} onBack={()=>openSheet({kind:'feature',id:sheet.id})} href={factorHref(sheet.topic)}/>}
     </BottomSheet>}
   </div>;

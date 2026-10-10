@@ -63,3 +63,30 @@ Replies and provider delivery/bounce tracking are separate future contracts. Fol
 ## Review and release gates
 
 Test the exact selected context, per-recipient drafts, contact reconfirmation, stale-note blocking, save/conflict/offline retention, delete scope, official-link handoff without private URL fields, Gmail cancel/failed/unknown/duplicate/reconciliation branches, regular image geometry/failure, keyboard/disclosures and light/dark narrow/enlarged layouts. Approved archives remain immutable. Physical Safari, screen-reader end-to-end behavior, translations, live resolver/record permissions, provider consent and actual sending require later verification before release.
+
+## Later October 10 active-outcome extension
+
+The new frontend goes from discovery to preparation, deliberate action and review. It can now demonstrate private volunteering commitments, ongoing project workspaces, topic/group/note/outreach result records, canonical shared task bundles and public map references attached to notes. These still use the existing isolated memory providers. No new authenticated route, schema, email delivery or selected-note AI service was built.
+
+### Required owned records
+
+- Personal volunteering commitments: chosen opportunity title/organizer, cause, optional reviewed public HTTPS URL, private place label, planned date, preparation/access notes, dated self-reported state, optional nonnegative hours, factual activity/result, user-supplied organizer reference, follow-up date and immutable update history. This is private user-entered content, not a public event catalogue. Store source verification separately from the user's confirmation. A participation report needs an actual date and factual activity; future planned dates cannot become future attendance claims.
+- Project workspaces: template ID/version, reviewed suitability/prerequisites/materials, owner, active/paused/completed status, goal, chosen step references, private notes, recorded result and review history. Steps reference the SAME shared action IDs as My Week. The preview's deterministic step keys are not a production template-version contract. Preserve user-edited action titles/schedules/status on repeated selection. A reopened step makes an earlier completion snapshot need review; no auto-completion or benefit estimate.
+- Follow-through cases: stable owner-scoped ID tied to a community topic, organization, note or outreach request; desired answer/result; own status/date; factual result; optional genuine user-supplied reference; next step/check-back date; canonical related action ID; original update history. A user's status is not agency verification, laboratory evidence or an organizer receipt. Distinguish closure without a result from an answered question.
+- Note/public-evidence references: stable record ID, layer/evidence kind, original observation date, geographic basis/scope, source/revision/rights and snapshot metadata loaded and authorized server-side. The current fixture retains only title, record ID, date and scope. Never include the home pin through the public-map pathway. Add a selected reference only after an explicit user action, preserve existing writing, and preview it independently for Luna or exports.
+
+### Atomicity, ownership and task relationships
+
+Bundle confirmation creates only deliberately selected tasks. Implement an idempotent atomic operation, with unique owner/template-version/step/occurrence keys and canonical parent/child IDs. Return existing duplicate matches rather than resetting them. A failed bundle must create no partial work; an unknown write requires reconciliation. A sample synchronous add is not proof of backend atomicity.
+
+Follow-up tasks remain separate from their source record. Deleting a note removes its OWN case/history and unsaved case drafts in one authorized transaction; independent My Week tasks, other records and already copied outreach text remain. Return linked-record scope before confirmation. Account export/deletion/recovery must cover new commitments, cases, project notes, histories and reminder jobs. No private record can be loaded by an unauthenticated public map or another household.
+
+Project completion uses actual owned step states and a factual recorded result, not a carousel view or a percentage animation. Pause/resume must define its relationship to existing task schedules/reminders without silently deleting them. The current preview pauses editing in the project workspace but retains independent My Week tasks. Production needs reviewed server transition rules and revision-conflict handling across both consumers.
+
+### Separate action outputs from environmental outcomes
+
+Action evidence includes user-reported hours, contacted/participated status and completed steps. Tangible outputs include a received dated report, a chosen qualified test, a reply or an actual reference. Environmental outcomes need compatible dated measurements or official confirmation. Never convert completed tasks, volunteering hours, reports sent or proximity into pollution removed, water-quality improvement, health benefit or causal attribution. The frontend explains how each action can support awareness, qualified decisions or community stewardship without claiming success before evidence exists.
+
+### Source and release status
+
+The local `/api/volunteer` directory exists, including its documented successful-empty database-error fallback. The local tree still has no implemented owned commitments/project/case/bulk-action endpoints. No remote backend deployment was audited in this refinement. Vibhav must implement or verify the required contracts, flags, privacy/retention, source coverage, transport and production permissions before wiring the approved frontend. Existing map geography/fixtures are reused; no live source, scoring formula, provider key, registration, message or agency API was added.

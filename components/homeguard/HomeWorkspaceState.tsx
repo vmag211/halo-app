@@ -37,7 +37,7 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
   const alive = useRef(true);
   useEffect(() => { generation.current++; alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
-    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:note:|explore:outreach-drafts)/.test(key))) return;
+    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
@@ -82,7 +82,16 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }
   async function remove(key: string, id: string) {
-    return mutate(key, id, () => { commit({ ...recordsRef.current, [key]: (recordsRef.current[key] ?? []).filter(item => item.id !== id) }); return true; });
+    return mutate(key, id, () => {
+      const next = { ...recordsRef.current, [key]: (recordsRef.current[key] ?? []).filter(item => item.id !== id) };
+      if (key === 'exploreNotes') {
+        // The case and its history belong to this note. Independently saved Plan actions and outreach snapshots do not.
+        next.exploreOutcomes = (next.exploreOutcomes ?? []).filter(item => item.id !== `note-case:${id}`);
+        setDrafts(previous => Object.fromEntries(Object.entries(previous).filter(([draftKey]) => ![`explore:note:${id}`, `explore:reference:${id}`, `explore:outcome:note-case:${id}`].includes(draftKey))));
+      }
+      if (key === 'exploreEngagements') setDrafts(previous => Object.fromEntries(Object.entries(previous).filter(([draftKey]) => draftKey !== `explore:commitment:${id}`)));
+      commit(next); return true;
+    });
   }
   return <Context.Provider value={{ collections, drafts, scenario, message, pending, setScenario, clearMessage: () => setMessage(''), seed, write, remove,
     setDraft: (key, update) => setDrafts(previous => ({ ...previous, [key]: update(previous[key]) })),

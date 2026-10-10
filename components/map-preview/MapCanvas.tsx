@@ -18,7 +18,7 @@ type Props = {
   onViewChange: (view: MapView) => void; onSelect: (id: string) => void;
   onReady?: (ready: boolean) => void; onUnavailable?: () => void;
   onVisibleCountChange?: (count: number) => void; forceEmpty?: boolean;
-  patterns?: boolean; onVisibleIdsChange?: (ids: string[]) => void;
+  patterns?: boolean; onVisibleIdsChange?: (ids: string[]) => void; previewOnly?: boolean;
 };
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
@@ -51,7 +51,7 @@ function trace(geometry: Geometry, project: (lng: number, lat: number) => Coordi
 const priorityCounties = new Set(['Union County', 'Mecklenburg County', 'Cabarrus County', 'Stanly County', 'Anson County', 'Richmond County', 'Montgomery County', 'Scotland County', 'Robeson County', 'Wake County', 'Buncombe County', 'Guilford County', 'New Hanover County']);
 const severityFallbacks: Record<string, string> = { good: '#4cc27a', moderate: '#f0913a', elevated: '#f0605f', high: '#d668ad', severe: '#a870f0', no_data: '#e6e6e6' };
 
-export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false }: Props) {
+export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false, previewOnly = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange });
@@ -336,12 +336,12 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   };
 
   return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-presentation={patterns?'patterns':'locations'}>
-    <canvas ref={canvasRef} tabIndex={0} role="application" aria-label="Map of North Carolina. Use arrow keys to pan, plus and minus to zoom, and Enter to select at the center. The results list offers the same observations." onKeyDown={keyboard} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={event => { pointers.current.delete(event.pointerId); gesture.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={() => onViewChange(bound({ ...view, zoom: view.zoom + 1 }))} />
+    <canvas ref={canvasRef} tabIndex={previewOnly ? -1 : 0} role="application" aria-label="Map of North Carolina. Use arrow keys to pan, plus and minus to zoom, and Enter to select at the center. The results list offers the same observations." onKeyDown={keyboard} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={event => { pointers.current.delete(event.pointerId); gesture.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={() => onViewChange(bound({ ...view, zoom: view.zoom + 1 }))} />
     <div className="halo-map-atlas-north" aria-hidden="true"><span>N</span><svg viewBox="0 0 16 22"><path d="M8 1 15 20 8 15 1 20Z" /></svg></div>
     <span className="halo-map-atlas-crosshair" aria-hidden="true" />
     {hover && <div className="halo-map-atlas-tooltip" style={{ left: clamp(hover.x, 95, dimensions.width - 95), top: Math.max(12, hover.y - 44) }}>{hover.name}</div>}
-    {!geography && <div className="halo-map-atlas-status" role="status"><span className="halo-map-atlas-status-symbol" aria-hidden="true">◎</span><strong>{error ? 'The map could not be drawn' : 'Opening the atlas'}</strong><p>{error ? 'Your sample observations are still available in the results list.' : 'Loading local Census boundaries. No map account is needed.'}</p>{error && <button onClick={() => { setError(false); setAttempt(value => value + 1); }}>Try the map again</button>}</div>}
-    <div className="halo-map-atlas-credit"><a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener noreferrer">Census</a> · <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth</a> · Sample observations</div>
+    {!geography && <div className="halo-map-atlas-status" role="status"><span className="halo-map-atlas-status-symbol" aria-hidden="true">◎</span><strong>{error ? 'The map could not be drawn' : 'Opening the atlas'}</strong><p>{error ? 'Your sample observations are still available in the results list.' : 'Loading local Census boundaries. No map account is needed.'}</p>{error && !previewOnly && <button onClick={() => { setError(false); setAttempt(value => value + 1); }}>Try the map again</button>}</div>}
+    <div className="halo-map-atlas-credit">{previewOnly ? <span>Census · Natural Earth · Sample observations</span> : <><a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener noreferrer">Census</a> · <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth</a> · Sample observations</>}</div>
     <p className="halo-map-atlas-sr" role="status" aria-live="polite">{announcement}</p>
   </div>;
 }

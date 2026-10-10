@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: Explore evergreen community workspace, October 10, 2026
+## Current review: Explore active outcome workspaces, later October 10, 2026
+
+Version 26 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Explore retains the evergreen hub and three rectangular nature photos, with a compact Census/Natural Earth map preview opening the matching full map. Public map records can deliberately become private question notes, with separate opt-in Luna evidence context and no home-pin transfer. Volunteering now has personally chosen opportunities, preparation, self-reported participation/history and follow-up. Projects have ongoing workspaces, tailored coaching, deliberate canonical My Week task bundles, notes, pause/resume, completion checks and review. Community, organizations, notes and outreach have independent goal/result/reference/next-step records; unfinished work has hub continuation. Homeguard handoffs retain the same in-memory workspaces.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_31a9b959773c8191b737e0da2b85c18d`.
+- Source commit: `1054f1c7e73c97d27703521ef874dc24e8995664`.
+- Successful deployment ID: `appgdep_6acab8b238f8819187fb133b8958d598`.
+- Archive hash: `sha256:c6c4a0770f38e53ed37af08a8348dcc81254eb079e490f41914a7078f2800aca`.
+- Verification: an earlier broad static run passed 100/100 browser checks. The final broad run passed 100/101, with one outreach simulated-save timeout while source packaging was running; the entire 15-check action-workspace suite then passed unchanged with one worker, including that outreach case and the new project-completion/Homeguard-return check. Main TypeScript, isolated static build, 128 frontend logic checks, and integrity of 204 onboarding plus 146 immutable foundation files passed. All photos were loaded before final light/dark 375px screenshots; 320px/150% layouts, map return/failure, canonical task deduplication, private-note context, result/date validation and failure retention were checked. API/provider calls are blocked in the action tests. No approved screenshot baseline changed.
+- Production limits: all new private records are visit-local samples, not durable account data. Real contact resolution, selected-note AI, OAuth/email delivery, organizer confirmation, reminders, backend permissions and environmental outcome verification remain integration work. Missing contracts and ownership/transaction requirements are recorded in `components/expanded/EXPLORE_BACKEND_DELTA.md`. Physical Safari and live authenticated workflows remain unverified.
+- Deployment confirmed successful at `2026-10-10T22:14:17.573420+00:00`. Only the isolated Site source was pushed; the main application repository remains a local checkpoint. This review publication does not approve the wireframe or production integration.
+
+## Earlier review: Explore evergreen community workspace, October 10, 2026
 
 Version 25 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. This replaces the October 9 event-led page with an evergreen community hub, retaining all three locally bundled public-domain photos in regular rectangular frames. Volunteer opens official opportunity resources instead of a featured event feed. Community lessons connect map layers and note creation; expanded private notes support types/pins/search and deliberate Luna context previews. Outreach adds official contact guides, clearly simulated matching, independent contact/message/note selections and Gmail connection/confirmed-send/reconciliation previews. No real local lookup, account persistence, AI request, registration or email sending is connected. The map renderer, Today, Homeguard and approved archives remain unchanged. See `components/expanded/EXPLORE_REVIEW.md` and `EXPLORE_BACKEND_DELTA.md`.
 
