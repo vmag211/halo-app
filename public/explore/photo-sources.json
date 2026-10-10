@@ -1,0 +1,47 @@
+[
+  {
+    "id": "river",
+    "file": "neuse-river.webp",
+    "title": "Neuse River, North Carolina",
+    "credit": "Ken Thomas",
+    "license": "Public domain (PD-self)",
+    "source": "https://commons.wikimedia.org/wiki/File:Neuse_River-27527.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/9/9b/Neuse_River-27527.jpg",
+    "width": 1400,
+    "retrieved": "2026-10-09",
+    "bytes": 392846,
+    "originalSha256": "8853efc19b9fe6805c5ef0b28f0280533d57a17a357aed16861fd183fde1f6a1",
+    "sha256": "13505b63ba451cc59e96ac5eb654fe6e423c9d9697b4356f7a98f06086c0b7e2",
+    "changes": "Resized, metadata removed and compressed to WebP. Display crops use CSS; no content was generated."
+  },
+  {
+    "id": "trail",
+    "file": "woodland-trail.webp",
+    "title": "Trail to Abrams Falls, Great Smoky Mountains",
+    "credit": "Cynthia L. Cunningham / USGS",
+    "license": "Public domain",
+    "source": "https://www.usgs.gov/media/images/trail-abrams-falls",
+    "original": "https://d9-wret.s3.us-west-2.amazonaws.com/assets/palladium/production/s3fs-public/DSCN2794--Cindy_Cunningham.JPG",
+    "width": 1000,
+    "retrieved": "2026-10-09",
+    "bytes": 476034,
+    "originalSha256": "b4877c9fbdc3ff289b9ae4c5391a0b945e4c8e9b430aed407320da446312374c",
+    "sha256": "7e4898d8f7f0e68434c05a6fd1b547ace2c6056d3000cfdd5e74f263dd0c9fba",
+    "changes": "Resized, metadata removed and compressed to WebP. Display crops use CSS; no content was generated."
+  },
+  {
+    "id": "garden",
+    "file": "pollinator-garden.webp",
+    "title": "Pollinator garden",
+    "credit": "Courtney Celley / USFWS",
+    "license": "Public domain",
+    "source": "https://www.fws.gov/media/pollinator-garden-0",
+    "original": "https://www.fws.gov/sites/default/files/2023-11/Pollinator%20garden%2C%20Courtney%20Celley%2C%20usfws.jpg",
+    "width": 1000,
+    "retrieved": "2026-10-09",
+    "bytes": 154718,
+    "originalSha256": "f0fc9fe2898182822f04a19c19b5c61d2b7e30c33256170ff68afe93f95897a6",
+    "sha256": "afcd417ded54ea45a939e5a8319e9499afe5107050efb266da3d8490733839bc",
+    "changes": "Resized, metadata removed and compressed to WebP. Display crops use CSS; no content was generated."
+  }
+]

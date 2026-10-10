@@ -20,6 +20,8 @@ The short Google Doc for Naggi is an overview, not the development specification
 
 October 9 update: Yogi chose the visible labels **Explore** (formerly Act) and **My Week** (formerly Plan), and requested rough Explore wireframes. `components/expanded/EXPLORE_REVIEW.md` records the A01-A06 sample interaction inventory and remaining contracts. Internal `act`/`plan` keys and planned paths remain stable. Earlier names below and in preserved specifications identify the same capability groups.
 
+Later October 9 refinement: Yogi requested a more creative, professional, photo-informed Explore design with less geometric repetition, monotone styling and jargon. The current review uses contextual public-domain nature photos, asymmetric editorial compositions, original community/letter/notebook sketches, existing fonts and warm/sage/lavender accents. Start small and Ask a question are plain-language entry labels for projects and outreach. Supporting details use disclosures, while event requirements/access and project constraints stay visible. All sample actions, private drafts and notes remain review-only. Photography is not a live reading, listing photo or user's location. `EXPLORE_REVIEW.md` records research and attribution. This is a refinement for review, not approval or live integration.
+
 - Main tabs: Today, Homeguard, Explore, My Week. The current four-tab review uses that arrangement.
 - Personal Hero is now called Today. Older source/component names such as `PersonalHero` can remain internally.
 - Map is a subpage within Act, called Explore your area where appropriate. Its earlier separate-tab proposal is historical.

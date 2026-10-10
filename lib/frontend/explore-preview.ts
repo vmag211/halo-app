@@ -1,5 +1,5 @@
 /** Fictional review catalogue. No live organizations, events, bookings or reporting service. */
-export const exploreSections = { organizations: 'Organizations', opportunities: 'Get involved', projects: 'Ways to help', outreach: 'Speak up', observations: 'Field notes' } as const;
+export const exploreSections = { organizations: 'Organizations', opportunities: 'Get involved', projects: 'Start small', outreach: 'Ask a question', observations: 'Field notes' } as const;
 export type ExploreSection = keyof typeof exploreSections;
 export const exploreCauses = ['All causes', 'Water', 'Habitats', 'Community'] as const;
 export const organizations = [

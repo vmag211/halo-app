@@ -1,8 +1,19 @@
 # Hosted wireframe preservation reference
 
-## Current review: Explore, October 9, 2026
+## Current review: Explore visual refinement, October 9, 2026
 
-Version 23 is deployed at the same URL with the existing public audience. Visible tabs are Today, Homeguard, Explore and My Week. Explore now contains the A01-A06 rough sample screens: hub/map entrance, organizations, opportunities and participation, project steps, independent outreach drafts and text-only private field notes. See `components/expanded/EXPLORE_REVIEW.md` for coverage and deliberate limits. No live source, registration, agency receipt or private persistence is implied.
+Version 24 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Explore has a photo-led editorial layout, original community/letter/notebook sketches, warm and sage accents, distinct feature compositions and plain-language project/outreach labels. Supporting filters/review metadata/participation forms use disclosures. Essential event requirements/access and project constraints remain visible. The same A01-A06 sample flows are retained; this is not visual approval, live catalogue integration or production private persistence. See `components/expanded/EXPLORE_REVIEW.md` for the reference research, asset rights and boundaries.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_e700caaf6e5881919246595a99132cfa`.
+- Source commit: `9ce2f16518031e6d0403135c445c070683d8b661`.
+- Successful deployment ID: `appgdep_6ac981291a10819183dba555c674e9a0`.
+- Archive hash: `sha256:7d1f9e8e5492a4e3d9db787c9b0a5d2f92c488ce561727802f7b1ce895718149`.
+- Verification: 29 passing static browser checks across Explore, shared navigation, Homeguard overview/order and hosted isolation; 3 passing ownership/date logic checks; main TypeScript, scoped lint and isolated static build; 204 onboarding and 146 foundation preserved files unchanged. Reviewed rendered light/dark screens at 375px and enlarged text at 320px. Photo loading/credits/failure, keyboard disclosures and high contrast have checks. No screenshot baseline changed. Physical Safari and authenticated production workflows remain unverified.
+- Handoff: opened the deployed Explore view in the in-app browser and confirmed the revised labels/layout. Main Git changes are a local checkpoint; only the isolated Site source was pushed for this publication.
+
+## Earlier rough Explore review, October 9, 2026
+
+Version 23 was deployed at the same URL with the existing public audience. Visible tabs are Today, Homeguard, Explore and My Week. Explore introduced the A01-A06 rough sample screens: hub/map entrance, organizations, opportunities and participation, project steps, independent outreach drafts and text-only private field notes. No live source, registration, agency receipt or private persistence was implied.
 
 - Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_c3a87faaad748191a6d9ee1c4d3ab67c`.
 - Source commit: `e36bf5d9fe658f0258a0f3e23b7cd8041e17cb2a`.

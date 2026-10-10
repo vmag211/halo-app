@@ -12,12 +12,12 @@ test('renamed navigation, overview paths and map keep Explore ownership', async 
   await page.goto(root);
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(nav.getByRole('link')).toHaveText(['Today', 'Homeguard', 'Explore', 'My Week']);
-  await expect(page.getByRole('heading', { name: 'Find your place in the bigger picture' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Good things start nearby.' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Explore', exact: true })).toHaveAttribute('aria-current', 'page');
-  await page.getByRole('link', { name: /Open the environmental map/ }).click();
+  await page.getByRole('link', { name: /Explore the map/ }).click();
   await expect(page.getByRole('link', { name: 'Back to Explore' })).toBeVisible();
   await page.getByRole('link', { name: 'Back to Explore' }).click();
-  for (const name of ['Organizations', 'Ways to help', 'Speak up', 'Field notes']) {
+  for (const name of ['Organizations', 'Start small', 'Ask a question', 'Field notes']) {
     await page.locator('.ex-paths').getByRole('button', { name: new RegExp(`^${name}`) }).click();
     await expect(page.getByRole('navigation', { name: 'Explore sections' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Explore', exact: true })).toHaveAttribute('aria-current', 'page');
@@ -27,9 +27,12 @@ test('renamed navigation, overview paths and map keep Explore ownership', async 
 
 test('filters retain selections and distinguish no coverage from errors', async ({ page }) => {
   await page.goto(`${root}&destination=organizations`);
+  await page.getByText('Narrow your search', { exact: true }).click();
   await page.getByRole('combobox', { name: 'Cause', exact: true }).selectOption('Water');
   await expect(page.locator('.ex-results .ex-result')).toHaveCount(1);
   await page.getByRole('button', { name: /Creek Care Collective/ }).click();
+  await expect(page.getByText('Fictional group, not verified. No contact details or official website are connected.')).toBeVisible();
+  await page.getByText('Listing details and review', { exact: true }).click();
   await expect(page.locator('.ex-facts')).toContainText('Not verified, fictional listing');
   await page.getByRole('button', { name: 'All organizations' }).click();
   await expect(page.getByRole('combobox', { name: 'Cause', exact: true })).toHaveValue('Water');
@@ -45,6 +48,7 @@ test('filters retain selections and distinguish no coverage from errors', async 
 test('opportunity saves one action and registration preview does not imply participation', async ({ page }) => {
   await page.goto(`${root}&destination=opportunities&exploreView=detail&exploreRecord=demo-walk`);
   await page.getByRole('button', { name: 'Review registration handoff' }).click();
+  await page.getByText('Keep a note of your participation', { exact: true }).click();
   await expect(page.getByLabel('I registered elsewhere')).not.toBeChecked();
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await expect(page.getByLabel('All-day date (optional)')).toHaveValue('2026-10-17');
@@ -83,7 +87,7 @@ test('outreach retains independent drafts and private water omits Utility', asyn
   await page.getByRole('button', { name: 'Landlord', exact: true }).click();
   await expect(page.getByLabel('Draft for Landlord')).toHaveValue('Landlord draft B');
   await page.getByRole('button', { name: 'Back to Explore', exact: true }).first().click();
-  await page.locator('.ex-paths').getByRole('button', { name: /^Speak up/ }).click();
+  await page.locator('.ex-paths').getByRole('button', { name: /^Ask a question/ }).click();
   await expect(page.getByLabel('Draft for Landlord')).toHaveValue('Landlord draft B');
 });
 
@@ -128,6 +132,52 @@ test('outreach sharing cancellation and blocked print retain the selected text',
   await page.getByRole('button', { name: 'Download text', exact: true }).click();
   const download = await downloadEvent;
   expect(download.suggestedFilename()).toBe('halo-explore-draft.txt');
+});
+
+test('context photography is local, credited and not represented as a real event', async ({ page }) => {
+  await page.goto(root);
+  await page.locator('.ex-garden-path').scrollIntoViewIfNeeded();
+  const images = page.locator('.halo-explore .ex-photo img');
+  await expect(images).toHaveCount(3);
+  for (const image of await images.all()) {
+    const src = new URL((await image.getAttribute('src'))!, page.url());
+    expect(src.origin).toBe(new URL(page.url()).origin);
+    expect(src.pathname).toMatch(/^\/explore\/.*\.webp$/);
+    await expect(image).toHaveAttribute('alt', '');
+    await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
+  }
+  await expect(page.locator('.ex-event-preview')).toContainText('Fictional event');
+  await page.getByText('About the photos', { exact: true }).click();
+  await expect(page.locator('.ex-photo-credits')).toContainText('not photos of the sample events');
+  await expect(page.locator('.ex-photo-credits a')).toHaveCount(3);
+});
+
+test('photo failure keeps every Explore entry usable', async ({ page }) => {
+  await page.route('**/explore/*.webp', route => route.abort());
+  await page.goto(root);
+  await page.locator('.ex-garden-path').scrollIntoViewIfNeeded();
+  await expect(page.locator('.ex-photo[data-photo-state="unavailable"]')).toHaveCount(3);
+  await page.locator('.ex-paths').getByRole('button', { name: /^Start small/ }).click();
+  await expect(page.getByRole('heading', { name: 'Start small', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Get to know your water/ }).click();
+  await expect(page.locator('.ex-project-step')).toBeVisible();
+});
+
+test('supporting disclosures are keyboard usable and essential event details stay visible', async ({ page }) => {
+  await page.goto(`${root}&destination=opportunities&exploreView=detail&exploreRecord=demo-walk`);
+  await expect(page.locator('.ex-event-when')).toContainText('America/New_York');
+  await expect(page.locator('.ex-about')).toContainText('minors with a guardian');
+  await expect(page.locator('.ex-about')).toContainText('accessibility details must be confirmed');
+  const disclosure = page.getByText('What to bring and other details', { exact: true });
+  await disclosure.focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('.ex-facts')).toBeVisible();
+  await expect(page.locator('.ex-facts')).toContainText('designated route');
+  await page.goto(`${root}&contrast=true&scale=150`);
+  await expect(page.locator('.ex-map-entry .ex-photo')).toBeHidden();
+  await expect(page.getByRole('link', { name: /Explore the map/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.locator('.ex-paths').getByRole('button', { name: /^Ask a question/ }).click();
+  await expect(page.getByLabel('Draft for Utility')).toBeVisible();
 });
 
 for (const appearance of ['light', 'dark']) test(`Explore screens fit 320px at 150 percent in ${appearance}`, async ({ page }, info) => {
