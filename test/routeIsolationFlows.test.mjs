@@ -11,6 +11,7 @@ import { auditOwnerScope, localDate, quiet, setup } from './helpers/isolationKit
 import { ENDPOINT, PROFILE, alertId, entryId, addDays } from './helpers/isolationSeed.mjs';
 import { OWNED_TABLES } from './helpers/tables.mjs';
 import { keysFor } from './helpers/pushKeys.mjs';
+import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
 
 const OWNED = Object.keys(OWNED_TABLES);
 const REFERENCE = ['ucmr5_utilities', 'volunteer_orgs', 'map_layers', 'learn_content', 'water_snapshots'];
@@ -173,6 +174,38 @@ test('POST /api/onboard moves only the caller\'s home: its profile, its cached r
   for (const kept of aliceDaysBefore.filter((row) => row.date !== today && row.date >= addDays(today, -28))) {
     assert.deepEqual(aliceDays.find((row) => row.date === kept.date), kept, `${kept.date} was a real reading and must not be overwritten`);
   }
+  assert.deepEqual(bobsRows(ctx), bobBefore);
+});
+
+test('POST /api/onboard through transition_home_context moves only the caller\'s home: her homes, profile, reading, backfill and its progress', async (t) => {
+  quiet(t);
+  const today = localDate();
+  const ctx = setup({ env: { MAPBOX_TOKEN: 'pk.test-token' }, provider: onboardingProviders(today) });
+  registerHomeContextRpcs(ctx.h.db);
+  const bobBefore = bobsRows(ctx);
+  const [aliceHome] = ctx.rowsOf('home_contexts', 'alice');
+
+  const res = await ctx.call('alice', '/api/onboard', 'POST', {
+    body: { address: '2 Elm Court', profile_id: ctx.id('alice'), user_id: ctx.id('bob'), id: ctx.id('bob'), request_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.moved, true);
+  ctx.assertNoLeak('alice', body, 'POST /api/onboard (home context)');
+  assert.deepEqual(ctx.h.db.rpcCalls.map((call) => call.args.p_profile_id), [ctx.id('alice')], 'the function runs for the token\'s household only');
+
+  const homes = ctx.rowsOf('home_contexts', 'alice').sort((a, b) => a.sequence - b.sequence);
+  assert.deepEqual(homes.map((home) => [home.id === aliceHome.id, home.closed_reason]), [[true, 'moved'], [false, null]]);
+  assert.equal(body.home_context.id, homes[1].id);
+  assert.ok(!ctx.rowsOf('daily_scores', 'alice').some((row) => row.date === today), 'alice\'s reading for the old home is gone');
+  assert.deepEqual(bobsRows(ctx), bobBefore, 'bob\'s home, profile and reading are untouched by alice\'s move');
+
+  const queriesBefore = ctx.h.db.queryLog.length;
+  await ctx.h.runAfter();
+  auditOwnerScope(ctx.h.db.queryLog.slice(queriesBefore), ctx.id('alice'), 'onboard backfill and its progress');
+  // The stub's history has 10 of the 28 days, so the run is partial.
+  assert.equal(ctx.rowsOf('home_contexts', 'alice').find((home) => home.id === body.home_context.id).backfill_state, 'partial');
+  assert.equal(ctx.rowsOf('daily_scores', 'alice').filter((row) => row.home_context_id === body.home_context.id).length, 10);
   assert.deepEqual(bobsRows(ctx), bobBefore);
 });
 

@@ -3,13 +3,69 @@ import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode } from '@/lib/geocode';
 import { localDate } from '@/lib/localDate';
-import { backfillHousehold } from '@/lib/backfill';
+import { backfillHousehold, backfillHomeContext } from '@/lib/backfill';
 import { ERROR_CODES, apiError, internalError, requestIdFor, validationError } from '@/lib/apiErrors';
 import { readJsonBody } from '@/lib/validate';
 import { parseOnboardBody } from '@/lib/onboardInput';
+import { contextSummary, toContextAttributes } from '@/lib/homeContext';
+import { transitionHomeContext } from '@/lib/homeContextRpc';
+
+/**
+ * POST /api/onboard: geocode the household's address, look up its water utility, and save the
+ * home.
+ *
+ * Saving the home (migration 0016). The location is saved through the home context function
+ * transition_home_context, in one transaction: the same rounded point updates the current home
+ * in place, a new point closes it and opens the next one (a move), and the profile follows the
+ * resulting home. A move also deletes today's reading of the home it closed (it described the
+ * old address), which this route used to do itself. A key the request leaves out is kept at the
+ * same home and unknown (null) at a new one: a move carries nothing of the old home over. The
+ * utility lookup's outcome is stored as the home's service_area_status; a failed lookup never
+ * replaces a utility already on file for that home.
+ *
+ * The response is the same as before, plus `home_context` (lib/homeContext.js contextSummary of
+ * the saved home) and `moved` (whether this request closed the previous home). On a failed
+ * utility lookup, `pwsid` is the saved home's utility: at the same home the one on file, at a
+ * new home none (the old home's utility does not describe the new one).
+ *
+ * Until 0016 is applied (the function or table is missing) the route saves to the profile and
+ * clears today's reading on a move exactly as it always has, says so in one warning per
+ * process, and answers `home_context: null` with its own `moved`.
+ *
+ * After the response, the last few weeks of readings are backfilled for the saved home, and the
+ * backfill's progress is recorded on it (lib/backfill.js backfillHomeContext). A failure there
+ * never reaches onboarding.
+ */
 
 // The history backfill runs after the response (see below) within this budget.
 export const maxDuration = 60;
+
+// How the location of a home saved here was found.
+const MATCH_METHOD = 'mapbox_geocode_arcgis_point';
+
+let warnedNoHomeContexts = false;
+
+/** Before migration 0016: the legacy save below. Says so once per process. */
+function withoutHomeContexts(code) {
+  if (warnedNoHomeContexts) return;
+  warnedNoHomeContexts = true;
+  console.warn(
+    `Onboard: home contexts are not available (${code}), so migration 0016 is probably not applied yet. ` +
+      'Saving the location to the profile only, as before.',
+  );
+}
+
+let warnedHomeContextSchema = false;
+
+/** A home context column the backfill writes is missing: the readings are saved without it. Once per process. */
+function homeContextSchemaMissing(error) {
+  if (warnedHomeContextSchema) return;
+  warnedHomeContextSchema = true;
+  console.warn(
+    `Onboard backfill: a home context column is missing (${error?.code ?? 'unknown'}: ${error?.message ?? ''}). ` +
+      'Readings are saved without their home, and the backfill progress is not recorded.',
+  );
+}
 
 // Postgres reports an unknown column as 42703; PostgREST as PGRST204.
 function isUndefinedColumnError(error) {
@@ -25,6 +81,95 @@ function isUndefinedColumnError(error) {
 // The body is an address, an optional request id and two optional answers.
 const POST_MAX_BYTES = 4096;
 const NO_COORDINATES = 'Could not find coordinates for this address';
+
+/**
+ * Saves the home through transition_home_context (see the comment at the top).
+ * Returns { unavailable } before 0016, else { context, moved, previous_context_id }.
+ * Any refusal or error is thrown (a 500): nothing is half-saved, the function is one transaction.
+ */
+async function saveThroughHomeContext(userId, profileUpdate, serviceAreaStatus) {
+  const { location, attributes } = toContextAttributes({
+    ...profileUpdate,
+    service_area_status: serviceAreaStatus,
+    match_method: MATCH_METHOD,
+  });
+  const args = { profileId: userId, location, attributes, requestId: profileUpdate.onboard_request_id ?? null };
+  let saved = await transitionHomeContext(supabaseAdmin, args);
+  if (saved.refusal?.code === 'HALO_PROFILE_NOT_FOUND') {
+    // The auth trigger normally makes the profile row; the old upsert below covered users who predate
+    // it. Make the bare row the trigger would have (never touching an existing one), then save.
+    const { error } = await supabaseAdmin.from('profiles').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) throw new Error(`Failed to create profile: ${error.message}`);
+    saved = await transitionHomeContext(supabaseAdmin, args);
+  }
+  if (saved.refusal) {
+    throw new Error(`transition_home_context refused the onboarding: ${saved.refusal.code} (${saved.refusal.detail})`);
+  }
+  return saved;
+}
+
+/**
+ * Before migration 0016: the profile upsert and the move's clean-up, exactly as this route
+ * always did them. Returns the utility to report and whether the location moved.
+ */
+async function saveToProfile(userId, profileUpdate, serviceArea) {
+  // The location on file before this write, to tell a move from a re-submit.
+  const { data: before } = await supabaseAdmin.from('profiles').select('lat, lng').eq('id', userId).maybeSingle();
+
+  // upsert, not update: `UPDATE ... WHERE id = x` against a row that does not
+  // exist is not an error in Postgres. It touches zero rows and reports
+  // success, so this endpoint would return 200 with coordinates while having
+  // persisted nothing at all -- silent data loss that looks exactly like a
+  // working onboard. The auth.users trigger normally creates the row first;
+  // this covers users who predate it and the case where it ever fails.
+  let { error: updateError } = await supabaseAdmin
+    .from('profiles')
+    .upsert(profileUpdate, { onConflict: 'id' });
+
+  // profiles.state arrives with migration 0009 and onboard_request_id with
+  // 0014; until then store the rest. Drop the column the error names, else
+  // the newest one first.
+  const optional = ['onboard_request_id', 'state'].filter((column) => column in profileUpdate);
+  while (updateError && isUndefinedColumnError(updateError) && optional.length) {
+    const named = optional.find((column) => (updateError.message || '').includes(column)) ?? optional[0];
+    optional.splice(optional.indexOf(named), 1);
+    delete profileUpdate[named];
+    ({ error: updateError } = await supabaseAdmin.from('profiles').upsert(profileUpdate, { onConflict: 'id' }));
+  }
+
+  if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
+
+  // On a failed lookup, report the utility already on file (if any).
+  let pwsid = serviceArea.pwsid;
+  if (serviceArea.status === 'lookup_failed') {
+    const { data: stored } = await supabaseAdmin.from('profiles').select('pwsid').eq('id', userId).maybeSingle();
+    pwsid = stored?.pwsid ?? null;
+  }
+
+  // A new home: today's cached reading belongs to the old one, and the
+  // five-minute provider limit would otherwise make the results reveal's
+  // fresh reading for the new home fail. Onboarding itself is limited to 10
+  // per day per user, so this can't be used to hammer the providers.
+  const moved = locationMoved(before, profileUpdate);
+  if (moved) {
+    const { error: clearError } = await supabaseAdmin
+      .from('daily_scores')
+      .delete()
+      .eq('profile_id', userId)
+      .eq('date', localDate());
+    if (clearError) console.error('Could not clear the old home\'s reading:', clearError.message);
+  }
+  return { pwsid, moved };
+}
+
+/** A new home: the five-minute provider limit must not block the results reveal's fresh reading. */
+async function resetDailyScoreLimit(userId) {
+  try {
+    await dailyScoreLimiter.resetUsedTokens(`daily-score:${userId}`);
+  } catch (limitError) {
+    console.error('Could not reset the daily-score limiter:', limitError.message);
+  }
+}
 
 export async function POST(request) {
   const requestId = requestIdFor(request);
@@ -159,64 +304,39 @@ export async function POST(request) {
     if (homeYear !== null) profileUpdate.home_year = homeYear;
     if (onboardRequestId !== null) profileUpdate.onboard_request_id = onboardRequestId;
 
-    // The location on file before this write, to tell a move from a re-submit.
-    const { data: before } = await supabaseAdmin.from('profiles').select('lat, lng').eq('id', userId).maybeSingle();
-
-    // upsert, not update: `UPDATE ... WHERE id = x` against a row that does not
-    // exist is not an error in Postgres. It touches zero rows and reports
-    // success, so this endpoint would return 200 with coordinates while having
-    // persisted nothing at all -- silent data loss that looks exactly like a
-    // working onboard. The auth.users trigger normally creates the row first;
-    // this covers users who predate it and the case where it ever fails.
-    let { error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .upsert(profileUpdate, { onConflict: 'id' });
-
-    // profiles.state arrives with migration 0009 and onboard_request_id with
-    // 0014; until then store the rest. Drop the column the error names, else
-    // the newest one first.
-    const optional = ['onboard_request_id', 'state'].filter((column) => column in profileUpdate);
-    while (updateError && isUndefinedColumnError(updateError) && optional.length) {
-      const named = optional.find((column) => (updateError.message || '').includes(column)) ?? optional[0];
-      optional.splice(optional.indexOf(named), 1);
-      delete profileUpdate[named];
-      ({ error: updateError } = await supabaseAdmin.from('profiles').upsert(profileUpdate, { onConflict: 'id' }));
+    // --- SAVE THE HOME ---
+    // Through the home context function (0016), else as before (see the comment at the top).
+    const saved = await saveThroughHomeContext(userId, profileUpdate, serviceAreaStatus);
+    let pwsid;
+    let moved;
+    let homeContext = null;
+    if (saved.unavailable) {
+      withoutHomeContexts(saved.code);
+      ({ pwsid, moved } = await saveToProfile(userId, profileUpdate, serviceArea));
+    } else {
+      homeContext = saved.context;
+      moved = saved.moved;
+      // On a failed lookup, the utility the saved home has: the one on file at the same home, none at a new one.
+      pwsid = serviceAreaStatus === 'lookup_failed' ? homeContext.pwsid ?? null : serviceArea.pwsid;
     }
 
-    if (updateError) throw new Error(`Failed to update profile: ${updateError.message}`);
-
-    // On a failed lookup, report the utility already on file (if any).
-    let pwsid = serviceArea.pwsid;
-    if (serviceAreaStatus === 'lookup_failed') {
-      const { data: stored } = await supabaseAdmin.from('profiles').select('pwsid').eq('id', userId).maybeSingle();
-      pwsid = stored?.pwsid ?? null;
-    }
-
-    // A new home: today's cached reading belongs to the old one, and the
-    // five-minute provider limit would otherwise make the results reveal's
-    // fresh reading for the new home fail. Onboarding itself is limited to 10
-    // per day per user, so this can't be used to hammer the providers.
-    if (locationMoved(before, profileUpdate)) {
-      const { error: clearError } = await supabaseAdmin
-        .from('daily_scores')
-        .delete()
-        .eq('profile_id', userId)
-        .eq('date', localDate());
-      if (clearError) console.error('Could not clear the old home\'s reading:', clearError.message);
-      try {
-        await dailyScoreLimiter.resetUsedTokens(`daily-score:${userId}`);
-      } catch (limitError) {
-        console.error('Could not reset the daily-score limiter:', limitError.message);
-      }
-    }
+    if (moved) await resetDailyScoreLimit(userId);
 
     // Backfill the last few weeks of readings so Journal has history from day
     // one (item 10). After the response, so onboarding and the results reveal
     // never wait on it; it never overwrites a real reading and never throws.
-    after(() => backfillHousehold(supabaseAdmin, userId, { lat: profileUpdate.lat, lng: profileUpdate.lng }));
+    // With a home context, the backfill is for that home and records its
+    // progress on it (lib/backfill.js backfillHomeContext).
+    if (homeContext) {
+      const home = { lat: homeContext.lat, lng: homeContext.lng };
+      const homeContextId = homeContext.id;
+      after(() => backfillHomeContext(supabaseAdmin, userId, home, { homeContextId, onSchemaMissing: homeContextSchemaMissing }));
+    } else {
+      after(() => backfillHousehold(supabaseAdmin, userId, { lat: profileUpdate.lat, lng: profileUpdate.lng }));
+    }
 
     // --- FINAL RESPONSE ---
-    return NextResponse.json({ 
+    return NextResponse.json({
       profile_id: userId,
       lat: profileUpdate.lat,
       lng: profileUpdate.lng,
@@ -229,6 +349,9 @@ export async function POST(request) {
       home_year: homeYear,
       // Echoed only if it was stored (null before migration 0014).
       onboard_request_id: profileUpdate.onboard_request_id ?? null,
+      // The saved home (null before migration 0016) and whether this request moved the household.
+      home_context: contextSummary(homeContext),
+      moved,
     }, { headers });
 
   } catch (error) {

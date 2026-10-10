@@ -5,6 +5,14 @@ import { haloTables } from './helpers/tables.mjs';
 import { localDate } from './helpers/isolationSeed.mjs';
 import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
 
+/*
+ * These harnesses have no home_contexts table and no transition_home_context function: the route
+ * as it runs before migration 0016 (the legacy save). It logs one warning per route instance when
+ * it falls back; quietFallback silences it in the tests that reach the save. The route on the home
+ * context function is tested in routesOnboardContext.test.mjs.
+ */
+const quietFallback = (t) => t.mock.method(console, 'warn', () => {});
+
 const chr = (code) => String.fromCharCode(code);
 const TABLES = ['profiles', 'daily_scores'];
 const TODAY = localDate();
@@ -62,24 +70,30 @@ const bad = async (body, expected, message) => {
 
 // ------------------------------------------------------------ legacy
 
-test('legacy request (what lib/frontend/api.ts sends): address and request_id geocode and store, with the old status and body fields', async () => {
+test('legacy request (what lib/frontend/api.ts sends): address and request_id geocode and store, with the old status and body fields', async (t) => {
+  const warn = quietFallback(t);
   const h = harness();
   const res = await post(h, { address: ' 2 Elm Court ', request_id: REQUEST_ID });
   assert.equal(res.status, 200);
   assert.match(res.headers.get('x-request-id'), UUID);
   const body = await res.json();
-  assert.deepEqual(Object.keys(body).sort(), ['county', 'home_year', 'lat', 'lng', 'onboard_request_id', 'profile_id', 'pwsid', 'service_area_status', 'state', 'water_source', 'zip']);
+  // The old fields, plus home_context (null before 0016) and moved (alice had another address on file).
+  assert.deepEqual(Object.keys(body).sort(), ['county', 'home_context', 'home_year', 'lat', 'lng', 'moved', 'onboard_request_id', 'profile_id', 'pwsid', 'service_area_status', 'state', 'water_source', 'zip']);
   assert.deepEqual(body, {
     profile_id: h.identities.alice.id, lat: 35.41, lng: -80.61, zip: '28027', county: 'Cabarrus County', state: 'NC', pwsid: 'NC9990001',
     service_area_status: 'measured', water_source: null, home_year: null, onboard_request_id: REQUEST_ID,
+    home_context: null, moved: true,
   });
+  assert.equal(warn.mock.callCount(), 1);
+  assert.match(String(warn.mock.calls[0].arguments[0]), /home contexts are not available \(PGRST202\)/);
   const [stored] = h.db.rows('profiles').filter((row) => row.id === h.identities.alice.id);
   assert.deepEqual([stored.lat, stored.lng, stored.county, stored.onboard_request_id], [35.41, -80.61, 'Cabarrus County', REQUEST_ID]);
   assert.match(mapboxUrl(h), /\/mapbox\.places\/2%20Elm%20Court\.json\?/, 'the trimmed address is what is geocoded');
   assert.equal('request_id' in body, false, 'success bodies do not carry request_id');
 });
 
-test('legacy request: the bare address of lib/api.js, water_source and home_year are still accepted and normalised', async () => {
+test('legacy request: the bare address of lib/api.js, water_source and home_year are still accepted and normalised', async (t) => {
+  quietFallback(t);
   const h = harness();
   const body = await (await post(h, { address: '2 Elm Court', water_source: 'City utility', home_year: 1999, profile_id: h.identities.alice.id })).json();
   assert.deepEqual([body.water_source, body.home_year, body.onboard_request_id], ['utility', 1999, null]);
@@ -91,7 +105,8 @@ test('legacy request: the bare address of lib/api.js, water_source and home_year
   }
 });
 
-test('legacy request: a GPS "lng,lat" string, a bare ZIP and a 3 or 200 character address all reach the geocoder as before', async () => {
+test('legacy request: a GPS "lng,lat" string, a bare ZIP and a 3 or 200 character address all reach the geocoder as before', async (t) => {
+  quietFallback(t);
   const h = harness();
   assert.equal((await post(h, { address: '-80.57952,35.40881' })).status, 200);
   assert.match(mapboxUrl(h), /mapbox\.places\/-80\.57952%2C35\.40881\.json/);
@@ -105,7 +120,8 @@ test('legacy request: a GPS "lng,lat" string, a bare ZIP and a 3 or 200 characte
   }
 });
 
-test('legacy request: the identity is the token; a body user_id or id and unknown keys change nothing, a foreign profile_id is the old 403', async () => {
+test('legacy request: the identity is the token; a body user_id or id and unknown keys change nothing, a foreign profile_id is the old 403', async (t) => {
+  quietFallback(t);
   const h = harness();
   const bobBefore = JSON.stringify(h.db.rows('profiles').filter((row) => row.id === h.identities.bob.id));
   const ok = await post(h, { address: '2 Elm Court', user_id: h.identities.bob.id, id: h.identities.bob.id, owner_id: h.identities.bob.id, extra: 1 });
@@ -151,14 +167,16 @@ for (const [label, value, code, message] of [
   });
 }
 
-test('address: 200 emoji characters are accepted (counted as characters), and the address is geocoded trimmed', async () => {
+test('address: 200 emoji characters are accepted (counted as characters), and the address is geocoded trimmed', async (t) => {
+  quietFallback(t);
   const h = harness();
   assert.equal((await post(h, { address: '\u{1F3E0}'.repeat(200) })).status, 200);
 });
 
 // -------------------------------------- request_id, water and home year
 
-test('request_id: absent or null is fine; a valid UUID is stored lower case', async () => {
+test('request_id: absent or null is fine; a valid UUID is stored lower case', async (t) => {
+  quietFallback(t);
   const h = harness();
   assert.equal((await (await post(h, { address: '2 Elm Court' })).json()).onboard_request_id, null);
   assert.equal((await (await post(h, { address: '2 Elm Court', request_id: null })).json()).onboard_request_id, null);
@@ -207,7 +225,8 @@ test('an empty body means {}: it is then a missing address, not a crash', async 
   assert.deepEqual(body.field_errors.map((e) => e.code), ['address_required']);
 });
 
-test('the body limit is 4096 bytes: exactly that is read, one more byte is a 413 and changes nothing', async () => {
+test('the body limit is 4096 bytes: exactly that is read, one more byte is a 413 and changes nothing', async (t) => {
+  quietFallback(t);
   const h = harness();
   const base = JSON.stringify({ address: '2 Elm Court', pad: '' });
   const padded = (size) => JSON.stringify({ address: '2 Elm Court', pad: 'p'.repeat(size - base.length) });
@@ -269,6 +288,7 @@ test('a provider failure is a 500 envelope with no provider text; the real error
 
 test('a database failure on the write is a 500 envelope with no database text', async (t) => {
   const logged = muteConsoleError(t);
+  quietFallback(t);
   const h = harness();
   const from = h.db.from.bind(h.db);
   h.db.from = (name) => { if (name === 'profiles') throw new Error('secret database detail'); return from(name); };
@@ -277,7 +297,8 @@ test('a database failure on the write is a 500 envelope with no database text', 
   assert.ok(loggedText(logged).includes(body.request_id));
 });
 
-test('every outcome carries X-Request-Id, and a well formed client id is echoed on success, 400, 403, 404, 413 and 429', async () => {
+test('every outcome carries X-Request-Id, and a well formed client id is echoed on success, 400, 403, 404, 413 and 429', async (t) => {
+  quietFallback(t);
   const headers = { 'x-request-id': 'client-trace-0001' };
   const ids = async (h, body, options) => (await post(h, body, { headers, ...options })).headers.get('x-request-id');
   assert.equal(await ids(harness(), { address: '2 Elm Court' }), 'client-trace-0001');

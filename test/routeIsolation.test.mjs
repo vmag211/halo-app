@@ -54,7 +54,7 @@ const ROUTE_COVERAGE = {
   'GET /api/map': 'isolation: read matrix (no household data)',
   'GET /api/notifications': 'isolation: read matrix',
   'PUT /api/notifications': 'isolation: only the caller\'s preferences change; smuggled profile_id rejected',
-  'POST /api/onboard': 'isolation: 403 for a foreign profile_id; flows: move, backfill, lookup failure touch only the caller',
+  'POST /api/onboard': 'isolation: 403 for a foreign profile_id; flows: move, backfill, lookup failure touch only the caller, with and without the 0016 function',
   'GET /api/profile': 'isolation: read matrix, identity-from-token',
   'PATCH /api/profile': 'isolation: only the caller\'s profile and home change, id in the body ignored, with and without the 0016 functions',
   'POST /api/push/subscribe': 'flows: a foreign endpoint is not taken over and the answer matches a fresh success',
