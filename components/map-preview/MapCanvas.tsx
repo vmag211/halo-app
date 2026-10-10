@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { densityRGBA, recordDensity } from '@/lib/frontend/map-visuals';
 import './map-canvas.css';
 
 export type MapLayer = 'water' | 'radon' | 'facilities' | 'air';
-export type MapPoint = { id: string; name: string; lat: number; lng: number; severity: string; population?: number | null; zone?: number; isOwn?: boolean; flagged?: boolean };
+export type MapPoint = { id: string; name: string; lat: number; lng: number; severity: string; population?: number | null; zone?: number; isOwn?: boolean; flagged?: boolean; reading?: string };
 export type MapView = { lng: number; lat: number; zoom: number };
 type Coordinate = [number, number];
 type Geometry = { type: 'Polygon'; coordinates: Coordinate[][] } | { type: 'MultiPolygon'; coordinates: Coordinate[][][] };
@@ -49,7 +50,7 @@ function trace(geometry: Geometry, project: (lng: number, lat: number) => Coordi
   return { path, bounds };
 }
 const priorityCounties = new Set(['Union County', 'Mecklenburg County', 'Cabarrus County', 'Stanly County', 'Anson County', 'Richmond County', 'Montgomery County', 'Scotland County', 'Robeson County', 'Wake County', 'Buncombe County', 'Guilford County', 'New Hanover County']);
-const severityFallbacks: Record<string, string> = { good: '#4cc27a', moderate: '#f0913a', elevated: '#f0605f', high: '#d668ad', severe: '#a870f0', no_data: '#e6e6e6' };
+const severityFallbacks: Record<string, string> = { good: '#338b86', moderate: '#b27e29', elevated: '#c56535', high: '#a84966', severe: '#754a83', no_data: '#87949c' };
 
 export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false, previewOnly = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,6 +65,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   const gesture = useRef<{ view: MapView; center: Coordinate; distance: number; moved: boolean } | null>(null);
   const [geography, setGeography] = useState<Geography | null>(null);
   const [context, setContext] = useState<CartographicContext | null>(null);
+  const [contextSettled, setContextSettled] = useState(false);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [dimensions, setDimensions] = useState({ width: 600, height: 600 });
@@ -84,7 +86,9 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     }).catch(() => { if (!abort.signal.aborted) { setError(true); callbacks.current.onReady?.(false); callbacks.current.onUnavailable?.(); } });
     fetch('/data/map-preview-context.json', {signal:abort.signal}).then(response=>response.ok?response.json():null).then(data=>{
       if (!abort.signal.aborted && Array.isArray(data?.rivers) && Array.isArray(data?.places)) setContext(data);
-    }).catch(()=>{/* Optional geographic context must not hide observations. */});
+    }).catch(()=>{/* Optional geographic context must not hide observations. */}).finally(()=>{
+      if (!abort.signal.aborted) setContextSettled(true);
+    });
     return () => abort.abort();
   }, [attempt]);
   useEffect(() => {
@@ -110,29 +114,26 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     if (!ctx) { callbacks.current.onReady?.(false); callbacks.current.onUnavailable?.(); return; }
     const { width, height } = dimensions;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
-    ctx.scale(dpr, dpr);
+    if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
+    if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Resizing used to reset all context state. Reusing the backing store must
+    // explicitly reset paint state so returning to a view renders identically.
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.lineJoin = 'miter';
+    ctx.lineCap = 'butt'; ctx.globalAlpha = 1; ctx.setLineDash([]);
     const styles = getComputedStyle(canvas);
     const color = (key: string, fallback: string) => styles.getPropertyValue(key).trim() || fallback;
     const sea = color('--map-atlas-sea', '#0d2431'), land = color('--map-atlas-land', '#193440');
     const line = color('--map-atlas-line', '#36535c'), ink = color('--map-atlas-ink', '#a2b6be');
     const white = color('--map-atlas-bright', '#e5f2f1');
-    // Resolve HALO's light-dark() tokens through a computed color property.
-    // CSS custom property text itself can still contain unresolved functions.
-    const severityColors = Object.fromEntries(Object.entries(severityFallbacks).map(([key, fallback]) => {
-      const probe = document.createElement('span');
-      probe.style.color = `var(--halo-${key === 'no_data' ? 'no-data' : key}, ${fallback})`;
-      probe.style.display = 'none'; rootRef.current?.appendChild(probe);
-      const resolved = getComputedStyle(probe).color; probe.remove();
-      return [key, resolved || fallback];
-    }));
+    const severityColors = Object.fromEntries(Object.entries(severityFallbacks).map(([key, fallback]) => [key, color(`--map-${key}`, fallback)]));
     const [cx, cy] = world(view.lng, view.lat), scale = 256 * 2 ** view.zoom;
     const project = (lng: number, lat: number): Coordinate => {
       const [x, y] = world(lng, lat); return [(x - cx) * scale + width / 2, (y - cy) * scale + height / 2];
     };
     ctx.fillStyle = sea; ctx.fillRect(0, 0, width, height);
     // An honest atlas grid, not invented roads, waterways, or exposure areas.
-    ctx.strokeStyle = line; ctx.globalAlpha = .18; ctx.lineWidth = .7;
+    ctx.strokeStyle = line; ctx.globalAlpha = .08; ctx.lineWidth = .7;
     for (let lng = -85; lng <= -74; lng += .5) { const [x] = project(lng, view.lat); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
     for (let lat = 33; lat <= 38; lat += .5) { const [, y] = project(view.lng, lat); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
     ctx.globalAlpha = 1;
@@ -149,12 +150,11 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
       const reading = !forceEmpty && layer === 'radon' ? radonByCounty.get(county.name) ?? points.find(point => point.name === county.name) : undefined;
       if (reading && bounds.right >= 0 && bounds.left <= width && bounds.bottom >= 0 && bounds.top <= height) { visibleCountyCount += 1; visibleCountyIds.push(county.name); }
       if (reading) { ctx.globalAlpha = patterns ? .46 : .13; ctx.fillStyle = severityColors[reading.severity] || severityColors.no_data; ctx.fill(path, 'evenodd'); ctx.globalAlpha = 1; }
-      ctx.strokeStyle = line; ctx.lineWidth = .85; ctx.stroke(path);
+      ctx.strokeStyle = line; ctx.lineWidth = .65; ctx.stroke(path);
       if (selectedId === county.name) { ctx.fillStyle = '#79d5c92b'; ctx.fill(path, 'evenodd'); ctx.strokeStyle = '#a1eee0'; ctx.lineWidth = 2.5; ctx.stroke(path); }
     });
     const { path: district } = trace(geography.district.geometry, project);
-    ctx.fillStyle = '#59cbbb0d'; ctx.fill(district, 'evenodd');
-    ctx.strokeStyle = '#67c5ba'; ctx.globalAlpha = .8; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.stroke(district); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.strokeStyle = color('--map-atlas-district', '#4e8b90'); ctx.globalAlpha = .7; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.stroke(district); ctx.setLineDash([]); ctx.globalAlpha = 1;
 
     ctx.save(); ctx.clip(statePath);
     context?.rivers.forEach(river=>{
@@ -168,21 +168,12 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     if (patterns && !forceEmpty && ['water', 'facilities'].includes(layer)) {
       const radius = 35000 / (40075016.686 * Math.cos(view.lat * Math.PI / 180) / scale);
       const sources = points.filter(p => p.flagged).map(p => project(p.lng, p.lat));
-      const step = 4, cols = Math.ceil(width / step), rows = Math.ceil(height / step);
+      const { field, cols, rows } = recordDensity(sources, width, height, radius);
       const surface = document.createElement('canvas'); surface.width = cols; surface.height = rows;
       const surfaceContext = surface.getContext('2d');
       if (surfaceContext && sources.length) {
         const pixels = surfaceContext.createImageData(cols, rows);
-        const stops = [[43, 155, 173], [55, 200, 171], [243, 202, 103], [243, 121, 92], [219, 76, 110]];
-        for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-          let density = 0;
-          for (const [sx, sy] of sources) { const d2 = ((x * step - sx) ** 2 + (y * step - sy) ** 2) / radius ** 2; if (d2 < 1) density += (1 - d2) ** 2; }
-          if (density < .025) continue;
-          const value = Math.min(density / 2, 1) * 4, i = Math.min(3, Math.floor(value)), fraction = value - i;
-          const offset = (y * cols + x) * 4;
-          for (let c = 0; c < 3; c++) pixels.data[offset + c] = Math.round(stops[i][c] + (stops[i + 1][c] - stops[i][c]) * fraction);
-          pixels.data[offset + 3] = Math.round(Math.min(.68, density * .85) * 255);
-        }
+        for (let i = 0; i < field.length; i++) if (field[i] >= .025) pixels.data.set(densityRGBA(field[i]), i * 4);
         surfaceContext.putImageData(pixels, 0, 0);
         ctx.save(); ctx.clip(statePath); ctx.imageSmoothingEnabled = true; ctx.drawImage(surface, 0, 0, width, height); ctx.restore();
       }
@@ -190,6 +181,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
 
     // Real place labels create geographic orientation without invented roads.
     // Their neutral dot and sentence case distinguish them from data markers.
+    const recordPositions = (forceEmpty || layer === 'radon' ? [] : points).map(p => project(p.lng, p.lat));
     const cityLabels: {x:number;y:number;width:number}[]=[];
     context?.places.slice().sort((a,b)=>a.rank-b.rank).forEach(place=>{
       if(view.zoom<7 && place.rank>5 || view.zoom<8 && place.rank>7) return;
@@ -197,6 +189,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
       if(x<20||x>width-70||y<15||y>height-20) return;
       ctx.save();ctx.setTransform(1,0,0,1,0,0);const insideState=ctx.isPointInPath(statePath,x,y);ctx.restore();if(!insideState)return;
       ctx.font='600 12px system-ui, sans-serif';const labelWidth=ctx.measureText(place.name).width;
+      if(recordPositions.some(([px,py])=>px>x-16&&px<x+labelWidth+20&&Math.abs(py-y)<19)) return;
       if(cityLabels.some(p=>Math.abs(x-p.x)<(labelWidth+p.width)/2+35 && Math.abs(y-p.y)<30))return;
       cityLabels.push({x,y,width:labelWidth});
       ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fillStyle=white;ctx.fill();
@@ -207,12 +200,13 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const placedLabels: { x: number; y: number; width: number }[] = [];
     [...geography.counties].sort((a, b) => Number(priorityCounties.has(b.name)) - Number(priorityCounties.has(a.name))).forEach(county => {
-      if (view.zoom < 7 && !priorityCounties.has(county.name)) return;
+      if (view.zoom < 9 && !priorityCounties.has(county.name)) return;
       const [x, y] = project(...county.center);
       if (x < -20 || x > width + 20 || y < 10 || y > height - 30) return;
       ctx.font = `${priorityCounties.has(county.name) ? '600' : '400'} ${view.zoom < 7 ? 9 : 10}px system-ui, sans-serif`;
       const label = county.name.replace(' County', '').toUpperCase();
       const labelWidth = ctx.measureText(label).width;
+      if(recordPositions.some(([px,py])=>Math.abs(px-x)<labelWidth/2+17&&Math.abs(py-y)<18)) return;
       if (placedLabels.some(other => Math.abs(x - other.x) < (labelWidth + other.width) / 2 + 8 && Math.abs(y - other.y) < 24) || cityLabels.some(other=>Math.abs(x-other.x)<(labelWidth+other.width)/2+12 && Math.abs(y-other.y)<30)) return;
       placedLabels.push({ x, y, width: labelWidth });
       ctx.strokeStyle = land; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.strokeText(label, x, y);
@@ -244,25 +238,39 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
         ctx.fillStyle = '#eefaf6'; ctx.font = '600 12px system-ui, sans-serif'; ctx.fillText(String(members.length), x, y);
         hits.current.push({ id: `cluster:${point.id}`, name: `${members.length} facilities. Select to expand.`, x, y, cluster: members }); return;
       }
-      const radius = layer === 'water' ? clamp(Math.sqrt(Math.max(point.population ?? 0, 0)) / 95, 5.5, 15) : layer === 'air' ? 9 : 7;
+      const radius = layer === 'water' ? clamp(Math.sqrt(Math.max(point.population ?? 0, 0) / 10000) * 5, 5.5, 15) : layer === 'air' ? 9 : 7;
       if (layer === 'air' && patterns) {
         ctx.beginPath(); ctx.arc(x, y, 24, 0, Math.PI * 2); ctx.fillStyle = severityColors[point.severity] || severityColors.no_data; ctx.globalAlpha = .13; ctx.fill(); ctx.globalAlpha = .45; ctx.lineWidth = 1; ctx.strokeStyle = ctx.fillStyle; ctx.stroke(); ctx.globalAlpha = 1;
-        ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = white; ctx.fillText(point.name.replace(' monitoring station (sample)', ''), x + 30, y); ctx.textAlign = 'center';
       }
       if (point.isOwn || selected) {
-        ctx.beginPath(); ctx.arc(x, y, radius + (selected ? 6 : 4), 0, Math.PI * 2); ctx.strokeStyle = selected ? white : '#8fe1d8'; ctx.lineWidth = selected ? 2 : 1.3; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, radius + (selected ? 6 : 4), 0, Math.PI * 2); ctx.strokeStyle = selected ? white : color('--map-atlas-district', '#438a91'); ctx.lineWidth = selected ? 2 : 1.5; ctx.stroke();
       }
       ctx.beginPath();
       if (layer === 'air') { ctx.moveTo(x, y - radius); ctx.lineTo(x + radius, y); ctx.lineTo(x, y + radius); ctx.lineTo(x - radius, y); ctx.closePath(); }
       else if (layer === 'facilities') ctx.roundRect(x - radius, y - radius, radius * 2, radius * 2, 3);
       else ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = severityColors[point.severity] || severityColors.no_data; ctx.fill(); ctx.strokeStyle = sea; ctx.lineWidth = 2; ctx.stroke();
-      if (point.severity === 'no_data') { ctx.strokeStyle = sea; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - radius * .45, y + radius * .45); ctx.lineTo(x + radius * .45, y - radius * .45); ctx.stroke(); }
-      hits.current.push({ id: point.id, name: point.name, x, y });
+      ctx.fillStyle = severityColors[point.severity] || severityColors.no_data; ctx.fill(); ctx.strokeStyle = color('--map-atlas-marker-edge', '#fff'); ctx.lineWidth = 2; ctx.stroke();
+      if (point.severity === 'no_data') { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - radius * .45, y + radius * .45); ctx.lineTo(x + radius * .45, y - radius * .45); ctx.stroke(); }
+      else if (point.flagged) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
+      // Numeric labels stay tied to actual source points. Never interpolate.
+      if (point.reading && (layer === 'air' || (width >= 600 && point.reading.endsWith('ppt')) || view.zoom >= 9 || selected)) {
+        ctx.font = '600 11px system-ui, sans-serif';
+        const labelWidth = ctx.measureText(point.reading).width, lx = x + radius + 7, ly = y - 10;
+        if (lx + labelWidth + 12 < width - 60 && ly > 65 && !recordPositions.some(([px,py])=>px>lx-5&&px<lx+labelWidth+16&&Math.abs(py-y)<20)) {
+          ctx.fillStyle = land; ctx.strokeStyle = line; ctx.lineWidth = .7; ctx.beginPath(); ctx.roundRect(lx, ly, labelWidth + 12, 20, 4); ctx.fill(); ctx.stroke();
+          ctx.textAlign = 'left'; ctx.fillStyle = white; ctx.fillText(point.reading, lx + 6, y); ctx.textAlign = 'center';
+        }
+      }
+      hits.current.push({ id: point.id, name: `${point.name}${point.reading ? ` · ${point.reading}` : ''}`, x, y });
     });
     if (home) {
-      const [x, y] = project(home.lng, home.lat);
+      const [anchorX, anchorY] = project(home.lng, home.lat);
+      // A short leader separates the home badge from its nearby utility record.
+      // The anchor stays at the supplied approximate household coordinate.
+      const x = anchorX + 30, y = anchorY + 28;
       if (inFrame(x, y)) {
+        ctx.beginPath(); ctx.moveTo(anchorX, anchorY); ctx.lineTo(x, y); ctx.strokeStyle = white; ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.arc(anchorX, anchorY, 2, 0, Math.PI * 2); ctx.fillStyle = white; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fillStyle = '#123b4b'; ctx.fill(); ctx.strokeStyle = '#c4f8ee'; ctx.lineWidth = selectedId === 'home' ? 3 : 1.5; ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x - 8, y); ctx.lineTo(x, y - 7); ctx.lineTo(x + 8, y); ctx.moveTo(x - 5.5, y - 1); ctx.lineTo(x - 5.5, y + 7); ctx.lineTo(x + 5.5, y + 7); ctx.lineTo(x + 5.5, y - 1); ctx.stroke();
         ctx.fillStyle = '#c4f8ee'; ctx.fillRect(x - 1.5, y + 2, 3, 5);
@@ -274,10 +282,11 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     const power = 10 ** Math.floor(Math.log10(candidateKm));
     const km = [1, 2, 5].map(n => n * power).reverse().find(n => n <= candidateKm) ?? power;
     const pixels = km * 1000 / metersPerPixel;
-    const scaleX = width - pixels - 18, scaleY = height * .52;
+    const scaleX = width - pixels - 18, scaleY = height - (previewOnly ? 40 : 55);
+    ctx.fillStyle = land; ctx.globalAlpha = .9; ctx.fillRect(scaleX - 7, scaleY - 25, pixels + 14, 33); ctx.globalAlpha = 1;
     ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(scaleX, scaleY - 5); ctx.lineTo(scaleX, scaleY); ctx.lineTo(scaleX + pixels, scaleY); ctx.lineTo(scaleX + pixels, scaleY - 5); ctx.stroke();
     ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = ink; ctx.fillText(`${km} km`, width - 18, scaleY - 12);
-  }, [geography, context, dimensions, layer, points, selectedId, home, view, forceEmpty, paletteTick, patterns]);
+  }, [geography, context, dimensions, layer, points, selectedId, home, view, forceEmpty, paletteTick, patterns, previewOnly]);
 
   const local = (event: { clientX: number; clientY: number }): Coordinate => {
     const rect = canvasRef.current!.getBoundingClientRect(); return [event.clientX - rect.left, event.clientY - rect.top];
@@ -335,7 +344,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     else if (event.key === 'Home' && home) { event.preventDefault(); onViewChange(bound({ ...home, zoom: 9 })); }
   };
 
-  return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-presentation={patterns?'patterns':'locations'}>
+  return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-presentation={patterns?'patterns':'locations'} data-context={context ? 'ready' : contextSettled ? 'unavailable' : 'loading'}>
     <canvas ref={canvasRef} tabIndex={previewOnly ? -1 : 0} role="application" aria-label="Map of North Carolina. Use arrow keys to pan, plus and minus to zoom, and Enter to select at the center. The results list offers the same observations." onKeyDown={keyboard} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={event => { pointers.current.delete(event.pointerId); gesture.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={() => onViewChange(bound({ ...view, zoom: view.zoom + 1 }))} />
     <div className="halo-map-atlas-north" aria-hidden="true"><span>N</span><svg viewBox="0 0 16 22"><path d="M8 1 15 20 8 15 1 20Z" /></svg></div>
     <span className="halo-map-atlas-crosshair" aria-hidden="true" />

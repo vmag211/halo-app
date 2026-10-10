@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: Explore active outcome workspaces, later October 10, 2026
+## Current review: Map cartography and data-point refinement, October 10, 2026
+
+Version 27 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. The full Map separates its layer/comparison toolbar, dedicated geography viewport, categorical/density keys and reading dock. Refined cartography, population-sized water circles, distinct symbols, actual sample values, date/time context, selected-compound details and an optimized fixed-support density renderer also flow into Explore's mini map. All four layers, timeline, text list, district, notes and return paths remain available. See `docs/map/README.md` for cartographic research and evidence boundaries.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_daaa7b6f85c081918a5a1efd7ec7838f`.
+- Source commit: `73b78bb8eb713e23dfd0c1c266d51c7cc4bcacef`.
+- Successful deployment ID: `appgdep_6acac0c28cd08191a40f1f5269819f8b`.
+- Archive hash: `sha256:0a1ec4550d67a8bc207c2e4f9c53d3c69696a975f96c000471202b1623db17dd`.
+- Verification: 103 broad static browser checks passed. After the final short-desktop height adjustment, all 63 Map/action-workspace/hosted checks passed, including 46 Map checks and the added 1257x708 case. The canvas return-to-home check passed five serial repeats after fixing retained paint state and waiting for optional cartographic context in pixel assertions. Main TypeScript, scoped ESLint, isolated static build, 133 frontend logic checks and integrity of 204 onboarding plus 146 foundation files passed. Zero/missing values, compound-specific dates, explicit UTC station times, heat-kernel equivalence, no-provider/API isolation, light/dark, 320px/150%, 375px/667px height, selected-note transfer and failure states were verified. Scratch screenshots remain in ignored `test-results/map-review`; no approved baselines changed.
+- Production limits: observations are fictional sample records, not current environmental readings. The heat view is record density, not contamination, exposure or a scientific concentration surface. No live Mapbox, authenticated Map API binding, permission prompt, private account persistence, new comparison adapter or backend change is introduced. Physical Safari and live authenticated workflows remain unverified. Vibhav retains backend ownership and existing review/approval gates remain.
+- Deployment confirmed successful at `2026-10-10T22:48:40.846006+00:00`. Only the isolated Site source was pushed; the main application repository remains a local checkpoint. This publication does not approve the wireframe or production integration.
+
+## Earlier review: Explore active outcome workspaces, later October 10, 2026
 
 Version 26 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Explore retains the evergreen hub and three rectangular nature photos, with a compact Census/Natural Earth map preview opening the matching full map. Public map records can deliberately become private question notes, with separate opt-in Luna evidence context and no home-pin transfer. Volunteering now has personally chosen opportunities, preparation, self-reported participation/history and follow-up. Projects have ongoing workspaces, tailored coaching, deliberate canonical My Week task bundles, notes, pause/resume, completion checks and review. Community, organizations, notes and outreach have independent goal/result/reference/next-step records; unfinished work has hub continuation. Homeguard handoffs retain the same in-memory workspaces.
 

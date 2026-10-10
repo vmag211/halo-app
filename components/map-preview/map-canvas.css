@@ -1,24 +1,30 @@
 .halo-map-atlas {
-  --map-atlas-sea: #cddfe8;
-  --map-atlas-land: #e8eff3;
-  --map-atlas-line: #b7cbd5;
-  --map-atlas-ink: #536d76;
-  --map-atlas-bright: #174555;
+  --map-atlas-sea: #e0ecee;
+  --map-atlas-land: #f0f3ef;
+  --map-atlas-line: #b5c5c8;
+  --map-atlas-ink: #526d76;
+  --map-atlas-bright: #244650;
+  --map-atlas-water: #7eacba;
+  --map-atlas-district: #438a91;
+  --map-atlas-marker-edge: #fff;
+  --map-good: #338b86; --map-moderate: #b27e29; --map-elevated: #c56535;
+  --map-high: #a84966; --map-severe: #754a83; --map-no_data: #87949c;
   width: 100%; height: 100%; min-height: 260px; position: relative; overflow: hidden;
   isolation: isolate; background: var(--map-atlas-sea); color: var(--map-atlas-ink);
 }
 [data-theme="dark"] .halo-map-atlas, [data-appearance="dark"] .halo-map-atlas, [data-mode="dark"] .halo-map-atlas, .dark .halo-map-atlas {
-  --map-atlas-sea: #0a202e; --map-atlas-land: #153340; --map-atlas-line: #32515e;
-  --map-atlas-ink: #a4bac0; --map-atlas-bright: #e5f2f1;
+  --map-atlas-sea: #102935; --map-atlas-land: #1c3944; --map-atlas-line: #3b5862;
+  --map-atlas-ink: #9db6be; --map-atlas-bright: #e2edeb; --map-atlas-water: #6096aa;
+  --map-atlas-marker-edge: #102935;
 }
 @media (prefers-color-scheme: dark) {
-  .halo-map-atlas { --map-atlas-sea: #0d2431; --map-atlas-land: #19343e; --map-atlas-line: #36515a; --map-atlas-ink: #a4bac0; --map-atlas-bright: #e5f2f1; }
-  [data-theme="light"] .halo-map-atlas, [data-appearance="light"] .halo-map-atlas, [data-mode="light"] .halo-map-atlas { --map-atlas-sea: #d5e8e8; --map-atlas-land: #e9efea; --map-atlas-line: #b6cdcb; --map-atlas-ink: #536d76; --map-atlas-bright: #174555; }
+  .halo-map-atlas { --map-atlas-sea: #102935; --map-atlas-land: #1c3944; --map-atlas-line: #3b5862; --map-atlas-ink: #9db6be; --map-atlas-bright: #e2edeb; --map-atlas-water: #6096aa; --map-atlas-marker-edge:#102935; }
+  [data-theme="light"] .halo-map-atlas, [data-appearance="light"] .halo-map-atlas, [data-mode="light"] .halo-map-atlas { --map-atlas-sea: #e0ecee; --map-atlas-land: #f0f3ef; --map-atlas-line: #b5c5c8; --map-atlas-ink: #526d76; --map-atlas-bright: #244650; --map-atlas-water:#7eacba; --map-atlas-marker-edge:#fff; }
 }
 .halo-map-atlas canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; outline-offset: -4px; }
 .halo-map-atlas canvas:active { cursor: grabbing; }
 .halo-map-atlas canvas:focus-visible { outline: 3px solid #69d9cb; }
-.halo-map-atlas-north { position: absolute; inset: 250px 27px auto auto; display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 700; letter-spacing: .08em; pointer-events: none; }
+.halo-map-atlas-north { position: absolute; inset: 184px 27px auto auto; display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 700; letter-spacing: .08em; pointer-events: none; }
 .halo-map-atlas-north svg { width: 13px; height: 19px; fill: var(--map-atlas-ink); }
 .halo-map-atlas-credit { position: absolute; right: 9px; bottom: 7px; max-width: calc(100% - 18px); padding: 3px 5px; border-radius: 5px; font-size: 9px; line-height: 1.4; background: var(--map-atlas-sea); color: var(--map-atlas-ink); }
 .halo-map-atlas-credit a { color: inherit; text-underline-offset: 2px; }

@@ -74,6 +74,25 @@ export function waterSeverity(feature: WaterFeature, compound: Compound): MapSev
   return feature.contaminants[compoundKey[compound]]?.severity ?? 'no_data';
 }
 export function quarterLabel(value: string) { return value === 'latest' ? 'Latest' : `Q${value.slice(-1)} ${value.slice(0,4)}`; }
+export function waterMapReading(feature: WaterFeature, compound: Compound) {
+  if (compound === 'hazard') return feature.hazard_index ? `Index ${feature.hazard_index.value}` : 'No index available';
+  if (compound !== 'overall') {
+    const value = feature.contaminants[compoundKey[compound]]?.value_ppt;
+    return value === undefined ? 'No detection reported' : `${value} ppt`;
+  }
+  const readings = Object.values(feature.contaminants);
+  if (!readings.some(r => r.value_ppt !== undefined)) return 'No comparable result';
+  const count = readings.filter(r => (r.ratio ?? 0) > 1).length;
+  return count ? `${count} over limit` : 'No over-limit detection';
+}
+export function waterSampleDate(feature: WaterFeature, compound: Compound) {
+  return compound === 'overall' || compound === 'hazard' ? feature.latest_sample_iso : feature.contaminants[compoundKey[compound]]?.date_iso;
+}
+export function observationTime(value: string | null | undefined) {
+  if (!value) return 'No observation time available';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'No observation time available' : new Intl.DateTimeFormat('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', timeZone:'UTC', timeZoneName:'short' }).format(date);
+}
 export function readingDate(value: string | null | undefined) { if (!value) return 'No date available'; const d = new Date(value.length === 10 ? `${value}T12:00:00Z` : value); return Number.isNaN(d.getTime()) ? 'No date available' : new Intl.DateTimeFormat('en-US', {month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(d); }
 export function milesFromHome(lat: number, lng: number) { const r = Math.PI / 180; const a = Math.sin((lat-sampleHome.lat)*r/2)**2 + Math.cos(lat*r)*Math.cos(sampleHome.lat*r)*Math.sin((lng-sampleHome.lng)*r/2)**2; return Math.max(.1,3958.8*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))).toFixed(1); }
 export function readMapQuery(params: URLSearchParams) {

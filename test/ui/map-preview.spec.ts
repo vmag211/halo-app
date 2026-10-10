@@ -281,6 +281,7 @@ test('invalid deep-link values recover safely, single-quarter hides timeline, em
 
 test('canvas keyboard pan, zoom and locate redraw the atlas; layer switching preserves the view', async ({ page }) => {
   await openReadyMap(page);
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-context', 'ready');
   const canvas = page.getByRole('application');
   await page.getByRole('button', { name: 'Locate your home' }).click();
   const pixels = async () => createHash('sha256').update(await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).digest('hex');
@@ -418,7 +419,7 @@ test('area brief compiles visible records, coverage, and selected-system context
   await expect(dialog.locator('.halo-map-brief-metrics')).toHaveCount(0);
 });
 
-for(const [width,height] of [[1440,1000],[375,667]]) test(`refined atlas at ${width}x${height} keeps controls usable`,async({page})=>{
+for(const [width,height] of [[1440,1000],[1257,708],[375,667]]) test(`refined atlas at ${width}x${height} keeps controls usable`,async({page})=>{
   await page.setViewportSize({width,height});
   await openReadyMap(page);
   await assertFits(page);
@@ -435,4 +436,52 @@ for(const [width,height] of [[1440,1000],[375,667]]) test(`refined atlas at ${wi
     await expect(page.getByRole('dialog')).toContainText('Read the pattern.');
     await page.getByRole('button',{name:'Close sheet'}).click();
   }
+});
+
+for (const [width, scale] of [[320, '150'], [375, '100'], [1440, '100']]) test(`cartographic workbench ${width}px at ${scale}% separates geography and reading dock`, async ({ page }) => {
+  await page.setViewportSize({ width: Number(width), height: width === 1440 ? 1000 : 850 });
+  await openReadyMap(page, `scale=${scale}`);
+  const viewport = await page.getByTestId('map-viewport').boundingBox();
+  const filters = await page.locator('.halo-map-top').boundingBox();
+  const legend = await page.getByRole('button', { name: 'Legend', exact: true }).boundingBox();
+  expect(viewport!.height).toBeGreaterThanOrEqual(350);
+  expect(filters!.y + filters!.height).toBeLessThanOrEqual(viewport!.y + 1);
+  expect(legend!.y).toBeGreaterThanOrEqual(viewport!.y + viewport!.height - 1);
+  await expect(page.locator('.halo-map-count')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Legend', exact: true })).toContainText('Record density, not concentration');
+  await assertFits(page);
+  await page.getByLabel('Water comparison', { exact: true }).selectOption('pfoa');
+  await page.getByRole('button', { name: 'List', exact: true }).click();
+  const list = page.getByRole('dialog');
+  await list.getByRole('searchbox').fill('Longleaf');
+  await expect(list).toContainText('0 ppt');
+  await expect(list).toContainText('Nov 4, 2025');
+  await list.getByRole('button', { name: /Longleaf Water/ }).click();
+  await expect(list.locator('.halo-map-selected-reading')).toContainText('0 ppt');
+  await expect(list.locator('.halo-map-selected-reading')).toContainText('parts per trillion');
+  await expect(list.locator('.halo-map-thresholds section[data-selected="true"]')).toContainText('PFOA');
+  await page.getByRole('button', { name: 'Close sheet' }).click();
+  await page.getByRole('button', { name: 'List', exact: true }).click();
+  await list.getByRole('searchbox').fill('Sandhill');
+  await expect(list).toContainText('No detection reported');
+  await assertFits(page);
+  await page.getByRole('button', { name: 'Close sheet' }).click();
+  await scratchScreenshot(page, `workbench-${width}-${scale}`);
+});
+
+for (const appearance of ['light', 'dark']) test(`high-end cartography ${appearance} preserves each layer's legend and source values`, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/foundation/preview/map?layer=water&appearance=${appearance}&motion=reduce`);
+  await expect(page.getByText('Loading map data.', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('application')).toBeVisible();
+  for (const [layer, label] of [['Water','System result categories'],['Radon','County radon potential'],['Facilities','Reported compliance'],['Air','Monitor AQI categories']]) {
+    await page.getByRole('radio', { name: layer, exact: true }).click();
+    await expect(page.getByText('Loading map data.', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Legend', exact: true })).toContainText(label);
+    await assertFits(page);
+    await scratchScreenshot(page, `cartography-${appearance}-${layer.toLowerCase()}`);
+  }
+  await page.getByRole('button', { name: 'List', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('42 AQI');
+  await expect(page.getByRole('dialog')).toContainText('Sep 30, 2026');
 });
