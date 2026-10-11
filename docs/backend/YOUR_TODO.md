@@ -14,11 +14,11 @@ Status right now:
 - `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
 - Your next actions are still the read-only audit, disposable-project migration verification, recovery/privacy decisions and supplying the missing full spec. The instructions below remain the manual checklist.
 
-The sections below are in the order to do them. Part 1 can be done today and is read only. Part 2 changes your database, so do it only when you are ready.
+The sections below are in the order to do them. Part 1 can be done today and is read only, with ONE exception: the guarded `ucmr5_utilities` fix in 1.1 changes your database, and you run it only if the audit says to. Part 2 changes your database, so do it only when you are ready.
 
 ---
 
-## Part 1. Read-only checks (safe, change nothing)
+## Part 1. Read-only checks (change nothing, except the one guarded fix in 1.1)
 
 ### 1.1 Run the schema audit once
 
@@ -34,8 +34,9 @@ Things to watch for in the result (Claude will diff it for you):
 
 - `ucmr5_utilities`: we ASSUMED it has row level security on with a public read policy. If it is off, anyone with the public anon key can write to that table. This is the single most important thing the audit answers.
 - Any table with `rls_enabled` false, or a policy that is not in the migrations.
+- If the audit errors on the `supabase_migrations` part or the cell is too big to copy, tell Claude what the error says. It was only tested on a local copy of Postgres, not on Supabase's editor.
 
-**ONLY if the audit shows `ucmr5_utilities` with `rls_enabled` false, or with INSERT, UPDATE or DELETE for `anon` or `authenticated`** (in its `table_grants` entry, or in `column_grants`), run this in a **New query**. Otherwise skip it.
+**THIS BLOCK CHANGES YOUR DATABASE. Run it ONLY if the audit shows `ucmr5_utilities` with `rls_enabled` false, or a policy on it that lets `anon` or `authenticated` write.** Supabase gives `anon` and `authenticated` INSERT, UPDATE and DELETE grants on every public table by default, and with row level security on and only a public read policy those grants are harmless, so seeing the grants alone is NOT a reason to run this. If the table is healthy and you run it anyway, it is harmless: it only removes those unused default write grants. In a **New query**:
 
 Why it is safe: the only thing that writes this table is `uploadData.js`, which uses the service role key, and the service role is not affected. Every read keeps working: the server routes read it with the service role, and `app/api/home-guard/route.js` reads it with the public anon key, which the public read policy below allows. The policy name and shape are the ones the reconstructed baseline assumes. Safe to run twice.
 
@@ -49,7 +50,6 @@ revoke insert, update, delete on public.ucmr5_utilities from anon, authenticated
 ```
 
 Then run the audit again and check `ucmr5_utilities`: `rls_enabled` true, one SELECT policy, and no INSERT, UPDATE or DELETE for `anon` or `authenticated`. If the audit showed other policies on this table, tell Claude: this block does not remove them.
-- If the audit errors on the `supabase_migrations` part or the cell is too big to copy, tell Claude what the error says. It was only tested on a local copy of Postgres, not on Supabase's editor.
 
 ### 1.2 Check for old push subscriptions
 
@@ -105,7 +105,14 @@ Both migrations are files in `supabase/migrations/`. They are safe to run twice.
 Recommended order of operations:
 
 1. Wait until the B01 checkpoint is reviewed and the branch is approved, merged and deployed (see Part 3). The new routes tolerate the migrations being missing, so deploying first is safe.
-2. Take a backup of production first. In the Supabase dashboard, open **Database**, then **Backups**: if your plan lists a recent backup, note its time, so you know what a restore would go back to. If it lists none (the free plan keeps none you can restore yourself), make your own copy with the Supabase CLI (`supabase db dump`, once for the schema and once with `--data-only` for the data) and keep the files private: they hold household data.
+2. Take a backup of production first. In the Supabase dashboard, open **Database**, then **Backups**: if your plan lists a recent backup, note its time, so you know what a restore would go back to. If it lists none (as far as I know the free plan keeps none you can restore yourself; check your plan), make your own copy with the Supabase CLI and keep the files private: they hold household data. Commands (log in and link the CLI to the project first, with `supabase login` then `supabase link --project-ref <your project ref>`; `supabase db dump` may also need Docker running):
+
+   ```sh
+   supabase db dump -f halo-schema.sql
+   supabase db dump --data-only -f halo-data.sql
+   ```
+
+   I have NOT checked these dashboard and CLI steps against the current Supabase dashboard or CLI. If anything differs, follow Supabase's own backup instructions; the point is to have a copy you can restore from before step 4.
 3. Trial run on a throwaway Supabase project: **required before 0016**, and strongly recommended before 0015. Make a new, empty project, give it production's schema (no data: for example the schema-only `supabase db dump` from step 2, pasted into the new project's SQL editor), then in that project: apply 0015 and run its checks (2.1), apply 0016 and run its checks (2.2), run both "If you need to back out" blocks (0016's first), then apply 0015 and 0016 again and repeat the checks. Every step should succeed. If the schema dump does not load cleanly, or any step fails, stop and tell Claude what it said. Delete the throwaway project afterwards.
 4. Then apply 0015, then 0016, on production. Do 0016 soon after 0015 and after the new code is live, so the old onboarding code does not move a household without updating its home context.
 
@@ -190,6 +197,8 @@ alter table public.symptom_logs drop constraint if exists symptom_logs_entry_dat
 ```
 
 Then run `notify pgrst, 'reload schema';`. The household save goes back to two steps and answers `"transactional": false`.
+
+Then re-run the step 6 check from 2.1: this time `ins`, `upd` and `del` should be `true` on every row (a GRANT, like a REVOKE, only prints a warning when the role running it did not make the original grants, so the check is how you know it worked).
 
 What this does NOT restore or undo:
 
