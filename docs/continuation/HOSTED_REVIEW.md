@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: Map cartography and data-point refinement, October 10, 2026
+## Current review: Map semantic symbols and useful tools, October 11, 2026
+
+Version 28 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Water drops, facility silhouettes/numbered building groups and monitor wind strokes replace the basic point shapes; the same paths appear in the atlas, key, legend, result list and Explore mini map. Atlas labels and source numbers use HALO's local Onest with explicitly tabular Canvas digits. Search adds all-record/current-window scope, multi-term name/ID matching and optional approximate-home distance sorting. Fit layer, Previous view, optional labels and real selected-record focus improve navigation without adding measurements or provider calls. The desktop reading dock stays above the shared bottom navigation at 1440x1000. See `docs/map/README.md` for research, contracts and limitations.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_5dbf3b2cb164819185db64677a75b085`.
+- Source commit: `432558ec3d4241c9879cfc053b90bb0b32148b8a`.
+- Successful deployment ID: `appgdep_6acb25d026748191bb7c2dd795defb9d`.
+- Archive hash: `sha256:cd36142589ee35f1a45f02d8bea6064379e02f5b3b50d33b121a4ad28d017feb`.
+- Verification: all 71 final static Map/action-workspace/hosted checks passed, including 54 Map checks, fit/return pixel equality, scope/search/sort, mapped/unlocated focus, keyboard return, symbols/fonts, 320px/150%, short mobile/desktop and all four layers in light/dark. All 137 frontend logic checks, main TypeScript, scoped ESLint and the isolated 21-page static build passed. All 204 preserved onboarding and 146 immutable foundation files are unchanged. Two first-pass accessibility failures were repaired before the passing full run; the full suite passed again after the final desktop dock adjustment. Scratch screenshots remain ignored; no approved baseline changed.
+- Production limits: environmental observations and household context remain fictional sample records. Density is record density, not concentration or exposure. The new tools use current layer fields and require no new backend fields, but do not establish live Mapbox, authenticated adapters, account persistence, comparison/watch contracts or physical Safari support. No live location access, account writes, messages, backend routes or scientific source calculations were added. Vibhav retains backend ownership and existing approval gates.
+- Deployment confirmed successful at `2026-10-11T05:59:51.567104+00:00`. Only the isolated Site source was pushed; the main application repository remains a local checkpoint. Publication does not approve the wireframe or production integration.
+
+## Earlier review: Map cartography and data-point refinement, October 10, 2026
 
 Version 27 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. The full Map separates its layer/comparison toolbar, dedicated geography viewport, categorical/density keys and reading dock. Refined cartography, population-sized water circles, distinct symbols, actual sample values, date/time context, selected-compound details and an optimized fixed-support density renderer also flow into Explore's mini map. All four layers, timeline, text list, district, notes and return paths remain available. See `docs/map/README.md` for cartographic research and evidence boundaries.
 

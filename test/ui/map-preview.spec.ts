@@ -146,6 +146,91 @@ test('layer result lists open each kind of feature without stacking sheets', asy
   }
 });
 
+test('fit and previous view preserve filters and return to the same rendered atlas', async ({ page }) => {
+  await openReadyMap(page, 'contaminant=pfoa');
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-fonts','ready');
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-context','ready');
+  const initial=await page.getByRole('application').screenshot();
+  await expect(page.getByRole('button',{name:'Previous view',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'Fit layer',exact:true}).click();
+  await expect(page.getByTestId('map-canvas')).not.toHaveAttribute('data-zoom','8');
+  await expect(page.getByLabel('Water comparison',{exact:true})).toHaveValue('pfoa');
+  await page.getByRole('button',{name:'Previous view',exact:true}).click();
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-zoom','8');
+  expect(createHash('sha256').update(await page.getByRole('application').screenshot()).digest('hex')).toBe(createHash('sha256').update(initial).digest('hex'));
+  await expect(page.getByRole('button',{name:'Previous view',exact:true})).toBeDisabled();
+});
+
+test('record search intersects visible scope, recovers empty matches and sorts missing positions last', async ({ page }) => {
+  await openReadyMap(page);
+  await page.getByRole('button',{name:'Find a location',exact:true}).click();
+  const rows=page.locator('.halo-map-results > button');
+  await expect(rows).toHaveCount(15);
+  await page.getByRole('button',{name:'In this view',exact:true}).click();
+  expect(await rows.count()).toBeLessThan(15);
+  await page.getByRole('searchbox').fill('unmapped');
+  await expect(rows).toHaveCount(0);
+  await page.getByRole('button',{name:'Show all records',exact:true}).click();
+  await expect(rows).toHaveCount(15);
+  await page.getByLabel('Sort results',{exact:true}).selectOption('nearest');
+  await expect(rows.nth(13)).toContainText('No mapped location');
+  await expect(rows.nth(14)).toContainText('No mapped location');
+  await expect(page.getByRole('dialog')).toContainText('not necessarily your supplier');
+  await page.getByRole('searchbox').fill('sample-04 longleaf');
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText('Longleaf');
+});
+
+test('focus a searched public record, then return without putting household coordinates in the URL', async ({ page }) => {
+  await openReadyMap(page,'contaminant=pfoa');
+  await page.getByRole('button',{name:'Find a location',exact:true}).click();
+  await page.getByRole('searchbox').fill('Longleaf');
+  await page.locator('.halo-map-results > button').click();
+  await page.getByRole('button',{name:'Focus on map',exact:true}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-selection','SAMPLE-04');
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-zoom','10');
+  expect(new URL(page.url()).searchParams.has('lat')).toBe(false);
+  expect(new URL(page.url()).searchParams.has('lng')).toBe(false);
+  await expect(page.getByRole('application')).toBeFocused();
+  await page.getByRole('button',{name:'Previous view',exact:true}).click();
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-zoom','8');
+  await expect(page.getByTestId('map-canvas')).not.toHaveAttribute('data-selection');
+});
+
+test('unlocated records stay useful but cannot claim a map position', async ({ page }) => {
+  await openReadyMap(page,'system=SAMPLE-14');
+  await expect(page.getByRole('button',{name:'Focus on map',exact:true})).toBeDisabled();
+  await expect(page.getByRole('dialog')).toContainText('No mapped location is available');
+});
+
+test('labels are optional, the symbol key matches the layer, and numbers use app fonts', async ({ page }) => {
+  await openReadyMap(page);
+  await page.getByRole('button',{name:'Show map labels',exact:true}).click();
+  await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-labels','hidden');
+  await expect(page.getByRole('button',{name:'Show map labels',exact:true})).toHaveAttribute('aria-pressed','false');
+  const font=await page.getByRole('application').evaluate(el=>getComputedStyle(el).fontFamily);
+  expect(font).toMatch(/onest/i);
+  expect(await page.getByTestId('map-product').evaluate(el=>getComputedStyle(el).fontVariantNumeric)).toContain('tabular-nums');
+  for(const layer of ['Water','Facilities','Air','Radon']){
+    await page.getByRole('radio',{name:layer,exact:true}).click();
+    await expect(page.locator(`.halo-map-key .halo-map-symbol[data-layer="${layer.toLowerCase()}"]`).first()).toBeVisible();
+    await expect(page.getByTestId('map-canvas')).toHaveAttribute('data-labels','hidden');
+  }
+});
+
+for(const [width,scale] of [[320,150],[375,100],[1440,100]]) test(`new map tools and record finder fit ${width}px at ${scale}%`,async({page})=>{
+  await page.setViewportSize({width,height:850});
+  await openReadyMap(page,`scale=${scale}`);
+  await expect(page.getByRole('button',{name:'Fit layer',exact:true})).toBeVisible();
+  await assertFits(page);
+  await page.getByRole('button',{name:'Find a location',exact:true}).click();
+  await assertFits(page);
+  await page.getByRole('searchbox').fill('water');
+  await assertFits(page);
+  await scratchScreenshot(page,`finder-${width}-${scale}`);
+});
+
 test('Learn replaces location sheet, keeps context, traps focus, and browser Back closes once', async ({ page }) => {
   await openReadyMap(page, 'contaminant=pfos');
   const initialLength = await page.evaluate(() => window.history.length);
@@ -479,6 +564,9 @@ for (const appearance of ['light', 'dark']) test(`high-end cartography ${appeara
     await expect(page.getByText('Loading map data.', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Legend', exact: true })).toContainText(label);
     await assertFits(page);
+    const dock=await page.locator('.halo-map-bottom').boundingBox();
+    const navigation=await page.getByRole('navigation',{name:'Main navigation'}).boundingBox();
+    expect(dock!.y+dock!.height).toBeLessThanOrEqual(navigation!.y);
     await scratchScreenshot(page, `cartography-${appearance}-${layer.toLowerCase()}`);
   }
   await page.getByRole('button', { name: 'List', exact: true }).click();

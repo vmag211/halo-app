@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { densityRGBA, recordDensity } from '@/lib/frontend/map-visuals';
+import { mapSymbols, waterSymbolRadius, mapNumberLayout } from '@/lib/frontend/map-symbols';
 import './map-canvas.css';
 
 export type MapLayer = 'water' | 'radon' | 'facilities' | 'air';
@@ -20,10 +21,11 @@ type Props = {
   onReady?: (ready: boolean) => void; onUnavailable?: () => void;
   onVisibleCountChange?: (count: number) => void; forceEmpty?: boolean;
   patterns?: boolean; onVisibleIdsChange?: (ids: string[]) => void; previewOnly?: boolean;
+  labels?: boolean; onNavigationStart?: () => void;
 };
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
-const bound = (view: MapView): MapView => ({ lng: clamp(view.lng, -84.6, -75), lat: clamp(view.lat, 33.6, 36.8), zoom: clamp(view.zoom, 6, 12) });
+const bound = (view: MapView): MapView => ({ lng: clamp(view.lng, -84.6, -75), lat: clamp(view.lat, 33.6, 36.8), zoom: clamp(view.zoom, 5, 12) });
 const world = (lng: number, lat: number): Coordinate => {
   const sine = Math.sin(clamp(lat, -85, 85) * Math.PI / 180);
   return [(lng + 180) / 360, .5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI)];
@@ -52,10 +54,10 @@ function trace(geometry: Geometry, project: (lng: number, lat: number) => Coordi
 const priorityCounties = new Set(['Union County', 'Mecklenburg County', 'Cabarrus County', 'Stanly County', 'Anson County', 'Richmond County', 'Montgomery County', 'Scotland County', 'Robeson County', 'Wake County', 'Buncombe County', 'Guilford County', 'New Hanover County']);
 const severityFallbacks: Record<string, string> = { good: '#338b86', moderate: '#b27e29', elevated: '#c56535', high: '#a84966', severe: '#754a83', no_data: '#87949c' };
 
-export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false, previewOnly = false }: Props) {
+export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false, previewOnly = false, labels = true, onNavigationStart }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const callbacks = useRef({ onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange });
+  const callbacks = useRef({ onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, onNavigationStart });
   const emittedVisibleCount = useRef<number | null>(null);
   const emittedVisibleIds = useRef('');
   const latest = useRef({ view, layer, points, forceEmpty });
@@ -72,8 +74,15 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   const [paletteTick, setPaletteTick] = useState(0);
   const [hover, setHover] = useState<Hit | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [fontsReady, setFontsReady] = useState(false);
 
-  useEffect(() => { callbacks.current = { onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange }; latest.current = { view, layer, points, forceEmpty }; });
+  useEffect(() => { callbacks.current = { onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, onNavigationStart }; latest.current = { view, layer, points, forceEmpty }; });
+  useEffect(() => {
+    let active = true;
+    // Use the app's local fonts, and repaint after swap without delaying controls.
+    document.fonts.ready.then(() => { if (active) { setFontsReady(true); setPaletteTick(value => value + 1); } });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     const abort = new AbortController();
     callbacks.current.onReady?.(false);
@@ -122,6 +131,8 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.lineJoin = 'miter';
     ctx.lineCap = 'butt'; ctx.globalAlpha = 1; ctx.setLineDash([]);
     const styles = getComputedStyle(canvas);
+    const fontScale = clamp(Number(styles.getPropertyValue('--halo-text-scale')) || 1, 1, 1.5);
+    const font = (size: number, weight = 500) => `${weight} ${size * fontScale}px ${styles.fontFamily}`;
     const color = (key: string, fallback: string) => styles.getPropertyValue(key).trim() || fallback;
     const sea = color('--map-atlas-sea', '#0d2431'), land = color('--map-atlas-land', '#193440');
     const line = color('--map-atlas-line', '#36535c'), ink = color('--map-atlas-ink', '#a2b6be');
@@ -183,12 +194,12 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     // Their neutral dot and sentence case distinguish them from data markers.
     const recordPositions = (forceEmpty || layer === 'radon' ? [] : points).map(p => project(p.lng, p.lat));
     const cityLabels: {x:number;y:number;width:number}[]=[];
-    context?.places.slice().sort((a,b)=>a.rank-b.rank).forEach(place=>{
+    if (labels) context?.places.slice().sort((a,b)=>a.rank-b.rank).forEach(place=>{
       if(view.zoom<7 && place.rank>5 || view.zoom<8 && place.rank>7) return;
       const [x,y]=project(...place.coordinates);
       if(x<20||x>width-70||y<15||y>height-20) return;
       ctx.save();ctx.setTransform(1,0,0,1,0,0);const insideState=ctx.isPointInPath(statePath,x,y);ctx.restore();if(!insideState)return;
-      ctx.font='600 12px system-ui, sans-serif';const labelWidth=ctx.measureText(place.name).width;
+      ctx.font=font(12,600);const labelWidth=ctx.measureText(place.name).width;
       if(recordPositions.some(([px,py])=>px>x-16&&px<x+labelWidth+20&&Math.abs(py-y)<19)) return;
       if(cityLabels.some(p=>Math.abs(x-p.x)<(labelWidth+p.width)/2+35 && Math.abs(y-p.y)<30))return;
       cityLabels.push({x,y,width:labelWidth});
@@ -199,11 +210,11 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     // Label positions are polygon centroids, not invented city coordinates.
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const placedLabels: { x: number; y: number; width: number }[] = [];
-    [...geography.counties].sort((a, b) => Number(priorityCounties.has(b.name)) - Number(priorityCounties.has(a.name))).forEach(county => {
+    if (labels) [...geography.counties].sort((a, b) => Number(priorityCounties.has(b.name)) - Number(priorityCounties.has(a.name))).forEach(county => {
       if (view.zoom < 9 && !priorityCounties.has(county.name)) return;
       const [x, y] = project(...county.center);
       if (x < -20 || x > width + 20 || y < 10 || y > height - 30) return;
-      ctx.font = `${priorityCounties.has(county.name) ? '600' : '400'} ${view.zoom < 7 ? 9 : 10}px system-ui, sans-serif`;
+      ctx.font = font(view.zoom < 7 ? 9 : 10, priorityCounties.has(county.name) ? 600 : 400);
       const label = county.name.replace(' County', '').toUpperCase();
       const labelWidth = ctx.measureText(label).width;
       if(recordPositions.some(([px,py])=>Math.abs(px-x)<labelWidth/2+17&&Math.abs(py-y)<18)) return;
@@ -213,7 +224,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
       ctx.fillStyle = ink; ctx.fillText(label, x, y);
       if (layer === 'radon' && !forceEmpty) {
         const reading = radonByCounty.get(county.name);
-        if (reading?.zone) { ctx.font = '10px system-ui, sans-serif'; ctx.fillStyle = white; ctx.fillText(`Zone ${reading.zone}`, x, y + 15); }
+        if (reading?.zone) { ctx.font = font(10); ctx.fillStyle = white; ctx.fillText(`Zone ${reading.zone}`, x, y + 15 * fontScale); }
       }
     });
 
@@ -231,34 +242,49 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
       else groups.push({ members: [point], x, y });
     });
     hits.current = [];
+    const symbol = mapSymbols[layer];
+    const body = symbol.body ? new Path2D(symbol.body) : null, detail = new Path2D(symbol.detail);
+    const drawSymbol = (x: number, y: number, radius: number, fill: string, selected: boolean, own: boolean, missing: boolean, flagged: boolean) => {
+      ctx.save(); ctx.translate(x, y); const size = radius / 12; ctx.scale(size, size); ctx.translate(-12, -12);
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      if (body) {
+        if (selected || own) { ctx.strokeStyle = selected ? white : color('--map-atlas-district', '#438a91'); ctx.lineWidth = 7 / size; ctx.stroke(body); }
+        ctx.fillStyle = fill; ctx.fill(body); ctx.strokeStyle = color('--map-atlas-marker-edge', '#fff'); ctx.lineWidth = 2 / size; ctx.stroke(body);
+        if (!flagged && !missing) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / size; ctx.stroke(detail); }
+      } else {
+        // Wind strokes are a station symbol, never a coverage ring or wind direction.
+        ctx.strokeStyle = selected ? white : land; ctx.lineWidth = (selected ? 7 : 5) / size; ctx.stroke(detail);
+        ctx.strokeStyle = fill; ctx.lineWidth = 2.4 / size; ctx.stroke(detail);
+      }
+      if (missing) { ctx.beginPath(); ctx.moveTo(6,19); ctx.lineTo(18,7); ctx.strokeStyle='#fff'; ctx.lineWidth=2/size; ctx.stroke(); }
+      else if (flagged) { ctx.strokeStyle='#fff'; ctx.lineWidth=1.6/size; ctx.beginPath(); ctx.moveTo(12,10); ctx.lineTo(12,14); ctx.stroke(); ctx.fillStyle='#fff'; ctx.fillRect(11.2,16,1.6,1.6); }
+      ctx.restore();
+    };
+    const readingBoxes: {x:number;y:number;w:number;h:number}[] = [];
     groups.sort((a, b) => Number(a.members.some(p => p.id === selectedId)) - Number(b.members.some(p => p.id === selectedId))).forEach(({ members, x, y }) => {
       const point = members[0], selected = members.some(member => member.id === selectedId);
       if (members.length > 1) {
-        ctx.beginPath(); ctx.arc(x, y, 17, 0, Math.PI * 2); ctx.fillStyle = '#183c48'; ctx.fill(); ctx.strokeStyle = '#82c6c4'; ctx.lineWidth = selected ? 3 : 1.5; ctx.stroke();
-        ctx.fillStyle = '#eefaf6'; ctx.font = '600 12px system-ui, sans-serif'; ctx.fillText(String(members.length), x, y);
+        drawSymbol(x-3,y-2,13,line,false,false,false,false);
+        drawSymbol(x+1,y+2,13,color('--map-atlas-district','#438a91'),selected,false,false,false);
+        ctx.font=font(11,650); const count=mapNumberLayout(String(members.length),c=>ctx.measureText(c).width), countWidth=count.width+12;
+        ctx.beginPath();ctx.roundRect(x+8,y-18,countWidth,22,5);ctx.fillStyle=white;ctx.fill();ctx.strokeStyle=land;ctx.lineWidth=1.5;ctx.stroke();
+        ctx.fillStyle=land;ctx.textAlign='left';count.characters.forEach(c=>ctx.fillText(c.character,x+14+c.x,y-7));ctx.textAlign='center';
         hits.current.push({ id: `cluster:${point.id}`, name: `${members.length} facilities. Select to expand.`, x, y, cluster: members }); return;
       }
-      const radius = layer === 'water' ? clamp(Math.sqrt(Math.max(point.population ?? 0, 0) / 10000) * 5, 5.5, 15) : layer === 'air' ? 9 : 7;
-      if (layer === 'air' && patterns) {
-        ctx.beginPath(); ctx.arc(x, y, 24, 0, Math.PI * 2); ctx.fillStyle = severityColors[point.severity] || severityColors.no_data; ctx.globalAlpha = .13; ctx.fill(); ctx.globalAlpha = .45; ctx.lineWidth = 1; ctx.strokeStyle = ctx.fillStyle; ctx.stroke(); ctx.globalAlpha = 1;
-      }
-      if (point.isOwn || selected) {
-        ctx.beginPath(); ctx.arc(x, y, radius + (selected ? 6 : 4), 0, Math.PI * 2); ctx.strokeStyle = selected ? white : color('--map-atlas-district', '#438a91'); ctx.lineWidth = selected ? 2 : 1.5; ctx.stroke();
-      }
-      ctx.beginPath();
-      if (layer === 'air') { ctx.moveTo(x, y - radius); ctx.lineTo(x + radius, y); ctx.lineTo(x, y + radius); ctx.lineTo(x - radius, y); ctx.closePath(); }
-      else if (layer === 'facilities') ctx.roundRect(x - radius, y - radius, radius * 2, radius * 2, 3);
-      else ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = severityColors[point.severity] || severityColors.no_data; ctx.fill(); ctx.strokeStyle = color('--map-atlas-marker-edge', '#fff'); ctx.lineWidth = 2; ctx.stroke();
-      if (point.severity === 'no_data') { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - radius * .45, y + radius * .45); ctx.lineTo(x + radius * .45, y - radius * .45); ctx.stroke(); }
-      else if (point.flagged) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
+      const radius = layer === 'water' ? waterSymbolRadius(point.population) : 12;
+      drawSymbol(x,y,radius,severityColors[point.severity] || severityColors.no_data,selected,!!point.isOwn,point.severity==='no_data',!!point.flagged);
       // Numeric labels stay tied to actual source points. Never interpolate.
-      if (point.reading && (layer === 'air' || (width >= 600 && point.reading.endsWith('ppt')) || view.zoom >= 9 || selected)) {
-        ctx.font = '600 11px system-ui, sans-serif';
-        const labelWidth = ctx.measureText(point.reading).width, lx = x + radius + 7, ly = y - 10;
-        if (lx + labelWidth + 12 < width - 60 && ly > 65 && !recordPositions.some(([px,py])=>px>lx-5&&px<lx+labelWidth+16&&Math.abs(py-y)<20)) {
-          ctx.fillStyle = land; ctx.strokeStyle = line; ctx.lineWidth = .7; ctx.beginPath(); ctx.roundRect(lx, ly, labelWidth + 12, 20, 4); ctx.fill(); ctx.stroke();
-          ctx.textAlign = 'left'; ctx.fillStyle = white; ctx.fillText(point.reading, lx + 6, y); ctx.textAlign = 'center';
+      if (point.reading && (labels || selected) && (layer === 'air' || (width >= 600 && point.reading.endsWith('ppt')) || view.zoom >= 9 || selected || point.isOwn)) {
+        ctx.font = font(11,600);
+        const label = point.isOwn ? `Your system · ${point.reading}` : point.reading;
+        const layout=mapNumberLayout(label,c=>ctx.measureText(c).width), w = layout.width + 16, h = 22 * fontScale;
+        // Try several anchors before suppressing a label. Records never move.
+        const positions = [[x+radius+8,y-h/2],[x-radius-8-w,y-h/2],[x-w/2,y+radius+8],[x-w/2,y-radius-8-h]];
+        const at = positions.find(([lx,ly]) => lx>8 && lx+w<width-58 && ly>65 && ly+h<height-65 && !recordPositions.some(([px,py]) => Math.hypot(px-x,py-y)>1 && px>lx-12 && px<lx+w+12 && py>ly-12 && py<ly+h+12) && !readingBoxes.some(b => lx<b.x+b.w+6 && lx+w>b.x-6 && ly<b.y+b.h+5 && ly+h>b.y-5));
+        if (at) {
+          const [lx,ly]=at; readingBoxes.push({x:lx,y:ly,w,h});
+          ctx.fillStyle=land;ctx.strokeStyle=point.isOwn?color('--map-atlas-district','#438a91'):line;ctx.lineWidth=.8;ctx.beginPath();ctx.roundRect(lx,ly,w,h,4);ctx.fill();ctx.stroke();
+          ctx.textAlign='left';ctx.fillStyle=white;layout.characters.forEach(c=>ctx.fillText(c.character,lx+8+c.x,ly+h/2));ctx.textAlign='center';
         }
       }
       hits.current.push({ id: point.id, name: `${point.name}${point.reading ? ` · ${point.reading}` : ''}`, x, y });
@@ -271,7 +297,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
       if (inFrame(x, y)) {
         ctx.beginPath(); ctx.moveTo(anchorX, anchorY); ctx.lineTo(x, y); ctx.strokeStyle = white; ctx.lineWidth = 1; ctx.stroke();
         ctx.beginPath(); ctx.arc(anchorX, anchorY, 2, 0, Math.PI * 2); ctx.fillStyle = white; ctx.fill();
-        ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fillStyle = '#123b4b'; ctx.fill(); ctx.strokeStyle = '#c4f8ee'; ctx.lineWidth = selectedId === 'home' ? 3 : 1.5; ctx.stroke();
+        ctx.beginPath(); ctx.roundRect(x-15,y-15,30,30,[12,12,5,5]); ctx.fillStyle = '#123b4b'; ctx.fill(); ctx.strokeStyle = '#c4f8ee'; ctx.lineWidth = selectedId === 'home' ? 3 : 1.5; ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x - 8, y); ctx.lineTo(x, y - 7); ctx.lineTo(x + 8, y); ctx.moveTo(x - 5.5, y - 1); ctx.lineTo(x - 5.5, y + 7); ctx.lineTo(x + 5.5, y + 7); ctx.lineTo(x + 5.5, y - 1); ctx.stroke();
         ctx.fillStyle = '#c4f8ee'; ctx.fillRect(x - 1.5, y + 2, 3, 5);
         hits.current.push({ id: 'home', name: 'Sample household location', x, y });
@@ -285,8 +311,8 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     const scaleX = width - pixels - 18, scaleY = height - (previewOnly ? 40 : 55);
     ctx.fillStyle = land; ctx.globalAlpha = .9; ctx.fillRect(scaleX - 7, scaleY - 25, pixels + 14, 33); ctx.globalAlpha = 1;
     ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(scaleX, scaleY - 5); ctx.lineTo(scaleX, scaleY); ctx.lineTo(scaleX + pixels, scaleY); ctx.lineTo(scaleX + pixels, scaleY - 5); ctx.stroke();
-    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = ink; ctx.fillText(`${km} km`, width - 18, scaleY - 12);
-  }, [geography, context, dimensions, layer, points, selectedId, home, view, forceEmpty, paletteTick, patterns, previewOnly]);
+    ctx.font = font(11); ctx.textAlign = 'right'; ctx.fillStyle = ink; ctx.fillText(`${km} km`, width - 18, scaleY - 12);
+  }, [geography, context, dimensions, layer, points, selectedId, home, view, forceEmpty, paletteTick, patterns, previewOnly, labels]);
 
   const local = (event: { clientX: number; clientY: number }): Coordinate => {
     const rect = canvasRef.current!.getBoundingClientRect(); return [event.clientX - rect.left, event.clientY - rect.top];
@@ -295,6 +321,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   const selectAt = useCallback((x: number, y: number) => {
     const hit = [...hits.current].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)).find(item => Math.hypot(item.x - x, item.y - y) <= 22);
     if (hit?.cluster) {
+      callbacks.current.onNavigationStart?.();
       const lng = hit.cluster.reduce((sum, item) => sum + item.lng, 0) / hit.cluster.length;
       const lat = hit.cluster.reduce((sum, item) => sum + item.lat, 0) / hit.cluster.length;
       callbacks.current.onViewChange(bound({ lng, lat, zoom: latest.current.view.zoom + 1.5 })); setAnnouncement(`Expanded ${hit.cluster.length} facilities.`);
@@ -315,6 +342,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   };
   const pointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     if (event.button !== 0) return;
+    if (!pointers.current.size) callbacks.current.onNavigationStart?.();
     event.currentTarget.focus({ preventScroll: true }); event.currentTarget.setPointerCapture(event.pointerId);
     pointers.current.set(event.pointerId, local(event)); startGesture(); setHover(null);
   };
@@ -327,7 +355,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     const dx = center[0] - start.center[0], dy = center[1] - start.center[1];
     if (Math.hypot(dx, dy) > 4) start.moved = true;
     const next = shifted(start.view, dx, dy);
-    if (active.length > 1 && start.distance > 0) next.zoom = clamp(start.view.zoom + Math.log2(Math.hypot(active[0][0] - active[1][0], active[0][1] - active[1][1]) / start.distance), 6, 12);
+    if (active.length > 1 && start.distance > 0) next.zoom = clamp(start.view.zoom + Math.log2(Math.hypot(active[0][0] - active[1][0], active[0][1] - active[1][1]) / start.distance), 5, 12);
     callbacks.current.onViewChange(next);
   };
   const pointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -338,14 +366,15 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   };
   const keyboard = (event: KeyboardEvent<HTMLCanvasElement>) => {
     const moves: Record<string, Coordinate> = { ArrowLeft: [75, 0], ArrowRight: [-75, 0], ArrowUp: [0, 75], ArrowDown: [0, -75] };
+    if ((moves[event.key] || ['+', '=', '-', '_', 'Home'].includes(event.key)) && !event.repeat) onNavigationStart?.();
     if (moves[event.key]) { event.preventDefault(); onViewChange(shifted(view, ...moves[event.key])); }
     else if (['+', '=', '-', '_'].includes(event.key)) { event.preventDefault(); onViewChange(bound({ ...view, zoom: view.zoom + (['+', '='].includes(event.key) ? .75 : -.75) })); }
     else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectAt(dimensions.width / 2, dimensions.height / 2); }
     else if (event.key === 'Home' && home) { event.preventDefault(); onViewChange(bound({ ...home, zoom: 9 })); }
   };
 
-  return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-presentation={patterns?'patterns':'locations'} data-context={context ? 'ready' : contextSettled ? 'unavailable' : 'loading'}>
-    <canvas ref={canvasRef} tabIndex={previewOnly ? -1 : 0} role="application" aria-label="Map of North Carolina. Use arrow keys to pan, plus and minus to zoom, and Enter to select at the center. The results list offers the same observations." onKeyDown={keyboard} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={event => { pointers.current.delete(event.pointerId); gesture.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={() => onViewChange(bound({ ...view, zoom: view.zoom + 1 }))} />
+  return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-presentation={patterns?'patterns':'locations'} data-labels={labels?'shown':'hidden'} data-selection={selectedId??undefined} data-zoom={view.zoom} data-fonts={fontsReady?'ready':'loading'} data-context={context ? 'ready' : contextSettled ? 'unavailable' : 'loading'}>
+    <canvas ref={canvasRef} tabIndex={previewOnly ? -1 : 0} role="application" aria-label="Map of North Carolina. Use arrow keys to pan, plus and minus to zoom, and Enter to select at the center. The results list offers the same observations." onKeyDown={keyboard} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={event => { pointers.current.delete(event.pointerId); gesture.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={() => {onNavigationStart?.();onViewChange(bound({ ...view, zoom: view.zoom + 1 }));}} />
     <div className="halo-map-atlas-north" aria-hidden="true"><span>N</span><svg viewBox="0 0 16 22"><path d="M8 1 15 20 8 15 1 20Z" /></svg></div>
     <span className="halo-map-atlas-crosshair" aria-hidden="true" />
     {hover && <div className="halo-map-atlas-tooltip" style={{ left: clamp(hover.x, 95, dimensions.width - 95), top: Math.max(12, hover.y - 44) }}>{hover.name}</div>}
