@@ -75,4 +75,4 @@ The entries below preserve every line labelled Ruling in `.superpowers/sdd/b01-b
 - No retention duration or recovery option is selected. The privacy inventory reflects repository behaviour and the provider/configuration audit remains open.
 - Contracts list actual handler responses: household PUT and onboarding currently do not emit 409. Stale/closed home PATCH uses the conflict envelope. Missing detail uses 404; empty is reserved for collections/full household replacement, rather than inventing an empty saved context.
 - Review was performed in this session, not by an independent subagent. Current delegation instructions require explicit user or applicable agent/skill authorization, which was absent; the older plan's agent workflow is therefore not claimed as executed.
-- Commits remain local pending a push instruction. No deployment, migration application or main merge occurred.
+- Push state: the controller pushes `vmag211/backend` after each reviewed task (as `docs/backend/checkpoint.md` says); `git log origin/vmag211/backend..HEAD` shows what is not pushed yet. No deployment, migration application or main merge occurred.

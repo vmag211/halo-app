@@ -1,15 +1,16 @@
 # Backend: what you (Vibhav) need to do
 
-Updated 2026-10-10 after Codex resumed Claude Code's B01 work on `vmag211/backend`.
+Updated 2026-10-11, after the B01 work on `vmag211/backend` was resumed in a later session and given its final review fixes.
 No database changes were applied by this continuation. Production remains unaudited here.
 
 Status right now:
 
-- Claude's last completed implementation: Tasks 1 to 9c, through `4b07435`. The starting branch passed all 1,723 tests during this continuation.
+- Last implementation before the work was resumed: Tasks 1 to 9c, through `4b07435`. That starting point passed all 1,723 tests when the work was resumed.
 - Task 10 is committed at `d492e9e`: rejected writes no longer replace identity or replay; recovery options and a complete privacy inventory are documented. Neither decision is approved.
 - Task 11: executable API contracts, synthetic fixtures, handler conformance, requirements tracker and current checkpoint are written. Final test counts and commit evidence are in `docs/backend/checkpoint.md`.
 - Branch and push state: `vmag211/backend` is the working branch, and the controller pushes it after each reviewed task. Run `git log origin/vmag211/backend..HEAD` to see which commits are not pushed yet (an empty list means everything is pushed). Nothing was merged to main.
 - Migrations 0015 and 0016 are written and locally tested but NOT applied anywhere (not to production, and not to any staging or disposable project by this work).
+- Their "If you need to back out" blocks (Part 2) and the guarded `ucmr5_utilities` remedy (1.1) are tested only on the local PGlite copy (`test/migrationBackout.test.mjs`), not on Supabase.
 - `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
 - Your next actions are still the read-only audit, disposable-project migration verification, recovery/privacy decisions and supplying the missing full spec. The instructions below remain the manual checklist.
 
@@ -33,6 +34,21 @@ Things to watch for in the result (Claude will diff it for you):
 
 - `ucmr5_utilities`: we ASSUMED it has row level security on with a public read policy. If it is off, anyone with the public anon key can write to that table. This is the single most important thing the audit answers.
 - Any table with `rls_enabled` false, or a policy that is not in the migrations.
+
+**ONLY if the audit shows `ucmr5_utilities` with `rls_enabled` false, or with INSERT, UPDATE or DELETE for `anon` or `authenticated`** (in its `table_grants` entry, or in `column_grants`), run this in a **New query**. Otherwise skip it.
+
+Why it is safe: the only thing that writes this table is `uploadData.js`, which uses the service role key, and the service role is not affected. Every read keeps working: the server routes read it with the service role, and `app/api/home-guard/route.js` reads it with the public anon key, which the public read policy below allows. The policy name and shape are the ones the reconstructed baseline assumes. Safe to run twice.
+
+<!-- remedy-ucmr5 -->
+```sql
+alter table public.ucmr5_utilities enable row level security;
+drop policy if exists "Enable read access for all users" on public.ucmr5_utilities;
+create policy "Enable read access for all users" on public.ucmr5_utilities
+  for select using (true);
+revoke insert, update, delete on public.ucmr5_utilities from anon, authenticated;
+```
+
+Then run the audit again and check `ucmr5_utilities`: `rls_enabled` true, one SELECT policy, and no INSERT, UPDATE or DELETE for `anon` or `authenticated`. If the audit showed other policies on this table, tell Claude: this block does not remove them.
 - If the audit errors on the `supabase_migrations` part or the cell is too big to copy, tell Claude what the error says. It was only tested on a local copy of Postgres, not on Supabase's editor.
 
 ### 1.2 Check for old push subscriptions
@@ -60,7 +76,25 @@ Why: migration 0015 takes away the ability of a signed-in browser to write `prof
 grep -rnE "supabase\.(from|rpc|storage)" app components lib
 ```
 
-2. Expected: nothing that writes to those four tables from browser code (server routes using `supabaseAdmin` are fine). If you see a browser file calling `.from('profiles')`, `.from('symptom_logs')`, `.from('household_bands')` or `.from('notification_prefs')` with insert, update, upsert or delete, STOP and tell Claude before doing Part 2.
+2. Expected on this branch: exactly these 5 lines (line numbers can shift a little). They are fine: all are server code that writes with a service role client handed in by the route, and none touches the four tables.
+
+```text
+lib/backfill.js:161:  let { error } = await supabase.from('daily_scores').insert(attempt);
+lib/backfill.js:165:    ({ error } = await supabase.from('daily_scores').insert(attempt));
+lib/backfill.js:168:    ({ error } = await supabase.from('daily_scores').insert(attempt.map(({ details, ...r }) => r)));
+lib/homeContextRpc.js:336:  const { data, error } = await supabase.rpc(name, {
+lib/homeContextRpc.js:363:  const { data, error } = await supabase.rpc(name, {
+```
+
+3. That search misses a call split over two lines (`supabase` on one line, `.from(...)` on the next), so also run:
+
+```sh
+grep -rnE "\.from\(['\"](profiles|household_bands|symptom_logs|notification_prefs)['\"]\)" app components lib
+```
+
+   Expected on this branch: about 34 lines, every one in a file under `app/api/` or in `lib/assistantContextData.js` (server code using `supabaseAdmin`), and none under `components/` or `lib/frontend/`.
+
+4. If you see a browser file (anything under `components/`, `lib/frontend/`, or a page under `app/` outside `app/api/`) calling `.from('profiles')`, `.from('symptom_logs')`, `.from('household_bands')` or `.from('notification_prefs')` with insert, update, upsert or delete, STOP and tell Claude before doing Part 2.
 
 ---
 
@@ -71,8 +105,11 @@ Both migrations are files in `supabase/migrations/`. They are safe to run twice.
 Recommended order of operations:
 
 1. Wait until the B01 checkpoint is reviewed and the branch is approved, merged and deployed (see Part 3). The new routes tolerate the migrations being missing, so deploying first is safe.
-2. Optional but safer: try both migrations on a throwaway Supabase project first.
-3. Then apply 0015, then 0016, on production. Do 0016 soon after 0015 and after the new code is live, so the old onboarding code does not move a household without updating its home context.
+2. Take a backup of production first. In the Supabase dashboard, open **Database**, then **Backups**: if your plan lists a recent backup, note its time, so you know what a restore would go back to. If it lists none (the free plan keeps none you can restore yourself), make your own copy with the Supabase CLI (`supabase db dump`, once for the schema and once with `--data-only` for the data) and keep the files private: they hold household data.
+3. Trial run on a throwaway Supabase project: **required before 0016**, and strongly recommended before 0015. Make a new, empty project, give it production's schema (no data: for example the schema-only `supabase db dump` from step 2, pasted into the new project's SQL editor), then in that project: apply 0015 and run its checks (2.1), apply 0016 and run its checks (2.2), run both "If you need to back out" blocks (0016's first), then apply 0015 and 0016 again and repeat the checks. Every step should succeed. If the schema dump does not load cleanly, or any step fails, stop and tell Claude what it said. Delete the throwaway project afterwards.
+4. Then apply 0015, then 0016, on production. Do 0016 soon after 0015 and after the new code is live, so the old onboarding code does not move a household without updating its home context.
+
+Each migration below ends with an **If you need to back out** block. Back out 0016 before 0015 when undoing both. A back-out is the last resort, not a routine step: read what it does not restore first.
 
 ### 2.1 Apply 0015 (transactional household save and database constraints)
 
@@ -128,6 +165,37 @@ select t, r,
    If any `ins`, `upd` or `del` is true, the revoke only partly worked (Postgres just prints a warning when the role running the SQL did not make the original grant, and the migration still says success). Send Claude the rows.
 
 7. In the app, save the household. The `PUT /api/household` answer should now include `"transactional": true`. If it still says `false` a minute later, run `notify pgrst, 'reload schema';` and try again.
+
+#### If you need to back out 0015
+
+Only if 0015 breaks something you cannot wait to fix. If 0016 is applied, back it out first (2.2). Until it finishes, `symptom_logs` can be neither read nor written (dropping a check takes ACCESS EXCLUSIVE, measured on a local copy); it changes no rows, so that should be moments. In a **New query**, paste and run this (safe to run twice):
+
+<!-- backout-0015 -->
+```sql
+-- Give anon and authenticated back the direct writes they had before 0015
+-- (Supabase's default grants). Row level security still decides which rows.
+grant insert, update, delete
+  on public.profiles, public.household_bands, public.symptom_logs, public.notification_prefs
+  to anon, authenticated;
+
+-- The household save function.
+drop function if exists public.save_household(uuid, jsonb, boolean, text);
+
+-- The four journal checks 0015 added. symptom_logs_severity_check is NOT
+-- dropped: it comes from 0003 and was there before 0015.
+alter table public.symptom_logs drop constraint if exists symptom_logs_band_check;
+alter table public.symptom_logs drop constraint if exists symptom_logs_note_length_check;
+alter table public.symptom_logs drop constraint if exists symptom_logs_symptoms_count_check;
+alter table public.symptom_logs drop constraint if exists symptom_logs_entry_date_check;
+```
+
+Then run `notify pgrst, 'reload schema';`. The household save goes back to two steps and answers `"transactional": false`.
+
+What this does NOT restore or undo:
+
+- It reopens the hole 0015 closed: a signed-in browser can again write its own `profiles`, `household_bands`, `symptom_logs` and `notification_prefs` rows directly, skipping the routes' checks.
+- It gives back exactly INSERT, UPDATE and DELETE on the whole table, which is what Supabase's defaults grant. If your audit from 1.1 (taken before 0015) showed something narrower, such as a grant on some columns only, send Claude that part of the audit instead of running this: 0015's revoke also removed column grants, and this block does not recreate them.
+- Journal rows saved while the checks were in place stay as they are.
 
 ### 2.2 Apply 0016 (home contexts), at a quiet time
 
@@ -198,9 +266,40 @@ select
    - An error saying `public.home_contexts` does not exist means step 2 did not run.
    - `service_role_can_write` false means the server cannot write contexts. Send Claude the row.
    - `profiles_match_current_context` false for a household whose address changed through the OLD onboarding code after it already had a context: expected for a few households if you applied 0016 well before deploying the new code. Tell Claude if you see it.
-4. Optional: `select origin, count(*) from public.home_contexts group by origin;` shows how many legacy contexts the migration created.
+4. Run `notify pgrst, 'reload schema';` so the API sees the new table, column and functions straight away. Until it reloads, the home-contexts routes answer 503 `feature_unavailable`, onboarding answers `"home_context": null`, and history, journal findings and the daily writers carry on without home contexts (they fall back, they do not fail).
+5. Optional: `select origin, count(*) from public.home_contexts group by origin;` shows how many legacy contexts the migration created.
 
 Known limit (documented in the migration): readings from before a past move cannot be told apart, so a household's older readings are attributed to its legacy context and flagged `legacy_migration`.
+
+#### If you need to back out 0016
+
+Only if 0016 breaks something you cannot wait to fix. The new code keeps working without 0016 (it falls back exactly as it does before 0016 is applied). Run it at a quiet time too: until it finishes, both `daily_scores` and `profiles` can be neither read nor written (ACCESS EXCLUSIVE on both, measured on a local copy; dropping `home_contexts` locks `profiles` because of its foreign key). It changes no rows, so it should take moments, but it also waits for any request already using those tables. In a **New query**, paste and run this (safe to run twice). The order matters: the functions first, then the link from `daily_scores`, then the table (the table cannot be dropped while a foreign key still points at it).
+
+<!-- backout-0016 -->
+```sql
+-- 1. The two functions, which read and write home_contexts.
+drop function if exists public.transition_home_context(uuid, jsonb, jsonb, uuid);
+drop function if exists public.update_home_context_attributes(uuid, uuid, integer, jsonb);
+
+-- 2. The link from each reading to its home: the foreign key, then the column.
+--    Dropping the column would also drop the foreign key and the column's
+--    index (daily_scores_profile_context_date); the foreign key is named here
+--    so the order is plain.
+alter table public.daily_scores drop constraint if exists daily_scores_home_context_fkey;
+alter table public.daily_scores drop column if exists home_context_id;
+
+-- 3. The table. Every row in it is deleted for good.
+drop table if exists public.home_contexts;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo:
+
+- Every home context is gone for good, with the history of moves: which home each stay was, when it started and ended, its revision and its backfill progress. Applying 0016 again makes one new legacy context per located household from today's profile, not the old ones.
+- Every reading loses its link to a home. The readings themselves stay, but afterwards nothing tells an old home's readings from the current home's, so history shows them all together again.
+- A reading deleted by a move (the old home's reading for the day of the move) stays deleted.
+- What the routes saved to `profiles` through the functions (address, county, state, utility, water source, year built, and the cleared `zip`) stays as saved.
 
 ### 2.3 Later, once the old rows are clean
 
