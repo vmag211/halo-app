@@ -10,7 +10,7 @@ function setup(status = 401, { initial = { access_token: 'old', user: { id: 'ori
   const calls = { signIn: 0, signOut: 0, requests: [] };
   const response = new Response(JSON.stringify({ error: 'Session rejected', draft: 'unchanged' }), { status });
   const context = vm.createContext({
-    window: {}, process: { env: {} }, DOMException, setTimeout, clearTimeout,
+    window: {}, process: { env: {} }, DOMException, Request, setTimeout, clearTimeout,
     console: { warn() {} },
     supabase: { auth: {
       async getSession() { return { data: { session }, error: sessionError }; },
@@ -82,4 +82,23 @@ test('a failed session read during explicit recovery never signs out or creates 
   assert.equal(calls.signOut, 0);
   assert.equal(calls.signIn, 0);
   assert.equal(calls.requests.length, 0);
+});
+
+// authedFetch(url) takes a Request as well as a string. The method then lives on the Request, not in init.
+test('a Request-object POST 401 neither resets the session, signs in anonymously nor retries', async () => {
+  const { api, calls, response } = setup();
+  const body = JSON.stringify({ note: 'Keep my draft' });
+  const result = await api.authedFetch(new Request('https://halo.test/save', { method: 'POST', body }));
+  assert.equal(result, response);
+  assert.equal(result.bodyUsed, false);
+  assert.equal(calls.requests.length, 1);
+  assert.equal(calls.signOut, 0);
+  assert.equal(calls.signIn, 0);
+});
+test('a Request-object GET 401 keeps the single read retry', async () => {
+  const { api, calls } = setup();
+  assert.equal((await api.authedFetch(new Request('https://halo.test/read'))).status, 401);
+  assert.equal(calls.requests.length, 2);
+  assert.equal(calls.signOut, 1);
+  assert.equal(calls.signIn, 1);
 });
