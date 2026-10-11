@@ -79,12 +79,32 @@ const normal = {
   getHistory: {}, putHousehold: { body: { has_adult: true, renter_mode: false, locale: 'en' } },
   onboard: { body: { address: '123 Example Street', water_source: 'well', home_year: 1990 } },
 };
+// The two response headers this contract documents. Conformance checks both directions on every
+// response the tests below exercise: a documented header must really be sent by some response for
+// that operation and status, and a header that is sent must be documented there.
+const CHECKED_HEADERS = ['x-request-id', 'retry-after'];
+const seenHeaders = new Map();
+function documentedHeaders(id, status) {
+  const headers = operations.get(id).responses[String(status)].headers ?? {};
+  return new Set(Object.keys(headers).map((name) => name.toLowerCase()));
+}
+function recordHeaders(id, res) {
+  const key = `${id} ${res.status}`;
+  const documented = documentedHeaders(id, res.status);
+  if (!seenHeaders.has(key)) seenHeaders.set(key, new Set());
+  for (const name of CHECKED_HEADERS) {
+    if (res.headers.get(name) === null) continue;
+    seenHeaders.get(key).add(name);
+    assert.ok(documented.has(name), `${key}: the response sends ${name} but the contract does not document it`);
+  }
+}
 async function call(h, id, overrides = {}, expected = 200) {
   const op = operations.get(id);
   const route = op.path.replace('{id}', '[id]');
   const res = await h.call(route, op.method, { as: 'alice', ...normal[id], ...overrides, headers: { 'x-request-id': REQUEST_ID, ...overrides.headers } });
   assert.equal(res.status, expected, `${id} expected ${expected}`);
   assert.equal(res.headers.get('x-request-id'), REQUEST_ID);
+  recordHeaders(id, res);
   const body = await res.json();
   validate(id, res.status, body);
   if (expected >= 400) assert.equal(body.request_id, REQUEST_ID);
@@ -160,8 +180,21 @@ test('B01 handler conformance: unavailable home migration is distinct from empty
 });
 test('B01 handler conformance: onboard quota, identity mismatch and no geocoder result', async (t) => {
   muteConsoleError(t);
-  await call(harness({ rateLimit: () => false }), 'onboard', {}, 429);
+  const limited = await call(harness({ rateLimit: () => false }), 'onboard', {}, 429);
+  assert.equal(limited.body.code, 'rate_limited');
+  assert.equal(limited.res.headers.get('retry-after'), null, 'a rate limit does not send Retry-After; only the auth outage does');
   const h = harness();
   await call(h, 'onboard', { body: { address: '123 Example Street', profile_id: h.identities.bob.id } }, 403);
   await call(h, 'onboard', { fetch: async () => Response.json({ features: [] }) }, 404);
+});
+// Runs last (tests in one file run in order). Only operation and status pairs exercised above are
+// compared, so statuses the harness cannot reach (a real 500, say) are not claimed as checked.
+test('B01 contract headers: every documented header is sent for the operations and statuses the tests exercise', () => {
+  assert.ok(seenHeaders.size > 0, 'no conformance responses were recorded');
+  for (const [key, seen] of seenHeaders) {
+    const [id, status] = key.split(' ');
+    for (const name of documentedHeaders(id, status)) {
+      if (CHECKED_HEADERS.includes(name)) assert.ok(seen.has(name), `${key}: the contract documents ${name} but no exercised response sent it`);
+    }
+  }
 });

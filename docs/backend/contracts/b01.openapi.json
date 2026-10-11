@@ -79,7 +79,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+                "description": "Sent only when the 503 is the retryable auth outage (code auth_unavailable): 2 seconds. Not sent for feature_unavailable (a missing migration), which is not retryable. Rate-limit 429 responses do not send it."
               }
             },
             "content": {
@@ -194,7 +194,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+                "description": "Sent only when the 503 is the retryable auth outage (code auth_unavailable): 2 seconds. Not sent for feature_unavailable (a missing migration), which is not retryable. Rate-limit 429 responses do not send it."
               }
             },
             "content": {
@@ -352,7 +352,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+                "description": "Sent only when the 503 is the retryable auth outage (code auth_unavailable): 2 seconds. Not sent for feature_unavailable (a missing migration), which is not retryable. Rate-limit 429 responses do not send it."
               }
             },
             "content": {
@@ -489,7 +489,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+                "description": "Sent only when the 503 is the retryable auth outage (code auth_unavailable): 2 seconds. Not sent for feature_unavailable (a missing migration), which is not retryable. Rate-limit 429 responses do not send it."
               }
             },
             "content": {
@@ -652,7 +652,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+                "description": "Sent only when the 503 is the retryable auth outage (code auth_unavailable): 2 seconds. Not sent for feature_unavailable (a missing migration), which is not retryable. Rate-limit 429 responses do not send it."
               }
             },
             "content": {
@@ -790,12 +790,6 @@
                 "schema": {
                   "type": "string"
                 }
-              },
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
               }
             },
             "content": {
@@ -835,7 +829,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Present for retryable auth outage (2 seconds) or rate limit. Missing-migration feature_unavailable is not retryable."
+                "description": "Sent only when the 503 is the retryable auth outage (code auth_unavailable): 2 seconds. Not sent for feature_unavailable (a missing migration), which is not retryable. Rate-limit 429 responses do not send it."
               }
             },
             "content": {
