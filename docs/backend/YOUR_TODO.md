@@ -6,9 +6,11 @@ No database changes were applied by this continuation. Production remains unaudi
 Status right now:
 
 - Claude's last completed implementation: Tasks 1 to 9c, through `4b07435`. The starting branch passed all 1,723 tests during this continuation.
-- Task 10 committed locally at `d492e9e`: rejected writes no longer replace identity or replay; recovery options and a complete privacy inventory are documented. Neither decision is approved.
+- Task 10 is committed at `d492e9e`: rejected writes no longer replace identity or replay; recovery options and a complete privacy inventory are documented. Neither decision is approved.
 - Task 11: executable API contracts, synthetic fixtures, handler conformance, requirements tracker and current checkpoint are written. Final test counts and commit evidence are in `docs/backend/checkpoint.md`.
-- Commits from this continuation remain local. Nothing was merged to main. `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
+- Branch and push state: `vmag211/backend` is the working branch, and the controller pushes it after each reviewed task. Run `git log origin/vmag211/backend..HEAD` to see which commits are not pushed yet (an empty list means everything is pushed). Nothing was merged to main.
+- Migrations 0015 and 0016 are written and locally tested but NOT applied anywhere (not to production, and not to any staging or disposable project by this work).
+- `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
 - Your next actions are still the read-only audit, disposable-project migration verification, recovery/privacy decisions and supplying the missing full spec. The instructions below remain the manual checklist.
 
 The sections below are in the order to do them. Part 1 can be done today and is read only. Part 2 changes your database, so do it only when you are ready.
@@ -210,8 +212,8 @@ If one of them fails, an old row still breaks that rule. Fix or delete the rows 
 
 ## Part 3. Decisions only you can make
 
-1. **Merging to main.** Claude will not merge. When B01 is finished it will tell you, and nothing reaches main until you say so explicitly. Everything so far is pushed to `origin/vmag211/backend`.
-2. **The rest of the spec.** The spec you pasted stops at BE-033. Missing: the field and relationship tables (BE-033 on), security, retention and rollout sections, plus DS, MP, UI, AC, ST, WF, AG, MA, VR and every feature packet. B01 is fully covered. B02 is only partly covered. B03 to B12 cannot start without them. Fix: save the full Markdown as a file under `docs/product/` or paste the next sections into the chat.
+1. **Merging to main.** Claude will not merge. When B01 is finished it will tell you, and nothing reaches main until you say so explicitly. The branch `vmag211/backend` is the working branch and the controller pushes it after each reviewed task, so `git log origin/vmag211/backend..HEAD` shows what is not pushed yet.
+2. **The rest of the spec.** The spec you pasted is cut off partway through BE-032 (`/api/journal/retrospective`); BE-033 onward was not received. Missing: the rest of BE-032 and of the route inventory, the field and relationship tables (BE-033 on), security, retention and rollout sections, plus DS, MP, UI, AC, ST, WF, AG, MA, VR and every feature packet. B01 is fully covered. B02 is only partly covered. B03 to B12 cannot start without them. Fix: save the full Markdown as a file under `docs/product/` or paste the next sections into the chat.
 3. **Account recovery (HO-153, the gate).** Task 10 wrote `docs/backend/decisions/B01-optional-recovery.md`, status "Proposed, awaiting Vibhav's decision". The options:
    - A: anonymous only, no recovery. Losing the device loses the household. This is how it works today.
    - B: optional upgrade of the SAME anonymous user to email or phone, keeping the user id so every record and permission is kept. Claude recommends B, optional, never required for onboarding.

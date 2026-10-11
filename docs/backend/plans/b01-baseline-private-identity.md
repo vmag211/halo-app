@@ -1,6 +1,6 @@
 # B01 Baseline and private identity: implementation plan
 
-Spec: `docs/product/HALO_BACKEND_WORKING_SPEC.partial.md` (HO-063 to HO-066, HO-096 to HO-119, HO-130 to HO-141, HO-154; BE-011, BE-019, BE-020, BE-024 to BE-032). The spec is partial: BE-033 onward (field and relationship tables, security, retention, rollout) was not received. Where a task needs a missing table, the plan states a Ruling and the tracker records it for reconciliation.
+Spec: `docs/product/HALO_BACKEND_WORKING_SPEC.partial.md` (HO-063 to HO-066, HO-096 to HO-119, HO-130 to HO-141, HO-154; BE-011, BE-019, BE-020, BE-024 to BE-032, where BE-032 itself is cut off). The spec is partial: BE-033 onward (field and relationship tables, security, retention, rollout) was not received. Where a task needs a missing table, the plan states a Ruling and the tracker records it for reconciliation.
 
 Branch: `vmag211/backend`. Push after each task passes review.
 

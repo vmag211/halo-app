@@ -6,23 +6,23 @@ Saved 2026-10-10 so the handoff does not depend on git-ignored Claude session fi
 
 The entries below preserve every line labelled Ruling in `.superpowers/sdd/b01-baseline-private-identity/progress.md`, in original order. Execution counts, temporary TODO tests and scheduling comments are historical, not current status. In particular the 0007 replay issue was fixed during Task 7; GET/HEAD recovery remains while Task 10 now protects rejected writes. Current status is in the checkpoint.
 
-1. Ruling: home_contexts shape defined from HO-066/HO-099 only (BE field tables not received) — cost if wrong: migration reshape later.
+1. Ruling: home_contexts shape defined from HO-066/HO-099 only (BE field tables not received); cost if wrong: migration reshape later.
 
-2. Ruling: deployed schema not auditable from here; reconstructed baseline + read-only audit SQL for Vibhav — cost if wrong: baseline drift until the audit result is diffed.
+2. Ruling: deployed schema not auditable from here; reconstructed baseline + read-only audit SQL for Vibhav; cost if wrong: baseline drift until the audit result is diffed.
 
-3. Ruling: B01 export isolation limited to existing routes; export job is B12 — cost if wrong: re-test in B12.
+3. Ruling: B01 export isolation limited to existing routes; export job is B12; cost if wrong: re-test in B12.
 
-4. Ruling: revoke owner direct writes on profiles/symptom_logs/household_bands/notification_prefs (no client code writes tables directly; grep verified in session) — cost if wrong: a hidden direct-write client path would fail; T7 re-greps and stops if found.
+4. Ruling: revoke owner direct writes on profiles/symptom_logs/household_bands/notification_prefs (no client code writes tables directly; grep verified in session); cost if wrong: a hidden direct-write client path would fail; T7 re-greps and stops if found.
 
-5. Ruling: no em-dash scan of legacy API copy in B01 (existing strings with U+2014 remain; progress doc open finding 2) — cost if wrong: frontend must keep displayText stripping.
+5. Ruling: no em-dash scan of legacy API copy in B01 (existing strings with U+2014 remain; progress doc open finding 2); cost if wrong: frontend must keep displayText stripping.
 
 6. Ruling: tracker built in T11 from received spec only; unreceived sections tracked as blocked.
 
-7. Task 3: parked (product decision) — push re-registration: a new identity on a device whose endpoint is held by an older identity gets {ok:true} but stores nothing (and old household's pushes keep going to that device). Ruling: keep no-takeover (spec HO-131) for B01; revisit with proof-of-possession (p256dh+auth match) when the push client lands (B03 delivery). Cost if wrong: silent push loss after identity replacement; no push client exists in the repo yet.
+7. Task 3: parked (product decision), push re-registration: a new identity on a device whose endpoint is held by an older identity gets {ok:true} but stores nothing (and old household's pushes keep going to that device). Ruling: keep no-takeover (spec HO-131) for B01; revisit with proof-of-possession (p256dh+auth match) when the push client lands (B03 delivery). Cost if wrong: silent push loss after identity replacement; no push client exists in the repo yet.
 
-8. Task 4a: Ruling: accept implementer's unrequested home-guard `state` (2 letters) and `pwsid` (^[A-Z]{2}[0-9]{5,9}$ plus '', 'null', 'undefined') override validation — matches profiles.state and waterGeo PWSID_RE; no caller sends other shapes. Cost if wrong: a lowercase pwsid override is now 400 instead of 200 no-match.
+8. Task 4a: Ruling: accept implementer's unrequested home-guard `state` (2 letters) and `pwsid` (^[A-Z]{2}[0-9]{5,9}$ plus '', 'null', 'undefined') override validation: it matches profiles.state and waterGeo PWSID_RE; no caller sends other shapes. Cost if wrong: a lowercase pwsid override is now 400 instead of 200 no-match.
 
-9. Task 4b: Ruling: accept beyond-brief `unavailable` marker on profile GET and household GET (failed read otherwise looks like an empty household; additive). Accept volunteer 200->500 on failed profile read (without it every county's orgs are listed). Accept learn locale strictly en/es (es-MX now 400; no in-repo caller) — cost if wrong: a client sending navigator.language gets 400; leniency = primary subtag.
+9. Task 4b: Ruling: accept beyond-brief `unavailable` marker on profile GET and household GET (failed read otherwise looks like an empty household; additive). Accept volunteer 200->500 on failed profile read (without it every county's orgs are listed). Accept learn locale strictly en/es (es-MX now 400; no in-repo caller); cost if wrong: a client sending navigator.language gets 400; leniency = primary subtag.
 
 10. Task 5a: Ruling: household PUT with {} / empty / only renter_mode|locale still replaces composition with all false (brief-mandated omitted=false replace semantics); a separate partial-update contract is future work.
 
@@ -32,7 +32,7 @@ The entries below preserve every line labelled Ruling in `.superpowers/sdd/b01-b
 
 13. Task 6: Ruling (supersedes earlier todo ruling): pin the 0007-after-0013 replay failure with assert.rejects(/2000 dimensions/) instead of a todo (todo prints a failing block every run; output must be pristine); the pin fails the moment 0007 is guarded, forcing Task 7 to flip it to a success assertion. Cost if wrong: none material.
 
-14. Task 8: Ruling: a move carries nothing over (a value the body leaves out is null at the new home and on the profile) — attributes like water_source/home_year belong to the old home and presenting them for the new one would be a false claim (spec: unknown is not a value). Cost if wrong: after a move the user must re-enter water source/home year (today's onboard route keeps the old answers). Task 9 must make the onboard route and frontend copy honest about it.
+14. Task 8: Ruling: a move carries nothing over (a value the body leaves out is null at the new home and on the profile): attributes like water_source/home_year belong to the old home and presenting them for the new one would be a false claim (spec: unknown is not a value). Cost if wrong: after a move the user must re-enter water source/home year (today's onboard route keeps the old answers). Task 9 must make the onboard route and frontend copy honest about it.
 
 15. Task 8: Ruling: comparability(): a CLOSED legacy context reports `earlier_home` (not `legacy_assumed`); `legacy_assumed` only for the current legacy context. Keeps old-home readings out of the new home's history after a move. Cost if wrong: history UI labels differ for pre-move legacy rows.
 

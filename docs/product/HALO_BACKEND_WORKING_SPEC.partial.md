@@ -211,7 +211,7 @@ HO-168 This documentation and its verification tools were saved locally in the e
 
 ---
 
-## Shared: Backend database and operations (BE), received through BE-032
+## Shared: Backend database and operations (BE), received through the start of BE-032 (BE-032 is cut off)
 
 BE-002 This document defines the proposed backend and data target for HALO's full product plan. Each interface has a credible source, a complete action workflow, and an explicit implementation boundary.
 
