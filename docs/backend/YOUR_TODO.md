@@ -343,6 +343,10 @@ If one of them fails, an old row still breaks that rule. Fix or delete the rows 
    - A geocoder result with no usable coordinates is now a 404 "could not find coordinates", not a 500.
    - A stale edit of a home context returns 409 with the current revision.
    If you disagree with any, say so and Claude changes it.
+7. **The assistant sends household context by default (this was already true before B01, and B01 did not change it).** `app/api/assistant/route.js` sends the household's readings and symptom names to the free-tier model unless the environment variable `ASSISTANT_SEND_HOUSEHOLD_CONTEXT` is exactly `false`. If the variable is unset, it SENDS. Your September status note says production is `false`; Claude has not verified the live value (it never reads `.env*` or your Vercel settings). Pick one:
+   - Confirm in Vercel that `ASSISTANT_SEND_HOUSEHOLD_CONTEXT` is set to `false` in EVERY environment (Production, Preview and Development), or
+   - Tell Claude to change the check so it sends only when the value is exactly `true` (fails closed, with a test). With that change an unset variable means "do not send".
+   `docs/backend/privacy-and-retention.md` lists exactly what leaves when it sends.
 
 ## Part 4. For Yogi (frontend), when convenient
 
