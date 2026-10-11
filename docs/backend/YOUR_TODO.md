@@ -131,7 +131,15 @@ select t, r,
 
 ### 2.2 Apply 0016 (home contexts), at a quiet time
 
-Run it when few people are using the app. While it runs, `daily_scores` cannot be read or written. Needs 0015 first.
+Run it when few people are using the app. Needs 0015 first.
+
+The SQL editor runs the whole file as one transaction, so its locks are held until it finishes (measured on a local copy of Postgres): `daily_scores` cannot be read or written at all (ACCESS EXCLUSIVE), and every write to `profiles` waits (SHARE ROW EXCLUSIVE, because `home_contexts` has a foreign key to it). So while it runs, today's reading, history, journal findings and the daily job wait, and so do `/api/onboard`, `PATCH /api/profile` and every new anonymous sign-up (the `handle_new_user` insert into `profiles`). Reading `profiles` still works.
+
+Before you start, see how many readings the backfill UPDATE will touch, so you can pick a quiet time (read only):
+
+```sql
+select count(*) from public.daily_scores;
+```
 
 1. SQL Editor, **New query**, run this. Expect `true`. If not, apply 0015 first.
 

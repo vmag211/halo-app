@@ -3,11 +3,22 @@
 -- home's readings are never shown as the new home's history (HO-066, HO-099).
 -- Run once in the Supabase SQL editor, AFTER 0015. Safe to re-run.
 --
--- Run it at a quiet time. Adding the column to daily_scores takes Postgres's
--- strongest table lock (ACCESS EXCLUSIVE: no reading or writing of
--- daily_scores meanwhile), and the SQL editor runs the whole file as one
--- transaction, so that lock is held until the end: through the index build
--- and the backfill. Today's readings and history wait for as long as it runs.
+-- Run it at a quiet time. The SQL editor runs the whole file as one
+-- transaction, so every lock it takes is held until it commits: through the
+-- index build and the backfill UPDATE of every existing reading (section 4).
+-- Measured on a local copy (PGlite, pg_locks read before commit):
+--   * daily_scores: ACCESS EXCLUSIVE, Postgres's strongest table lock, taken
+--     when the column is added. Nothing can read or write daily_scores
+--     meanwhile: today's reading, history, journal findings and the daily
+--     job wait.
+--   * profiles: SHARE ROW EXCLUSIVE, taken when home_contexts is created with
+--     its foreign key to profiles. Reading profiles still works, but every
+--     write to it waits: /api/onboard, PATCH /api/profile, and the
+--     handle_new_user insert that runs when someone signs up anonymously.
+-- A re-run (the table already there) still takes ACCESS EXCLUSIVE on
+-- daily_scores, but only ACCESS SHARE on profiles. To judge how long the
+-- backfill takes, count the readings first:
+--   select count(*) from public.daily_scores;
 --
 -- Four things happen here:
 --   1. public.home_contexts: one row per stay at one located home. At most one
@@ -22,10 +33,24 @@
 --   4. Every household that already has a location gets a legacy context, and
 --      its existing readings are linked to it.
 --
--- No route uses any of this yet: onboard and profile will call the functions,
--- and history and the daily writers will read and set the link, in a later
--- change. Until then the routes keep working exactly as before: the new
--- column is nullable and nothing reads the table.
+-- The routes that use it (lib/homeContextRpc.js holds the shared helpers):
+--   * POST /api/onboard and PATCH /api/profile save the home through
+--     transition_home_context; GET and PATCH /api/home-contexts/{id} and
+--     GET /api/home-contexts read the table and call
+--     update_home_context_attributes.
+--   * GET /api/history and the journal findings (lib/journalHistory.js) read
+--     the table and daily_scores.home_context_id to keep an old home's
+--     readings out of the current home's history.
+--   * GET /api/daily-score, the daily job (/api/cron/daily) and the history
+--     backfill (lib/backfill.js) write home_context_id on each reading and
+--     record the backfill's progress on the context.
+-- Every one of them degrades cleanly while this file is not applied (the
+-- table, a function or the column missing: PGRST205, PGRST202, PGRST204,
+-- 42P01, 42883 or 42703). Onboard and profile save to profiles as they did
+-- before 0016 (onboard answers "home_context": null); history and journal
+-- findings show every reading, unattributed; the daily writers store
+-- readings without the link; the home-contexts routes and history for one
+-- chosen home answer 503 feature_unavailable, never an empty success.
 --
 -- Errors the functions raise, for the routes to map. Each is SQLSTATE P0001
 -- with exactly this message; DETAIL says more:
@@ -118,13 +143,16 @@
 --       as profiles_match_current_context;
 --
 -- An error that public.home_contexts does not exist means this file has not
--- run. The last three columns are true straight after it runs. While the
--- routes do not use contexts yet, they can turn false: a household onboarded
--- after this file has no context, a reading written since has none, and a
--- household that changes address moves its profile but not its context.
--- Running this file again fixes the first two, not the third. (The first
--- also fixes itself: transition_home_context makes a located household's
--- missing legacy context before it does anything else; see section 3a.)
+-- run. The last three columns are true straight after it runs. They can turn
+-- false only if code older than the routes above is still serving requests
+-- after this file runs (for example 0016 applied before the new code is
+-- deployed): such code saves an address to profiles without a context and
+-- writes readings without the link, so a household onboarded by it has no
+-- context, its readings have none, and a household that changes address
+-- through it moves its profile but not its context. Running this file again
+-- fixes the first two, not the third. (The first also fixes itself:
+-- transition_home_context makes a located household's missing legacy context
+-- before it does anything else; see section 3a.)
 
 -- ---------------------------------------------------------------------------
 -- 1. home_contexts
