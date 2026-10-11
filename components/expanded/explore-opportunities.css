@@ -1,0 +1,62 @@
+.ex-involvement-preview { display:grid; gap:12px; min-width:0; }
+.ex-involvement-preview .ex-text-button { font-size:calc(.76rem * var(--halo-text-scale)); }
+.halo-explore .ex-involvement-preview .ex-workbench-section-head > h3,.halo-explore .ex-personalized-preview .ex-personalized-heading > h3,.halo-explore .ex-mini-map .ex-map-preview-head > h3 { font:650 calc(1.2rem * var(--halo-text-scale))/1.4 var(--font-instrument),sans-serif; }
+.ex-involvement-cover { position:relative; display:block; min-width:0; width:100%; padding:0; border:0; border-radius:6px; overflow:hidden; background:#16332a; color:#fff; text-align:left; }
+.ex-involvement-cover > .ex-photo { position:absolute; inset:0; width:100%; height:100%; border-radius:0; }
+.ex-involvement-cover::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,rgba(8,34,27,.94),rgba(8,34,27,.3) 80%); }
+.ex-involvement-cover > span:last-child { position:relative; z-index:1; display:grid; gap:9px; margin:58px 18px 17px; }
+.halo-explore .ex-involvement-cover small { color:#e4f0e7; font-size:calc(.7rem * var(--halo-text-scale)); }
+.halo-explore .ex-involvement-cover strong { color:white; font:550 calc(1.55rem * var(--halo-text-scale))/1.18 var(--font-fraunces),Georgia,serif; }
+.ex-involvement-cover > span > span { display:flex; align-items:center; gap:7px; font-size:calc(.74rem * var(--halo-text-scale)); }
+.ex-involvement-cover > span > span > svg:last-child { margin-left:auto; }
+.ex-opportunity-finder { gap:14px; }
+.halo-explore .ex-opportunity-result-note { font-size:calc(.8rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.ex-opportunity-intro { display:flex; align-items:center; gap:15px; }
+.ex-opportunity-intro > div { display:grid; gap:7px; min-width:0; }
+.halo-explore .ex-opportunity-intro h3 { font:550 calc(1.35rem * var(--halo-text-scale))/1.2 var(--font-fraunces),Georgia,serif; text-align:left; }
+.halo-explore .ex-opportunity-intro p { font-size:calc(.8rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.ex-opportunity-search { display:flex; gap:9px; align-items:center; min-width:0; border-bottom:1px solid var(--halo-border); padding:6px 0; }
+.halo-explore .ex-opportunity-search input { border:0; border-radius:0; background:transparent; padding-inline:0; }
+.ex-opportunity-search > svg { flex:none; color:var(--halo-primary); }
+.ex-opportunity-search .ex-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; clip-path:inset(50%); }
+.halo-explore .ex-program-directory .ex-local-route { grid-template-columns:65px minmax(0,1fr); gap:12px; }
+.ex-program-directory .ex-action-art { width:65px; }
+.ex-opportunity-filters { display:grid; grid-template-columns:1fr 1fr; gap:13px; min-width:0; }
+.ex-opportunity-location { display:flex; flex-wrap:wrap; align-items:center; gap:8px; border-bottom:1px solid var(--halo-border); padding-bottom:8px; }
+.ex-opportunity-location > span { flex:1; min-width:0; font-size:calc(.81rem * var(--halo-text-scale)); }
+.ex-opportunity-location > svg { color:var(--halo-primary); }
+.ex-opportunity-location > button { font-size:calc(.72rem * var(--halo-text-scale)); }
+.ex-opportunity-coverage,.ex-opportunity-programs,.ex-opportunity-consider { border-bottom:1px solid var(--halo-border); }
+.ex-opportunity-coverage > summary,.ex-opportunity-programs > summary,.ex-opportunity-consider > summary { min-height:44px; padding-block:12px; cursor:pointer; color:var(--halo-primary); font-size:calc(.81rem * var(--halo-text-scale)); font-weight:600; }
+.ex-opportunity-coverage > p { padding-block:12px; font-size:calc(.77rem * var(--halo-text-scale)); }
+.ex-opportunity-coverage label { padding-block:10px; }
+.ex-opportunity-programs > section { padding-block:16px; }
+.ex-opportunity-list { display:grid; gap:0; }
+.ex-opportunity-card { display:grid; grid-template-columns:82px minmax(0,1fr) 15px; gap:12px; align-items:center; width:100%; min-width:0; padding:17px 0; background:none; border:0; border-bottom:1px solid var(--halo-border); color:var(--halo-ink); text-align:left; }
+.ex-opportunity-card > span:nth-child(2) { display:grid; gap:6px; min-width:0; }
+.halo-explore .ex-opportunity-card strong { font:550 calc(1.12rem * var(--halo-text-scale))/1.23 var(--font-fraunces),Georgia,serif; }
+.halo-explore .ex-opportunity-card small { font-size:calc(.74rem * var(--halo-text-scale)); line-height:1.45; }
+.halo-explore .ex-opportunity-kind { color:var(--halo-primary); font-size:calc(.65rem * var(--halo-text-scale)); }
+.ex-opportunity-card > svg { color:var(--halo-primary); }
+.ex-opportunity-date { display:flex; gap:5px; align-items:flex-start; font-size:calc(.71rem * var(--halo-text-scale)); line-height:1.5; }
+.ex-opportunity-date svg { flex:none; margin-top:2px; }
+.ex-opportunity-detail > .ex-action-art { height:180px; }
+.ex-opportunity-detail > header { display:grid; gap:7px; }
+.ex-opportunity-detail h3:focus { outline:none; }
+.halo-explore .ex-opportunity-summary { font-size:calc(.93rem * var(--halo-text-scale)); line-height:1.6; }
+.ex-opportunity-at-a-glance { display:grid; gap:11px; padding-block:15px; border-block:1px solid var(--halo-border); }
+.halo-explore .ex-opportunity-at-a-glance p { display:flex; align-items:flex-start; gap:10px; font-size:calc(.84rem * var(--halo-text-scale)); }
+.ex-opportunity-at-a-glance svg { color:var(--halo-primary); flex:none; margin-top:3px; }
+.ex-opportunity-work { display:grid; gap:9px; }
+.ex-opportunity-work ul { padding-left:18px; display:grid; gap:8px; font-size:calc(.86rem * var(--halo-text-scale)); line-height:1.5; }
+.ex-opportunity-essentials { display:grid; gap:12px; margin:0; }
+.ex-opportunity-essentials > div { display:grid; grid-template-columns:84px minmax(0,1fr); gap:11px; }
+.ex-opportunity-essentials dt { font-size:calc(.75rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.ex-opportunity-essentials dd { margin:0; font-size:calc(.8rem * var(--halo-text-scale)); line-height:1.5; }
+.ex-opportunity-consider .ex-facts { padding-block:10px; }
+.ex-opportunity-consider > p { padding-bottom:15px; font-size:calc(.8rem * var(--halo-text-scale)); }
+.halo-f-app[data-text-scale="150"] .ex-opportunity-filters { grid-template-columns:minmax(0,1fr); }
+.halo-f-app[data-text-scale="150"] .ex-opportunity-card { grid-template-columns:60px minmax(0,1fr); }
+.halo-f-app[data-text-scale="150"] .ex-opportunity-card > svg { display:none; }
+.halo-f-app[data-text-scale="150"] .ex-opportunity-card .ex-action-art { width:60px; }
+@media(forced-colors:active) { .ex-involvement-cover > .ex-photo { display:none; } .ex-involvement-cover,.ex-involvement-cover strong,.ex-involvement-cover small { background:Canvas; color:CanvasText; } .ex-involvement-cover::after { display:none; } }

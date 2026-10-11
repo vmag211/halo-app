@@ -1,5 +1,35 @@
 # Explore evergreen workspace and integration delta
 
+## Latest October 11: interests, fresh projects and nearby upcoming/rolling discovery
+
+The user explicitly restores scheduled-opportunity discovery alongside rolling programs, inside an evergreen three-path hub. The earlier statement that no event service is needed is superseded for this finder. This is additional backend scope, not authorization to implement production routes from the frontend lane.
+
+### Interest-to-project service
+
+Return a validated semantic visual family with each project, plus optional reviewed image/diagram references and rights/provenance. The frontend should render an appropriate activity-specific sketch or legitimate illustration rather than treating every generated topic as gardening. Decorative art must not look like a measured construction plan or evidence of a real venue. Unknown families need an honest neutral fallback.
+
+Extend the generation contract with direct interests, explicit preferences, desired return count (3/5 for a focused shortlist, 10 to 15 for a full set), prior shown/declined project IDs and a request/version ID. Live retrieval should find authoritative relevant public information and construct several distinct practical ideas, not merely rename fixed templates. Keep privacy-minimal queries, authorized dated HALO context, applicability/safety checks and claim-specific citations from the broader generation contract. Source/model capability and actual processing must be disclosed. Never silently send private notes, exact location or health text with the interest query.
+
+Use server-side eligibility first, then relevance/diversity/novelty. A refresh excludes or deprioritizes recently shown ideas without overriding hard constraints or qualified safety. Return fewer with a clear reason when source-backed fits are exhausted; do not fill a requested count with irrelevant projects. Preserve started projects and source/template versions. Unknown interests mean unavailable reviewed support, not proof that no such project exists on the web. Production requires review of newly generated physical instructions before unsafe or specialist activities are offered.
+
+Expose queued/retrieving/validating/preparing/complete/failed/no-source/rate-limit/cancelled states based on actual work, not decorative fake percentages. Keep a cancellable request handle, retry identity, context/preference version, response validation and latest-request commit rules. A cancelled or stale reply cannot replace newer Luna/Explore ideas. Retain current results and editable input on failure; preserve shared generation state and canonical saved actions across views. The review animation represents a 1.2-second simulated preparation, not real searching. Existing `/api/assistant` still lacks these contracts.
+
+### Local opportunity discovery
+
+Resolve a user-selected city/county/ZIP through a real provider with ambiguous/unsupported/failed outcomes. Ask for precise or device location only when useful and with its own permission/use/retention explanation. Match actual activity venues or rolling service areas, not headquarters centroids. Radius/distance requires valid coordinates and a disclosed method; no fake travel time or guessed proximity. Area changes invalidate old query scope and nearby results while retaining privately saved commitments. Do not send household evidence, private notes or other unrelated fields to the discovery provider.
+
+Return typed organizer and opportunity records with IDs/revisions, source/checked/fetched/updated times, scheduled instants and source timezone (or an explicitly flagged inference), recurring/rolling windows, actual venue/address/coordinates or unknown basis, service geometry, work overview, duration, cost/currency/unknown, age/waiver/supervision, accessibility/unknown, tools/preparation/safety, official detail/registration URLs and capacity/deadline only if known. Full/cancelled/postponed/date-changed/expired states remain distinct. Only sessions starting in the future or eligible rolling programs enter the primary finder. Content rights and image provenance are reviewed; a venue photograph is not invented from generic nature art.
+
+Curated official pages, organizer feeds and approved structured listings can form a bounded acquisition service. Registry/link verification is separate from human verification and partnership. Updates need source-specific freshness, cancellation/expiry checks, caching, retry/rate limits and a last-successful-fetch ledger. Provider failure must retain prior dated results with an unavailable state, never become a successful empty local search. A refresh must truly query/revalidate sources in production. Source retrieval and eligibility do not imply registration capacity or school/service-credit acceptance.
+
+The preview uses four checked public snapshots, minute-clock exclusion and a local 30-day snapshot-review rule, not live geocoding or ingestion. Its small reviewed ZIP alias list is not a nationwide database or proof of residence/eligibility. Meeting addresses and numeric distances are deliberately absent rather than invented; TreeDay times use inferred Charlotte venue timezone pending source verification. Real production coverage and suitable local alternatives still require this new service. The current county/cause `/api/volunteer` organization route cannot provide it and its unavailable-versus-no-match response still needs correction.
+
+### Participation and presentation
+
+Bind saved commitments and shared preparation/reminder actions to the original opportunity ID/revision, schedule/timezone and source snapshot. The preview preserves the public URL/time/check date in its existing commitment fields; that is not a typed durable relationship or a timed calendar service. Changed/cancelled sources require a review notice, not silent rescheduling or erased history. Opening registration, saving a plan and self-reporting attendance remain distinct. No booking, waiver acceptance, registration, agency submission or external message occurs automatically.
+
+Keep the compact first view source-derived: work, when/where, duration, eligibility/cost/access and essential safety, with additional preparation and original sources on demand. Project sketches are decorative, not instruction diagrams. Live generation/discovery, durable relations, source/rights review and physical-device accessibility remain Vibhav/backend and release work after Yogi's wireframe approval.
+
 ## Later October 11: broad Luna and personalized project generation
 
 Yogi explicitly permits new-backend-dependent wireframes. The current design replaces repeated note/Luna toolbars with one shared conversational assistant and a compact project-led Explore workbench. This section supersedes the earlier five-template/note-only Luna baseline. Backend ownership remains with Vibhav; no backend route, migration or live provider call was changed.

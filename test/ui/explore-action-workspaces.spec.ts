@@ -41,11 +41,13 @@ test('failed map preview retains the full-map entry and other feature routes', a
   await expect(page.locator('.ex-mini-map-canvas')).toHaveAttribute('data-map-preview-state', 'unavailable');
   await expect(page.getByRole('link', { name: /Explore the map/ })).toBeVisible();
   await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
+  await page.getByText('My volunteering and follow-through', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
 });
 
 test('a personally selected opportunity can be prepared, recorded and followed up without an event feed', async ({ page }) => {
   await page.goto(`${root}&destination=opportunities`);
+  await page.getByText('My volunteering and follow-through', { exact: true }).click();
   await page.getByRole('button', { name: 'Add my own opportunity' }).click();
   await page.getByLabel('Opportunity name (required)').fill('My organizer-led sample activity');
   await page.getByLabel('Organizer (required)').fill('Sample stewardship group');
@@ -107,12 +109,13 @@ test('legacy organizations route opens the combined local participation workspac
   await page.goto(`${root}&destination=organizations&exploreView=detail&exploreRecord=demo-creek`);
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await expect(page.locator('.ex-subnav')).toHaveCount(0);
+  await page.getByText('My volunteering and follow-through', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
   await page.getByRole('button', { name: 'Open my notes' }).click();
   await expect(page.getByRole('heading', { name: 'My notes', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
   await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
-  await expect(page.locator('.ex-local')).toBeVisible();
+  await expect(page.locator('.ex-opportunity-finder')).toBeVisible();
 });
 
 test('project workspace plans selected steps, deduplicates and retains explicit progress through pause and resume', async ({ page }, info) => {
@@ -160,7 +163,7 @@ test('project completion requires every real step and a result, and Homeguard ha
   await page.getByText('Related actions', { exact: true }).click();
   await page.getByRole('link', { name: 'Continue into tests and home records' }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Explore', exact: true }).click();
-  await page.locator('.ex-personal-work').getByRole('button', { name: /See all \d+/ }).click();
+  await page.locator('.ex-personalized-preview').getByRole('button', { name: /See all \d+/ }).click();
   await page.locator('.ex-project-continuation > summary').click();
   await page.locator('.ex-project-continuation').getByRole('button').click();
   await expect(page.locator('.ex-project-progress')).toContainText('4 of 4');

@@ -27,6 +27,8 @@ The checkpoint includes current app components, styling, public assets, tests, f
 
 ## Review and actual implementation
 
+Latest October 11 Explore direction has three balanced primary paths: projects, community involvement and map. The finder now demonstrates location-influenced upcoming/rolling snapshots; projects add direct interests, smaller shortlists, novelty refresh, activity-specific artwork and cancellable loading. Read the newest sections of the Explore review/delta first. Live retrieval, nearby geocoding/distance and fresh event ingestion remain backend additions, not Site integrations.
+
 - Hosted review: https://halo-wireframe-review.yogirajapaturi.chatgpt.site .
 - Expanded Today: `/foundation/preview/expanded/?tab=today`.
 - Expanded Homeguard: `/foundation/preview/expanded/?tab=home`.

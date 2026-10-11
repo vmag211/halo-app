@@ -23,7 +23,7 @@
 .halo-explore .ex-area-sheet > p { font-size:calc(.88rem * var(--halo-text-scale)); color:var(--halo-secondary); }
 .ex-area-sheet .ex-button { width:100%; }
 .ex-offline { padding:10px 0; border-bottom:1px solid var(--halo-border); color:var(--halo-secondary); font-size:calc(.82rem * var(--halo-text-scale)) !important; }
-.ex-fieldwork-layout,.ex-personal-work,.ex-local-work { display:grid; gap:26px; min-width:0; }
+.ex-fieldwork-layout,.ex-personal-work,.ex-local-work { display:grid; gap:28px; min-width:0; }
 .ex-local-work { gap:24px; }
 .halo-explore .ex-photo { border-radius:6px; }
 .ex-participation-entry { display:grid; gap:12px; padding-top:18px; border-top:1px solid var(--halo-border); }
@@ -74,6 +74,6 @@
 .halo-f-app[data-text-scale="150"] .ex-community-bridge > svg { display:none; }
 .halo-f-app[data-contrast="high"] .ex-participation-entry .ex-volunteer-path { grid-template-columns:minmax(0,1fr); }
 .halo-f-app[data-contrast="high"] .ex-community-bridge { grid-template-columns:minmax(0,1fr) 17px; }
-@container explore-workspace (min-width:650px) { .ex-fieldwork-layout { grid-template-columns:minmax(0,1.2fr) minmax(0,.85fr); align-items:start; gap:30px; } .ex-local-work { border-left:1px solid var(--halo-border); padding-left:26px; } .ex-participation-entry { padding-top:0; border-top:0; } }
+@container explore-workspace (min-width:650px) { .ex-fieldwork-layout { grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:28px; } .ex-fieldwork-layout > .ex-mini-map { grid-column:1 / -1; } }
 @media(max-width:350px) { .ex-workbench-bar { gap:4px; } .ex-participation-entry .ex-volunteer-path { grid-template-columns:72px minmax(0,1fr); gap:12px; } .halo-explore .ex-community-bridge { grid-template-columns:60px minmax(0,1fr); } }
 @media(forced-colors:active) { .ex-resource-menu { border:1px solid CanvasText; background:Canvas; box-shadow:none; } .ex-notebook-entry,.ex-resources > summary,.ex-map-preview-layer select { color:ButtonText; } .ex-participation-entry .ex-volunteer-path { grid-template-columns:minmax(0,1fr); } .halo-explore .ex-community-bridge { grid-template-columns:minmax(0,1fr) 17px; } }

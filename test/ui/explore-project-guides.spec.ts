@@ -67,6 +67,7 @@ test('project preferences regenerate the shared set and keep narrower constraint
   await fit.getByLabel('Who would take part?').selectOption('solo');
   await fit.getByLabel('Materials and spending').selectOption('reuse');
   await fit.getByRole('button', { name: 'Generate my project ideas', exact: true }).click();
+  await expect(page.locator('.ex-project-generating')).toHaveCount(0);
   const count = await page.locator('.ex-generated-item').count();
   expect(count).toBeGreaterThan(0); expect(count).toBeLessThan(12);
   await expect(page.locator('.ex-generated-list')).not.toContainText('Build a solar-energy experiment');
@@ -80,6 +81,7 @@ test('refresh varies relevant ideas without creating projects or losing old guid
   await page.goto(root);
   const first = await page.locator('.ex-generated-item').evaluateAll(items => items.map(item => item.getAttribute('data-project-id')));
   await page.getByRole('button', { name: 'Refresh ideas', exact: true }).click();
+  await expect(page.locator('.ex-project-generating')).toHaveCount(0);
   const next = await page.locator('.ex-generated-item').evaluateAll(items => items.map(item => item.getAttribute('data-project-id')));
   expect(next).not.toEqual(first);
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);

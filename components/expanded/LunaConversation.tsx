@@ -43,7 +43,7 @@ function constraintsForRequest(request: string, current: ProjectConstraints): Pr
   else if (/\b(ongoing|long.term)\b/i.test(request)) next.time = 'ongoing';
   if (/\b(reuse|no spending|free|no money)\b/i.test(request)) next.budget = 'reuse';
   else if (/\b(cheap|cheaper|low.cost|low budget)\b/i.test(request)) next.budget = 'low';
-  const count = request.match(/\b(10|11|12|13|14|15)\s+(?:projects?|ideas?)\b/i);
+  const count = request.match(/\b(3|5|10|11|12|13|14|15)\s+(?:projects?|ideas?)\b/i);
   if (count) next.count = Number(count[1]) as ProjectConstraints['count'];
   return next;
 }

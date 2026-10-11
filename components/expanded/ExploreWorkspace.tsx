@@ -7,7 +7,8 @@ import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, FileText, Mail, MoreHori
 import { useExpandedPreview } from './ExpandedPreviewState';
 import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { ExplorePhoto, ExplorePhotoCredits } from './ExploreVisuals';
-import { CommunityGuide, ExploreAreaChooser, VolunteeringFinder } from './ExploreDiscovery';
+import { CommunityGuide, ExploreAreaChooser } from './ExploreDiscovery';
+import ExploreOpportunities, { GetInvolvedPreview } from './ExploreOpportunities';
 import ExploreOutreach from './ExploreOutreach';
 import ExploreNotes from './ExploreNotes';
 import ExploreMapPreview from './ExploreMapPreview';
@@ -40,7 +41,7 @@ export default function ExploreWorkspace({ destination, href, mapHref, environme
     <WorkspaceFeedback />
     {workspace.scenario === 'offline' && <p className="ex-offline" role="status">Offline. Read your notes; reconnect to save or open official links.</p>}
     {workspace.scenario === 'loading' || workspace.scenario === 'error' ? <div className="ex-empty" role="status"><h3>{workspace.scenario === 'loading' ? 'Opening Explore' : 'Explore could not load'}</h3><p>Your drafts stay in this visit.</p><button className="ex-button" onClick={() => workspace.setScenario('ready')}>Retry sample view</button></div>
-      : section === 'opportunities' ? <>{view === 'list' ? <><VolunteeringFinder go={go} /><VolunteerCommitments go={go} /></> : <VolunteerCommitments go={go} view={view} id={id} />}</>
+      : section === 'opportunities' ? <>{view === 'list' ? <><ExploreOpportunities go={go} /><details className="ex-opportunity-programs"><summary>My volunteering and follow-through</summary><VolunteerCommitments go={go} /></details></> : <VolunteerCommitments go={go} view={view} id={id} />}</>
       : section === 'projects' ? <ExploreProjects go={go} view={view} id={id} href={href} environmentAvailable={environmentAvailable} />
       : section === 'community' ? <CommunityGuide go={go} mapHref={mapHref} href={href} />
       : section === 'outreach' ? <ExploreOutreach />
@@ -53,13 +54,11 @@ function ExploreOverview({ go, mapHref, environmentAvailable }: { go: Go; mapHre
   return <>
     <ExploreContinuations go={go} />
     <div className="ex-fieldwork-layout">
-      <div className="ex-personal-work"><PersonalizedProjectsPreview go={go} environmentAvailable={environmentAvailable} /></div>
-      <div className="ex-local-work">
-        <section className="ex-participation-entry" aria-labelledby="ex-local-title"><div className="ex-workbench-section-head"><h3 id="ex-local-title">With your community</h3></div><button className="ex-volunteer-path" onClick={() => go('opportunities')} aria-label="Get involved: find local volunteering and organizations"><ExplorePhoto scene="trail" /><span><strong>Get involved</strong><small>Cleanups, growing spaces and local groups.</small><span className="ex-entry-action">Find your way to help <ArrowRight size={16} aria-hidden="true" /></span></span></button></section>
+      <GetInvolvedPreview go={go} />
+      <PersonalizedProjectsPreview go={go} environmentAvailable={environmentAvailable} />
         <ExploreMapPreview mapHref={mapHref} />
-        <button className="ex-community-bridge" onClick={() => go('community')} aria-label="Understand your community: water, air and public records"><ExplorePhoto scene="river" /><span><BookOpen size={17} aria-hidden="true" /><strong>Understand your community</strong><small>Read the evidence. Choose your next step.</small></span><ChevronRight size={17} aria-hidden="true" /></button>
-      </div>
     </div>
+    <button className="ex-community-bridge" onClick={() => go('community')} aria-label="Understand your community: water, air and public records"><ExplorePhoto scene="river" /><span><BookOpen size={17} aria-hidden="true" /><strong>Understand your community</strong><small>Read the evidence. Choose your next step.</small></span><ChevronRight size={17} aria-hidden="true" /></button>
   </>;
 }
 

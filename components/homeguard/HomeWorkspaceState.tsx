@@ -40,7 +40,10 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const conversation = drafts['luna:conversation'] as { draft?: string; messages?: { proposal?: { status?: string } }[] } | undefined;
     const lunaDraft = Boolean(conversation?.draft?.trim() || conversation?.messages?.some(message => message.proposal?.status === 'review'));
-    if (!lunaDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
+    const projectInput = String(drafts['explore:project-direct-interest'] ?? '').trim();
+    const generated = drafts['explore:generated-projects'] as { request?: string } | undefined;
+    const projectDraft = Boolean(projectInput && projectInput !== generated?.request || drafts['explore:project-generation-fit']);
+    if (!lunaDraft && !projectDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);

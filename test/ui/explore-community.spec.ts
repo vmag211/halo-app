@@ -36,7 +36,7 @@ test('hub is evergreen and every photo uses regular rectangular frames', async (
     expect(style.clip).toBe('none');
     expect(style.tl).toBe(style.tr); expect(style.bl).toBe(style.br);
   }
-  await expect(page.locator('.ex-volunteer-path')).toBeVisible();
+  await expect(page.locator('.ex-involvement-cover')).toBeVisible();
   await expect(page.locator('.ex-community-bridge')).toBeVisible();
 });
 
@@ -49,7 +49,7 @@ test('area label remains local and can be cleared', async ({ page }) => {
   await page.getByLabel('State', { exact: true }).fill('North Carolina');
   await page.getByRole('button', { name: 'Use this area' }).click();
   expect(page.url()).not.toContain('Private');
-  await page.locator('.ex-volunteer-path').click();
+  await page.locator('.ex-involvement-cover').click();
   await expect(page.locator('.ex-area-toggle')).toContainText('Private planning place');
   await page.locator('.ex-area-toggle').click();
   await page.getByRole('button', { name: 'Clear area' }).click();
@@ -76,6 +76,7 @@ test('volunteer guide is filtered by interest, uses official handoff and saves a
   await page.goto(`${root}&destination=opportunities`);
   await page.getByLabel('What interests you?').selectOption('Trees & habitat');
   await expect(page.locator('.ex-local-route')).toHaveCount(1);
+  await page.getByText('Organizations and other ways to help', { exact: true }).click();
   await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
   const link = page.getByRole('link', { name: 'Open official participation guide' });
   await expect(link).toHaveAttribute('href', /treescharlotte\.org/);
@@ -256,6 +257,7 @@ test('unknown attempt can be reconciled without automatically sending again', as
 test('returning from a program guide preserves filters, then another interest shows appropriate routes', async ({ page }) => {
   await page.goto(`${root}&destination=opportunities`);
   await page.getByLabel('What interests you?').selectOption('Trees & habitat');
+  await page.getByText('Organizations and other ways to help', { exact: true }).click();
   await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
   await expect(page.locator('.ex-local-detail')).toBeVisible();
   await page.getByRole('button', { name: 'All programs and organizations' }).click();
@@ -287,6 +289,7 @@ for (const appearance of ['light', 'dark']) test(`deep Explore flows remain usab
     await page.goto(`${root}&appearance=${appearance}&scale=150&destination=${destination}`);
     if (destination === 'community') await page.getByRole('button', { name: 'Facilities', exact: true }).click();
     if (destination === 'opportunities') {
+      await page.getByText('Organizations and other ways to help', { exact: true }).click();
       await page.getByRole('button', { name: /^See how to help:/ }).first().click();
       await page.getByText('My preparation and questions', { exact: true }).click();
     }

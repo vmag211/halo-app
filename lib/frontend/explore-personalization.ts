@@ -7,7 +7,7 @@ export type ProjectConstraints = {
   mode: 'any' | 'solo' | 'group';
   time: 'any' | 'quick' | 'half-day' | 'ongoing';
   budget: 'any' | 'reuse' | 'low';
-  count: 10 | 11 | 12 | 13 | 14 | 15;
+  count: 3 | 5 | 10 | 11 | 12 | 13 | 14 | 15;
 };
 export const defaultProjectConstraints: ProjectConstraints = { space: 'any', mode: 'any', time: 'any', budget: 'any', count: 12 };
 export type ProjectEvidence = {
@@ -21,6 +21,8 @@ export type ProjectEnvironmentContext = {
   sourceStatus: 'reviewed-drafts' | 'unavailable';
   /** Rotate equally relevant general options only; never modify environmental evidence. */
   variation?: number;
+  previousIdeaIds?: string[];
+  interestOnly?: boolean;
   /** Explicit form choices win over constraints embedded in an older request. */
   requestConstraints?: 'interpret' | 'explicit';
 };
@@ -41,7 +43,7 @@ export function normalizeProjectConstraints(value: Partial<ProjectConstraints> =
     const candidate = value[key];
     if (candidate && (choices[key] as readonly string[]).includes(candidate)) Object.assign(normalized, { [key]: candidate });
   }
-  if (Number.isInteger(value.count) && value.count! >= 10 && value.count! <= 15) normalized.count = value.count!;
+  if ([3, 5, 10, 11, 12, 13, 14, 15].includes(value.count ?? 0)) normalized.count = value.count!;
   return normalized;
 }
 export function inferProjectConstraints(request: string, current: ProjectConstraints = defaultProjectConstraints): ProjectConstraints {
@@ -58,7 +60,7 @@ export function inferProjectConstraints(request: string, current: ProjectConstra
   if (/\b(quick|short|20 minutes|half an hour)\b/.test(text)) result.time = 'quick';
   else if (/\b(half.day|afternoon|few hours)\b/.test(text)) result.time = 'half-day';
   else if (/\b(ongoing|long.term|regular)\b/.test(text)) result.time = 'ongoing';
-  const count = text.match(/\b(10|11|12|13|14|15)\s+(?:project|idea)/);
+  const count = text.match(/\b(3|5|10|11|12|13|14|15)\s+(?:project|idea)/);
   if (count) result.count = Number(count[1]) as ProjectConstraints['count'];
   return result;
 }
@@ -141,6 +143,7 @@ export function generateProjectSuggestions(context: ProjectEnvironmentContext, c
     if (fit.budget === 'low' && family.budget === 'quote') return [];
     const match = contextMatch(guide, context);
     const requestScore = family.topic.filter(word => new RegExp(`\\b${word}\\w*\\b`, 'i').test(text)).length * 35;
+    if (context.interestOnly && requestScore === 0) return [];
     const outdoorWork = !family.spaces.includes('indoors');
     const dailyEvidence = outdoorWork ? context.evidence.filter(item => ['air', 'uv', 'pollen', 'weather'].includes(item.topic)) : [];
     const checks = [family.requires, ...(outdoorWork ? [dailyEvidence.some(item => item.stale) ? 'Today’s September 30 examples are outdated. Review current air, sun and pollen conditions before choosing outdoor work time.' : 'Review current air, sun, pollen and weather before choosing outdoor work time.'] : []), ...(guide.scope.includes('North Carolina') && !/^(north carolina|nc)$/i.test(context.state) ? ['The source is North Carolina guidance. Recheck regional suitability before using it here.'] : []), ...(context.renter === true && family.spaces.length === 1 && family.spaces[0] === 'yard' ? ['Owner permission and any property modification requirements must be confirmed.'] : [])].filter((value): value is string => !!value);
@@ -150,7 +153,8 @@ export function generateProjectSuggestions(context: ProjectEnvironmentContext, c
       evidenceIds: [...new Set([...match.evidenceIds, ...dailyEvidence.map(item => item.id)])], sourceIds: guide.sources.map(source => source.id), fit: requestScore ? 'interest' : match.boost ? 'context' : 'general', needsCheck: checks,
     };
     const rotatedIndex = (index + Math.max(0, context.variation ?? 0) * 5) % projectGuides.length;
-    return [{ suggestion, score: match.boost + requestScore + (fit.space !== 'any' ? 15 : 0), group: family.group, index: rotatedIndex }];
+    const repetition = context.previousIdeaIds?.includes(guide.id) ? 180 : 0;
+    return [{ suggestion, score: match.boost + requestScore + (fit.space !== 'any' ? 15 : 0) - repetition, group: family.group, index: rotatedIndex }];
   }).sort((a, b) => b.score - a.score || a.index - b.index);
   const selected: typeof candidates = [];
   const counts = new Map<string, number>();

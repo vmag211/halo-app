@@ -20,9 +20,9 @@ test('renamed navigation, overview paths and map keep Explore ownership', async 
   await expect(page.getByRole('link', { name: 'Back to Explore' })).toBeVisible();
   await page.getByRole('link', { name: 'Back to Explore' }).click();
   for (const path of ['volunteering', 'projects', 'notes', 'community']) {
-    if (path === 'projects') await page.locator('.ex-personal-work').getByRole('button', { name: /See all \d+/ }).click();
+    if (path === 'projects') await page.locator('.ex-personalized-preview').getByRole('button', { name: /See all \d+/ }).click();
     else if (path === 'notes') await page.getByRole('button', { name: 'Open my notes', exact: true }).click();
-    else await page.locator(path === 'volunteering' ? '.ex-volunteer-path' : '.ex-community-bridge').click();
+    else await page.locator(path === 'volunteering' ? '.ex-involvement-cover' : '.ex-community-bridge').click();
     await expect(page.getByRole('navigation', { name: 'Explore sections' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Explore', exact: true })).toHaveAttribute('aria-current', 'page');
     await page.getByRole('button', { name: 'Back to Explore', exact: true }).first().click();
@@ -41,19 +41,21 @@ test('filters retain selections and distinguish no coverage from errors', async 
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await page.getByLabel('What interests you?').selectOption('Trees & habitat');
   await expect(page.locator('.ex-local-route')).toHaveCount(1);
+  await page.getByText('Organizations and other ways to help', { exact: true }).click();
   await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
-  await page.getByText('Sources and listing review', { exact: true }).click();
+  await page.getByText('Organization, sources and listing review', { exact: true }).click();
   await expect(page.locator('.ex-local-detail')).toContainText('not independent organization verification');
   await page.getByRole('button', { name: 'All programs and organizations' }).click();
   await expect(page.getByLabel('What interests you?')).toHaveValue('Trees & habitat');
+  await page.getByText('Location and source coverage', { exact: true }).click();
   await page.getByLabel('Browse reviewed areas').selectOption('elsewhere');
-  await expect(page.locator('.ex-local-scope')).toContainText('HALO has not searched or found nearby events');
+  await expect(page.locator('.ex-opportunity-finder')).toContainText('No reviewed local coverage');
   await expect(page.locator('.ex-local-route')).toHaveCount(0);
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Explore workspace state').selectOption('error');
   await expect(page.getByRole('heading', { name: 'Explore could not load' })).toBeVisible();
   await page.getByRole('button', { name: 'Retry sample view' }).click();
-  await expect(page.locator('.ex-local-scope')).toContainText('HALO has not searched or found nearby events');
+  await expect(page.locator('.ex-opportunity-finder')).toContainText('No reviewed local coverage');
   await expect(page.getByLabel('What interests you?')).toHaveValue('Trees & habitat');
 });
 
@@ -156,7 +158,7 @@ test('photo failure keeps every Explore entry usable', async ({ page }) => {
   await page.goto(root);
   await page.locator('.ex-community-bridge').scrollIntoViewIfNeeded();
   await expect(page.locator('.ex-photo[data-photo-state="unavailable"]')).toHaveCount(3);
-  await page.locator('.ex-personal-work').getByRole('button', { name: /See all \d+/ }).click();
+  await page.locator('.ex-personalized-preview').getByRole('button', { name: /See all \d+/ }).click();
   await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
   await page.getByRole('button', { name: /Get to know your water/ }).click();
   await expect(page.locator('.ex-project-step')).toBeVisible();
@@ -164,7 +166,7 @@ test('photo failure keeps every Explore entry usable', async ({ page }) => {
 
 test('high contrast preserves every pathway', async ({ page }) => {
   await page.goto(`${root}&contrast=true&scale=150`);
-  await expect(page.locator('.ex-personal-work .ex-photo')).toBeHidden();
+  await expect(page.locator('.ex-personalized-preview .ex-photo')).toBeHidden();
   await expect(page.getByRole('link', { name: /Explore the map/ })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.getByLabel('Explore resources', { exact: true }).click();

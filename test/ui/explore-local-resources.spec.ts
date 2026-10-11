@@ -12,10 +12,13 @@ test.beforeEach(async ({ page }) => {
   });
 });
 test.afterEach(async ({ page }) => expect(faults.get(page)).toEqual([]));
+async function showPrograms(page: Page) { const summary = page.getByText('Organizations and other ways to help', { exact: true }); if (!await summary.evaluate(element => element.closest('details')?.open)) await summary.click(); }
+
 
 test('Get involved combines real programs with honest geographic and interest scope', async ({ page }) => {
-  await page.goto(root);
+  await page.goto(root); await showPrograms(page);
   await expect(page.locator('.ex-local-list .ex-local-route')).toHaveCount(5);
+  await page.getByText('Location and source coverage', { exact: true }).click();
   await page.getByLabel('Browse reviewed areas').selectOption('union');
   await expect(page.locator('.ex-local-list .ex-local-route')).toHaveCount(1);
   await expect(page.locator('.ex-local-list')).toContainText('N.C. Cooperative Extension');
@@ -23,23 +26,24 @@ test('Get involved combines real programs with honest geographic and interest sc
   await page.getByLabel('What interests you?').selectOption('Trees & habitat');
   await expect(page.locator('.ex-local-list .ex-local-route')).toHaveCount(1);
   await expect(page.locator('.ex-local-list')).toContainText('TreesCharlotte');
-  await expect(page.locator('.ex-local')).toContainText('not a live event feed');
+  await expect(page.locator('.ex-opportunity-coverage')).toContainText('not live geocoding');
 });
 
 test('an unsupported typed area yields no fabricated nearby matches and preserves official routes', async ({ page }) => {
-  await page.goto(root);
+  await page.goto(root); await showPrograms(page);
   await page.getByRole('button', { name: /Choose an area/ }).click();
   await page.getByLabel('City or county').fill('Boston');
   await page.getByLabel('State', { exact: true }).fill('Massachusetts');
   await page.getByRole('button', { name: 'Use this area' }).click();
   await expect(page.locator('.ex-local-list .ex-local-route')).toHaveCount(0);
-  await expect(page.locator('.ex-local-scope')).toContainText('No curated local coverage for Boston, Massachusetts');
+  await expect(page.locator('.ex-opportunity-finder')).toContainText('No reviewed local coverage');
+  await expect(page.locator('.ex-opportunity-location')).toContainText('Boston, Massachusetts');
   await expect(page.locator('.ex-local-national').getByRole('link', { name: 'Open official opportunities' })).toHaveCount(3);
   await expect(page).not.toHaveURL(/Boston|Massachusetts/);
 });
 
 test('a program has specific steps, source-scoped requirements and an office address that is not a meeting point', async ({ page }) => {
-  await page.goto(root);
+  await page.goto(root); await showPrograms(page);
   await page.getByRole('button', { name: 'See how to help: Help care for local waterways' }).click();
   const detail = page.locator('.ex-local-detail');
   await expect(detail.locator('.ex-local-steps li')).toHaveCount(4);
@@ -51,7 +55,7 @@ test('a program has specific steps, source-scoped requirements and an office add
 });
 
 test('a real program guide becomes an editable private commitment without inventing registration or a date', async ({ page }) => {
-  await page.goto(root);
+  await page.goto(root); await showPrograms(page);
   await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
   await page.getByText('My preparation and questions', { exact: true }).click();
   await page.getByLabel('Questions or access needs (private)').fill('A fictional question about a lighter role.');
@@ -67,12 +71,12 @@ test('a real program guide becomes an editable private commitment without invent
 });
 
 test('choosing another program protects an unfinished participation draft', async ({ page }) => {
-  await page.goto(root);
+  await page.goto(root); await showPrograms(page);
   await page.getByRole('button', { name: 'See how to help: Start a neighborhood cleanup' }).click();
   await page.getByRole('button', { name: 'Plan my participation' }).click();
   await page.getByLabel('Opportunity name (required)').fill('My unfinished fictional plan');
   await page.getByRole('button', { name: 'Back and keep commitment draft' }).click();
-  await page.getByRole('button', { name: 'All programs and organizations' }).click();
+  await page.getByRole('button', { name: 'All programs and organizations' }).click(); await showPrograms(page);
   await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
   await page.getByRole('button', { name: 'Plan my participation' }).click();
   await expect(page.getByRole('group', { name: 'Keep or replace participation draft' })).toBeVisible();
@@ -82,7 +86,7 @@ test('choosing another program protects an unfinished participation draft', asyn
 
 test('program catalogue and full guide fit 320px with 150 percent text', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 850 });
-  await page.goto(`${root}&scale=150&appearance=dark`);
+  await page.goto(`${root}&scale=150&appearance=dark`); await showPrograms(page);
   await expect(page.locator('.ex-local-list')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(322);
   await page.getByRole('button', { name: 'See how to help: Help a community garden grow' }).click();

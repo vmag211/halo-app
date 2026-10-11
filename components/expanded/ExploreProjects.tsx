@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Bug, Check, ChevronRight, Droplets, ExternalLink, HandHeart, ListOrdered, Pause, Play, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sprout, Sun, Wind } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/Foundation';
@@ -15,6 +15,7 @@ import { useExpandedPreview } from './ExpandedPreviewState';
 import { ExplorePhoto } from './ExploreVisuals';
 import { SaveExplore } from './ExploreShared';
 import ExploreOutcome from './ExploreOutcome';
+import ProjectIllustration, { artworkForProject } from './ProjectIllustration';
 import './explore-project-guides.css';
 
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
@@ -42,11 +43,13 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
     const terms = query.toLocaleLowerCase('en').trim().split(/\s+/).filter(Boolean);
     const available = generation.batch.items.filter(item => { const guide = findProjectGuide(item.id); return guide && (cause === 'All projects' || guide.cause === cause) && terms.every(term => `${item.title} ${guide.description} ${guide.materials.join(' ')}`.toLocaleLowerCase('en').includes(term)); });
     return <section className="ex-detail ex-guide-library ex-generated-library">
-      <div className="ex-generated-title"><div><h3>Projects for you</h3><p>{generation.batch.items.length} ideas shaped around your HALO context and choices.</p></div><button className="ex-text-button" onClick={() => generation.setFitOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Make these fit me</button></div>
+      <div className="ex-generated-title"><div><h3>Projects for you</h3><p>{generation.batch.items.length} ideas shaped around your HALO context and choices.</p></div><button className="ex-text-button" disabled={generation.busy} onClick={() => generation.setFitOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Make these fit me</button></div>
+      <ProjectInterestInput generation={generation} />
       {collection.records.length > 0 && <details className="ex-project-continuation"><summary>My projects ({collection.records.length})</summary>{collection.records.map(item => <button className="ex-text-button" key={item.id} onClick={() => go('projects', 'detail', item.id)}>{item.title} · {item.status}<ArrowRight size={16} aria-hidden="true" /></button>)}</details>}
-      <div className="ex-generated-controls"><div className="ex-guide-find"><label><Search size={17} aria-hidden="true" /><span className="ex-sr">Find a project</span><input type="search" value={query} placeholder="Find an idea in this set" onChange={event => setQuery(event.target.value)} /></label><label>Focus<select value={cause} onChange={event => setCause(event.target.value)}>{projectGuideCauses.map(item => <option key={item}>{item}</option>)}</select></label></div><button className="ex-text-button" onClick={() => generation.regenerate()}><RefreshCw size={16} aria-hidden="true" />Refresh ideas</button></div>
-      <div className="ex-generated-list" aria-label="Generated project ideas">{available.map((item, index) => <SuggestedProject key={item.id} item={item} index={index} go={go} />)}</div>
-      {!available.length && <div className="ex-empty"><h4>No projects match these choices</h4><p>Try a broader word or adjust the space, time and supplies you want to use.</p><button className="ex-text-button" onClick={() => { setQuery(''); setCause('All projects'); generation.regenerate(defaultProjectConstraints, ''); }}>Show all projects</button></div>}
+      <div className="ex-generated-controls"><div className="ex-guide-find"><label><Search size={17} aria-hidden="true" /><span className="ex-sr">Find a project</span><input type="search" value={query} placeholder="Find an idea in this set" onChange={event => setQuery(event.target.value)} /></label><label>Focus<select value={cause} onChange={event => setCause(event.target.value)}>{projectGuideCauses.map(item => <option key={item}>{item}</option>)}</select></label></div><button className="ex-text-button" disabled={generation.busy} onClick={() => generation.regenerate()}><RefreshCw size={16} aria-hidden="true" />Refresh ideas</button></div>
+      <ProjectGenerationStatus generation={generation} />
+      <div className="ex-generated-list" aria-label="Generated project ideas" aria-busy={generation.busy}>{available.map(item => <SuggestedProject key={item.id} item={item} go={go} />)}</div>
+      {!available.length && !generation.busy && <div className="ex-empty"><h4>No projects match these choices</h4><p>Try a broader word or adjust the space, time and supplies you want to use.</p><button className="ex-text-button" onClick={() => { setQuery(''); setCause('All projects'); generation.regenerate(defaultProjectConstraints, ''); }}>Show all projects</button></div>}
       <GenerationDetails generation={generation} />
       {generation.fitOpen && <ProjectFitSheet generation={generation} />}
     </section>;
@@ -77,7 +80,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
 
   return <section className="ex-detail ex-project-workspace ex-guide-workspace" data-project-id={project.id} data-guide-version={project.version}>
     <button className="ex-text-button" onClick={() => go('projects')}><ArrowLeft size={16} aria-hidden="true" />All projects</button>
-    <div className="ex-guide-cover"><ExplorePhoto scene={project.scene} className="ex-detail-photo" /><span className="ex-guide-cover-caption"><Icon size={18} aria-hidden="true" />{project.cause} · Practical guide</span></div>
+    <div className="ex-guide-cover"><ProjectIllustration kind={artworkForProject(project.id)} /><span className="ex-guide-cover-caption"><Icon size={18} aria-hidden="true" />{project.cause} · Project sketch</span></div>
     <span className="ex-kicker">{project.effort} · {needsReview ? 'Completion needs review' : record?.status ?? 'Not started'}</span>
     <h3>{project.title}</h3><p>{project.description}</p>
     <details className="ex-guide-purpose"><summary>Purpose and fit</summary><p>{project.purpose}</p><p>{project.suitability}</p></details>
@@ -120,55 +123,97 @@ function useProjectGeneration(environmentAvailable = true) {
   const [batch, setBatch] = useHomeDraft<ProjectGenerationState>('explore:generated-projects', createProjectGeneration(context));
   const [intent, , clearIntent] = useHomeDraft('explore:project-generation-intent', '');
   const [fitOpen, setFitOpen] = useState(false);
+  const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
+  const [serviceState, setServiceState] = useHomeDraft('explore:generation-review-state', 'ready');
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null); const contextRef = useRef(context); const batchRef = useRef(batch);
+  const pending = useRef<{ constraints: ProjectConstraints; request: string; interpret: boolean; done?: () => void } | null>(null);
+  useEffect(() => { contextRef.current = context; }, [context]);
+  useEffect(() => { batchRef.current = batch; }, [batch]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   useEffect(() => {
     if (!intent) return;
     if (intent !== batch.request) setBatch(previous => createProjectGeneration(context, previous.constraints, intent, previous.generation + 1));
     clearIntent();
   }, [intent, batch.request, context, setBatch, clearIntent]);
-  function regenerate(constraints = batch.constraints, request = batch.request) {
-    setBatch(previous => createProjectGeneration(context, constraints, request, previous.generation + 1, false));
+  function regenerate(constraints = batch.constraints, request = batch.request, interpret = false, done?: () => void) {
+    if (timer.current) clearTimeout(timer.current);
+    pending.current = { constraints, request, interpret, done };
+    if (workspace.scenario === 'offline') { setMessage('Reconnect to generate new ideas. Your current set and input are kept.'); return; }
+    setBusy(true); setMessage('');
+    const expectedContext = context.key;
+    timer.current = setTimeout(() => {
+      timer.current = null; setBusy(false);
+      if (serviceState === 'failed') { setMessage('The preview generation failed. Your current ideas and choices are kept.'); return; }
+      if (contextRef.current.key !== expectedContext) { setMessage('Your HALO context changed. Try again with the current records; your existing ideas are kept.'); return; }
+      if (JSON.stringify(batchRef.current) !== JSON.stringify(batch)) { setMessage('Another project request updated your ideas. That set was kept; retry if you still want this request.'); return; }
+      try {
+        const sameChoices = JSON.stringify(constraints) === JSON.stringify(batch.constraints) && request === batch.request;
+        const next = createProjectGeneration({ ...contextRef.current, previousIdeaIds: sameChoices ? batch.items.map(item => item.id) : [], interestOnly: interpret }, constraints, request, batch.generation + 1, interpret);
+        if (interpret && !next.items.length) { setMessage('This preview has no source-backed match for that interest. Your current ideas and input are kept. Live web generation is planned.'); return; }
+        setBatch(next); pending.current = null; setMessage(`${next.items.length} preview idea${next.items.length === 1 ? '' : 's'} ready.`); done?.();
+      } catch { setMessage('The ideas could not be prepared. Your current set and choices are kept.'); }
+    }, serviceState === 'slow' ? 6000 : 1200);
   }
+  function cancel() { if (timer.current) clearTimeout(timer.current); timer.current = null; setBusy(false); setMessage('Generation cancelled. Your current ideas and input are kept.'); }
+  function retry() { const input = pending.current; if (input) regenerate(input.constraints, input.request, input.interpret, input.done); }
   // An unavailable environmental review state must not keep rendering personal
   // fixture reasons from a previous public-context generation. Preserve the draft
   // but derive a general/explicit-private-only view until context is available.
   const activeBatch = !environmentAvailable && batch.items.some(item => item.evidenceIds.some(evidenceId => /^preview:(today|home):/.test(evidenceId))) ? createProjectGeneration(context, batch.constraints, batch.request, batch.generation, false) : batch;
-  return { context, batch: activeBatch, fitOpen, setFitOpen, regenerate };
+  return { context, batch: activeBatch, fitOpen, setFitOpen, regenerate, busy, message, cancel, retry, serviceState, setServiceState };
 }
 type Generation = ReturnType<typeof useProjectGeneration>;
 
 /** Compact hub entrance shares the exact generation used by the full Projects page and Luna. */
 export function PersonalizedProjectsPreview({ go, environmentAvailable = true }: { go: Go; environmentAvailable?: boolean }) {
   const generation = useProjectGeneration(environmentAvailable);
-  const [lead, ...others] = generation.batch.items;
+  const [lead] = generation.batch.items;
   return <section className="ex-personalized-preview" aria-label="Projects for you">
     <div className="ex-personalized-heading"><h3>Projects for you</h3><button className="ex-text-button" onClick={() => go('projects')}>See all {generation.batch.items.length}<ArrowRight size={16} aria-hidden="true" /></button></div>
-    {lead ? <><button className="ex-generated-lead" onClick={() => go('projects', 'detail', lead.id)}><ExplorePhoto scene={findProjectGuide(lead.id)?.scene ?? 'garden'} eager /><span className="ex-generated-lead-copy"><span>{lead.fit === 'general' ? 'An idea to make your own' : 'Made to fit your world'}</span><strong>{lead.title}</strong><small>{lead.tags[0]}</small><ArrowRight size={20} aria-hidden="true" /></span></button><div className="ex-generated-mini-list">{others.slice(0, 2).map(item => <button key={item.id} onClick={() => go('projects', 'detail', item.id)}><span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(' · ')}</small></span><ArrowRight size={17} aria-hidden="true" /></button>)}</div></> : <div className="ex-empty"><p>No reviewed projects fit those choices.</p><button className="ex-text-button" onClick={() => go('projects')}>Adjust my project choices</button></div>}
+    {lead ? <button className="ex-generated-lead" onClick={() => go('projects', 'detail', lead.id)}><ExplorePhoto scene={findProjectGuide(lead.id)?.scene ?? 'garden'} eager /><span className="ex-generated-lead-copy"><span>{lead.fit === 'general' ? 'An idea to make your own' : 'Made to fit your world'}</span><strong>{lead.title}</strong><small>{lead.tags[0]}</small><ArrowRight size={20} aria-hidden="true" /></span></button> : <div className="ex-empty"><p>No reviewed projects fit those choices.</p><button className="ex-text-button" onClick={() => go('projects')}>Adjust my project choices</button></div>}
+    <div className="ex-project-preview-tools"><button className="ex-text-button" disabled={generation.busy} onClick={() => generation.regenerate()}><RefreshCw size={15} aria-hidden="true" />Refresh project ideas</button><button className="ex-text-button" onClick={() => go('projects')}>Add interests or preferences</button></div><ProjectGenerationStatus generation={generation} />
   </section>;
 }
 
-function SuggestedProject({ item, index, go }: { item: ProjectSuggestion; index: number; go: Go }) {
+function SuggestedProject({ item, go }: { item: ProjectSuggestion; go: Go }) {
   const guide = findProjectGuide(item.id)!;
   const Icon = guideIcons[guide.icon];
   return <article className="ex-generated-item ex-guide-entry" data-project-id={item.id} data-fit={item.fit}>
-    <button className="ex-generated-open" onClick={() => go('projects', 'detail', item.id)}><span className="ex-generated-number">{String(index + 1).padStart(2, '0')}</span><span><span className="ex-generated-topic"><Icon size={15} aria-hidden="true" />{guide.cause}</span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(' · ')}</small></span><ArrowRight size={18} aria-hidden="true" /></button>
+    <button className="ex-generated-open" onClick={() => go('projects', 'detail', item.id)}><ProjectIllustration kind={artworkForProject(item.id)} compact /><span><span className="ex-generated-topic"><Icon size={15} aria-hidden="true" />{guide.cause}</span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(' · ')}</small></span><ArrowRight size={18} aria-hidden="true" /></button>
     <details className="ex-generated-reason"><summary>Why this idea?</summary><p>{item.reason}</p>{item.needsCheck.length > 0 && <ul>{item.needsCheck.map(check => <li key={check}>{check}</li>)}</ul>}<p className="ex-meta">{item.evidenceIds.length ? 'Uses the dated sample records shown in Generation details below.' : 'General or interest-based choice. No condition at your home is inferred.'} Instructions use {guide.sources.map(source => source.publisher).filter((publisher, position, publishers) => publishers.indexOf(publisher) === position).join(', ')}.</p></details>
   </article>;
+}
+
+function ProjectInterestInput({ generation }: { generation: Generation }) {
+  const [request, setRequest] = useHomeDraft('explore:project-direct-interest', '');
+  return <form className="ex-project-interest" onSubmit={event => { event.preventDefault(); if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); }}>
+    <label>What interests you right now?<textarea rows={2} maxLength={500} value={request} onChange={event => setRequest(event.target.value)} placeholder="A solar experiment, native plants, or something to try with friends..." /></label>
+    <div><small>Start with a few ideas, then refine them.</small><button className="ex-button" type="submit" disabled={!request.trim() || generation.busy}>Generate a few ideas<ArrowRight size={16} aria-hidden="true" /></button></div>
+  </form>;
+}
+
+function ProjectGenerationStatus({ generation }: { generation: Generation }) {
+  if (generation.busy) return <div className="ex-project-generating" role="status">
+    <svg viewBox="0 0 180 58" aria-hidden="true" focusable="false"><path className="ex-generation-thread" d="M8 43C33 45 38 15 65 25s35 31 61 11 33-13 48-18" />{[35,70,105,140].map((x, index) => <path className="ex-generation-leaf" key={x} style={{ animationDelay: `${index * .18}s` }} d={`M${x} 29c-8-20 9-25 9-25s8 16-9 25Z`} />)}</svg>
+    <div><strong>Ideas taking shape</strong><small>Preparing tailored preview projects.</small></div><button className="ex-text-button" onClick={generation.cancel}>Cancel generation</button>
+  </div>;
+  return generation.message ? <div className="ex-generation-message" role={/failed|could not|changed|no source-backed/.test(generation.message) ? 'alert' : 'status'}><p>{generation.message}</p>{/failed|could not|changed|cancelled|Reconnect/.test(generation.message) && <button className="ex-text-button" onClick={generation.retry}>Retry generation</button>}</div> : null;
 }
 
 function GenerationDetails({ generation }: { generation: Generation }) {
   const changed = generation.context.key !== generation.batch.contextKey;
   const used = new Set(generation.batch.items.flatMap(item => item.evidenceIds));
-  return <details className="ex-generation-details"><summary>Generation details and sources</summary><p>{projectGenerationNotice(generation.context, generation.batch)}</p>{generation.batch.request && <p>Your request: {generation.batch.request.replace(/\u2014/g, ', ')}</p>}{changed && <p role="status">Your HALO context changed. Refresh ideas to use the latest record revisions; existing projects remain unchanged.</p>}<p>{generation.context.evidence.some(item => item.id.startsWith('preview:today:')) ? 'Outdoor readings are dated September 30 examples, not current work conditions. A utility sample, county estimate and user-entered observation have different scopes.' : 'Public environmental readings are unavailable in this view. Ideas use only explicitly supplied private records or general interests.'} Project selection does not diagnose a home or calculate environmental benefit.</p><ul>{generation.context.evidence.filter(item => used.has(item.id)).map(item => <li key={item.id}><strong>{item.label}: {item.value}</strong><small>{item.asOf} · {item.provenance}{item.stale ? ' · Outdated daily example' : ''}</small><p>{item.scope}</p></li>)}</ul><p>Private notes and Journal are not automatically included. This preview uses local matching and checked official guide drafts, not a live model or web lookup. Regional suitability and specialist review remain release requirements.</p></details>;
+  return <details className="ex-generation-details"><summary>Generation details and sources</summary><label>Project generation review state<select value={generation.serviceState} disabled={generation.busy} onChange={event => generation.setServiceState(event.target.value)}><option value="ready">Ready</option><option value="failed">Failed preview request</option><option value="slow">Slow preview request</option></select></label><p>{projectGenerationNotice(generation.context, generation.batch)}</p>{generation.batch.request && <p>Your request: {generation.batch.request.replace(/\u2014/g, ', ')}</p>}{changed && <p role="status">Your HALO context changed. Refresh ideas to use the latest record revisions; existing projects remain unchanged.</p>}<p>{generation.context.evidence.some(item => item.id.startsWith('preview:today:')) ? 'Outdoor readings are dated September 30 examples, not current work conditions. A utility sample, county estimate and user-entered observation have different scopes.' : 'Public environmental readings are unavailable in this view. Ideas use only explicitly supplied private records or general interests.'} Project selection does not diagnose a home or calculate environmental benefit.</p><ul>{generation.context.evidence.filter(item => used.has(item.id)).map(item => <li key={item.id}><strong>{item.label}: {item.value}</strong><small>{item.asOf} · {item.provenance}{item.stale ? ' · Outdated daily example' : ''}</small><p>{item.scope}</p></li>)}</ul><p>Private notes and Journal are not automatically included. This preview uses local matching and checked official guide drafts, not a live model or web lookup. Regional suitability and specialist review remain release requirements.</p></details>;
 }
 
 function ProjectFitSheet({ generation }: { generation: Generation }) {
   const [draft, setDraft, clearDraft] = useHomeDraft('explore:project-generation-fit', { constraints: generation.batch.constraints, request: generation.batch.request });
   function change<K extends keyof ProjectConstraints>(key: K, value: ProjectConstraints[K]) { setDraft(previous => ({ ...previous, constraints: { ...previous.constraints, [key]: value } })); }
-  return <BottomSheet id="project-fit" title="Make these projects fit me" height="tall" onClose={() => generation.setFitOpen(false)}><form className="ex-project-fit-form" onSubmit={event => { event.preventDefault(); generation.regenerate(draft.constraints, draft.request); clearDraft(); generation.setFitOpen(false); }}><p>Choose what is practical. These choices shape the ideas, not your environmental readings.</p><div className="ex-project-fit-fields">
+  return <BottomSheet id="project-fit" title="Make these projects fit me" height="tall" onClose={() => generation.setFitOpen(false)}><form className="ex-project-fit-form" onSubmit={event => { event.preventDefault(); generation.regenerate(draft.constraints, draft.request, false, clearDraft); generation.setFitOpen(false); }}><p>Choose what is practical. These choices shape the ideas, not your environmental readings.</p><div className="ex-project-fit-fields">
     <label>Where could you do this?<select value={draft.constraints.space} onChange={event => change('space', event.target.value as ProjectConstraints['space'])}><option value="any">I am open to different spaces</option><option value="indoors">Inside my home</option><option value="balcony">Balcony or small outdoor space</option><option value="yard">A yard or garden</option><option value="community">Somewhere in the community</option></select></label>
     <label>Who would take part?<select value={draft.constraints.mode} onChange={event => change('mode', event.target.value as ProjectConstraints['mode'])}><option value="any">Solo or together</option><option value="solo">On my own</option><option value="group">With other people</option></select></label>
     <label>How would you like to start?<select value={draft.constraints.time} onChange={event => change('time', event.target.value as ProjectConstraints['time'])}><option value="any">I am flexible</option><option value="quick">A small first step</option><option value="half-day">A build or planting session</option><option value="ongoing">Something I can keep working on</option></select></label>
     <label>Materials and spending<select value={draft.constraints.budget} onChange={event => change('budget', event.target.value as ProjectConstraints['budget'])}><option value="any">Show different options</option><option value="reuse">Start with what I have</option><option value="low">Basic supplies only</option></select></label>
-    <label>How many ideas?<select value={draft.constraints.count} onChange={event => change('count', Number(event.target.value) as ProjectConstraints['count'])}>{[10, 11, 12, 13, 14, 15].map(count => <option key={count} value={count}>{count} ideas</option>)}</select></label>
+    <label>How many ideas?<select value={draft.constraints.count} onChange={event => change('count', Number(event.target.value) as ProjectConstraints['count'])}>{[3, 5, 10, 11, 12, 13, 14, 15].map(count => <option key={count} value={count}>{count} ideas</option>)}</select></label>
   </div><label>Anything else you want to try? (optional)<textarea maxLength={500} value={draft.request} onChange={event => setDraft(previous => ({ ...previous, request: event.target.value }))} placeholder="For example, a small solar experiment or something I can do with friends" /></label><p className="ex-meta">A material price, permission or available organization is still something to confirm. If fewer reviewed ideas fit, HALO keeps that limit honest.</p><button className="ex-button" type="submit">Generate my project ideas<ArrowRight size={17} aria-hidden="true" /></button><button className="ex-text-button" type="button" onClick={() => generation.setFitOpen(false)}>Keep current ideas</button></form></BottomSheet>;
 }

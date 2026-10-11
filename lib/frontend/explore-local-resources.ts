@@ -84,7 +84,7 @@ export function localResourceScope(area: { place: string; state: string }): Loca
   const place = normalize(area.place); const state = normalize(area.state);
   if (!place && !state) return 'examples';
   if (!['nc', 'north carolina'].includes(state)) return 'elsewhere';
-  if (['charlotte', 'mecklenburg', 'mecklenburg county'].includes(place)) return 'charlotte';
+  if (['charlotte', 'mecklenburg', 'mecklenburg county', 'charlotte, nc', '28206', '28208', '28216', '28213', '28214', '28205', '28212', '28217'].includes(place)) return 'charlotte';
   if (['union', 'union county', 'monroe'].includes(place)) return 'union';
   return 'elsewhere';
 }

@@ -30,6 +30,20 @@ test('default generation produces12unique source-backed varied ideas, preserving
   assert.equal(refreshed.generation, 2);
   assert.notDeepEqual(refreshed.items.map(item => item.id), result.map(item => item.id));
 });
+
+test('refresh prioritizes unseen eligible ideas and short interest requests never use unrelated filler', () => {
+  const context = getPreviewProjectContext(collections);
+  const first = createProjectGeneration(context);
+  const next = createProjectGeneration({ ...context, previousIdeaIds: first.items.map(item => item.id) }, first.constraints, first.request, 2, false);
+  assert.notEqual(next.items[0].id, first.items[0].id);
+  assert.ok(next.items.some(item => !first.items.some(previous => previous.id === item.id)));
+  const focused = createProjectGeneration({ ...context, interestOnly: true }, { ...defaultProjectConstraints, count: 3 }, 'native plants and pollinators');
+  assert.equal(focused.items.length, 3); assert.ok(focused.items.every(item => item.fit === 'interest'));
+  const unsupported = createProjectGeneration({ ...context, interestOnly: true }, { ...defaultProjectConstraints, count: 3 }, 'an aquaponics installation');
+  assert.equal(unsupported.items.length, 0);
+  assert.equal(normalizeProjectConstraints({ count: 3 }).count, 3);
+  assert.equal(normalizeProjectConstraints({ count: 5 }).count, 5);
+});
 test('the guide bank provides19real differentiated families with safe instructions and provenance', () => {
   assert.equal(projectGuides.length, 19);
   for (const guide of projectGuides) {
