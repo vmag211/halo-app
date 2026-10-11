@@ -34,8 +34,8 @@ test('hub is evergreen and every photo uses regular rectangular frames', async (
     expect(style.clip).toBe('none');
     expect(style.tl).toBe(style.tr); expect(style.bl).toBe(style.br);
   }
-  await expect(page.getByRole('button', { name: /^Volunteer/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Your community/ })).toBeVisible();
+  await expect(page.locator('.ex-volunteer-path')).toBeVisible();
+  await expect(page.locator('.ex-community-bridge')).toBeVisible();
 });
 
 test('area label remains local and can be cleared', async ({ page }) => {
@@ -45,7 +45,7 @@ test('area label remains local and can be cleared', async ({ page }) => {
   await page.getByLabel('State', { exact: true }).fill('North Carolina');
   await page.getByRole('button', { name: 'Use this area' }).click();
   expect(page.url()).not.toContain('Private');
-  await page.getByRole('button', { name: /^Volunteer/ }).click();
+  await page.locator('.ex-volunteer-path').click();
   await expect(page.locator('.ex-area-toggle')).toContainText('Private planning place');
   await page.locator('.ex-area-toggle').click();
   await page.getByRole('button', { name: 'Clear area' }).click();
@@ -54,20 +54,19 @@ test('area label remains local and can be cleared', async ({ page }) => {
 
 test('volunteer guide is filtered by interest, uses official handoff and saves an undated research task once', async ({ page }) => {
   await page.goto(`${root}&destination=opportunities`);
-  await page.getByLabel('What interests you?').selectOption('Water');
-  await page.getByLabel('Time you can give').selectOption('A few hours');
-  await expect(page.locator('.ex-resource')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Explore this route' }).click();
-  const link = page.getByRole('link', { name: 'Open official opportunities' });
-  await expect(link).toHaveAttribute('href', /deq\.nc\.gov/);
+  await page.getByLabel('What interests you?').selectOption('Trees & habitat');
+  await expect(page.locator('.ex-local-route')).toHaveCount(1);
+  await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
+  const link = page.getByRole('link', { name: 'Open official participation guide' });
+  await expect(link).toHaveAttribute('href', /treescharlotte\.org/);
   await expect(link).toHaveAttribute('target', '_blank');
-  await expect(page.locator('.ex-route-detail')).toContainText('North Carolina only');
-  await page.locator('.ex-route-detail').getByRole('button', { name: 'Save to My Week' }).click();
+  await expect(page.locator('.ex-local-detail')).toContainText('Mailing address only');
+  await page.locator('.ex-local-detail').getByRole('button', { name: 'Save to My Week' }).click();
   await expect(page.getByLabel('All-day date (optional)')).toHaveValue('');
   await page.getByRole('button', { name: 'Save sample action' }).click();
-  await expect(page.locator('.ex-route-detail').getByRole('button', { name: 'Open saved action' })).toBeVisible();
+  await expect(page.locator('.ex-local-detail').getByRole('button', { name: 'Open saved action' })).toBeVisible();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toContainText('Look for a volunteer opportunity');
+  await expect(page.locator('.halo-expanded-agenda-row')).toContainText('Review participation with TreesCharlotte');
 });
 
 test('community topics open the matching map layer and can start an undated question note', async ({ page }) => {
@@ -139,13 +138,13 @@ test('selected notes add only chosen text to outreach, and a revised note requir
   await expect(page.locator('.ex-share-preview pre')).toContainText('water looked cloudier');
   await expect(page.locator('.ex-share-preview pre')).not.toContainText('Example creek path');
   await expect(page.locator('.ex-share-preview pre')).not.toContainText('2026-10-01');
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'My notes', exact: true }).click();
+  await page.getByRole('button', { name: 'Open my notes', exact: true }).first().click();
   await page.getByRole('button', { name: /A change near the walking path/ }).first().click();
   await page.getByRole('button', { name: 'Edit note' }).click();
   await page.getByLabel('Factual description (required)').fill('The observation was corrected.');
   await page.getByRole('button', { name: 'Save note' }).click();
   await expect(page.getByRole('button', { name: 'Edit note', exact: true })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Ask a question', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
   await page.getByText('Add context you choose', { exact: true }).click();
   await expect(page.getByText('A selected note changed or was deleted. Remove the old selection and choose again before sending.')).toBeVisible();
 });
@@ -170,8 +169,8 @@ test('unknown send outcome blocks automatic retries even after internal navigati
   await page.getByRole('button', { name: 'Preview send', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm preview send' }).click();
   await expect(page.getByText(/Sample status: outcome unknown/)).toBeVisible();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'My notes', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Ask a question', exact: true }).click();
+  await page.getByRole('button', { name: 'Open my notes', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
   await page.getByRole('button', { name: 'Review what you will share' }).click();
   await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
@@ -184,7 +183,7 @@ test('offline does not lose drafts or connect sending', async ({ page }) => {
   await page.getByText('Expanded app review', { exact: false }).first().click();
   await page.getByLabel('Explore workspace state').selectOption('offline');
   await expect(page.getByLabel('Draft for Utility')).toHaveValue('Keep this private question.');
-  await expect(page.locator('.halo-explore')).toContainText('saving and send previews are unavailable');
+  await expect(page.locator('.halo-explore')).toContainText('saves are unavailable');
 });
 
 test('changing outreach context requires checking the recipient again', async ({ page }) => {
@@ -207,7 +206,8 @@ test('community question offers deliberate append without replacing an unfinishe
   await page.getByLabel('Title (required)').fill('Keep my existing idea');
   await page.getByLabel('Your note (required)').fill('My original writing.');
   await page.getByRole('button', { name: 'Back and keep draft' }).click();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Your community', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Discover', exact: true }).click();
+  await page.locator('.ex-community-bridge').click();
   await page.getByRole('button', { name: 'Keep this question in My notes' }).click();
   await expect(page.getByLabel('Title (required)')).toHaveValue('Keep my existing idea');
   await expect(page.getByLabel('Your note (required)')).toHaveValue('My original writing.');
@@ -228,14 +228,16 @@ test('unknown attempt can be reconciled without automatically sending again', as
   await expect(page.getByText(/Sample status: submitted to Gmail/)).toHaveCount(0);
 });
 
-test('changing volunteer interests closes the previous selected resource', async ({ page }) => {
+test('returning from a program guide preserves filters, then another interest shows appropriate routes', async ({ page }) => {
   await page.goto(`${root}&destination=opportunities`);
-  await page.getByLabel('What interests you?').selectOption('Water');
-  await page.getByRole('button', { name: 'Explore this route' }).click();
-  await expect(page.locator('.ex-route-detail')).toBeVisible();
-  await page.getByLabel('What interests you?').selectOption('Outdoors');
-  await expect(page.locator('.ex-route-detail')).toHaveCount(0);
-  await expect(page.locator('.ex-resource')).toContainText('Parks & public lands');
+  await page.getByLabel('What interests you?').selectOption('Trees & habitat');
+  await page.getByRole('button', { name: 'See how to help: Plant and care for trees together' }).click();
+  await expect(page.locator('.ex-local-detail')).toBeVisible();
+  await page.getByRole('button', { name: 'All programs and organizations' }).click();
+  await expect(page.getByLabel('What interests you?')).toHaveValue('Trees & habitat');
+  await page.getByLabel('What interests you?').selectOption('Gardening');
+  await expect(page.locator('.ex-local-detail')).toHaveCount(0);
+  await expect(page.locator('.ex-local-list')).toContainText('Help a community garden grow');
 });
 
 test('a note save completing after navigation does not pull the user back', async ({ page }) => {
@@ -244,9 +246,9 @@ test('a note save completing after navigation does not pull the user back', asyn
   await page.getByLabel('Title (required)').fill('A background save');
   await page.getByLabel('Your note (required)').fill('What can I ask my community group?');
   await page.getByRole('button', { name: 'Save note' }).click();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Volunteer', exact: true }).click();
-  await expect(page.locator('.ex-resource')).toHaveCount(3);
-  await expect(page.getByRole('heading', { name: 'Volunteer', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Get involved', exact: true }).click();
+  await expect(page.locator('.ex-local-route')).toHaveCount(5);
+  await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save note', exact: true })).toHaveCount(0);
 });
 
@@ -257,8 +259,8 @@ for (const appearance of ['light', 'dark']) test(`deep Explore flows remain usab
     await page.goto(`${root}&appearance=${appearance}&scale=150&destination=${destination}`);
     if (destination === 'community') await page.getByRole('button', { name: 'Facilities', exact: true }).click();
     if (destination === 'opportunities') {
-      await page.getByRole('button', { name: 'Explore this route' }).first().click();
-      await page.getByText('Before you commit', { exact: true }).click();
+      await page.getByRole('button', { name: /^See how to help:/ }).first().click();
+      await page.getByText('My preparation and questions', { exact: true }).click();
     }
     if (destination === 'outreach') {
       await page.getByText('Preview automatic contact matching', { exact: true }).click();

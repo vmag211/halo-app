@@ -264,7 +264,7 @@
   .halo-map-layers { width:410px; flex-shrink:0; padding:0; border-bottom:0; }
   .halo-map-compound { width:190px; flex-shrink:0; }
   .halo-map-app .halo-map-count { margin-left:auto; max-width:360px; }
-  .halo-map-viewport { height:clamp(360px,calc(100svh - 560px),540px); }
+  .halo-map-viewport { height:clamp(360px,calc(100svh - 604px),540px); }
   .halo-map-key { padding:18px 22px; }
   .halo-map-bottom { display:grid; grid-template-columns:1fr 1fr 220px; gap:25px; align-items:center; padding:0 22px; }
   .halo-map-insight,.halo-map-timeline { border:0; padding-block:16px; }
@@ -322,3 +322,6 @@
 @media(max-width:599px) { .halo-map-utility-word { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); } }
 @media(max-width:400px) { .halo-map-results .halo-map-result { grid-template-columns:24px minmax(0,1fr); } .halo-map-result > .halo-severity { grid-column:2; justify-self:start; } }
 @media(min-width:900px) { .halo-map-utility { padding-inline:18px; } .halo-map-utility .halo-map-find { flex:0 1 350px; margin-right:auto; } }
+.halo-map-contour-note { display:flex; align-items:center; gap:12px; justify-content:space-between; padding:0 14px; font-size:calc(.72rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.halo-map-contour-note button { flex-shrink:0; min-height:44px; border:0; background:transparent; color:var(--halo-primary); font:inherit; cursor:pointer; }
+@media (max-width:360px) { .halo-map-contour-note { flex-wrap:wrap; gap:0; } }

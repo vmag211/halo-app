@@ -40,7 +40,7 @@ test('failed map preview retains the full-map entry and other feature routes', a
   await page.goto(root);
   await expect(page.locator('.ex-mini-map-canvas')).toHaveAttribute('data-map-preview-state', 'unavailable');
   await expect(page.getByRole('link', { name: /Explore the map/ })).toBeVisible();
-  await page.getByRole('button', { name: /^Volunteer/ }).click();
+  await page.getByRole('button', { name: /WITH YOUR COMMUNITY Get involved/ }).click();
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
 });
 
@@ -103,15 +103,15 @@ test('community result validation, saved follow-up and topic independence make l
   await expect(panel.locator('.ex-recorded-result')).toContainText('dated provider report');
 });
 
-test('organizations retain a private contact result without implying verified partnership', async ({ page }) => {
+test('legacy organizations route opens the combined local participation workspace', async ({ page }) => {
   await page.goto(`${root}&destination=organizations&exploreView=detail&exploreRecord=demo-creek`);
-  const panel = page.locator('.ex-outcome-workspace');
-  await recordResult(panel, 'I recorded the group’s reply about supervised activities.');
-  await expect(page.getByText('Fictional group, not verified. No contact details or official website are connected.')).toBeVisible();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'My notes', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Organizations', exact: true }).click();
-  await page.getByRole('button', { name: /Creek Care Collective/ }).click();
-  await expect(panel.locator('.ex-recorded-result')).toContainText('group’s reply');
+  await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
+  await expect(page.locator('.ex-subnav')).not.toContainText('Organizations');
+  await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open my notes' }).click();
+  await expect(page.getByRole('heading', { name: 'My notes', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Get involved', exact: true }).click();
+  await expect(page.locator('.ex-local')).toBeVisible();
 });
 
 test('project workspace plans selected steps, deduplicates and retains explicit progress through pause and resume', async ({ page }, info) => {
@@ -155,7 +155,7 @@ test('project completion requires every real step and a result, and Homeguard ha
   await expect(page.locator('.ex-project-workspace > .ex-kicker')).toContainText('Completed');
   await page.getByRole('link', { name: 'Continue into tests and home records' }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Explore', exact: true }).click();
-  await page.getByRole('button', { name: /^Ways to help/ }).click();
+  await page.getByRole('button', { name: /ON YOUR OWN OR TOGETHER Projects/ }).click();
   await page.locator('.ex-project-continuation').getByRole('button').click();
   await expect(page.locator('.ex-project-progress')).toContainText('4 of 4');
   await expect(page.getByLabel('My project result')).toHaveValue(/received and reviewed/);

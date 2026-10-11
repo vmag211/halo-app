@@ -33,7 +33,7 @@ for (const appearance of ['dark', 'light']) test(`Homeguard screens fit 320px an
   for (const [section, view, id] of cases) {
     await page.goto(url(section, view, `&record=${id}&scale=150`).replace('appearance=dark', `appearance=${appearance}`));
     await expect(page.locator('[data-home-heading]')).toBeVisible();
-    const navigation = await page.locator('.hg-sections').boundingBox();
+    const navigation = await page.getByRole('combobox', { name: 'Home workspace', exact: true }).boundingBox();
     expect(navigation?.height ?? 1000, 'Section navigation stays compact, not vertical letters').toBeLessThan(200);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${section}:${view} overflows`).toBe(true);
     await expect(page.locator('.hg-workspace')).not.toContainText('\u2014');
@@ -69,12 +69,13 @@ test('global review states distinguish loading, failure, empty and offline', asy
   await expect(page.locator('.hg-form')).toContainText('Nothing is queued.');
 });
 
-test('desktop Homeguard uses the existing centered shell and keyboard section links', async ({ page }, testInfo) => {
+test('desktop Homeguard uses the existing centered shell and keyboard workspace selector', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(url('food'));
-  const nav = page.getByRole('navigation', { name: 'Homeguard sections' });
-  await nav.getByRole('button', { name: 'Maintenance', exact: true }).focus();
-  await page.keyboard.press('Enter');
+  const workspace = page.getByRole('combobox', { name: 'Home workspace', exact: true });
+  await expect(workspace).toHaveValue('food');
+  await workspace.focus();
+  await page.keyboard.press('ArrowUp');
   await expect(page.locator('[data-home-heading]')).toHaveText('Maintenance & moisture');
   await expect(page.locator('[data-home-heading]')).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowUpRight, CalendarDays, MapPin, NotebookPen } from 'lucide-react';
 import { destinations, followThrough, isDestination, type ExpandedDestination, type PreviewAction } from '@/lib/frontend/expanded-preview';
@@ -14,12 +15,14 @@ import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { TestRecord } from '@/lib/frontend/home-test-preview';
 import HomeOverviewWorkspace from './HomeOverviewWorkspace';
 import ExploreWorkspace from './ExploreWorkspace';
+import ExploreCompanion from './ExploreCompanion';
 
 type Href = (tab: string, destination?: string) => string;
 export function ExpandedConnections({ home, factor, household, href, mapHref, scenario }: {
   home: boolean; factor?: FactorKey; household?: boolean; href: Href; mapHref: (layer: string) => string; scenario: string;
 }) {
   const enabled = useExpandedMode();
+  const router = useRouter();
   const state = useExpandedPreview();
   if (!enabled || !state) return null;
   if (factor) {
@@ -32,7 +35,7 @@ export function ExpandedConnections({ home, factor, household, href, mapHref, sc
     </div><HomeFactorRecords factor={factor} href={href} /></section>;
   }
   if (household) return <section className="halo-expanded-section"><h2>Follow through together</h2><p>Find your saved tasks and scheduled follow-ups in My Week.</p><Link className="halo-text-button" href={href('plan')}>Open My Week</Link>{home && <Link className="halo-text-button" href={href('home', 'tests')}>Review home tests and records</Link>}</section>;
-  if (home) return <HomeOverviewWorkspace href={href} />;
+  if (home) return <HomeOverviewWorkspace href={href} assistant={<ExploreCompanion context="Homeguard" go={(section, view = 'list', id) => router.push(`${href('act', section)}${view !== 'list' ? `&exploreView=${view}` : ''}${id ? `&exploreRecord=${encodeURIComponent(id)}` : ''}`)} />} />;
   const saved = state.actions.filter(action => action.state !== 'completed')[0];
   return <section className="halo-expanded-section"><details className="halo-expanded-change"><summary>Understand changes in your readings</summary><p>{['no-data', 'offline-empty'].includes(scenario) ? 'There is not enough evidence to compare periods.' : 'A changed reading, a newly published sample and changed source coverage mean different things. The new backend will distinguish these before HALO explains a change.'}</p><p className="halo-f-meta">No numerical change or cause has been inferred from this sample.</p></details><div className="halo-expanded-links"><Link href={href('plan')} prefetch={false}><CalendarDays size={22} /><span><strong>{saved ? saved.title : 'Make room for a useful next step'}</strong><small>{saved ? 'Continue in My Week' : 'Saved actions and your week, together'}</small></span><ArrowUpRight size={17} /></Link><Link href={href('plan', 'journal')} prefetch={false}><NotebookPen size={20} /><span>Optional daily check-in</span><ArrowUpRight size={17} /></Link></div></section>;
 }

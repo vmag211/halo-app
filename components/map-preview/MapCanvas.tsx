@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { densityRGBA, recordDensity } from '@/lib/frontend/map-visuals';
+import { densityRGBA, contourRecordDensity, geographicContourSeed } from '@/lib/frontend/map-visuals';
 import { mapSymbols, waterSymbolRadius, mapNumberLayout } from '@/lib/frontend/map-symbols';
 import './map-canvas.css';
 
@@ -21,7 +21,7 @@ type Props = {
   onReady?: (ready: boolean) => void; onUnavailable?: () => void;
   onVisibleCountChange?: (count: number) => void; forceEmpty?: boolean;
   patterns?: boolean; onVisibleIdsChange?: (ids: string[]) => void; previewOnly?: boolean;
-  labels?: boolean; onNavigationStart?: () => void;
+  labels?: boolean; onNavigationStart?: () => void; animatePatterns?: boolean;
 };
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
@@ -54,7 +54,7 @@ function trace(geometry: Geometry, project: (lng: number, lat: number) => Coordi
 const priorityCounties = new Set(['Union County', 'Mecklenburg County', 'Cabarrus County', 'Stanly County', 'Anson County', 'Richmond County', 'Montgomery County', 'Scotland County', 'Robeson County', 'Wake County', 'Buncombe County', 'Guilford County', 'New Hanover County']);
 const severityFallbacks: Record<string, string> = { good: '#338b86', moderate: '#b27e29', elevated: '#c56535', high: '#a84966', severe: '#754a83', no_data: '#87949c' };
 
-export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false, previewOnly = false, labels = true, onNavigationStart }: Props) {
+export default function MapCanvas({ layer, points, selectedId, home, view, onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, patterns = true, forceEmpty = false, previewOnly = false, labels = true, onNavigationStart, animatePatterns = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, onNavigationStart });
@@ -75,6 +75,29 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
   const [hover, setHover] = useState<Hit | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [fontsReady, setFontsReady] = useState(false);
+  const [contourPhase, setContourPhase] = useState(0);
+  const [moving, setMoving] = useState(false);
+  const hasContourSources = points.some(point => layer === 'air' || point.flagged);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !animatePatterns || !patterns || previewOnly || forceEmpty || layer === 'radon' || !hasContourSources) { setMoving(false); return; }
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const contrast = matchMedia('(forced-colors: active), (prefers-contrast: more)');
+    let visible = false, timer: ReturnType<typeof setInterval> | undefined;
+    const stop = () => { if (timer) clearInterval(timer); timer = undefined; setMoving(false); };
+    const sync = () => {
+      stop();
+      if (!visible || document.hidden || reduced.matches || contrast.matches || root.closest('[data-motion="reduce"], [data-contrast="high"]')) return;
+      setMoving(true);
+      timer = setInterval(() => setContourPhase(value => (value + Math.PI / 36) % (Math.PI * 2)), 300);
+    };
+    const intersection = new IntersectionObserver(entries => { visible = entries[0].isIntersecting; sync(); }); intersection.observe(root);
+    const mutation = new MutationObserver(sync); let parent: Element | null = root.parentElement;
+    while (parent) { mutation.observe(parent, { attributes: true, attributeFilter: ['data-motion', 'data-contrast'] }); parent = parent.parentElement; }
+    document.addEventListener('visibilitychange', sync); reduced.addEventListener('change', sync); contrast.addEventListener('change', sync);
+    return () => { stop(); intersection.disconnect(); mutation.disconnect(); document.removeEventListener('visibilitychange', sync); reduced.removeEventListener('change', sync); contrast.removeEventListener('change', sync); };
+  }, [animatePatterns, patterns, previewOnly, forceEmpty, layer, hasContourSources]);
 
   useEffect(() => { callbacks.current = { onViewChange, onSelect, onReady, onUnavailable, onVisibleCountChange, onVisibleIdsChange, onNavigationStart }; latest.current = { view, layer, points, forceEmpty }; });
   useEffect(() => {
@@ -176,10 +199,10 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
 
     // Equal-weight spatial kernels count records, never concentrations or risk.
     // The fixed 35 km radius and fixed color domain do not change with panning.
-    if (patterns && !forceEmpty && ['water', 'facilities'].includes(layer)) {
+    if (patterns && !forceEmpty && ['water', 'facilities', 'air'].includes(layer)) {
       const radius = 35000 / (40075016.686 * Math.cos(view.lat * Math.PI / 180) / scale);
-      const sources = points.filter(p => p.flagged).map(p => project(p.lng, p.lat));
-      const { field, cols, rows } = recordDensity(sources, width, height, radius);
+      const sources = points.filter(p => layer === 'air' || p.flagged).map(p => { const [x, y] = project(p.lng, p.lat); return { x, y, seed: geographicContourSeed(p.lng, p.lat) }; });
+      const { field, cols, rows } = contourRecordDensity(sources, width, height, radius, contourPhase);
       const surface = document.createElement('canvas'); surface.width = cols; surface.height = rows;
       const surfaceContext = surface.getContext('2d');
       if (surfaceContext && sources.length) {
@@ -312,7 +335,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     ctx.fillStyle = land; ctx.globalAlpha = .9; ctx.fillRect(scaleX - 7, scaleY - 25, pixels + 14, 33); ctx.globalAlpha = 1;
     ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(scaleX, scaleY - 5); ctx.lineTo(scaleX, scaleY); ctx.lineTo(scaleX + pixels, scaleY); ctx.lineTo(scaleX + pixels, scaleY - 5); ctx.stroke();
     ctx.font = font(11); ctx.textAlign = 'right'; ctx.fillStyle = ink; ctx.fillText(`${km} km`, width - 18, scaleY - 12);
-  }, [geography, context, dimensions, layer, points, selectedId, home, view, forceEmpty, paletteTick, patterns, previewOnly, labels]);
+  }, [geography, context, dimensions, layer, points, selectedId, home, view, forceEmpty, paletteTick, patterns, previewOnly, labels, contourPhase, animatePatterns]);
 
   const local = (event: { clientX: number; clientY: number }): Coordinate => {
     const rect = canvasRef.current!.getBoundingClientRect(); return [event.clientX - rect.left, event.clientY - rect.top];
@@ -373,7 +396,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     else if (event.key === 'Home' && home) { event.preventDefault(); onViewChange(bound({ ...home, zoom: 9 })); }
   };
 
-  return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-presentation={patterns?'patterns':'locations'} data-labels={labels?'shown':'hidden'} data-selection={selectedId??undefined} data-zoom={view.zoom} data-fonts={fontsReady?'ready':'loading'} data-context={context ? 'ready' : contextSettled ? 'unavailable' : 'loading'}>
+  return <div className="halo-map-atlas" ref={rootRef} data-testid="map-canvas" data-contour-motion={moving ? 'illustrative' : 'paused'} data-presentation={patterns?'patterns':'locations'} data-labels={labels?'shown':'hidden'} data-selection={selectedId??undefined} data-zoom={view.zoom} data-fonts={fontsReady?'ready':'loading'} data-context={context ? 'ready' : contextSettled ? 'unavailable' : 'loading'}>
     <canvas ref={canvasRef} tabIndex={previewOnly ? -1 : 0} role="application" aria-label="Map of North Carolina. Use arrow keys to pan, plus and minus to zoom, and Enter to select at the center. The results list offers the same observations." onKeyDown={keyboard} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={event => { pointers.current.delete(event.pointerId); gesture.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={() => {onNavigationStart?.();onViewChange(bound({ ...view, zoom: view.zoom + 1 }));}} />
     <div className="halo-map-atlas-north" aria-hidden="true"><span>N</span><svg viewBox="0 0 16 22"><path d="M8 1 15 20 8 15 1 20Z" /></svg></div>
     <span className="halo-map-atlas-crosshair" aria-hidden="true" />

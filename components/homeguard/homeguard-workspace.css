@@ -262,3 +262,6 @@
 .halo-f-app[data-contrast="high"] .hg-workspace { --hg-line:var(--halo-ink); --hg-accent:var(--halo-primary); }
 .halo-f-app[data-contrast="high"] .hg-scene { display:none; }
 @media print { body:has(.hg-summary-preview) * { visibility:hidden; } body:has(.hg-summary-preview) .hg-summary-preview,body:has(.hg-summary-preview) .hg-summary-preview * { visibility:visible; } .hg-summary-preview { position:absolute; inset:0 auto auto 0; width:100%; border:0; border-radius:0; font-size:11pt; background:#fff; color:#000; } .hg-summary-preview * { color:#000 !important; box-shadow:none !important; } }
+.hg-workspace-select { display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size:calc(.85rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.hg-workspace-select select { min-height:44px; max-width:100%; padding:8px 34px 8px 12px; border:1px solid var(--halo-border); border-radius:8px; color:var(--halo-ink); background:var(--halo-card); font:inherit; }
+.hg-workspace-select label { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }

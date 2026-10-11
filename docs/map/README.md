@@ -9,7 +9,7 @@ Entry: `/foundation/preview/map`. The existing preview's Map tab opens this isol
 - Updated specification: `../foundation/reference/HALO_Frontend_Specification_2026-09-29.pdf`, B7 pages61-67, shared shell/sheet/accessibility rules.
 - September30 frontend depth review, existing `app/api/map`, `app/api/district`, map/district/geometry helpers and tests.
 - `../WIREFRAME_WORKFLOW.md` supersedes old assignments. Existing approved source/archive remain untouched.
-- The prototype uses an interactive Canvas atlas with the repo's actual U.S. Census county and119th-Congress district geometry, loaded only by this route. It uses no external tiles, billing account or new dependencies. The Mapbox GL renderer, live transport and identity-scoped IndexedDB cache are deferred to the approved production build. Canvas demonstrates pan, touch/pinch, keyboard, nearest22px hit selection, population-size circles and facility clustering. It is not represented as Mapbox or an aerial/street map.
+- The prototype uses an interactive Canvas atlas with the repo's actual U.S. Census county and119th-Congress district geometry, loaded only by this route. It uses no external tiles, billing account or new dependencies. The Mapbox GL renderer, live transport and identity-scoped IndexedDB cache are deferred to the approved production build. Canvas demonstrates pan, touch/pinch, keyboard, nearest22px hit selection, population-sized water symbols and facility grouping. It is not represented as Mapbox or an aerial/street map.
 - Geography converter: `scripts/build-map-preview-geography.mjs`; source geometry is not simplified further. Lazy public atlas JSON is distinct from the server source. The radon fixture copies the existing county zones.
 - District fixture totals are verified against the sample water coordinates and real district containment. Its unlocated count/list is statewide, not a fabricated district membership.
 - Spec correction: the90% geography-failure guard needs statewide `count` and `located` from the water layer. It must not divide statewide `unlocated_systems` by district-only `total_systems`.
@@ -26,7 +26,7 @@ Entry: `/foundation/preview/map`. The existing preview's Map tab opens this isol
 | Timeline |12 returned fixture quarters plus distinct Latest, pending old-data state, keyboard steps/Home/End, cancellation, failed request restoration, no-sample and single-quarter states |
 | Radon |100 actual county boundaries, returned zone/severity fixture, county details and contextual Learn; no home concentration claim |
 | Facilities | Distinct points, nearby grouping and zoom expansion, compliance status, programs, quarters in noncompliance, programs in violation, penalties, inspection/null, NC08-subset disclosure |
-| Air | Diamond markers, station AQI, pollutant, observation date/time, source agency and computed distance from approximate sample home |
+| Air | Monitor wind glyphs, station AQI, pollutant, observation date/time, source agency, approximate-home distance and optional monitor-location contours, never an interpolated AQI surface |
 | Household | Approximate pin on every layer, own water ring, Locate, missing/outside-NC branch, home detail with session sample Today score |
 | Map controls | Pan, pinch, keyboard arrows,+/-, zoom controls, locate, selection, attribution, legend panel |
 | Text alternative | Searchable list per layer; water includes unlocated records. This local filter adds no backend search requirement |
@@ -52,6 +52,16 @@ Direct links accept `layer`, water-only `contaminant` and valid available `quart
 - Capture evidence belongs in ignored `test-results/map-review`, never an approved folder. No snapshot baseline can be frozen until explicit approval.
 
 ## Verification
+
+### October 11 weather-inspired record contours (unapproved)
+
+Patterns now draws irregular soft lobes instead of perfect circular kernels. Stable geographic seeds anchor them to source records; equal weights add, and the same fixed two-kernel color domain remains. Water/facilities retain their qualifying-record basis; air counts all monitor locations equally, irrespective of their AQI. Source markers, coordinates, values, dates and selections are unchanged. Radon still uses reported county zones. Locations always provides the precise static alternative.
+
+Optional slow texture motion changes the angular display envelope within .57 to .97 of each record's 35 km maximum support. It does not represent elapsed measurement time, wind or transport. Pause freezes the current shape; Resume continues its cycle. Timers stop for empty/noncontributing records, preview-only/radon/Locations, offscreen atlases, hidden documents, OS/app reduced motion and OS/app high contrast. Media/visibility/mutation observers and timers are cleaned up. The compact Explore map remains static. The added texture row has reserved desktop space so the reading dock remains above shared navigation.
+
+The bundled geometry is still redrawn at most every 300 ms while eligible motion runs. This is a restrained preview, not a verified mobile battery/performance benchmark. Production should cache static geography and raster buffers and profile representative devices; physical Safari is unverified. Pure tests verify bounded support, unit/additive weights, cyclic phase, stable pan seeds and empty fields. Browser checks cover air key/Locations/Pause/Resume, live reduced-motion/forced-color changes and all original source/layout/navigation states. Exact final verification and publication are in `docs/continuation/HOSTED_REVIEW.md`.
+
+The local `/api/map` supplies station observations, not a real air contour product. [AirNow's mapping overview](https://www.airnow.gov/custom-airnow-maps/map-overview/) and [mapping methodology](https://docs.airnowapi.org/docs/AirNowMappingFactSheet.pdf) describe a separate source product. A future real contour layer needs pollutant/index basis, units, observed/interpolated/forecast type, source/method/version/rights, spatial/no-data coverage, issue/observation/valid-frame times and freshness/cache policy. Animate actual dated frames, not invented drift. Sparse monitor density cannot establish pollution between stations, and official contours need not equal a nearby station. See `components/expanded/EXPLORE_BACKEND_DELTA.md`; Vibhav retains provider/backend ownership. No provider ingestion, live forecast, API binding or measurement model was added.
 
 ### October 11 semantic symbols and map tools (unapproved)
 

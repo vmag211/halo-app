@@ -27,13 +27,30 @@ test('revised overview preserves factors and moves navigation ownership', async 
   await page.getByRole('link', { name: 'Explore Food and Garden' }).click();
   await expect(page.getByRole('heading', { name: 'Food, water & what you grow', exact: true })).toBeVisible();
   await expect(mainNav(page).getByRole('link', { name: 'Homeguard' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('navigation', { name: 'Homeguard sections' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Home workspace', exact: true })).toHaveValue('food');
   await expect(page.getByText('Workflow outline · Not a finished screen')).toHaveCount(0);
   await page.getByRole('link', { name: 'Back to Homeguard' }).click();
   await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
   await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('link', { name: 'Journal and Patterns' }).click();
   await expect(mainNav(page).getByRole('link', { name: 'My Week' })).toHaveAttribute('aria-current', 'page');
+});
+
+test('compact Home workspace selector preserves every destination and draft context', async ({ page }) => {
+  await page.goto(`${root}&tab=home&destination=tests&homeView=new`);
+  await page.getByLabel('Test label (required)').fill('Retained home workspace draft');
+  const selector = page.getByRole('combobox', { name: 'Home workspace', exact: true });
+  await expect(selector.locator('option')).toHaveText(['Tests', 'Maintenance', 'Food and Garden', 'Summary']);
+  for (const section of ['maintenance', 'food', 'summary', 'tests']) {
+    await selector.selectOption(section);
+    await expect(page.locator('.hg-workspace')).toHaveAttribute('data-home-section', section);
+    await expect(selector).toHaveValue(section);
+    expect(new URL(page.url()).searchParams.get('destination')).toBe(section);
+    await expect(mainNav(page).getByRole('link', { name: 'Homeguard' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('link', { name: 'Back to Homeguard', exact: true })).toBeVisible();
+  }
+  await page.getByRole('button', { name: /^Plan a test/ }).click();
+  await expect(page.getByLabel('Test label (required)')).toHaveValue('Retained home workspace draft');
 });
 
 test('planned follow-up save, edit, status, deduplication and return are one in-memory action', async ({ page }) => {

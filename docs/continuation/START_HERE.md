@@ -30,6 +30,7 @@ The checkpoint includes current app components, styling, public assets, tests, f
 - Hosted review: https://halo-wireframe-review.yogirajapaturi.chatgpt.site .
 - Expanded Today: `/foundation/preview/expanded/?tab=today`.
 - Expanded Homeguard: `/foundation/preview/expanded/?tab=home`.
+- Expanded Explore: `/foundation/preview/expanded/?tab=act`. The October 11 connected-action refinement combines local participation, practical projects, contextual notes and Luna previews. Read `components/expanded/EXPLORE_REVIEW.md` and `EXPLORE_BACKEND_DELTA.md` for current scope; earlier tab-heavy proposals are superseded.
 - Homeguard tests: add `&destination=tests`; other destinations are `maintenance`, `food`, `summary`.
 - Map review: `/foundation/preview/map`.
 - Onboarding review: `/onboarding/preview`.

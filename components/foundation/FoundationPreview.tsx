@@ -19,6 +19,7 @@ import { PreviewHouseholdPicker, usePreviewHousehold } from './PreviewHousehold'
 import { homeMemberKeys, memberCatalog, type HomeMemberKey } from '@/lib/frontend/home-household';
 import type { MotionMode, SceneTime } from '@/lib/frontend/scene-clock';
 import LunaAssistant from './LunaAssistant';
+import ExpandedLunaPreview from '@/components/expanded/ExpandedLunaPreview';
 import LunaMark from './LunaMark';
 import AppNavigation from '@/components/ui/AppNavigation';
 import { ExpandedActionDialog, ExpandedMode, ExpandedReviewControls } from '@/components/expanded/ExpandedPreviewState';
@@ -251,7 +252,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     {!isGate && <>{expanded ? <AppNavigation active={activeTab} href={previewHref} onNavigate={navigate} /> : <nav className="halo-f-tabs" aria-label={c.labels.navigation}>{previewTabs.map(tab => { const Icon = tabIcons[tab]; return <a key={tab} href={previewHref(tab)} aria-current={route === tab ? 'page' : undefined} onClick={e => { e.preventDefault(); if (route !== tab || inDetail) navigate(tab); }}><Icon size={23} aria-hidden="true" /><span>{tabLabels[tab]}</span></a>; })}</nav>}{assistantEnabled && !sheet && <button className="halo-f-assistant" aria-label={c.labels.assistant} onClick={() => openSheet({ type: 'assistant', height: 'tall' })}><LunaMark size={28} /></button>}</>}
     {expanded && <ExpandedActionDialog offline={offline} />}
     {!sheet && toastElement}
-    {sheet?.type === 'assistant' && <LunaAssistant onClose={closeSheet} factorHref={factorHref} factor={initialFactor} home={route === 'home'} offline={offline} missing={['no-data', 'card-no-data', 'offline-empty'].includes(current)} />}
+    {sheet?.type === 'assistant' && (expanded && !inDetail && ['act','home'].includes(route) ? <ExpandedLunaPreview home={route === 'home'} onClose={closeSheet} go={(section, view = 'list', id) => { const url = new URL(window.location.href); url.searchParams.delete('sheet'); window.history.replaceState({ ...window.history.state, _foundationSheet: false }, '', url); sheetEntry.current = false; setSheet(null); router.push(`${expandedHref('act', section)}${view !== 'list' ? `&exploreView=${view}` : ''}${id ? `&exploreRecord=${encodeURIComponent(id)}` : ''}`); }} /> : <LunaAssistant onClose={closeSheet} factorHref={factorHref} factor={initialFactor} home={route === 'home'} offline={offline} missing={['no-data', 'card-no-data', 'offline-empty'].includes(current)} />)}
     {sheet && sheet.type !== 'assistant' && <BottomSheet id="foundation-sheet" title={c.sheetTitles[sheet.type]} height={sheet.height} onClose={closeSheet}>
       {offline && <Callout tone="notice"><p>{c.offline}</p></Callout>}
       <Callout tone="info"><p>{c.sheetPlaceholder}</p></Callout>

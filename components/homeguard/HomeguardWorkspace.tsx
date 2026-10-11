@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ClipboardList, FileHeart, Sprout, Wrench } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import TestsWorkspace from './TestsWorkspace';
 import MaintenanceWorkspace from './MaintenanceWorkspace';
 import FoodGardenWorkspace from './FoodGardenWorkspace';
@@ -12,8 +12,9 @@ import { useHomeWorkspace } from './HomeWorkspaceState';
 import { Empty, type HomeSection, type WorkspaceProps } from './HomeWorkspaceUI';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import './homeguard-workspace.css';
+import ExploreCompanion from '@/components/expanded/ExploreCompanion';
 
-const sections = { tests: { name: 'Tests', icon: ClipboardList }, maintenance: { name: 'Maintenance', icon: Wrench }, food: { name: 'Food and Garden', icon: Sprout }, summary: { name: 'Summary', icon: FileHeart } };
+const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
   const search = useSearchParams(); const router = useRouter(); const state = useHomeWorkspace();
   const didOpen = useRef(false);
@@ -43,7 +44,8 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   const props: WorkspaceProps = { view, recordId, factor, go, navigate: (next, id) => go(section, next, id) };
   return <div className="hg-workspace" data-home-section={section}>
     <Link className="hg-back" href={href('home')}><ArrowLeft size={17} />Back to Homeguard</Link>
-    <nav className="hg-sections" aria-label="Homeguard sections">{(Object.keys(sections) as HomeSection[]).map(key => { const Icon = sections[key].icon; return <button className="hg-section-button" key={key} type="button" aria-current={section === key ? 'page' : undefined} onClick={() => go(key)}><Icon size={19} /><span>{sections[key].name}</span></button>; })}</nav>
+    <div className="hg-workspace-select"><label>Home workspace<select value={section} onChange={event => go(event.target.value as HomeSection)}>{(Object.keys(sections) as HomeSection[]).map(key => <option value={key} key={key}>{sections[key].name}</option>)}</select></label>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}</div>
+    <ExploreCompanion context={`Homeguard: ${sections[section].name}`} go={(next, nextView = 'list', id) => router.push(`${href('act', next)}${nextView !== 'list' ? `&exploreView=${nextView}` : ''}${id ? `&exploreRecord=${encodeURIComponent(id)}` : ''}`)} />
     <details className="hg-session-note"><summary>Design preview · Sample records only</summary><p>Try the actions with fictional details. Changes reset on reload, and files are not uploaded. Food guide source links are real; local notices and test results are examples.</p></details>
     {state.message && <div className="hg-feedback" role="status"><p>{state.message}</p><button aria-label="Dismiss workspace message" type="button" onClick={state.clearMessage}>Dismiss</button></div>}
     {state.scenario === 'stale' && <p className="hg-notice">Sample evidence is out of date. Review source dates before using it; your own records are shown separately.</p>}

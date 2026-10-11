@@ -6,7 +6,9 @@ This is an interaction implementation with synthetic records, not a production f
 
 ## Open and navigate
 
-Open `/foundation/preview/expanded/?tab=home`. The four links under **Your home, beyond the readings** enter Tests, Maintenance, Food and Garden, and Summary. Each workspace has an internal section navigation and a Back to Homeguard link. Homeguard stays selected in the app's four-tab navigation.
+Open `/foundation/preview/expanded/?tab=home`. The open Home workspace enters Tests, Maintenance, Food and Garden, and Summary. A compact native Home workspace selector replaces the four internal section buttons; Workspace overview returns from record detail to the actual destination overview. Back to Homeguard remains available, and Homeguard stays selected in the app's four-tab navigation.
+
+October 11 refinement consolidates the editable below-the-house overview into one workbench: test continuation and milestones, maintenance rows, compact illustrated food/garden entries and a document-style summary entrance. All destination content, original score/factor/household/house ordering, record counts and failure states remain available. Contextual Quick note and Work with Luna use the same isolated Explore notebook and selected-note action preview. Neither these controls nor the selector changes the approved archive, production assistant or backend. See `components/expanded/EXPLORE_REVIEW.md` and `EXPLORE_BACKEND_DELTA.md` for tool/privacy gaps.
 
 The review uses `destination`, `homeView` and opaque `record` identifiers. These are preview URLs, not new production routes. Form contents, notes, household categories and uploaded bytes do not enter the URL. Existing appearance, text scale, motion, contrast and decorative time choices continue through navigation.
 

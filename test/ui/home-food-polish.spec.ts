@@ -157,7 +157,7 @@ test('deleting a garden preserves its linked test record', async ({ page }) => {
   await expect(page.getByRole('dialog')).toContainText('linked test record stays');
   await page.getByRole('dialog').getByRole('button', { name: 'Yes, delete', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No growing sites yet.', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Tests', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Home workspace', exact: true }).selectOption('tests');
   await expect(page.getByRole('button', { name: /Garden soil report/ }).first()).toBeVisible();
 });
 

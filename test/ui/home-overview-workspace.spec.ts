@@ -43,6 +43,7 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     ['Plan a test', 'tests', 'new', ''],
     ['Add a report', 'tests', 'report', ''],
     ['View records', 'tests', '', ''],
+    ['View home care', 'maintenance', '', ''],
     ['Kitchen filter upkeep', 'maintenance', 'detail', 'sample-filter'],
     ['Window condensation', 'maintenance', 'observation-detail', 'sample-moisture'],
     ['Add routine', 'maintenance', 'create', ''],
@@ -51,6 +52,7 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     ['Your gardens', 'food', 'gardens', ''],
     ['Fish and waterways', 'food', 'fish', ''],
     ['Water stewardship', 'food', 'water', ''],
+    ['Explore Food and Garden', 'food', '', ''],
     ['Continue with Back garden', 'food', 'garden-detail', 'demo-garden'],
     ['Create summary', 'summary', 'selection', ''],
   ]) {
@@ -61,6 +63,23 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     if (record) expect(query.get('record')).toBe(record);
     await page.getByRole('link', { name: 'Back to Homeguard', exact: true }).click();
     await expect(workspace).toBeVisible();
+  }
+});
+
+test('overview groups home care without duplicating continuation or hiding entrances', async ({ page }) => {
+  await page.goto(home);
+  const workspace = page.locator('#home-workspace');
+  const care = workspace.getByRole('region', { name: 'Records and home care', exact: true });
+  await expect(care.getByRole('region', { name: 'Tests and records', exact: true })).toBeVisible();
+  await expect(care.getByRole('region', { name: 'Maintenance and moisture', exact: true })).toBeVisible();
+  await expect(workspace.getByRole('link', { name: 'Continue test', exact: true })).toHaveCount(1);
+  await expect(workspace.getByRole('list', { name: /Recorded milestones/ })).toHaveCount(1);
+  await expect(care).toContainText('Scheduled Oct 1, 2026');
+  await expect(care).toContainText('Observed Sep 30, 2026');
+  for (const name of ['Plan a test', 'Add a report', 'Add routine', 'Record moisture', 'Create summary']) {
+    const entrance = workspace.getByRole('link', { name, exact: true });
+    await expect(entrance).toBeVisible();
+    expect((await entrance.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
 });
 

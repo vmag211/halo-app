@@ -99,7 +99,7 @@ for (const appearance of ['light', 'dark']) test(`garden tools and linked-test a
   await conditions.getByRole('button', { name: 'Delete site', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Delete this growing site?', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'No, keep it', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Homeguard sections' }).getByRole('button', { name: 'Tests', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Home workspace', exact: true }).selectOption('tests');
   await expect(page.getByRole('button', { name: /^Kitchen tap, September/ })).toBeVisible();
 });
 

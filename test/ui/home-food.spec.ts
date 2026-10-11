@@ -58,14 +58,14 @@ test('fish detail respects the selected extent and saved water references restor
   await page.getByRole('button', { name: /Statewide example species rule Statewide/ }).click();
   await expect(page.getByText('No additional reviewed rule matches this selection.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Willow Lake, north basin/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Food and Garden', exact: true }).click();
+  await page.getByRole('button', { name: 'Workspace overview', exact: true }).click();
   await page.getByRole('button', { name: /Water & conservation Understand local/ }).click();
   await page.getByLabel('Utility matching example').selectOption('mandatory');
   const utility = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Conservation notices' }) });
   await utility.getByRole('button', { name: 'Save reference', exact: true }).click();
   await expect(utility.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await page.getByLabel('Utility matching example').selectOption('voluntary');
-  await page.getByRole('button', { name: 'Food and Garden', exact: true }).click();
+  await page.getByRole('button', { name: 'Workspace overview', exact: true }).click();
   await page.getByRole('button', { name: /Example Utility notice Saved/ }).click();
   await expect(page.getByLabel('Utility matching example')).toHaveValue('mandatory');
   await expect(page.getByText('Mandatory in synthetic notice', { exact: true })).toBeVisible();

@@ -14,6 +14,7 @@ type State = {
   seed: (key: string, initial: HomeRecord[]) => void;
   write: (key: string, record: HomeRecord) => Promise<boolean>;
   remove: (key: string, id: string) => Promise<boolean>;
+  removeNotes: (selection: { id: string; revision: number }[]) => Promise<boolean>;
   setDraft: (key: string, update: (previous: unknown) => unknown) => void;
   clearDraft: (key: string) => void; reset: () => void;
 };
@@ -37,7 +38,7 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
   const alive = useRef(true);
   useEffect(() => { generation.current++; alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
-    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
+    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|quick-note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
@@ -93,7 +94,20 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
       commit(next); return true;
     });
   }
-  return <Context.Provider value={{ collections, drafts, scenario, message, pending, setScenario, clearMessage: () => setMessage(''), seed, write, remove,
+  async function removeNotes(selection: { id: string; revision: number }[]) {
+    return mutate('exploreNotes', 'confirmed-bundle', () => {
+      const current = recordsRef.current.exploreNotes ?? [];
+      const ids = new Set(selection.map(item => item.id));
+      if (!selection.length || ids.size !== selection.length || !selection.every(item => current.some(record => record.id === item.id && record.revision === item.revision))) {
+        setMessage('One of the selected notes changed or is no longer available. Review the selection again. No notes were removed.'); return false;
+      }
+      // One memory commit mirrors the required atomic owned transaction.
+      commit({ ...recordsRef.current, exploreNotes: current.filter(item => !ids.has(item.id)), exploreOutcomes: (recordsRef.current.exploreOutcomes ?? []).filter(item => !selection.some(note => item.id === `note-case:${note.id}`)) });
+      setDrafts(previous => Object.fromEntries(Object.entries(previous).filter(([key]) => !selection.some(note => [`explore:note:${note.id}`, `explore:reference:${note.id}`, `explore:outcome:note-case:${note.id}`].includes(key)))));
+      return true;
+    });
+  }
+  return <Context.Provider value={{ collections, drafts, scenario, message, pending, setScenario, clearMessage: () => setMessage(''), seed, write, remove, removeNotes,
     setDraft: (key, update) => setDrafts(previous => ({ ...previous, [key]: update(previous[key]) })),
     clearDraft: key => setDrafts(previous => { const next = { ...previous }; delete next[key]; return next; }),
     reset: () => { generation.current++; commit(initialCollections()); setDrafts({}); setScenario('ready'); setMessage('Sample workspace reset. No account data was changed.'); },

@@ -28,14 +28,14 @@ export function MapInsightCard({ points, layer, onOpen, loading }: { points: Map
 }
 
 export function MapKey({ layer, patterns, onOpen }: { layer: MapLayer; patterns: boolean; onOpen: () => void }) {
-  const density = patterns && ['water', 'facilities'].includes(layer);
+  const density = patterns && ['water', 'facilities', 'air'].includes(layer);
   const categories = layer === 'radon' ? [['good','Zone 3'],['elevated','Zone 2'],['high','Zone 1']] : layer === 'facilities' ? [['good','No violation'],['elevated','Violation'],['high','Significant'],['no_data','Unknown']] : [['good','Good'],['moderate','Moderate'],['elevated','Elevated'],['high','High'],['severe','Severe'],['no_data',layer === 'water' ? 'Not comparable' : 'No data']];
   return <button className="halo-map-key" onClick={onOpen} aria-label="Legend">
     <span className="halo-map-key-records"><span className="halo-map-key-title">{layer === 'radon' ? 'County radon potential' : layer === 'air' ? 'Monitor AQI categories' : layer === 'facilities' ? 'Reported compliance' : 'System result categories'}<Info size={14}/></span>
       <span className="halo-map-key-categories">{categories.map(([severity,label])=><span key={severity}><MapSymbol layer={layer} severity={severity}/>{label}</span>)}</span>
       <span className="halo-map-key-footnote">{layer === 'water' ? 'Larger water symbols serve more people. An exclamation marks an over-limit result.' : layer === 'facilities' ? 'Building groups contain multiple sites. An exclamation marks a violation.' : layer === 'air' ? 'Wind symbols locate monitors. Numbers are AQI, not wind speed.' : 'Zone 1 has the highest regional potential. Your home needs its own test.'}</span>
     </span>
-    {density && <span className="halo-map-key-density"><span className="halo-map-key-title">{layer === 'water' ? 'Over-limit system density' : 'Noncompliance record density'}</span><span className="halo-map-key-scale" data-density="true" aria-hidden="true"/><span className="halo-map-key-labels"><span>Sparse</span><span>Clustered</span></span><span className="halo-map-key-footnote">Record density, not concentration or exposure.</span></span>}
+    {density && <span className="halo-map-key-density"><span className="halo-map-key-title">{layer === 'water' ? 'Over-limit system density' : layer === 'air' ? 'Monitor location density' : 'Noncompliance record density'}</span><span className="halo-map-key-scale" data-density="true" aria-hidden="true"/><span className="halo-map-key-labels"><span>Sparse</span><span>Clustered</span></span><span className="halo-map-key-footnote">{layer === 'air' ? 'Monitor density, not an AQI surface or forecast.' : 'Record density, not concentration or exposure.'}</span></span>}
   </button>;
 }
 
