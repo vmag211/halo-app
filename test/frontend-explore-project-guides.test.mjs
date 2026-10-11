@@ -21,7 +21,7 @@ test('guide citations remain primary HTTPS sources, checked dates and no invente
   for (const guide of projectGuides) for (const source of guide.sources) {
     const url = new URL(source.url);
     assert.equal(url.protocol, 'https:');
-    assert.ok(['content.ces.ncsu.edu', 'www.charlottenc.gov', 'www.ncdot.gov', 'www.nasa.gov', 'science.nasa.gov', 'www.epa.gov'].includes(url.hostname));
+    assert.ok(['content.ces.ncsu.edu', 'www.charlottenc.gov', 'www.ncdot.gov', 'www.nasa.gov', 'science.nasa.gov', 'www.epa.gov', 'www.fws.gov', 'extension.umn.edu', 'parkandrec.mecknc.gov'].includes(url.hostname));
     assert.equal(source.checked, '2026-10-11');
   }
   assert.ok(!JSON.stringify(projectGuides).includes('\u2014'));
@@ -38,7 +38,7 @@ test('project search works across materials and cause without hiding alternative
   assert.deepEqual(searchProjectGuides('bee house', 'Habitats').map(item => item.id), ['bee-house']);
   assert.deepEqual(searchProjectGuides('foil').map(item => item.id), ['solar-oven']);
   assert.equal(searchProjectGuides('not-a-project').length, 0);
-  assert.equal(searchProjectGuides('   ').length, 5);
+  assert.equal(searchProjectGuides('   ').length, 19);
 });
 test('whole-project completion requires all canonical steps and a real result', () => {
   assert.match(projectCompletionError(3, 4, 'Actual work'), /each project step/);

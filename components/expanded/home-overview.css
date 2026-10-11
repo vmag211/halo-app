@@ -1,6 +1,6 @@
 .halo-home-workspace { display:grid; gap:18px; margin:32px 0 12px; min-width:0; scroll-margin-top:95px; font-family:var(--font-instrument),Arial,sans-serif; }
 .how-heading { display:grid; gap:8px; }
-.how-heading h2 { margin:0; font-size:calc(1.55rem * var(--halo-text-scale)); line-height:1.25; }
+.how-heading h2 { margin:0; font:600 calc(1.55rem * var(--halo-text-scale))/1.25 var(--font-fraunces),Georgia,serif; }
 .halo-home-workspace p { margin:0; line-height:1.55; }
 .how-heading p,.how-module-heading p,.how-workbench-heading p { color:var(--halo-secondary); font-size:calc(.88rem * var(--halo-text-scale)); }
 .how-preview-note { font-size:calc(.75rem * var(--halo-text-scale)); color:var(--halo-secondary); }

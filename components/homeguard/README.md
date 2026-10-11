@@ -1,5 +1,7 @@
 # Homeguard connected workflow review
 
+Later October 11 simplification: the editable home-care overview retains tests, milestones, maintenance, Food and Garden and summary creation in the same approved-core ordering, with shorter introductions and stronger heading typography. Repeated quick-note/assistant toolbars are removed. The existing global Luna launcher uses one shared conversational preview across expanded screens. Successful sample updates use a short dismissible toast; failures/conflicts remain visible and retain input. Production/non-expanded Luna and the immutable core archive are unchanged.
+
 October 3, 2026. Editable, unapproved wireframes for H06, H07, H08 and F01 through F06. These replace the expanded edition's four Homeguard outline destinations. They do not replace the approved Homeguard overview, house illustration, selected household guidance, factor pages or onboarding.
 
 This is an interaction implementation with synthetic records, not a production frontend handoff. The user reviews and refines these visuals before a new approval archive or live integration is made. The sealed October 1 archive is unchanged.

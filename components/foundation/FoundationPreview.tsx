@@ -61,7 +61,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
   return <div className="halo-f-review" data-mode={mode}>
     <details className="halo-f-review-tools">
       <summary>{expanded ? 'Expanded app review · Not approved' : c.review}</summary><p>{c.status}</p>
-      {expanded && <><p>The four-tab revision uses My Week as the working fourth-tab label. New connections are additive. Workflow outlines are not finished screens, and sample actions are not saved to an account.</p><ExpandedReviewControls /></>}
+      {expanded && <><p>Editable wireframes with fictional environmental records and visit-local actions. Luna conversations, project generation and task tools demonstrate proposed capabilities with deterministic sample responses, not live AI or web retrieval. No accounts, external messages or registrations are changed.</p><ExpandedReviewControls /></>}
       <p>Today covers air quality, UV, pollen, and mold. PFAS belongs only to Homeguard and does not contribute to Today. Scores and contribution shares in this review are illustrative sample values, not live API results.</p>
       <label>{c.scenario}<select aria-label={c.scenario} value={scenario} onChange={e => changeScenario(e.target.value as FoundationScenario)}>{sections.map(section => <optgroup key={section} label={section}>{foundationScenarios.filter(s => s[1] === section).map(([key, , label]) => <option key={key} value={key}>{label}</option>)}</optgroup>)}</select></label>
       <div className="halo-f-tool-grid"><label>{c.appearance}<select aria-label={c.appearance} value={mode} onChange={e => setMode(e.target.value)}><option value="system">{c.system}</option><option value="light">{c.light}</option><option value="dark">{c.dark}</option></select></label><label>{c.scale}<select aria-label={c.scale} value={scale} onChange={e => setScale(e.target.value)}>{['100', '115', '130', '150'].map(n => <option key={n} value={n}>{n}%</option>)}</select></label></div>
@@ -239,7 +239,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
   if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} />;
   if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
-    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} /> : <ExpandedPlan href={expandedHref} />;
+    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : <ExpandedPlan href={expandedHref} />;
   } else if (showExpanded && (route === 'today' || route === 'home')) {
     content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
   }
@@ -252,7 +252,15 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     {!isGate && <>{expanded ? <AppNavigation active={activeTab} href={previewHref} onNavigate={navigate} /> : <nav className="halo-f-tabs" aria-label={c.labels.navigation}>{previewTabs.map(tab => { const Icon = tabIcons[tab]; return <a key={tab} href={previewHref(tab)} aria-current={route === tab ? 'page' : undefined} onClick={e => { e.preventDefault(); if (route !== tab || inDetail) navigate(tab); }}><Icon size={23} aria-hidden="true" /><span>{tabLabels[tab]}</span></a>; })}</nav>}{assistantEnabled && !sheet && <button className="halo-f-assistant" aria-label={c.labels.assistant} onClick={() => openSheet({ type: 'assistant', height: 'tall' })}><LunaMark size={28} /></button>}</>}
     {expanded && <ExpandedActionDialog offline={offline} />}
     {!sheet && toastElement}
-    {sheet?.type === 'assistant' && (expanded && !inDetail && ['act','home'].includes(route) ? <ExpandedLunaPreview home={route === 'home'} onClose={closeSheet} go={(section, view = 'list', id) => { const url = new URL(window.location.href); url.searchParams.delete('sheet'); window.history.replaceState({ ...window.history.state, _foundationSheet: false }, '', url); sheetEntry.current = false; setSheet(null); router.push(`${expandedHref('act', section)}${view !== 'list' ? `&exploreView=${view}` : ''}${id ? `&exploreRecord=${encodeURIComponent(id)}` : ''}`); }} /> : <LunaAssistant onClose={closeSheet} factorHref={factorHref} factor={initialFactor} home={route === 'home'} offline={offline} missing={['no-data', 'card-no-data', 'offline-empty'].includes(current)} />)}
+    {sheet?.type === 'assistant' && (expanded ? <ExpandedLunaPreview context={initialFactor ? factorReadings[initialFactor].title : initialMember ? memberCatalog[initialMember].label : initialFamily ? 'Household guidance' : routeTitles[route]} offline={offline} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} onClose={closeSheet} go={(tab, target, view = 'list', id) => {
+      const url = new URL(window.location.href); url.searchParams.delete('sheet'); url.searchParams.delete('learn'); window.history.replaceState({ ...window.history.state, _foundationSheet: false }, '', url); sheetEntry.current = false; setSheet(null);
+      if (tab === 'map') { router.push(mapHref(target && ['water','air','radon','facilities'].includes(target) ? target : 'water')); return; }
+      if (!['today','home','act','plan','settings'].includes(tab)) return;
+      const next = new URL(expandedHref(tab, target), window.location.origin);
+      if (view !== 'list') next.searchParams.set(tab === 'home' ? 'homeView' : 'exploreView', view);
+      if (id) next.searchParams.set(tab === 'home' ? 'record' : 'exploreRecord', id);
+      router.push(next.pathname + next.search);
+    }} /> : <LunaAssistant onClose={closeSheet} factorHref={factorHref} factor={initialFactor} home={route === 'home'} offline={offline} missing={['no-data', 'card-no-data', 'offline-empty'].includes(current)} />)}
     {sheet && sheet.type !== 'assistant' && <BottomSheet id="foundation-sheet" title={c.sheetTitles[sheet.type]} height={sheet.height} onClose={closeSheet}>
       {offline && <Callout tone="notice"><p>{c.offline}</p></Callout>}
       <Callout tone="info"><p>{c.sheetPlaceholder}</p></Callout>

@@ -1,5 +1,5 @@
 import type { FactorKey } from './factor-preview';
-export type PreviewAction = { id: string; key: string; title: string; reason: string; origin: string; date: string; state: 'saved' | 'completed' | 'waiting' };
+export type PreviewAction = { id: string; key: string; title: string; reason: string; origin: string; date: string; state: 'saved' | 'completed' | 'waiting'; revision?: number };
 export type ActionSeed = Pick<PreviewAction, 'key' | 'title' | 'reason' | 'origin'> & { date?: string };
 export const followThrough: Record<FactorKey, { title: string; destination: string; label: string; layer?: string }> = {
   air: { title: 'Prepare for outdoor activity', destination: 'outdoors', label: 'Compare outdoor plans', layer: 'air' },

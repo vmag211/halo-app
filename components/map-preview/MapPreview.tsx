@@ -8,7 +8,8 @@ import { BottomSheet, Callout } from '@/components/ui/Foundation';
 import Button from '@/components/ui/Button';
 import SeverityPill from '@/components/ui/SeverityPill';
 import { SceneProvider } from '@/components/foundation/SceneExperience';
-import LunaAssistant from '@/components/foundation/LunaAssistant';
+import ExpandedLunaPreview from '@/components/expanded/ExpandedLunaPreview';
+import { useRouter } from 'next/navigation';
 import LunaMark from '@/components/foundation/LunaMark';
 import MapRecordToExplore from '@/components/expanded/MapRecordToExplore';
 import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
@@ -59,6 +60,7 @@ export default function MapPreview() {
 }
 
 function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:MapScenario;appearance:string;scale:number;motion:boolean;contrast:boolean}) {
+  const router = useRouter();
   const restoredSession=useRef(session);
   const [previewLayer,setPreviewLayer]=useHomeDraft<MapLayer>('explore:map-layer','water');
   const [layer,setLayer]=useState<MapLayer>('water'); const [compound,setCompound]=useState<Compound>('overall');
@@ -221,7 +223,12 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
       </div>}
     </main>
     <AppNavigation active="act" href={foundationHref} />
-    {sheet?.kind==='assistant'?<LunaAssistant onClose={closeSheet} factorHref={factorHref} home={false} offline={offline}/>:sheet&&<BottomSheet id="halo-map-sheet" title={sheet.kind==='brief'?'Your area at a glance':selectedTitle} height={sheet.kind==='feature'?'content':'standard'} onClose={closeSheet}>
+    {sheet?.kind==='assistant'?<ExpandedLunaPreview context={`${layer[0].toUpperCase()+layer.slice(1)} map`} onClose={closeSheet} offline={offline} environmentAvailable={!blocked&&hasHome} go={(tab,destination,view='list',id)=>{
+      const url=new URL(location.href); ['mapSheet','learn','system','panel'].forEach(key=>url.searchParams.delete(key)); history.replaceState({...history.state,_haloMapSheet:false},'',url); ownsSheet.current=false; setSheet(null);
+      if(tab==='map'){if(destination&&['water','air','radon','facilities'].includes(destination))setMapLayer(destination as MapLayer);return;}
+      if(!['today','home','act','plan','settings'].includes(tab))return;
+      const next=new URL(foundationHref(tab),location.origin);if(destination)next.searchParams.set('destination',destination);if(view!=='list')next.searchParams.set(tab==='home'?'homeView':'exploreView',view);if(id)next.searchParams.set(tab==='home'?'record':'exploreRecord',id);router.push(next.pathname+next.search);
+    }}/>:sheet&&<BottomSheet id="halo-map-sheet" title={sheet.kind==='brief'?'Your area at a glance':selectedTitle} height={sheet.kind==='feature'?'content':'standard'} onClose={closeSheet}>
       <p className="halo-map-sample-label">Wireframe · Sample data</p>
       {sheet.kind==='brief'&&(blocked||loading?<p>{loading?'Loading this layer’s area brief.':'Load this layer to see its area brief.'}</p>:<AreaBrief points={inView} allPoints={points} layer={layer} compound={compound} quarter={quarter} water={water} hasHome={hasHome} banner={banner} onSelect={id=>openSheet({kind:'feature',id})}/>)}
       {sheet.kind==='district'&&<>{offline&&<Callout tone="notice"><p>No district summary is saved in this sample session. Reconnect to load it.</p></Callout>}<DistrictPanel variant={districtVariant} onRetry={offline?undefined:retry} onCountySelect={name=>{const point=radonPoints.find(p=>p.id===name);if(!point)return;setLayer('radon');setCompound('overall');setQuarter('latest');changeView({lat:point.lat,lng:point.lng,zoom:8});const url=urlForFilters('radon','overall','latest');url.searchParams.delete('panel');url.searchParams.set('system',name);history.replaceState(history.state,'',url);setSheet({kind:'feature',id:name});}}/></>}

@@ -16,6 +16,7 @@ type PreviewState = {
   setFail: (fail: boolean) => void; save: () => void;
   changeState: (id: string, state: PreviewAction['state']) => void; reset: () => void;
   addActions: (seeds: ActionSeed[], date: string) => boolean;
+  updateAction: (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date'>) => boolean;
 };
 const State = createContext<PreviewState | null>(null);
 const Mode = createContext(false);
@@ -26,6 +27,7 @@ export const useExpandedPreview = () => useContext(State);
 /** Review-only memory. Never imports the live client or persists household data. */
 export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
   const [actions, setActions] = useState<PreviewAction[]>([]);
+  const actionsRef = useRef<PreviewAction[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [visible, setVisible] = useState(false);
   const [fail, setFail] = useState(false);
@@ -51,21 +53,28 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
     if (!draft || actionDraftError(draft.title, draft.date)) return;
     setActions(previous => {
       const existing = previous.find(action => action.key === draft.seed.key);
-      const next: PreviewAction = { ...draft.seed, id: existing?.id ?? crypto.randomUUID(), title: draft.title.trim(), date: draft.date, state: existing?.state ?? 'saved' };
-      return existing ? previous.map(action => action.id === existing.id ? next : action) : [...previous, next];
+      const next: PreviewAction = { ...draft.seed, id: existing?.id ?? crypto.randomUUID(), title: draft.title.trim(), date: draft.date, state: existing?.state ?? 'saved', revision: existing ? (existing.revision ?? 1) + 1 : 1 };
+      const result = existing ? previous.map(action => action.id === existing.id ? next : action) : [...previous, next];
+      actionsRef.current = result; return result;
     });
     close();
   };
   const addActions = (seeds: ActionSeed[], date: string) => {
     if (fail || !seeds.length || seeds.some(seed => actionDraftError(seed.title, date))) return false;
-    setActions(previous => seeds.reduce((next, seed) => {
+    setActions(previous => { const result = seeds.reduce((next, seed) => {
       // One canonical action per origin. Re-selecting a project step never resets its state or user-edited title/date.
       if (next.some(action => action.key === seed.key)) return next;
-      return [...next, { ...seed, id: crypto.randomUUID(), date, state: 'saved' as const }];
-    }, previous));
+      return [...next, { ...seed, id: crypto.randomUUID(), date, state: 'saved' as const, revision: 1 }];
+    }, previous); actionsRef.current = result; return result; });
     return true;
   };
-  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, changeState: (id, state) => setActions(previous => previous.map(action => action.id === id ? { ...action, state } : action)), reset: () => { close(); setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
+  const updateAction = (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date'>) => {
+    const current = actionsRef.current.find(action => action.id === id);
+    if (fail || !current || (current.revision ?? 1) !== revision || actionDraftError(patch.title, patch.date)) return false;
+    const result = actionsRef.current.map(action => action.id === id ? { ...action, ...patch, title: patch.title.trim(), revision: revision + 1 } : action);
+    actionsRef.current = result; setActions(result); return true;
+  };
+  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
 export function ExpandedReviewControls() {

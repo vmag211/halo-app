@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { ArrowRight, ChevronRight, ClipboardList, Droplets, FileText, Fish, Plus, Refrigerator, Sprout, Wrench } from 'lucide-react';
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { testStatusLabels, type TestRecord } from '@/lib/frontend/home-test-preview';
@@ -15,7 +14,7 @@ function dayLabel(day: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${day.slice(0, 10)}T12:00:00`));
 }
 
-export default function HomeOverviewWorkspace({ href, assistant }: { href: Href; assistant?: ReactNode }) {
+export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const workspace = useHomeWorkspace();
   const unavailable = workspace.scenario === 'loading' || workspace.scenario === 'error';
   const tests = ((workspace.collections.tests ?? []) as TestRecord[]).filter(record => !record.archived);
@@ -31,9 +30,7 @@ export default function HomeOverviewWorkspace({ href, assistant }: { href: Href;
   const lastSummary = workspace.drafts['summary-last-created'] as { at: string; pages: number } | undefined;
   const link = (destination: string, view?: string, id?: string) => `${href('home', destination)}${view ? `&homeView=${view}` : ''}${id ? `&record=${encodeURIComponent(id)}` : ''}`;
   return <section id="home-workspace" tabIndex={-1} className="halo-home-workspace" aria-labelledby="home-workspace-title">
-    <header className="how-heading"><span className="how-kicker">Care for your home</span><h2 id="home-workspace-title">Your home workspace</h2><p>Your records, everyday care and next steps, together.</p></header>
-    {assistant}
-    <p className="how-preview-note">Sample records for this review. Changes stay in this visit.</p>
+    <header className="how-heading"><h2 id="home-workspace-title">Your home workspace</h2></header>
     {unavailable ? <div className="how-notice" role="status"><p>{workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p><button className="how-action" onClick={() => workspace.setScenario('ready')}>{workspace.scenario === 'loading' ? 'Finish loading sample' : 'Retry sample records'}</button></div> : <>
       {workspace.scenario === 'offline' && <p className="how-notice">Offline review. You can view retained records; changes wait until you reconnect.</p>}
       {workspace.scenario === 'stale' && <p className="how-notice">Review the original dates on older sample evidence.</p>}
@@ -42,20 +39,20 @@ export default function HomeOverviewWorkspace({ href, assistant }: { href: Href;
       </ol></aside>}
     </>}
     <div className="how-modules">
-      <section className="how-workbench" aria-labelledby="how-workbench-title"><header className="how-workbench-heading"><h3 id="how-workbench-title">Records and home care</h3><p>Keep the details, then choose what to do next.</p></header>
-      <section className="how-module how-tests" aria-labelledby="how-tests-title"><div className="how-module-heading"><ClipboardList size={23} aria-hidden="true" /><div><h4 id="how-tests-title">Tests and records</h4><p>Preparation, samples and results.</p>{!unavailable && <p className="how-meta">{plural(active.length, 'active test')} · {plural(reports.length, 'report')}</p>}</div><Link className="how-action" href={link('tests')} prefetch={false}>View records <ChevronRight size={17} aria-hidden="true" /></Link></div>
+      <section className="how-workbench" aria-label="Records and home care">
+      <section className="how-module how-tests" aria-labelledby="how-tests-title"><div className="how-module-heading"><ClipboardList size={23} aria-hidden="true" /><div><h3 id="how-tests-title">Tests and records</h3>{!unavailable && <p className="how-meta">{plural(active.length, 'active test')} · {plural(reports.length, 'report')}</p>}</div><Link className="how-action" href={link('tests')} prefetch={false}>View records <ChevronRight size={17} aria-hidden="true" /></Link></div>
         {!unavailable && !currentTest && <p className="how-empty">{tests.length ? 'Open a report or prepare your next test.' : 'Start with a test you are planning or a report you already have.'}</p>}
         <footer><Link className="how-text-action" href={link('tests', 'new')} prefetch={false}><Plus size={17} aria-hidden="true" />Plan a test</Link><Link className="how-text-action" href={link('tests', 'report')} prefetch={false}>Add a report</Link></footer>
       </section>
-      <section className="how-module how-care" aria-labelledby="how-care-title"><div className="how-module-heading"><Wrench size={23} aria-hidden="true" /><div><h4 id="how-care-title">Maintenance and moisture</h4><p>Routines and the things you notice.</p></div><Link className="how-action" href={link('maintenance')} prefetch={false}>View home care <ChevronRight size={17} aria-hidden="true" /></Link></div>
+      <section className="how-module how-care" aria-labelledby="how-care-title"><div className="how-module-heading"><Wrench size={23} aria-hidden="true" /><div><h3 id="how-care-title">Maintenance and moisture</h3></div><Link className="how-action" href={link('maintenance')} prefetch={false}>View home care <ChevronRight size={17} aria-hidden="true" /></Link></div>
         {!unavailable && <div className="how-care-list">{nextRoutine ? <Link href={link('maintenance', 'detail', nextRoutine.id)} prefetch={false}><Wrench size={18} aria-hidden="true" /><span><strong>{nextRoutine.title}</strong><small>Scheduled {dayLabel(nextRoutine.snoozedUntil || nextRoutine.nextDue)}</small></span><ChevronRight size={17} aria-hidden="true" /></Link> : <p className="how-empty">{routines.length ? 'No active routine has a next date.' : 'Add a routine for the equipment you care for.'}</p>}{recentObservation ? <Link href={link('maintenance', 'observation-detail', recentObservation.id)} prefetch={false}><Droplets size={18} aria-hidden="true" /><span><strong>{recentObservation.title}</strong><small>Observed {dayLabel(recentObservation.observedAt)}</small></span><ChevronRight size={17} aria-hidden="true" /></Link> : <p className="how-empty">Record dampness, a leak or a measured reading when you have one.</p>}</div>}
         <footer><Link className="how-text-action" href={link('maintenance', 'create')} prefetch={false}><Plus size={17} aria-hidden="true" />Add routine</Link><Link className="how-text-action" href={link('maintenance', 'observation')} prefetch={false}>Record moisture</Link></footer>
       </section>
       </section>
-      <section className="how-module how-food" aria-labelledby="how-food-title"><div className="how-module-heading"><Sprout size={23} aria-hidden="true" /><div><h3 id="how-food-title">Food and Garden</h3><p>Your kitchen, growing places and waterways.</p></div><Link className="how-action" href={link('food')} prefetch={false}>Explore Food and Garden <ChevronRight size={17} aria-hidden="true" /></Link></div><nav className="how-food-entries" aria-label="Food and Garden workspaces">
+      <section className="how-module how-food" aria-labelledby="how-food-title"><div className="how-module-heading"><Sprout size={23} aria-hidden="true" /><div><h3 id="how-food-title">Food and Garden</h3></div><Link className="how-action" href={link('food')} prefetch={false}>Explore Food and Garden <ChevronRight size={17} aria-hidden="true" /></Link></div><nav className="how-food-entries" aria-label="Food and Garden workspaces">
         {[{ title: 'Your kitchen', description: unavailable ? 'Foods you save' : foods.length ? plural(foods.length, 'saved food') : 'Add your first food', view: 'pantry', Icon: Refrigerator }, { title: 'Your gardens', description: unavailable ? 'Growing sites' : gardens.length ? plural(gardens.length, 'growing site') : 'Set up a growing site', view: 'gardens', Icon: Sprout }, { title: 'Fish and waterways', description: 'Explore advisory context', view: 'fish', Icon: Fish }, { title: 'Water stewardship', description: 'Notices and your usage', view: 'water', Icon: Droplets }].map(({ title, description, view, Icon }) => <Link key={view} href={link('food', view)} prefetch={false}><Icon size={21} strokeWidth={1.6} aria-hidden="true" /><span><strong>{title}</strong><small>{description}</small></span><ChevronRight size={15} aria-hidden="true" /></Link>)}
       </nav>{!unavailable && gardens[0] && <Link className="how-garden-return" href={link('food', 'garden-detail', gardens[0].id)} prefetch={false}><Sprout size={18} aria-hidden="true" /><span>Continue with {gardens[0].title}</span><ChevronRight size={17} aria-hidden="true" /></Link>}<p className="how-meta">Food evidence and grower resources are inside.</p></section>
-      <section className="how-module how-summary" aria-labelledby="how-summary-title"><div className="how-module-heading"><FileText size={23} aria-hidden="true" /><div><h3 id="how-summary-title">Household summary</h3><p>One private report, with only what you choose.</p><p className="how-meta">Scores and sources, plus selected records.</p>{!unavailable && lastSummary && <p className="how-meta">Last PDF created {dayLabel(lastSummary.at)} · {plural(lastSummary.pages, 'page')}</p>}</div><Link className="how-action" href={link('summary', 'selection')} prefetch={false}>{lastSummary ? 'Create a new summary' : 'Create summary'} <ArrowRight size={17} aria-hidden="true" /></Link></div></section>
+      <section className="how-module how-summary" aria-labelledby="how-summary-title"><div className="how-module-heading"><FileText size={23} aria-hidden="true" /><div><h3 id="how-summary-title">Household summary</h3><p>Choose what goes into your private report.</p>{!unavailable && lastSummary && <p className="how-meta">Last PDF created {dayLabel(lastSummary.at)} · {plural(lastSummary.pages, 'page')}</p>}</div><Link className="how-action" href={link('summary', 'selection')} prefetch={false}>{lastSummary ? 'Create a new summary' : 'Create summary'} <ArrowRight size={17} aria-hidden="true" /></Link></div></section>
     </div>
     <Link className="how-plan-return how-text-action" href={href('plan')} prefetch={false}>View saved home tasks in My Week <ArrowRight size={17} aria-hidden="true" /></Link>
   </section>;

@@ -12,7 +12,8 @@ if (manifest.project_id !== 'appgprj_6abd679629688191ae2eea6173fb2b49' || manife
 const pending = ['components/foundation/FoundationPreview.tsx', 'components/map-preview/MapPreview.tsx'];
 const copied = new Set();
 function allowed(path) {
-  return /^(components\/(foundation|expanded|homeguard|map-preview|ui)\/|lib\/frontend\/)/.test(path) || ['lib/learnContent.js', 'lib/auth.js', 'lib/supabase.js'].includes(path);
+  // assistant.js is the reviewed, pure diagnostic guard, not the assistant API.
+  return /^(components\/(foundation|expanded|homeguard|map-preview|ui)\/|lib\/frontend\/)/.test(path) || ['lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js'].includes(path);
 }
 function copy(path) {
   mkdirSync(dirname(resolve(target, path)), { recursive: true });

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowUpRight, CalendarDays, MapPin, NotebookPen } from 'lucide-react';
 import { destinations, followThrough, isDestination, type ExpandedDestination, type PreviewAction } from '@/lib/frontend/expanded-preview';
@@ -15,14 +14,12 @@ import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { TestRecord } from '@/lib/frontend/home-test-preview';
 import HomeOverviewWorkspace from './HomeOverviewWorkspace';
 import ExploreWorkspace from './ExploreWorkspace';
-import ExploreCompanion from './ExploreCompanion';
 
 type Href = (tab: string, destination?: string) => string;
 export function ExpandedConnections({ home, factor, household, href, mapHref, scenario }: {
   home: boolean; factor?: FactorKey; household?: boolean; href: Href; mapHref: (layer: string) => string; scenario: string;
 }) {
   const enabled = useExpandedMode();
-  const router = useRouter();
   const state = useExpandedPreview();
   if (!enabled || !state) return null;
   if (factor) {
@@ -35,7 +32,7 @@ export function ExpandedConnections({ home, factor, household, href, mapHref, sc
     </div><HomeFactorRecords factor={factor} href={href} /></section>;
   }
   if (household) return <section className="halo-expanded-section"><h2>Follow through together</h2><p>Find your saved tasks and scheduled follow-ups in My Week.</p><Link className="halo-text-button" href={href('plan')}>Open My Week</Link>{home && <Link className="halo-text-button" href={href('home', 'tests')}>Review home tests and records</Link>}</section>;
-  if (home) return <HomeOverviewWorkspace href={href} assistant={<ExploreCompanion context="Homeguard" go={(section, view = 'list', id) => router.push(`${href('act', section)}${view !== 'list' ? `&exploreView=${view}` : ''}${id ? `&exploreRecord=${encodeURIComponent(id)}` : ''}`)} />} />;
+  if (home) return <HomeOverviewWorkspace href={href} />;
   const saved = state.actions.filter(action => action.state !== 'completed')[0];
   return <section className="halo-expanded-section"><details className="halo-expanded-change"><summary>Understand changes in your readings</summary><p>{['no-data', 'offline-empty'].includes(scenario) ? 'There is not enough evidence to compare periods.' : 'A changed reading, a newly published sample and changed source coverage mean different things. The new backend will distinguish these before HALO explains a change.'}</p><p className="halo-f-meta">No numerical change or cause has been inferred from this sample.</p></details><div className="halo-expanded-links"><Link href={href('plan')} prefetch={false}><CalendarDays size={22} /><span><strong>{saved ? saved.title : 'Make room for a useful next step'}</strong><small>{saved ? 'Continue in My Week' : 'Saved actions and your week, together'}</small></span><ArrowUpRight size={17} /></Link><Link href={href('plan', 'journal')} prefetch={false}><NotebookPen size={20} /><span>Optional daily check-in</span><ArrowUpRight size={17} /></Link></div></section>;
 }
@@ -49,16 +46,16 @@ function HomeFactorRecords({ factor, href }: { factor: FactorKey; href: Href }) 
   return <details className="halo-expanded-change"><summary>Your sample records ({matches.length})</summary><p>These are your own test records, separate from the public evidence above. They do not alter this sample score.</p>{matches.map(record => <p key={record.id}><Link href={`${href('home', 'tests')}&homeView=detail&record=${encodeURIComponent(record.id)}&fromFactor=${factor}`}>{record.title}</Link></p>)}<Link className="halo-text-button" href={`${href('home', 'tests')}&homeView=new&fromFactor=${factor}`}>Prepare a {kind} test record</Link></details>;
 }
 
-export function ExpandedDestinationPage({ destination, href, mapHref }: { destination: string; href: Href; mapHref: (layer: string) => string }) {
-  if (['community', 'organizations', 'opportunities', 'projects', 'outreach', 'observations'].includes(destination)) return <ExploreWorkspace destination={destination} href={href} mapHref={mapHref} />;
+export function ExpandedDestinationPage({ destination, href, mapHref, environmentAvailable = true }: { destination: string; href: Href; mapHref: (layer: string) => string; environmentAvailable?: boolean }) {
+  if (['community', 'organizations', 'opportunities', 'projects', 'outreach', 'observations'].includes(destination)) return <ExploreWorkspace destination={destination} href={href} mapHref={mapHref} environmentAvailable={environmentAvailable} />;
   if (destination === 'tests' || destination === 'maintenance' || destination === 'food' || destination === 'summary') return <HomeguardWorkspace section={destination} href={href} />;
   if (!isDestination(destination)) return <section className="halo-expanded-section"><h2>This destination is unavailable</h2><Link href={href('today')}>Return to Today</Link></section>;
   const page = destinations[destination];
   return <section className="halo-expanded-section" aria-label={page.title}><Link className="halo-text-button" href={href(page.tab)}>Back to {page.tab === 'home' ? 'Homeguard' : page.tab === 'act' ? 'Explore' : 'My Week'}</Link><span className="halo-ph-kicker">Workflow outline · Not a finished screen</span><h2>{page.title}</h2><p>{page.description}</p><ol className="halo-expanded-outline">{page.steps.map(step => <li key={step}>{step}</li>)}</ol><aside className="halo-expanded-dependency"><strong>Still to build</strong><p>{page.dependency}</p></aside></section>;
 }
 
-export function ExpandedAct({ href, mapHref }: { href: Href; mapHref: (layer: string) => string }) {
-  return <ExploreWorkspace href={href} mapHref={mapHref} />;
+export function ExpandedAct({ href, mapHref, environmentAvailable = true }: { href: Href; mapHref: (layer: string) => string; environmentAvailable?: boolean }) {
+  return <ExploreWorkspace href={href} mapHref={mapHref} environmentAvailable={environmentAvailable} />;
 }
 
 export function ExpandedPlan({ href }: { href: Href }) {

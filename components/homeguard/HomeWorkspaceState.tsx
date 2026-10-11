@@ -38,7 +38,9 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
   const alive = useRef(true);
   useEffect(() => { generation.current++; alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
-    if (!Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|quick-note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
+    const conversation = drafts['luna:conversation'] as { draft?: string; messages?: { proposal?: { status?: string } }[] } | undefined;
+    const lunaDraft = Boolean(conversation?.draft?.trim() || conversation?.messages?.some(message => message.proposal?.status === 'review'));
+    if (!lunaDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);

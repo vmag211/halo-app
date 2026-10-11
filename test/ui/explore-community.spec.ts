@@ -29,6 +29,8 @@ test('hub is evergreen and every photo uses regular rectangular frames', async (
   await page.goto(root);
   await expect(page.locator('.halo-explore')).not.toContainText('A morning by the creek');
   await expect(page.locator('.halo-explore')).not.toContainText('Oct 17');
+  await expect(page.locator('.halo-explore .ex-photo')).toHaveCount(3);
+  await expect(page.locator('.halo-companion,.ex-subnav,.ex-intro,.ex-contact-utility')).toHaveCount(0);
   for (const photo of await page.locator('.halo-explore .ex-photo').all()) {
     const style = await photo.evaluate(node => { const css = getComputedStyle(node); return { clip: css.clipPath, tl: css.borderTopLeftRadius, tr: css.borderTopRightRadius, bl: css.borderBottomLeftRadius, br: css.borderBottomRightRadius }; });
     expect(style.clip).toBe('none');
@@ -41,6 +43,8 @@ test('hub is evergreen and every photo uses regular rectangular frames', async (
 test('area label remains local and can be cleared', async ({ page }) => {
   await page.goto(root);
   await page.getByRole('button', { name: /Choose an area/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Your area', exact: true })).toBeVisible();
+  await expect(page.locator('.ex-area-editor')).toHaveCount(0);
   await page.getByLabel('City or county', { exact: true }).fill('Private planning place');
   await page.getByLabel('State', { exact: true }).fill('North Carolina');
   await page.getByRole('button', { name: 'Use this area' }).click();
@@ -50,6 +54,22 @@ test('area label remains local and can be cleared', async ({ page }) => {
   await page.locator('.ex-area-toggle').click();
   await page.getByRole('button', { name: 'Clear area' }).click();
   await expect(page.locator('.ex-area-toggle')).toContainText('Choose an area');
+});
+
+test('area sheet closes with browser Back, preserves the page and restores the opener', async ({ page }) => {
+  await page.goto(root);
+  const opener = page.getByRole('button', { name: 'Choose an area', exact: true });
+  await opener.click();
+  await page.getByLabel('City or county', { exact: true }).fill('Unsaved coarse place');
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Your area', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
+  await expect(opener).toBeFocused();
+  expect(page.url()).not.toContain('Unsaved');
+  await opener.click();
+  await expect(page.getByLabel('City or county', { exact: true })).toHaveValue('');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(opener).toBeFocused();
 });
 
 test('volunteer guide is filtered by interest, uses official handoff and saves an undated research task once', async ({ page }) => {
@@ -144,6 +164,7 @@ test('selected notes add only chosen text to outreach, and a revised note requir
   await page.getByLabel('Factual description (required)').fill('The observation was corrected.');
   await page.getByRole('button', { name: 'Save note' }).click();
   await expect(page.getByRole('button', { name: 'Edit note', exact: true })).toBeVisible();
+  await page.getByLabel('Explore resources', { exact: true }).click();
   await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
   await page.getByText('Add context you choose', { exact: true }).click();
   await expect(page.getByText('A selected note changed or was deleted. Remove the old selection and choose again before sending.')).toBeVisible();
@@ -170,6 +191,7 @@ test('unknown send outcome blocks automatic retries even after internal navigati
   await page.getByRole('button', { name: 'Confirm preview send' }).click();
   await expect(page.getByText(/Sample status: outcome unknown/)).toBeVisible();
   await page.getByRole('button', { name: 'Open my notes', exact: true }).first().click();
+  await page.getByLabel('Explore resources', { exact: true }).click();
   await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
   await page.getByRole('button', { name: 'Review what you will share' }).click();
   await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
@@ -183,7 +205,10 @@ test('offline does not lose drafts or connect sending', async ({ page }) => {
   await page.getByText('Expanded app review', { exact: false }).first().click();
   await page.getByLabel('Explore workspace state').selectOption('offline');
   await expect(page.getByLabel('Draft for Utility')).toHaveValue('Keep this private question.');
-  await expect(page.locator('.halo-explore')).toContainText('saves are unavailable');
+  await expect(page.locator('.ex-offline')).toContainText('reconnect to save or open official links');
+  await page.getByRole('button', { name: 'Review what you will share' }).click();
+  await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
 });
 
 test('changing outreach context requires checking the recipient again', async ({ page }) => {
@@ -206,7 +231,7 @@ test('community question offers deliberate append without replacing an unfinishe
   await page.getByLabel('Title (required)').fill('Keep my existing idea');
   await page.getByLabel('Your note (required)').fill('My original writing.');
   await page.getByRole('button', { name: 'Back and keep draft' }).click();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Discover', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
   await page.locator('.ex-community-bridge').click();
   await page.getByRole('button', { name: 'Keep this question in My notes' }).click();
   await expect(page.getByLabel('Title (required)')).toHaveValue('Keep my existing idea');
@@ -246,10 +271,13 @@ test('a note save completing after navigation does not pull the user back', asyn
   await page.getByLabel('Title (required)').fill('A background save');
   await page.getByLabel('Your note (required)').fill('What can I ask my community group?');
   await page.getByRole('button', { name: 'Save note' }).click();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Get involved', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
+  await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
   await expect(page.locator('.ex-local-route')).toHaveCount(5);
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save note', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open my notes', exact: true }).click();
+  await expect(page.locator('.ex-note-row').filter({ hasText: 'A background save' })).toBeVisible();
 });
 
 for (const appearance of ['light', 'dark']) test(`deep Explore flows remain usable at 320px enlarged in ${appearance}`, async ({ page }, info) => {

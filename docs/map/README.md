@@ -1,5 +1,7 @@
 # Map wireframe, editable review
 
+Later October 11 conversational rebuild: the full static Map review now shares the same visit-local Luna conversation as the expanded app, retaining screen context and private conversation across navigation. Explore's compact preview uses one native layer control instead of another tab row. Existing atlas/source/symbol/pattern controls remain unchanged. Conversation and confirmed app-tool demonstrations are simulated, not authenticated AI, environmental interpolation or provider actions; see `components/expanded/EXPLORE_BACKEND_DELTA.md`.
+
 Status: PROPOSED. This is not approved, frozen, production-integrated, or a new visual baseline. No approved archive was created or changed. Yogi will refine this stage before approval.
 
 Entry: `/foundation/preview/map`. The existing preview's Map tab opens this isolated review. The production shell and `/map` are unchanged. Use the outside-product review controls for named scenarios, device/light/dark appearance, text size, contrast and reduced motion. All environmental observations and household data are fixtures, not live readings. No auth/API request, location permission, IndexedDB write, or household mutation occurs.

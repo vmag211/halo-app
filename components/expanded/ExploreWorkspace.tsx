@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, FileText, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, FileText, Mail, MoreHorizontal, NotebookPen } from 'lucide-react';
 import { useExpandedPreview } from './ExpandedPreviewState';
 import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { ExplorePhoto, ExplorePhotoCredits } from './ExploreVisuals';
@@ -13,59 +13,68 @@ import ExploreNotes from './ExploreNotes';
 import ExploreMapPreview from './ExploreMapPreview';
 import ExploreContinuations from './ExploreContinuations';
 import VolunteerCommitments from './ExploreVolunteer';
-import ExploreProjects from './ExploreProjects';
-import ExploreCompanion from './ExploreCompanion';
+import ExploreProjects, { PersonalizedProjectsPreview } from './ExploreProjects';
+import WorkspaceFeedback from './WorkspaceFeedback';
 import { exploreSections, type ExploreSection } from '@/lib/frontend/explore-preview';
 import './explore.css';
+import './explore-workbench.css';
 
-type Props = { destination?: string; href: (tab: string, destination?: string) => string; mapHref: (layer: string) => string };
+type Props = { destination?: string; href: (tab: string, destination?: string) => string; mapHref: (layer: string) => string; environmentAvailable?: boolean };
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
-const descriptions: Record<ExploreSection, string> = {
-  opportunities: 'Local groups, real routes to join, and your next commitment.',
-  organizations: 'Local groups and volunteering, together.',
-  community: 'Understand the evidence. Choose what to do next.',
-  projects: 'Make something useful. Know how to do it.',
-  observations: 'Your notebook, connected to what you do.',
-  outreach: 'Find the responsible source and prepare a useful question.',
-};
-export default function ExploreWorkspace({ destination, href, mapHref }: Props) {
+export default function ExploreWorkspace({ destination, href, mapHref, environmentAvailable = true }: Props) {
   const router = useRouter(); const query = useSearchParams(); const workspace = useHomeWorkspace(); const heading = useRef<HTMLHeadingElement>(null);
   const section = destination && Object.hasOwn(exploreSections, destination) ? destination === 'organizations' ? 'opportunities' : destination as ExploreSection : undefined;
   const view = destination === 'organizations' ? 'list' : query.get('exploreView') ?? 'list'; const id = query.get('exploreRecord') ?? '';
+  const showArea = !section || section === 'community' || (view === 'list' && (section === 'opportunities' || section === 'projects'));
   const go: Go = (next, nextView = 'list', record) => router.push(`${href('act', next)}${nextView !== 'list' ? `&exploreView=${encodeURIComponent(nextView)}` : ''}${record ? `&exploreRecord=${encodeURIComponent(record)}` : ''}`);
   useEffect(() => { if (section) heading.current?.focus({ preventScroll: true }); }, [section, view, id]);
   return <div className="halo-explore" data-explore-section={section ?? 'overview'}>
-    {section && <button className="ex-back" onClick={() => go()}><ArrowLeft size={17} aria-hidden="true" />Back to Explore</button>}
-    <header className="ex-intro"><span className="ex-kicker">{section ? 'Explore, put into practice' : 'A little action, closer to home'}</span><h2 ref={heading} tabIndex={-1}>{section ? exploreSections[section] : 'Make a difference, nearby.'}</h2><p>{section ? descriptions[section] : 'Find your people. Make something useful. Keep going.'}</p></header>
-    {section && <nav className="ex-subnav ex-focused-nav" aria-label="Explore sections"><button onClick={() => go()}>Discover</button><button aria-current={section === 'opportunities' ? 'page' : undefined} onClick={() => go('opportunities')}>Get involved</button><button aria-current={section === 'projects' ? 'page' : undefined} onClick={() => go('projects')}>Projects</button></nav>}
-    <ExploreCompanion context={section ? exploreSections[section] : 'Explore'} go={go} />
-    <details className="ex-sample"><summary>About this preview</summary><p>Official guidance and resource links are real. Your records and actions are visit-local samples, not account storage. Local lookup, AI and email are not connected.</p></details>
-    {workspace.message && <p className="ex-notice" role="status">{workspace.message}</p>}
-    {workspace.scenario === 'offline' && <p className="ex-notice">Offline sample view. Notes remain readable; saves are unavailable. Official links need a connection.</p>}
+    <header className="ex-workbench-header">
+      <div className="ex-workbench-bar">
+        {section && <button className="ex-back" onClick={() => go()} aria-label="Back to Explore"><ArrowLeft size={18} aria-hidden="true" /></button>}
+        <div className="ex-area-slot">{showArea && <ExploreAreaChooser />}</div>
+        <div className="ex-header-utilities">{section !== 'observations' && <button className="ex-notebook-entry" onClick={() => go('observations')} aria-label="Open my notes"><NotebookPen size={20} aria-hidden="true" /></button>}<ExploreResources go={go} href={href} /></div>
+      </div>
+      {section && <h2 className="ex-section-title" ref={heading} tabIndex={-1}>{exploreSections[section]}</h2>}
+    </header>
+    <WorkspaceFeedback />
+    {workspace.scenario === 'offline' && <p className="ex-offline" role="status">Offline. Read your notes; reconnect to save or open official links.</p>}
     {workspace.scenario === 'loading' || workspace.scenario === 'error' ? <div className="ex-empty" role="status"><h3>{workspace.scenario === 'loading' ? 'Opening Explore' : 'Explore could not load'}</h3><p>Your drafts stay in this visit.</p><button className="ex-button" onClick={() => workspace.setScenario('ready')}>Retry sample view</button></div>
       : section === 'opportunities' ? <>{view === 'list' ? <><VolunteeringFinder go={go} /><VolunteerCommitments go={go} /></> : <VolunteerCommitments go={go} view={view} id={id} />}</>
-      : section === 'projects' ? <ExploreProjects go={go} view={view} id={id} href={href} />
+      : section === 'projects' ? <ExploreProjects go={go} view={view} id={id} href={href} environmentAvailable={environmentAvailable} />
       : section === 'community' ? <CommunityGuide go={go} mapHref={mapHref} href={href} />
       : section === 'outreach' ? <ExploreOutreach />
       : section === 'observations' ? <ExploreNotes go={go} view={view} id={id} mapHref={mapHref} />
-      : <ExploreOverview go={go} href={href} mapHref={mapHref} />}
-    {section !== 'outreach' && <aside className="ex-contact-utility"><Mail size={17} aria-hidden="true" /><span>Need an answer from someone local?</span><button onClick={() => go('outreach')}>Ask a question <ArrowRight size={16} aria-hidden="true" /></button></aside>}
-    <ExplorePhotoCredits />
+      : <ExploreOverview go={go} mapHref={mapHref} environmentAvailable={environmentAvailable} />}
   </div>;
 }
 
-function ExploreOverview({ go, href, mapHref }: { go: Go; href: Props['href']; mapHref: Props['mapHref'] }) {
-  const state = useExpandedPreview(); const saved = state?.actions.filter(action => action.key.startsWith('explore:') && action.state !== 'completed') ?? [];
+function ExploreOverview({ go, mapHref, environmentAvailable }: { go: Go; mapHref: Props['mapHref']; environmentAvailable: boolean }) {
   return <>
     <ExploreContinuations go={go} />
-    <section className="ex-action-hub" aria-label="Choose how to help"><div className="ex-photo-paths">
-      <button className="ex-volunteer-path" onClick={() => go('opportunities')}><ExplorePhoto scene="trail" /><span><small>WITH YOUR COMMUNITY</small><strong>Get involved</strong><small>Cleanups, gardens and local groups. Find a real route to join.</small><span className="ex-inline-link">Find volunteering <ArrowRight size={17} aria-hidden="true" /></span></span></button>
-      <button className="ex-help-path" onClick={() => go('projects')}><ExplorePhoto scene="garden" /><span><small>ON YOUR OWN OR TOGETHER</small><strong>Projects</strong><small>Native planting, bee houses, cleanups and solar experiments.</small><span className="ex-inline-link">Choose a project <ArrowRight size={17} aria-hidden="true" /></span></span></button>
-    </div></section>
-    <section className="ex-area-workbench" aria-label="Your area"><div className="ex-area-workbench-head"><h3>Know your surroundings</h3><ExploreAreaChooser /></div><ExploreMapPreview mapHref={mapHref} /><button className="ex-community-bridge" onClick={() => go('community')}><ExplorePhoto scene="river" /><span><BookOpen size={20} aria-hidden="true" /><strong>What does it mean for my community?</strong><small>Understand water, air and local evidence, then choose a useful next step.</small></span><ChevronRight size={18} aria-hidden="true" /></button></section>
-    {saved.length > 0 && <details className="ex-disclosure"><summary>My saved next steps ({saved.length})</summary>{saved.map(action => <button key={action.id} className="ex-text-button" onClick={() => state?.open(action)}>{action.title} <ArrowRight size={16} aria-hidden="true" /></button>)}<Link href={href('plan')}>Open My Week</Link></details>}
-    <Link className="ex-summary-link" href={href('home', 'summary')}><FileText size={18} aria-hidden="true" /><span>Bring your records together<small>Create a household summary</small></span><ChevronRight size={17} aria-hidden="true" /></Link>
+    <div className="ex-fieldwork-layout">
+      <div className="ex-personal-work"><PersonalizedProjectsPreview go={go} environmentAvailable={environmentAvailable} /></div>
+      <div className="ex-local-work">
+        <section className="ex-participation-entry" aria-labelledby="ex-local-title"><div className="ex-workbench-section-head"><h3 id="ex-local-title">With your community</h3></div><button className="ex-volunteer-path" onClick={() => go('opportunities')} aria-label="Get involved: find local volunteering and organizations"><ExplorePhoto scene="trail" /><span><strong>Get involved</strong><small>Cleanups, growing spaces and local groups.</small><span className="ex-entry-action">Find your way to help <ArrowRight size={16} aria-hidden="true" /></span></span></button></section>
+        <ExploreMapPreview mapHref={mapHref} />
+        <button className="ex-community-bridge" onClick={() => go('community')} aria-label="Understand your community: water, air and public records"><ExplorePhoto scene="river" /><span><BookOpen size={17} aria-hidden="true" /><strong>Understand your community</strong><small>Read the evidence. Choose your next step.</small></span><ChevronRight size={17} aria-hidden="true" /></button>
+      </div>
+    </div>
   </>;
+}
+
+function ExploreResources({ go, href }: { go: Go; href: Props['href'] }) {
+  const state = useExpandedPreview(); const menu = useRef<HTMLDetailsElement>(null); const [open, setOpen] = useState(false);
+  const saved = state?.actions.filter(action => action.key.startsWith('explore:') && action.state !== 'completed') ?? [];
+  const close = () => { if (menu.current) menu.current.open = false; };
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !menu.current?.contains(event.target)) close(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { close(); menu.current?.querySelector('summary')?.focus(); } };
+    document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [open]);
+  return <details className="ex-resources" ref={menu} onToggle={event => setOpen(event.currentTarget.open)}><summary aria-label="Explore resources"><MoreHorizontal size={21} aria-hidden="true" /></summary><div className="ex-resource-menu"><button onClick={() => { close(); go('outreach'); }}><Mail size={17} aria-hidden="true" />Ask a question<ChevronRight size={16} aria-hidden="true" /></button><Link href={href('plan')} onClick={close}><ArrowRight size={17} aria-hidden="true" />My saved next steps{saved.length > 0 && <span>{saved.length}</span>}</Link><Link href={href('home', 'summary')} onClick={close}><FileText size={17} aria-hidden="true" />Household summary<ChevronRight size={16} aria-hidden="true" /></Link><ExplorePhotoCredits /></div></details>;
 }
 
 export function ExploreReviewControls() {

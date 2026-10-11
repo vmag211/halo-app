@@ -29,7 +29,7 @@ test('map preview draws local geography and opens the selected full map without 
   await expect(page.locator('.ex-mini-map-canvas')).toHaveAttribute('data-map-preview-state', 'ready');
   await expect(page.locator('.ex-map-entry a,.ex-map-entry button')).toHaveCount(0);
   await expect(page.locator('.ex-mini-map-canvas canvas')).toHaveAttribute('tabindex', '-1');
-  await page.getByRole('group', { name: 'Preview map layer' }).getByRole('button', { name: 'Air', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Preview map layer' }).selectOption('air');
   await page.getByRole('link', { name: /open the full air map/ }).click();
   await expect(page.getByRole('radio', { name: 'Air', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('link', { name: 'Back to Explore' })).toBeVisible();
@@ -40,7 +40,7 @@ test('failed map preview retains the full-map entry and other feature routes', a
   await page.goto(root);
   await expect(page.locator('.ex-mini-map-canvas')).toHaveAttribute('data-map-preview-state', 'unavailable');
   await expect(page.getByRole('link', { name: /Explore the map/ })).toBeVisible();
-  await page.getByRole('button', { name: /WITH YOUR COMMUNITY Get involved/ }).click();
+  await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
 });
 
@@ -106,11 +106,12 @@ test('community result validation, saved follow-up and topic independence make l
 test('legacy organizations route opens the combined local participation workspace', async ({ page }) => {
   await page.goto(`${root}&destination=organizations&exploreView=detail&exploreRecord=demo-creek`);
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
-  await expect(page.locator('.ex-subnav')).not.toContainText('Organizations');
+  await expect(page.locator('.ex-subnav')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
   await page.getByRole('button', { name: 'Open my notes' }).click();
   await expect(page.getByRole('heading', { name: 'My notes', exact: true })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Explore sections' }).getByRole('button', { name: 'Get involved', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
+  await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
   await expect(page.locator('.ex-local')).toBeVisible();
 });
 
@@ -118,6 +119,7 @@ test('project workspace plans selected steps, deduplicates and retains explicit 
   await page.goto(`${root}&destination=projects&exploreView=detail&exploreRecord=demo-water-project`);
   await page.getByRole('button', { name: 'Start my project workspace' }).click();
   await expect(page.getByRole('button', { name: 'Pause project' })).toBeVisible();
+  await page.getByText('Choose steps for My Week', { exact: true }).click();
   const plan = page.locator('.ex-project-plan');
   await plan.getByRole('checkbox').nth(0).check(); await plan.getByRole('checkbox').nth(1).check();
   await plan.getByRole('button', { name: 'Review selected steps for My Week' }).click();
@@ -139,23 +141,27 @@ test('project workspace plans selected steps, deduplicates and retains explicit 
 test('project completion requires every real step and a result, and Homeguard handoff keeps the same workspace', async ({ page }) => {
   await page.goto(`${root}&destination=projects&exploreView=detail&exploreRecord=demo-water-project`);
   await page.getByRole('button', { name: 'Start my project workspace' }).click();
+  await page.getByText('Choose steps for My Week', { exact: true }).click();
   const plan = page.locator('.ex-project-plan');
   for (const checkbox of await plan.getByRole('checkbox').all()) await checkbox.check();
   await plan.getByRole('button', { name: 'Review selected steps for My Week' }).click();
   await page.getByRole('button', { name: 'Add selected steps', exact: true }).click();
+  await page.getByText('Record the result and follow-up', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Record project completion' })).toBeDisabled();
   for (let index = 0; index < 4; index++) {
     await page.getByRole('button', { name: 'Mark this step completed' }).click();
     if (index < 3) await page.getByRole('button', { name: 'Next project step' }).click();
   }
   await page.getByRole('button', { name: 'Record project completion' }).click();
-  await expect(plan.getByRole('alert')).toContainText('actually recorded');
+  await expect(page.locator('.ex-project-reflection').getByRole('alert')).toContainText('actually recorded');
   await page.getByLabel('My project result').fill('I received and reviewed the dated report, then chose a qualified follow-up.');
   await page.getByRole('button', { name: 'Record project completion' }).click();
   await expect(page.locator('.ex-project-workspace > .ex-kicker')).toContainText('Completed');
+  await page.getByText('Related actions', { exact: true }).click();
   await page.getByRole('link', { name: 'Continue into tests and home records' }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Explore', exact: true }).click();
-  await page.getByRole('button', { name: /ON YOUR OWN OR TOGETHER Projects/ }).click();
+  await page.locator('.ex-personal-work').getByRole('button', { name: /See all \d+/ }).click();
+  await page.locator('.ex-project-continuation > summary').click();
   await page.locator('.ex-project-continuation').getByRole('button').click();
   await expect(page.locator('.ex-project-progress')).toContainText('4 of 4');
   await expect(page.getByLabel('My project result')).toHaveValue(/received and reviewed/);
@@ -165,6 +171,7 @@ test('project completion requires every real step and a result, and Homeguard ha
 
 test('a failed project batch creates no partial tasks and keeps choices', async ({ page }) => {
   await page.goto(`${root}&destination=projects&exploreView=detail&exploreRecord=demo-water-project`);
+  await page.getByText('Choose steps for My Week', { exact: true }).click();
   const plan = page.locator('.ex-project-plan'); await plan.getByRole('checkbox').nth(0).check();
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Simulate failed action save').check();
@@ -174,6 +181,19 @@ test('a failed project batch creates no partial tasks and keeps choices', async 
   await expect(plan.getByRole('alert')).toContainText('nothing was added');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(0);
+});
+
+test('overview has one concise continuation that returns to the real active workspace', async ({ page }) => {
+  await page.goto(root);
+  await expect(page.locator('.ex-continue-strip')).toHaveCount(0);
+  await page.goto(`${root}&destination=projects&exploreView=detail&exploreRecord=demo-water-project`);
+  await page.getByRole('button', { name: 'Start my project workspace' }).click();
+  await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
+  await expect(page.locator('.ex-continue-strip > button')).toHaveCount(1);
+  await expect(page.locator('.ex-continue-strip')).toContainText('0 of 4 steps complete');
+  await expect(page.locator('.ex-ongoing-work')).toHaveCount(0);
+  await page.locator('.ex-continue-strip > button').click();
+  await expect(page.getByRole('button', { name: 'Pause project', exact: true })).toBeVisible();
 });
 
 test('a note case records a factual result, exports deliberately and retains independent follow-up after deletion', async ({ page }) => {
