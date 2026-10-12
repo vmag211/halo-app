@@ -163,7 +163,7 @@ test('A failed project request keeps the existing generated batch unchanged', as
 });
 
 test('Missing environmental readings never become fixture-based personal explanations', async ({ page }) => {
-  await page.goto(root + '&scenario=no-data'); const dialog = await open(page); await say(page, 'What does this water reading mean?');
+  await page.goto(root + '&scenario=no-data'); await page.getByRole('button',{name:'Settings',exact:true}).click(); await page.getByRole('button',{name:/^Luna & connections/}).click(); await page.getByRole('switch',{name:'Home record context',exact:true}).check(); await page.getByRole('button',{name:'Save changes',exact:true}).click(); await page.getByRole('link',{name:'My Week',exact:true}).click(); const dialog = await open(page); await say(page, 'What does this water reading mean?');
   await expect(dialog).toContainText('reading is unavailable');
   await expect(dialog).not.toContainText('8.3 ppt');
   await say(page, 'Find project ideas');

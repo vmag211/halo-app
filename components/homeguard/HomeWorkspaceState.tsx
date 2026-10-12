@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, type Dispatch, 
 import { sampleTests } from '@/lib/frontend/home-test-preview';
 import { sampleAssets, sampleObservations } from '@/lib/frontend/home-maintenance-preview';
 import { initialGardens, initialUsage } from '@/lib/frontend/home-food-preview';
+import {recordFingerprint} from '@/lib/frontend/settings-preview';
 
 export type HomeScenario = 'ready' | 'empty' | 'loading' | 'error' | 'offline' | 'stale' | 'conflict' | 'save-error';
 export type HomeRecord = { id: string; title: string; revision: number };
@@ -15,6 +16,7 @@ type State = {
   write: (key: string, record: HomeRecord) => Promise<boolean>;
   remove: (key: string, id: string) => Promise<boolean>;
   removeNotes: (selection: { id: string; revision: number }[]) => Promise<boolean>;
+  clearPrivate: (scope:'journal'|'all', expected:string, checkOther?:()=>boolean) => Promise<boolean>;
   setDraft: (key: string, update: (previous: unknown) => unknown) => void;
   clearDraft: (key: string) => void; reset: () => void;
 };
@@ -46,7 +48,8 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
     const journal = drafts['week:journal-draft'] as { symptoms?: string[]; fine?: boolean; note?: string } | undefined;
     const outdoor = drafts['week:outdoor-draft'] as { activity?: string } | undefined;
     const weekDraft = Boolean(journal?.fine || journal?.symptoms?.length || journal?.note?.trim() || outdoor?.activity?.trim());
-    if (!lunaDraft && !projectDraft && !weekDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
+    const settingsDraft=Object.keys((drafts['settings:edits']??{})as object).length>0;
+    if (!lunaDraft && !projectDraft && !weekDraft && !settingsDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
@@ -115,7 +118,17 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
       return true;
     });
   }
-  return <Context.Provider value={{ collections, drafts, scenario, message, pending, setScenario, clearMessage: () => setMessage(''), seed, write, remove, removeNotes,
+  async function clearPrivate(scope:'journal'|'all',expected:string,checkOther?:()=>boolean) {
+    return mutate('privacy',scope,()=>{
+      if(recordFingerprint(recordsRef.current,scope)!==expected||checkOther&&!checkOther()){setMessage('Records changed. Nothing was deleted. Reopen the review.');return false;}
+      commit(Object.fromEntries(Object.entries(recordsRef.current).map(([key,rows])=>[key,scope==='all'||key==='weekJournal'?[]:rows])));
+      setDrafts(previous=>scope==='all'?{}:Object.fromEntries(Object.entries(previous).filter(([key])=>!/^week:(journal|season|pattern)/.test(key))));
+      // Prevent a not-yet-mounted collection from restoring its fixture after erasure.
+      if(scope==='all'){scenarioRef.current='empty';changeScenario('empty');}
+      return true;
+    });
+  }
+  return <Context.Provider value={{ collections, drafts, scenario, message, pending, setScenario, clearMessage: () => setMessage(''), seed, write, remove, removeNotes,clearPrivate,
     setDraft: (key, update) => setDrafts(previous => ({ ...previous, [key]: update(previous[key]) })),
     clearDraft: key => setDrafts(previous => { const next = { ...previous }; delete next[key]; return next; }),
     reset: () => { generation.current++; commit(initialCollections()); setDrafts({}); setScenario('ready'); setMessage('Workspace reset.'); },

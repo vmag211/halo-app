@@ -122,15 +122,17 @@ test('all factor journeys keep detail sections and show the matching connection'
 
 test('expanded household Settings requires Save and only selected figures appear', async ({ page }) => {
   await page.goto(`${root}&tab=settings`);
-  await expect(page.getByRole('heading', { name: 'Your household', exact: true })).toBeVisible();
-  const form = page.locator('form');
+  await page.getByRole('button', { name: /^Home & household/ }).click();
+  await expect(page.getByRole('heading', { name: 'Home & household', exact: true })).toBeVisible();
+  const form = page.locator('.halo-settings');
   await form.getByLabel('Older adults').uncheck();
   await form.getByLabel('Pregnancy').check();
   await mainNav(page).getByRole('link', { name: 'Homeguard' }).click();
   await expect(page.locator('.halo-home-person[data-member="senior"]')).toHaveCount(1);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(page.locator('form').getByLabel('Older adults')).not.toBeChecked();
-  await form.getByRole('button', { name: 'Save household' }).click();
+  await page.getByRole('button', { name: /^Home & household/ }).click();
+  await expect(form.getByLabel('Older adults')).not.toBeChecked();
+  await form.getByRole('button', { name: 'Save changes', exact: true }).click();
   await mainNav(page).getByRole('link', { name: 'Homeguard' }).click();
   await expect(page.locator('.halo-home-person[data-member="senior"]')).toHaveCount(0);
   await expect(page.locator('.halo-home-person[data-member="pregnant"]')).toHaveCount(1);

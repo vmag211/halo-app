@@ -18,6 +18,8 @@ import LunaLoading from './LunaLoading';
 import {isLunaWeekRequest,prepareLunaWeekPlan,lunaWeekChanges,weekMetaSignature,type LunaWeekPlan} from '@/lib/frontend/luna-week-plan';
 import {type WeekMeta} from '@/lib/frontend/week-preview';
 import {homepageAttention,weeklyHomepageRecap} from '@/lib/frontend/homepage-preview';
+import {initialSettings,type SettingsValues} from '@/lib/frontend/settings-preview';
+import {polishCopy} from '@/lib/frontend/copy/app-polish';
 import './luna-conversation.css';
 
 type Guide = { id: string; title: string; stepTitle: string; instructions: string[]; source: string };
@@ -108,6 +110,10 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
     respond(request);
   }
   function respond(request:string){
+    const permissions=(workspace.drafts['settings:values'] as SettingsValues|undefined)?.luna??initialSettings.luna;
+    const requestedIntent=lunaIntent(request);
+    if(!permissions.tasks&&(isLunaWeekRequest(request)||requestedIntent.kind==='move-task'||/\b(?:attention|weekly recap|how did (?:my|this) week go)\b/i.test(request))){append(polishCopy.contextOff,{links:[{label:polishCopy.settings,tab:'settings'}]});return;}
+    if(!permissions.projects&&requestedIntent.kind==='projects'){append(polishCopy.contextOff,{links:[{label:polishCopy.settings,tab:'settings'}]});return;}
     if(/\bwhat (?:needs|requires) (?:my )?attention\b/i.test(request)){
       const anchor=lunaCalendarAnchor(new Date(),weekZone);
       const items=homepageAttention(preview?.actions??[],weekMetas,[],{},anchor,weekZone);
@@ -146,7 +152,7 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
       const combined = conversation.projectRequest ? `${conversation.projectRequest}\n${request}` : request;
       let next: ProjectGenerationState;
       try {
-        next = createProjectGeneration(getPreviewProjectContext(workspace.collections, undefined, environmentAvailable), constraintsForRequest(request, generation?.constraints ?? defaultProjectConstraints), combined);
+        next = createProjectGeneration(getPreviewProjectContext(permissions.home?workspace.collections:{}, undefined, environmentAvailable), constraintsForRequest(request, generation?.constraints ?? defaultProjectConstraints), combined);
         if (!Array.isArray(next.items) || !next.items.length || next.items.some(item => !projectGuides.some(guide => guide.id === item.id) || typeof item.reason !== 'string')) throw new Error('Invalid project result');
       } catch {
         append('I could not prepare that shortlist. Your previous project ideas are unchanged. Try another request or open the project browser.'); return;
@@ -211,6 +217,8 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   async function execute(messageId: string, proposal: Proposal) {
     if (blocked || proposal.status !== 'review') return;
     const fail = (message: string) => changeProposal(messageId, current => ({ ...current, error: message }));
+    const permissions=(workspace.drafts['settings:values'] as SettingsValues|undefined)?.luna??initialSettings.luna;
+    if(!permissions.tasks&&['move-task','week-plan'].includes(proposal.kind)||!permissions.projects&&proposal.kind==='start-project'){fail(polishCopy.contextOff);return;}
     if (!navigator.onLine||['save-error', 'conflict'].includes(workspace.scenario) || preview?.fail) { const scope = proposal.kind === 'start-project' && proposal.projectSaved ? 'The project was already started. No additional change was made; its preparation is still unsaved.' : 'Nothing changed.'; fail(workspace.scenario === 'conflict' ? `Revision conflict. ${scope} Keep this review and resolve the record before retrying.` : `Could not save. Your choices are kept. ${scope}`); return; }
     setBusy(true); setNotice('');
     try {

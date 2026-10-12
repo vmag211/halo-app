@@ -24,10 +24,11 @@ import {WeekPlanningReviewControls} from './WeekUpdates';
 import HomepageHub from './HomepageHub';
 import WeekConnectedExamples from './WeekConnectedExamples';
 import WeekDashboardSummary from './WeekDashboardSummary';
-import WeekDashboardOverview, {WeekToolVisual} from './WeekDashboardOverview';
+import WeekDashboardOverview, {WeekToolVisual,DashboardWelcomeArt} from './WeekDashboardOverview';
 import {dashboardKinds, weekDashboard} from '@/lib/frontend/week-dashboard';
 import './my-week.css';
 import './week-dashboard.css';
+import './app-polish.css';
 
 type Href=(tab:string,destination?:string)=>string;
 const categories=['Everything','Home','Projects','Community','Outdoors','Personal'];
@@ -90,9 +91,8 @@ export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}
   if(destination==='journal'||destination==='patterns'||destination==='recap')return <WeekJournal href={href} initialView={destination}/>;
   if(destination==='outdoors')return <WeekOutdoors href={href}/>;
   return <section className="mw-workspace mw-dashboard" aria-label="My Week workspace">
-    {!unavailable&&<header className="mw-welcome"><time dateTime={today}>{dayLabel(today,{weekday:"long",month:"long",day:"numeric"})}</time><h2>Your day, connected.</h2></header>}
+    {!unavailable&&<header className="mw-welcome"><time dateTime={today}>{dayLabel(today,{weekday:"long",month:"long",day:"numeric"})}</time><h2>Your day, connected.</h2><DashboardWelcomeArt/></header>}
     {!unavailable&&<WeekDashboardOverview href={href} scenario={scoreScenario} actions={active} metas={metas} date={date} today={today} streak={streak} onStreak={setStreak}/>}
-    {!unavailable&&<HomepageHub href={href} actions={state.actions} metas={metas} records={recordDates} today={today} zone={zone} onOpen={open}/>}
     {notice&&<p role="status" className="mw-feedback">{notice}</p>}{workspace.scenario==='offline'&&<p className="mw-feedback">Offline. Reconnect to save changes.</p>}
     {['loading','error'].includes(workspace.scenario)?<div className="mw-empty" role="status">{workspace.scenario==='loading'?'Loading your week...':'Your week could not load.'}<button onClick={()=>workspace.setScenario('ready')}>Try again</button></div>:<>
     <div className="mw-dashboard-layout"><div className="mw-dashboard-main">
@@ -107,6 +107,7 @@ export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}
       {search.trim()?scheduled.length?scheduled.map(row):<p className="mw-muted">No matching tasks. Try another search.</p>:view==='Agenda'?[...new Set(matched.filter(a=>a.date).map(displayDay))].sort().map(day=><div key={day} className="mw-agenda-day"><h4>{dayLabel(day)}</h4>{matched.filter(a=>displayDay(a)===day).map(row)}</div>):scheduled.length||timed.length?<WeekTimeline actions={matched} metas={metas} date={date} zone={zone} row={row} onMove={openMove}/>:selectedRecords.length?null:<div className="mw-empty"><CalendarDays size={27}/><strong>A little breathing room.</strong><p>Add something meaningful, or schedule a saved task.</p><button className="mw-text" onClick={()=>open()}>Plan this day <Plus size={15}/></button></div>}
     {selectedRecords.length>0&&<section className="mw-record-dates" aria-label="Linked record dates"><div className="mw-section-head"><h3>From your records</h3><span>{selectedRecords.length}</span></div>{selectedRecords.map(record=><Link className="mw-record-date" key={record.id} data-category={record.category} href={weekRecordHref(record,href)}><CalendarDays size={18}/><span><strong>{record.title}</strong><small>{dayLabel(record.date)} · {record.annotation}</small></span><ChevronRight size={16}/></Link>)}</section>}
     </section>
+    <HomepageHub href={href} actions={state.actions} metas={metas} records={recordDates} today={today} zone={zone} onOpen={open}/>
     <nav className="mw-companions mw-dashboard-tools" aria-label="Week tools"><Link href={href('plan','journal')}><WeekToolVisual/><NotebookPen size={23}/><span><strong>Check in & look back</strong><small>Journal & Patterns</small></span><ArrowRight size={17}/></Link><Link href={href('plan','outdoors')}><WeekToolVisual outdoors/><Leaf size={23}/><span><strong>Make time outdoors</strong><small>Plan & prepare</small></span><ArrowRight size={17}/></Link></nav>
     {!search.trim()&&<WeekProgress href={href} actions={active} metas={metas}/>}
 

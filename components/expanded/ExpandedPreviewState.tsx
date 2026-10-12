@@ -9,6 +9,7 @@ import type { HouseholdBands } from '@/lib/frontend/home-household';
 import { HomeWorkspaceReviewControls } from '@/components/homeguard/HomeWorkspaceState';
 import { ExploreReviewControls } from './ExploreWorkspace';
 import { WeekReviewControls } from './MyWeekWorkspace';
+import {actionFingerprint} from '@/lib/frontend/settings-preview';
 
 type Draft = { seed: ActionSeed; title: string; date: string };
 type PreviewState = {
@@ -22,6 +23,7 @@ type PreviewState = {
   reviseAction: (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date' | 'state'>) => boolean;
   reviseActions: (changes:ActionRevision[])=>boolean;
   deleteAction: (id: string, revision: number) => boolean;
+  eraseActions: (expected:string) => boolean;
 };
 const State = createContext<PreviewState | null>(null);
 const Mode = createContext(false);
@@ -90,7 +92,8 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
     actionsRef.current = actionsRef.current.filter(action => action.id !== id); setActions(actionsRef.current); return true;
   };
   const reviseActions=(changes:ActionRevision[])=>{if(fail||!navigator.onLine)return false;const next=revisedActionBatch(actionsRef.current,changes);if(!next)return false;actionsRef.current=next;setActions(next);return true;};
-  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, reviseAction, reviseActions, deleteAction, changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
+  const eraseActions=(expected:string)=>{if(fail||actionFingerprint(actionsRef.current)!==expected)return false;actionsRef.current=[];setActions([]);setDraft(null);setVisible(false);setHouseholdDraft(null);return true;};
+  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, reviseAction, reviseActions, deleteAction, eraseActions,changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
 export function ExpandedReviewControls() {

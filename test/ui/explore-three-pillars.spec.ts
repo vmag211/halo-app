@@ -41,22 +41,22 @@ test('interests generate a few relevant illustrated ideas with loading, cancel a
 
 test('failed generation and unreviewed interests keep the prior set and editable preferences', async ({ page }) => {
   await page.goto(`${root}&destination=projects`);
-  await page.getByText('Generation details and sources', { exact: true }).click();
+  await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Project generation review state').selectOption('failed');
   await page.getByLabel('What interests you right now?').fill('native plants');
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
-  await expect(page.locator('.ex-generation-message')).toContainText('failed');
+  await expect(page.locator('.ex-generation-message')).toContainText('Could not generate ideas');
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
   await page.getByLabel('Project generation review state').selectOption('ready');
   await page.getByLabel('What interests you right now?').fill('an aquaponics installation');
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
-  await expect(page.locator('.ex-generation-message')).toContainText('no source-backed match');
+  await expect(page.locator('.ex-generation-message')).toContainText('No source-backed match');
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
 });
 
 test('slow generation is cancellable and its animation respects reduced motion', async ({ page }) => {
   await page.goto(`${root}&destination=projects`);
-  await page.getByText('Generation details and sources', { exact: true }).click();
+  await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Project generation review state').selectOption('slow');
   await page.getByLabel('What interests you right now?').fill('native plants');
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
@@ -69,14 +69,14 @@ test('slow generation is cancellable and its animation respects reduced motion',
 
 test('a newer Luna request wins over a pending Explore generation', async ({ page }) => {
   await page.goto(`${root}&destination=projects`);
-  await page.getByText('Generation details and sources', { exact: true }).click();
+  await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Project generation review state').selectOption('slow');
   await page.getByLabel('What interests you right now?').fill('native plants');
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await page.getByRole('textbox', { name: 'Message Luna', exact: true }).fill('Find 5 project ideas for a bee house');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Luna', exact: true })).toContainText('5 project ideas');
+  await expect(page.getByRole('dialog', { name: 'Luna', exact: true }).locator('.lc-message--assistant')).toContainText('I prepared 5 project ideas');
   await page.getByRole('button', { name: 'Close sheet', exact: true }).click();
   await expect(page.locator('.ex-generated-item')).toHaveCount(5);
   await expect(page.locator('.ex-generation-message')).toContainText('Another project request updated your ideas');

@@ -36,3 +36,5 @@ export default function WeekDashboardOverview({href,scenario,actions,metas,date,
 export function WeekToolVisual({outdoors=false}:{outdoors?:boolean}){
   return <svg className="mw-tool-art" viewBox="0 0 120 80" fill="none" aria-hidden="true">{outdoors?<><path d="M-8 52C17 17 39 16 52 35s30 37 77 10M-8 66C24 29 41 30 56 45s36 30 76 13M-8 36C14 0 44 2 61 23s41 27 70 4"/><path className="mw-tool-art-focus" d="M4 73c25-9 10-29 33-37s36 13 66-28" strokeDasharray="3 5"/><path d="M78 67V36m0 0-10 17h20L78 36ZM97 72V51m0 0-7 12h14l-7-12Z"/></>:<><path d="M27 70V16l29-6 29 6v54l-29-6-29 6ZM56 10v54M34 27l15-3m-15 14 15-3m-15 14 15-3m14-22 15 3m-15 8 15 3m-15 8 15 3"/><path className="mw-tool-art-focus" d="m82 47 17-21 5 4-17 21-7 4 2-8Z"/><path d="M18 70V23m74 37v16H31"/></>}</svg>;
 }
+
+export function DashboardWelcomeArt(){return <svg className="mw-welcome-art" viewBox="0 0 100 70" fill="none" aria-hidden="true"><path d="M-5 57c18-23 27-11 41-18s25-1 43-13 21-8 30-6M-5 64c20-18 31-10 49-19s32-5 56-13"/><path d="M24 26a12 12 0 0 1 24 0m-12-20V2M15 13l-4-4m46 4 4-4M4 26h5m54 0h5M75 65V42m0 7c-12 0-13-9-11-14 9 1 12 5 11 14Zm0 7c12-1 16-7 14-14-9 1-15 6-14 14Z"/></svg>;}

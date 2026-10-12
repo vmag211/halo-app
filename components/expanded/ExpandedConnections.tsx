@@ -1,19 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
 import { ArrowUpRight, CalendarDays, MapPin, NotebookPen } from 'lucide-react';
 import { destinations, followThrough, isDestination, type ExpandedDestination, type PreviewAction } from '@/lib/frontend/expanded-preview';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import { useExpandedMode, useExpandedPreview } from './ExpandedPreviewState';
-import { usePreviewHousehold } from '@/components/foundation/PreviewHousehold';
-import { homeMemberKeys, memberCatalog } from '@/lib/frontend/home-household';
 import './expanded.css';
 import HomeguardWorkspace from '@/components/homeguard/HomeguardWorkspace';
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { TestRecord } from '@/lib/frontend/home-test-preview';
 import ExploreWorkspace from './ExploreWorkspace';
 import MyWeekWorkspace from './MyWeekWorkspace';
+import SettingsWorkspace,{type SettingsProps} from './SettingsWorkspace';
 
 type Href = (tab: string, destination?: string) => string;
 export function ExpandedConnections({ home, factor, household, href, mapHref, scenario }: {
@@ -63,12 +61,4 @@ export function ExpandedPlan({ href, scoreScenario }: { href: Href; scoreScenari
   return <MyWeekWorkspace href={href} scoreScenario={scoreScenario} />;
 }
 
-export function ExpandedSettings({ offline }: { offline: boolean }) {
-  const { bands, setBand } = usePreviewHousehold();
-  const preview = useExpandedPreview();
-  const draft = preview?.householdDraft ?? bands;
-  const setDraft = preview?.setHouseholdDraft ?? (() => {});
-  const [message, setMessage] = useState('');
-  const dirty = homeMemberKeys.some(key => draft[memberCatalog[key].band] !== bands[memberCatalog[key].band]);
-  return <section className="halo-expanded-section"><h2>Your household</h2><p>Choose the categories shown in your home.</p><form className="halo-expanded-form" onSubmit={e => { e.preventDefault(); if (offline) return; homeMemberKeys.forEach(key => setBand(key, draft[memberCatalog[key].band])); setMessage('Household updated.'); }}><fieldset className="halo-household-picker"><legend>Household categories</legend><div>{homeMemberKeys.map(key => <label key={key}><input type="checkbox" checked={draft[memberCatalog[key].band]} onChange={e => { setDraft({ ...draft, [memberCatalog[key].band]: e.target.checked }); setMessage(''); }} />{memberCatalog[key].label}</label>)}</div></fieldset><p role="status">{offline ? 'You are offline. Your changes remain in this form.' : dirty ? 'Unsaved changes.' : message || 'Your choices are up to date.'}</p><button className="halo-primary" type="submit" disabled={offline || !dirty}>Save household</button><button className="halo-text-button" type="button" onClick={() => { setDraft(bands); setMessage('Changes cancelled.'); }}>Cancel changes</button></form><h2>Settings that grow with HALO</h2><p>Home details, explicit profile saves and device accessibility remain in the existing live Settings. Appearance follows your device.</p><ul><li>Notifications and followed sources</li><li>Privacy, data exports and separate Journal clearing</li><li>Reviewed language support and optional recovery</li><li>Sources, methods and feedback</li></ul><p className="halo-f-meta"></p></section>;
-}
+export function ExpandedSettings(props:SettingsProps) {return <SettingsWorkspace {...props}/>;}
