@@ -17,6 +17,11 @@ function RecordDate({ value }: { value: string }) {
   return <time dateTime={day} title={full} aria-label={full}>{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone:'UTC' }).format(date)}</time>;
 }
 
+function TestContinuation({ record, href }: { record:TestRecord; href:string }) {
+  const stages=[{label:'Arranged',recorded:record.arrangedByUser===true},{label:'Collected',recorded:!!record.collectionStart},{label:'Result',recorded:record.rows.length>0}];
+  return <aside className="how-continue" aria-label="Continue your home task"><div className="how-record-line"><span><strong>{record.title}</strong><small>{testStatusLabels[record.status]}</small></span><Link className="how-action" aria-label="Continue test" href={href} prefetch={false}>Continue <ArrowRight size={17} aria-hidden="true" /></Link></div><details className="how-stage-details"><summary>Recorded stages <span>{stages.filter(stage=>stage.recorded).length} of {stages.length}</span></summary><ol className="how-test-track" aria-label={`Recorded milestones for ${record.title}`}>{stages.map(stage=><li key={stage.label} data-recorded={stage.recorded}><span aria-hidden="true" /><strong>{stage.label}</strong><small>{stage.recorded?'Recorded':'Not recorded'}</small></li>)}</ol></details></aside>;
+}
+
 export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const workspace = useHomeWorkspace();
   const unavailable = workspace.scenario === 'loading' || workspace.scenario === 'error';
@@ -33,17 +38,15 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const lastSummary = workspace.drafts['summary-last-created'] as { at: string; pages: number } | undefined;
   const link = (destination: string, view?: string, id?: string) => `${href('home', destination)}${view ? `&homeView=${view}` : ''}${id ? `&record=${encodeURIComponent(id)}` : ''}`;
   return <section id="home-workspace" tabIndex={-1} className="halo-home-workspace" aria-labelledby="home-workspace-title">
-    <header className="how-heading"><h2 id="home-workspace-title">Your home workspace</h2></header>
+    <header className="how-heading"><h2 id="home-workspace-title">Your home workspace</h2><p>Records and next steps, together.</p></header>
     {unavailable ? <div className="how-notice" role="status"><p>{workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p><button className="how-action" onClick={() => workspace.setScenario('ready')}>{workspace.scenario === 'loading' ? 'Finish loading sample' : 'Retry sample records'}</button></div> : <>
       {workspace.scenario === 'offline' && <p className="how-notice">Offline review. Retained records are available; changes are not saved or queued.</p>}
       {workspace.scenario === 'stale' && <p className="how-notice">Review the original dates on older sample evidence.</p>}
-      {currentTest && <aside className="how-continue" aria-label="Continue your home task"><div className="how-continue-heading"><span className="how-kicker">In progress</span><Link className="how-action" aria-label="Continue test" href={link('tests', 'detail', currentTest.id)} prefetch={false}>Continue <ArrowRight size={17} aria-hidden="true" /></Link></div><div className="how-record-line"><ClipboardList size={22} aria-hidden="true" /><span><strong>{currentTest.title}</strong><small>{testStatusLabels[currentTest.status]}</small></span></div><ol className="how-test-track" aria-label={`Recorded milestones for ${currentTest.title}`}>
-        {[{ label: 'Arranged', recorded: currentTest.arrangedByUser === true }, { label: 'Collected', recorded: !!currentTest.collectionStart }, { label: 'Result', recorded: currentTest.rows.length > 0 }].map(step => <li key={step.label} data-recorded={step.recorded}><span aria-hidden="true" /><strong>{step.label}</strong><small>{step.recorded ? 'Recorded' : 'Not recorded'}</small></li>)}
-      </ol></aside>}
     </>}
     <div className="how-modules">
       <section className="how-workbench" aria-label="Records and home care">
       <section className="how-module how-tests" aria-labelledby="how-tests-title"><div className="how-module-heading"><ClipboardList size={23} aria-hidden="true" /><div><h3 id="how-tests-title">Tests and records</h3>{!unavailable && <p className="how-meta">{plural(active.length, 'active test')} · {plural(reports.length, 'report')}</p>}</div><Link className="how-action" aria-label="Open test records" href={link('tests')} prefetch={false}>Open <ChevronRight size={17} aria-hidden="true" /></Link></div>
+        {!unavailable && currentTest && <TestContinuation record={currentTest} href={link('tests','detail',currentTest.id)} />}
         {!unavailable && !currentTest && <p className="how-empty">{tests.length ? 'Open a report or prepare your next test.' : 'Start with a test you are planning or a report you already have.'}</p>}
         <footer><Link className="how-text-action" href={link('tests', 'new')} prefetch={false}><Plus size={17} aria-hidden="true" />Plan a test</Link><Link className="how-text-action" href={link('tests', 'report')} prefetch={false}>Add a report</Link></footer>
       </section>

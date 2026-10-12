@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- Latest primary-workspace direction: compress the below-the-house overview into one prominent Homeguard feature panel. Nest current-test continuation inside Tests and records; keep status visible and put independently recorded milestones behind a small Recorded stages disclosure. Preserve every workspace/action route and current-record target, readability, full dates, approved core ordering and review boundaries. Do not restore a separate tall continuation dashboard.
+
 - Latest home-workspace overview refinement: keep the below-the-house panel as a condensed quick view of current records, not another dashboard. Use clear left-aligned headings, short section links, restrained spacing and concise counts/dates. Preserve continuation/milestone truth, every workspace and creation route, exact record targets, private summary and My Week links. Full dates must remain available. This does not alter approved core ordering, backend behavior or review gates.
 
 - Latest October 11 visual refinement: diversify refreshed project photography by activity, not random rotation of the same flowers/trail. Retain those originals and regular rectangular crops, bundle reusable licensed real images with credits, and distinguish context photos from exact builds or actual locations. Refine every editable Your home workspace destination with task-specific art, compact navigation, flatter record lists and clear forms. Food at home still uses illustrations only. Preserve all record/history/confirmation/privacy/Plan/export flows, approved Homeguard core and archives; this is a visual review, not new backend integration or approval.

@@ -17,16 +17,19 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     const workspace = page.locator('#home-workspace');
     await expect(workspace).toContainText('1 active test');
     await expect(workspace).toContainText('3 reports');
+    await workspace.locator('.how-stage-details > summary').click();
     await expect(page.getByRole('list', { name: /Recorded milestones/ })).toContainText('Not recorded');
     await expect(page.getByRole('list', { name: /Recorded milestones/ }).locator('[data-recorded="true"]')).toHaveCount(1);
+    await workspace.locator('.how-stage-details > summary').click();
+    await expect(workspace.locator('.how-stage-details')).not.toHaveAttribute('open','');
     const house = await page.locator('.halo-home-household').boundingBox();
     const panel = await workspace.boundingBox();
     expect(panel!.y).toBeGreaterThan(house!.y + house!.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(workspace).not.toContainText('\u2014');
     if (width===375) {
-      expect((await workspace.boundingBox())!.height).toBeLessThan(1150);
-      await expect(workspace.locator('.how-tests .how-action')).toHaveText('Open');
+      expect((await workspace.boundingBox())!.height).toBeLessThan(1000);
+      await expect(workspace.getByRole('link',{name:'Open test records',exact:true})).toHaveText('Open');
       await expect(workspace.locator('.how-food .how-action')).toHaveText('Open');
       expect(await workspace.locator('#how-care-title').evaluate(node=>getComputedStyle(node).textAlign)).toBe('left');
     }
@@ -79,6 +82,8 @@ test('overview groups home care without duplicating continuation or hiding entra
   await expect(care.getByRole('region', { name: 'Tests and records', exact: true })).toBeVisible();
   await expect(care.getByRole('region', { name: 'Maintenance and moisture', exact: true })).toBeVisible();
   await expect(workspace.getByRole('link', { name: 'Continue test', exact: true })).toHaveCount(1);
+  await expect(workspace.locator('.how-tests .how-continue')).toHaveCount(1);
+  await workspace.locator('.how-stage-details > summary').click();
   await expect(workspace.getByRole('list', { name: /Recorded milestones/ })).toHaveCount(1);
   await expect(care).toContainText('Scheduled Oct 1');
   await expect(care).toContainText('Observed Sep 30');

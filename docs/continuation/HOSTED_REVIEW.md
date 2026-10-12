@@ -1,6 +1,17 @@
 # Hosted wireframe preservation reference
 
-## Current review: Home workspace quick-view refinement, October 11, 2026
+## Current review: Primary Homeguard workspace panel, October 11, 2026
+
+Version34 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Your home workspace is now one prominent framed feature with a stronger heading, unified surface and compact section rows. Current-test continuation is inside Tests and records, not a separate tall panel. Its title/status and Continue link remain visible; Recorded stages reveals the factual independently recorded milestones and their count. All four sections, creation routes, exact records, full dates, garden continuation, Summary and My Week remain. Approved core ordering, deeper workspaces, private state and backend are unchanged.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_41d2335356688191a3e617885392828b`.
+- Source: `4a81e595629ba1d1df1b4b8cfdf38e76fa2657db`.
+- Successful deployment: `appgdep_6acc34baa24881918c4e2a8b00e6e091` at `2026-10-12T01:15:46.581954+00:00` (October11 in America/New_York).
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-primary-home-workspace-20261011.tar.gz`.
+- Archive hash: `sha256:feb892c1a24d472fa650f4b1430d88ab34f6a640b1832fb4b2bfec55148cf09f`.
+- Verification:19 distinct static browser checks validated across passes. The broad run passed17; two layout checks had an intentionally outdated selector matching both Open and the newly nested Continue link. Their semantic selector was corrected; all five overview cases then passed on the unchanged packaged source. Checks include all16 exact entry routes, folded milestone count/unknown stages, current records/count changes, error/empty/offline, core ordering and shared navigation/drafts/Plan ownership. The default375px panel is under1000px high;320px/150% and both appearances retain no horizontal overflow and readable stages. Screenshots inspected. Main TypeScript, isolated21-page build and204 onboarding plus146 foundation preservation checks passed. API/provider calls remain blocked. No approved baseline was changed, and no new backend, score or production integration is implied. Only the isolated Site source was pushed; the main repo is a local checkpoint.
+
+## Earlier review: Home workspace quick-view refinement, October 11, 2026
 
 Version33 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The below-the-house Your home workspace is a condensed current-record snapshot with compact continuation, left-aligned headings, short Open/Create section links, concise counts/dates and less repeated explanatory text. All four sections, independently recorded test milestones, exact current-record links, creation routes, garden continuation, summary and My Week access remain. Month/day display retains full dates in semantic time metadata, accessible names and record details. Offline wording explicitly says no save or queue. The approved core ordering and deeper record workspaces are unchanged.
 

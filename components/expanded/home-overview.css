@@ -115,3 +115,32 @@
 }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-module .how-module-heading { grid-template-columns:20px minmax(0,1fr); }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-module .how-module-heading > .how-action { grid-column:2; grid-row:auto; justify-self:start; padding-block:4px; }
+
+/* Primary home-care surface: one frame, with the current test inside its section. */
+.halo-f-app .halo-home-workspace { padding:16px; border:1px solid var(--halo-border); border-top:3px solid var(--halo-primary); border-radius:12px; background:color-mix(in srgb,var(--halo-card) 94%,var(--halo-primary)); box-shadow:0 10px 24px rgb(0 0 0 / .06); gap:0; }
+.halo-home-workspace .how-heading { padding:0 0 16px; gap:6px; border-bottom:1px solid var(--halo-border); }
+.halo-f-app .halo-home-workspace .how-heading h2 { font-size:calc(1.45rem * var(--halo-text-scale)); font-weight:650; }
+.halo-home-workspace .how-heading p { font-size:calc(.79rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-workbench { border:0; }
+.halo-home-workspace .how-module { padding:12px 0; gap:3px; }
+.halo-home-workspace .how-continue { border:0; padding:6px 0 0 30px; background:none; gap:0; }
+.halo-home-workspace .how-record-line { gap:10px; align-items:center; }
+.halo-home-workspace .how-record-line > span { flex:1; }
+.halo-home-workspace .how-record-line strong { font-size:calc(.86rem * var(--halo-text-scale)); font-weight:600; }
+.halo-home-workspace .how-record-line > .how-action { flex-shrink:0; }
+.halo-home-workspace .how-stage-details { border:0; border-radius:0; padding:0; background:none; min-width:0; }
+.halo-home-workspace .how-stage-details > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; min-height:44px; padding:6px 0; color:var(--halo-secondary); font-size:calc(.73rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-stage-details > summary::after { content:'+'; color:var(--halo-primary); font-size:1.2em; }
+.halo-home-workspace .how-stage-details[open] > summary::after { content:'−'; }
+.halo-home-workspace .how-stage-details > summary > span { margin-left:auto; font-variant-numeric:tabular-nums; }
+.halo-home-workspace .how-stage-details > summary:focus-visible { outline:2px solid var(--halo-primary); outline-offset:2px; }
+.halo-home-workspace .how-test-track { margin:7px 0 12px; }
+.halo-home-workspace .how-food { border-top:1px solid var(--halo-border); }
+.halo-home-workspace .how-care-list a { padding-block:6px; min-height:48px; }
+.halo-home-workspace .how-food-entries { border:0; }
+.halo-home-workspace .how-food-entries a { padding-top:8px; padding-bottom:8px; min-height:58px; }
+.halo-home-workspace .how-garden-return { border-top:1px solid var(--halo-border); }
+.halo-home-workspace .how-plan-return { margin:0; padding-bottom:0; }
+.halo-f-app[data-wide="true"] .halo-home-workspace .how-food { border-top:1px solid var(--halo-border); }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-continue { padding-left:0; }
+@container home-snapshot (max-width:280px) { .halo-home-workspace .how-continue { padding-left:0; } .halo-home-workspace .how-record-line { flex-wrap:wrap; } .halo-home-workspace .how-record-line > span { flex-basis:100%; } }
