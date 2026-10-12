@@ -142,20 +142,7 @@
 .mw-review-checklist { padding-left:20px; display:grid; gap:8px; }
 .mw-task[data-kind="Home"] .mw-task-symbol { background:color-mix(in srgb,var(--mw-task-color) 7%,transparent); }
 .mw-task[data-kind="Projects"] .mw-task-symbol { background:color-mix(in srgb,var(--mw-task-color) 7%,transparent); }
-@media(min-width:1000px) {
-  .halo-f-app[data-week-layout="true"] { --halo-shell-width:1160px; max-width:1160px; }
-  .halo-f-app[data-week-layout="true"] .mw-workspace { max-width:none; margin:0; }
-  .mw-dashboard-layout { grid-template-columns:minmax(0,1fr) 300px; gap:32px; align-items:start; }
-  .mw-planning-rail { position:sticky; top:95px; }
-  .mw-intro { padding-top:12px; }
-  .mw-intro .mw-week-pulse { max-width:calc(100% - 332px); }
-  .mw-intro .mw-branch { width:160px; right:30px; top:-10px; }
-  .mw-days button { min-height:104px; }
-  .mw-days strong { font-size:calc(1.4rem * var(--halo-text-scale)); }
-  .mw-calendar { padding:20px 22px 12px; }
-  .halo-f-app[data-week-layout="true"] :is(#week-task-detail,#week-review-planning) { width:min(100%,520px); }
-}
-@media(max-width:999px) {
+/* Keep the same phone-sized shell on every viewport, including desktop. */
   .mw-dashboard-main { display:contents; }
   .mw-planning-rail { order:4; }
   .mw-dashboard-layout > .mw-dashboard-main ~ .mw-planning-rail { margin-top:0; }
@@ -166,7 +153,6 @@
   .mw-dashboard-main > .mw-record-dates { order:3; }
   .mw-next-list li { min-height:64px; }
   .mw-review-panel[data-configured="false"] .mw-review-schedule { display:none; }
-}
 @media(prefers-reduced-motion:no-preference) {
   .halo-f-app:not([data-motion="reduce"]) .mw-next-panel,.halo-f-app:not([data-motion="reduce"]) .mw-review-panel { animation:mw-rise .45s ease-out both; }
   .halo-f-app:not([data-motion="reduce"]) .mw-review-panel { animation-delay:.08s; }

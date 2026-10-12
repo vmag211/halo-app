@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: My Week connected dashboard refinement, October 12, 2026
+## Current review: My Week mobile-width correction, October 12, 2026
+
+Version39 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. Yogi rejected the stretching desktop My Week layout. It now retains the same centered430px maximum shell as Today, Homeguard and Explore, with one column at every viewport width. The selected agenda comes before the stacked upcoming-work and weekly-review panels. Calendar size/type, navigation, Luna position and task sheets remain mobile-sized. All task/date/planning/motion functionality is retained; no backend or approved core changed. The specialist full Map is unchanged.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_c230bc9794fc8191ac7c5f5d72374bfa`.
+- Source: `8f0bd6c8383a0570b62f4dc39f79c8ddb552125a`.
+- Successful deployment: `appgdep_6acc73bb64d481919f49732f7a1c9f4c` at `2026-10-12T05:44:34.011037+00:00`.
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-my-week-mobile-shell-20261012.tar.gz`.
+- Archive hash: `sha256:d07b27dfe96d45a804852412e691c4aaef798dfa72ad508922f2ce4e37a79452`.
+- Verification: all35 final static browser checks passed, including same-width navigation across the four main tabs, sheet width, centered shell, agenda-before-rail order, month controls, connected dates, shared task editing, weekly-review/failure/offline/motion flows and hosted isolation. Geometry/screenshots covered1920px,1280px,375px and320px/150% in both appearances; inspected desktop and phone screenshots. Main TypeScript, isolated21-page build and204 onboarding plus146 immutable foundation checks passed. No approved baseline or application logic changed; the184 logic tests recorded for Version38 remain historical, not rerun for this CSS-only correction.
+- Limits: same visit-local wireframe behavior and deferred live backend/scheduler/storage/forecast/history/analysis/device/accessibility/translation gates as Version38. This layout refinement is not production integration or approval. Only isolated Site source was pushed; the app is a local checkpoint.
+
+## Earlier review: My Week connected dashboard refinement, October 12, 2026
 
 Version38 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. My Week now uses a wider calendar with an upcoming-work planning rail on desktop; phones keep the selected agenda before the rail. Existing owned test/routine/project/community/case dates are linked without duplicate tasks or invented deadlines. Weekly review day/time/timezone preferences deliberately add one all-day review task per calendar week, not a notification series. Reminder requests, earlier record dates, topic accents, numeric calendar counts and finite reduced-motion-safe motion deepen the dashboard without changing the approved core. Read `components/expanded/MY_WEEK_REVIEW.md` for research and precise behavior.
 
