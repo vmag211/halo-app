@@ -43,7 +43,10 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
     const projectInput = String(drafts['explore:project-direct-interest'] ?? '').trim();
     const generated = drafts['explore:generated-projects'] as { request?: string } | undefined;
     const projectDraft = Boolean(projectInput && projectInput !== generated?.request || drafts['explore:project-generation-fit']);
-    if (!lunaDraft && !projectDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
+    const journal = drafts['week:journal-draft'] as { symptoms?: string[]; fine?: boolean; note?: string } | undefined;
+    const outdoor = drafts['week:outdoor-draft'] as { activity?: string } | undefined;
+    const weekDraft = Boolean(journal?.fine || journal?.symptoms?.length || journal?.note?.trim() || outdoor?.activity?.trim());
+    if (!lunaDraft && !projectDraft && !weekDraft && !Object.keys(drafts).some(key => /^(tests:|asset:|observation:|pantry:|garden-|fish-note-|food-question-|grower-(?!filters)|usage-(?!comparison)|explore:(note:|outreach-drafts|outcome:|commitment:|project-notes:|project-outcome:))/.test(key))) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);

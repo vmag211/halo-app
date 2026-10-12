@@ -87,7 +87,10 @@ test('volunteer guide is filtered by interest, uses official handoff and saves a
   await page.getByRole('button', { name: 'Save sample action' }).click();
   await expect(page.locator('.ex-local-detail').getByRole('button', { name: 'Open saved action' })).toBeVisible();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toContainText('Review participation with TreesCharlotte');
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText('Review participation with TreesCharlotte');
 });
 
 test('community topics open the matching map layer and can start an undated question note', async ({ page }) => {

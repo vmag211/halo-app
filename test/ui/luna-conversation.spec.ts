@@ -25,8 +25,11 @@ test('Luna creates and edits one canonical task through an inline conversation r
   expect(await dialog.locator('.lc-receipt').last().getAttribute('data-record-id')).toBe(id);
   await dialog.getByRole('button', { name: 'Close sheet', exact: true }).click();
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(1);
-  await expect(page.locator('.halo-expanded-agenda-row')).toContainText('check the garden');
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText('check the garden');
 });
 
 test('Luna retains conversation and input across closing and cross-tab navigation', async ({ page }) => {
@@ -95,7 +98,10 @@ test('Luna starts a real project and one canonical preparation action without ma
   await expect(page.locator('.ex-project-workspace')).toContainText('0 of');
   await expect(page.locator('.ex-project-workspace')).toContainText('Pause project');
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
 });
 
 test('Luna refuses diagnosis and answers water questions with sample scope and primary sources', async ({ page }) => {
@@ -166,7 +172,10 @@ test('A partial project-start failure can cancel preparation without denying the
   await expect(page).toHaveURL(/exploreRecord=solar-oven/);
   await expect(page.locator('.ex-project-workspace')).toContainText('Pause project');
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(0);
 });
 
 test('Partial project preparation can retry once without a second workspace or duplicate task', async ({ page }) => {
@@ -182,7 +191,10 @@ test('Partial project preparation can retry once without a second workspace or d
   await dialog.locator('.lc-receipt').getByRole('button', { name: 'Open', exact: true }).click();
   await expect(page.locator('.ex-project-workspace')).toContainText('0 of');
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
 });
 
 test('Luna protects an unfinished draft on browser exit and retains it across closing', async ({ page }) => {

@@ -7,6 +7,7 @@ import { actionDraftError, type ActionSeed, type PreviewAction } from '@/lib/fro
 import type { HouseholdBands } from '@/lib/frontend/home-household';
 import { HomeWorkspaceReviewControls } from '@/components/homeguard/HomeWorkspaceState';
 import { ExploreReviewControls } from './ExploreWorkspace';
+import { WeekReviewControls } from './MyWeekWorkspace';
 
 type Draft = { seed: ActionSeed; title: string; date: string };
 type PreviewState = {
@@ -17,6 +18,8 @@ type PreviewState = {
   changeState: (id: string, state: PreviewAction['state']) => void; reset: () => void;
   addActions: (seeds: ActionSeed[], date: string) => boolean;
   updateAction: (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date'>) => boolean;
+  reviseAction: (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date' | 'state'>) => boolean;
+  deleteAction: (id: string, revision: number) => boolean;
 };
 const State = createContext<PreviewState | null>(null);
 const Mode = createContext(false);
@@ -74,13 +77,23 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
     const result = actionsRef.current.map(action => action.id === id ? { ...action, ...patch, title: patch.title.trim(), revision: revision + 1 } : action);
     actionsRef.current = result; setActions(result); return true;
   };
-  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
+  const reviseAction = (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date' | 'state'>) => {
+    const current = actionsRef.current.find(action => action.id === id);
+    if (fail || !current || (current.revision ?? 1) !== revision || actionDraftError(patch.title, patch.date) || !['saved','waiting','completed'].includes(patch.state)) return false;
+    const result = actionsRef.current.map(action => action.id === id ? { ...action, ...patch, title: patch.title.trim(), revision: revision + 1 } : action);
+    actionsRef.current = result; setActions(result); return true;
+  };
+  const deleteAction = (id: string, revision: number) => {
+    if (fail || !actionsRef.current.some(action => action.id === id && (action.revision ?? 1) === revision)) return false;
+    actionsRef.current = actionsRef.current.filter(action => action.id !== id); setActions(actionsRef.current); return true;
+  };
+  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, reviseAction, deleteAction, changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
 export function ExpandedReviewControls() {
   const state = useExpandedPreview();
   if (!state) return null;
-  return <><div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={state.fail} onChange={e => state.setFail(e.target.checked)} />Simulate failed action save</label><button type="button" onClick={state.reset}>Reset sample actions</button></div><HomeWorkspaceReviewControls /><ExploreReviewControls /></>;
+  return <><div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={state.fail} onChange={e => state.setFail(e.target.checked)} />Simulate failed action save</label><button type="button" onClick={state.reset}>Reset sample actions</button><WeekReviewControls /></div><HomeWorkspaceReviewControls /><ExploreReviewControls /></>;
 }
 
 export function ExpandedActionDialog({ offline }: { offline: boolean }) {

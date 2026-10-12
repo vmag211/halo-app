@@ -137,8 +137,11 @@ test('project workspace plans selected steps, deduplicates and retains explicit 
   await plan.getByRole('button', { name: 'Review selected steps for My Week' }).click();
   await page.getByRole('button', { name: 'Add selected steps', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(2);
-  await expect(page.locator('.halo-expanded-agenda-row')).toContainText(['Completed by you', 'Saved in this preview']);
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(2);
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText(['Completed by you', 'All day']);
 });
 
 test('project completion requires every real step and a result, and Homeguard handoff keeps the same workspace', async ({ page }) => {
@@ -183,7 +186,10 @@ test('a failed project batch creates no partial tasks and keeps choices', async 
   await expect(plan.getByRole('checkbox').nth(0)).toBeChecked();
   await expect(plan.getByRole('alert')).toContainText('nothing was added');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(0);
 });
 
 test('overview has one concise continuation that returns to the real active workspace', async ({ page }) => {
@@ -212,7 +218,10 @@ test('a note case records a factual result, exports deliberately and retains ind
   await page.getByRole('button', { name: 'Yes, delete', exact: true }).click();
   await expect(page.locator('.ex-note-row')).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
 });
 
 test('outreach follows a desired answer and manual reply independently for each recipient', async ({ page }) => {

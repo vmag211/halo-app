@@ -68,7 +68,10 @@ test('project browsing does not complete steps and saved completion uses My Week
   await page.getByRole('button', { name: 'Mark this step completed' }).click();
   await expect(page.locator('.ex-project-step')).toContainText('Completed by you');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toContainText('Completed by you');
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText('Completed by you');
 });
 
 test('outreach retains independent drafts and private water omits Utility', async ({ page }) => {

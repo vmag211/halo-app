@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: One compact Homeguard workspace feature, October 11, 2026
+## Current review: My Week calendar-led dashboard, October 11, 2026
+
+Version37 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. The new working My Week replaces the outline with a week/month/agenda calendar, shared canonical task editing, search/filter, unscheduled shelf, focus, connected records and follow-through. It adds optional action streak, manual repeat occurrence, real saved-event ICS export, Journal/check-in/recall/delete/undo, twelve-week Patterns, season overview and outdoor preparation. Read `components/expanded/MY_WEEK_REVIEW.md` for precise implemented/sample/deferred scope. A populated week is loaded deliberately through Load a sample week in review controls; production defaults are not seeded with these examples.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_bf58d7220fb88191b4483b7fcb44c826`.
+- Source: `8fcbd56c614a28ea8c76ae711b49924777e6de9c`.
+- Successful deployment: `appgdep_6acc50a1336881918a331f9ece9f2fe4` at `2026-10-12T03:14:48.330932+00:00` (October11 in America/New_York).
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-my-week-first-20261011.tar.gz`.
+- Archive hash: `sha256:0e96ecbeaf497285d1379e43aabea873fafe88380da440eb82812ff74016b1fe`.
+- Verification:104 distinct browser checks passed on final source across two runs:29 focused My Week/shared navigation/Homeguard/hosted checks, then94 My Week/Luna/Explore/shared-action checks with19 overlap. Coverage includes shared origin continuity, captured revisions, failure/offline retention, calendar navigation/narrow enlarged layouts, completion/reopening, task-only deletion, real ICS download, recurrence deduplication, Journal distinctions/delete/undo and honest missing forecasts/history. Earlier runs exposed obsolete outline selectors, a task-sheet close timing issue and exact native-label selector mismatch; those were repaired and passing reruns retained the original behavior assertions. All177 frontend logic tests, main TypeScript, isolated21-page build and204 onboarding plus146 immutable foundation preservation checks passed. Browser checks reject API/provider calls; light/dark375px and320px/150% screenshots inspected. No approved baseline replaced.
+- Limits: no durable private storage, live AI/web generation, automatic scheduler, delivered reminder, calendar synchronization, forecast/history/analysis adapter or full seasonal record join. Physical Safari, screen-reader end-to-end, reviewed Spanish and authenticated staging remain release work. Private Journal notes do not enter Luna. Production route registry/backend are unchanged; only isolated Site source was pushed and the main application remains a local checkpoint. This is a first editable review, not approval or a functioning production HALO release. Settings and alerts are separate next stages.
+
+## Earlier review: One compact Homeguard workspace feature, October 11, 2026
 
 Version36 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The default workspace is one primary panel with four whole-row entrances, short status lines, no repeated Open buttons, Add for creation and one Quick access disclosure. Exact current-record links, independently recorded milestones, maintenance observations, all food branches, garden continuation and My Week remain under that disclosure. Each main row opens its full workspace, including private summary selection. No deeper flow, score, approved core ordering or backend behavior changed.
 

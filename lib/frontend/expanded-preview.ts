@@ -11,6 +11,8 @@ export const followThrough: Record<FactorKey, { title: string; destination: stri
   lead: { title: 'Ask about my service line and testing', destination: 'tests', label: 'Tests and home records' },
 };
 export const destinations = {
+  patterns: {tab:'plan',title:'Patterns',description:'Inspect logged days and evidence.',steps:[],dependency:'Versioned descriptive analysis.'},
+  recap: {tab:'plan',title:'Season review',description:'Review your recorded season.',steps:[],dependency:'Owned records and evidence coverage.'},
   organizations: { tab: 'act', title: 'Local organizations', description: 'Find people working on the causes you care about.', steps: [], dependency: 'Reviewed organization directory and verification metadata.' },
   tests: { tab: 'home', title: 'Tests and records', description: 'Keep test preparation, sample collection and reported results together.', steps: ['Prepare a test with its purpose, home or site, sample medium and laboratory.', 'Record collection dates and track a result without inventing a pending value.', 'Keep reported units, qualifiers and files. Review corrections and follow-up.'], dependency: 'Owned test records, private uploads and reviewed result interpretation are being built.' },
   maintenance: { tab: 'home', title: 'Maintenance and moisture', description: 'Follow through on filters, home care and observations without losing the history.', steps: ['Choose an asset or record a moisture observation, with a date and measurement source.', 'Choose a routine based on instructions or your own interval.', 'Record what you did. A completed task does not certify that a hazard is resolved.'], dependency: 'Asset records, moisture observations and recurring action contracts are being built.' },

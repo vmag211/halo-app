@@ -14,6 +14,7 @@ import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { TestRecord } from '@/lib/frontend/home-test-preview';
 import HomeOverviewWorkspace from './HomeOverviewWorkspace';
 import ExploreWorkspace from './ExploreWorkspace';
+import MyWeekWorkspace from './MyWeekWorkspace';
 
 type Href = (tab: string, destination?: string) => string;
 export function ExpandedConnections({ home, factor, household, href, mapHref, scenario }: {
@@ -47,6 +48,7 @@ function HomeFactorRecords({ factor, href }: { factor: FactorKey; href: Href }) 
 }
 
 export function ExpandedDestinationPage({ destination, href, mapHref, environmentAvailable = true }: { destination: string; href: Href; mapHref: (layer: string) => string; environmentAvailable?: boolean }) {
+  if (['journal','patterns','recap','outdoors'].includes(destination)) return <MyWeekWorkspace href={href} destination={destination} />;
   if (['community', 'organizations', 'opportunities', 'projects', 'outreach', 'observations'].includes(destination)) return <ExploreWorkspace destination={destination} href={href} mapHref={mapHref} environmentAvailable={environmentAvailable} />;
   if (destination === 'tests' || destination === 'maintenance' || destination === 'food' || destination === 'summary') return <HomeguardWorkspace section={destination} href={href} />;
   if (!isDestination(destination)) return <section className="halo-expanded-section"><h2>This destination is unavailable</h2><Link href={href('today')}>Return to Today</Link></section>;
@@ -59,18 +61,8 @@ export function ExpandedAct({ href, mapHref, environmentAvailable = true }: { hr
 }
 
 export function ExpandedPlan({ href }: { href: Href }) {
-  const state = useExpandedPreview();
-  const [date, setDate] = usePlanDate();
-  if (!state) return null;
-  const dated = state.actions.filter(action => action.date === date);
-  const unscheduled = state.actions.filter(action => !action.date);
-  const row = (action: PreviewAction) => {
-    return <article className="halo-expanded-agenda-row" key={action.id}><div><span className="halo-ph-kicker">{action.origin} · {action.state === 'completed' ? 'Completed by you' : action.state === 'waiting' ? 'Waiting' : 'Saved in this preview'}</span><h3>{action.title}</h3><button className="halo-text-button" onClick={() => state.open(action)}>View or edit action</button></div><select aria-label={`Status of ${action.title}`} value={action.state} onChange={e => state.changeState(action.id, e.target.value as PreviewAction['state'])}><option value="saved">Saved</option><option value="waiting">Waiting</option><option value="completed">Completed</option></select></article>;
-  }
-  return <section className="halo-expanded-section"><span className="halo-ph-kicker">One place for follow-through</span><h2>Your week, with room to breathe</h2><p>Your saved tasks and scheduled follow-ups appear here. No streaks, no automatic reminders.</p><label className="halo-expanded-date">Choose a day<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><h3>On this day</h3>{dated.length ? dated.map(row) : <p className="halo-expanded-empty">Nothing scheduled for this day in My Week.</p>}<h3>Saved for later</h3>{unscheduled.length ? unscheduled.map(row) : <p className="halo-expanded-empty">Save a follow-up from a test, home-care routine or another planning workflow. You can choose its date later.</p>}<details><summary>All dated actions ({state.actions.filter(action => action.date).length})</summary>{state.actions.filter(action => action.date).map(action => <div key={action.id}><time>{action.date}</time>{row(action)}</div>)}</details><div className="halo-expanded-links"><Link href={href('plan', 'outdoors')}><CalendarDays size={20} /><span>Plan time outdoors</span><ArrowUpRight size={17} /></Link><Link href={href('plan', 'journal')}><NotebookPen size={20} /><span>Journal and Patterns</span><ArrowUpRight size={17} /></Link></div><p className="halo-f-meta">This is the first shared-action review, not the full My Week feature. All sample actions disappear on reload. Recurrence, notifications, calendar exports and private records are not connected.</p></section>;
+  return <MyWeekWorkspace href={href} />;
 }
-
-function usePlanDate() { return useState('2026-10-03'); }
 
 export function ExpandedSettings({ offline }: { offline: boolean }) {
   const { bands, setBand } = usePreviewHousehold();

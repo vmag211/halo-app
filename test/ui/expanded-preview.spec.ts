@@ -32,7 +32,10 @@ test('revised overview preserves factors and moves navigation ownership', async 
   await page.getByRole('link', { name: 'Back to Homeguard' }).click();
   await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
   await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
-  await page.getByRole('link', { name: 'Journal and Patterns' }).click();
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await page.getByRole('link', { name: 'Check in & look back' }).click();
   await expect(mainNav(page).getByRole('link', { name: 'My Week' })).toHaveAttribute('aria-current', 'page');
 });
 
@@ -65,11 +68,17 @@ test('planned follow-up save, edit, status, deduplication and return are one in-
   await expect(page.getByLabel('Action title')).toHaveValue('Review the kitchen filter schedule');
   await page.getByRole('button', { name: 'Close and keep draft' }).click();
   await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your week, with room to breathe' })).toBeVisible();
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.getByRole('heading', { name: 'Room for what matters.' })).toBeVisible();
   await page.getByLabel('Choose a day').fill('2026-10-04');
-  await expect(page.locator('.halo-expanded-agenda-row:visible')).toHaveCount(1);
-  await page.getByLabel('Status of Review the kitchen filter schedule').first().selectOption('completed');
-  await expect(page.getByText('pfas · Completed by you').first()).toBeVisible();
+  await expect(page.locator('.mw-agenda .mw-task:visible, .mw-shelf .mw-task:visible')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Edit Review the kitchen filter schedule', exact: true }).first().click();
+  await expect(page.locator('#week-task-detail-title')).toHaveText('Task details');
+  await page.locator('#week-task-detail').getByLabel('Status', { exact: true }).selectOption('completed');
+  await page.locator('#week-task-detail').getByRole('button', { name: 'Save task', exact: true }).click();
+  await expect(page.locator('.mw-agenda')).toContainText('Completed by you');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Review the kitchen filter schedule' })).toHaveCount(0);
 });

@@ -55,8 +55,11 @@ test('a new project step uses the same My Week action and remains explicit throu
   await page.getByRole('button', { name: 'Resume project', exact: true }).click();
   await page.getByRole('button', { name: 'Resume saved step', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.locator('.halo-expanded-agenda-row')).toHaveCount(1);
-  await expect(page.locator('.halo-expanded-agenda-row')).toContainText('Draw a testable design');
+  await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  await page.locator('.mw-followup > summary').click();
+  await page.getByLabel('Include completed items').check();
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText('Draw a testable design');
 });
 
 test('project preferences regenerate the shared set and keep narrower constraints honest', async ({ page }) => {
