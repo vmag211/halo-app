@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: My Week calendar-led dashboard, October 11, 2026
+## Current review: My Week connected dashboard refinement, October 12, 2026
+
+Version38 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. My Week now uses a wider calendar with an upcoming-work planning rail on desktop; phones keep the selected agenda before the rail. Existing owned test/routine/project/community/case dates are linked without duplicate tasks or invented deadlines. Weekly review day/time/timezone preferences deliberately add one all-day review task per calendar week, not a notification series. Reminder requests, earlier record dates, topic accents, numeric calendar counts and finite reduced-motion-safe motion deepen the dashboard without changing the approved core. Read `components/expanded/MY_WEEK_REVIEW.md` for research and precise behavior.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_c708c0d619048191bcffa68854c7bf61`.
+- Source: `13422f14bb01b0a867acfd4341d03a5813aa0a5d`.
+- Successful deployment: `appgdep_6acc605e79d88191a086bf141f69d118` at `2026-10-12T04:21:57.594680+00:00`.
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-my-week-dashboard-20261012.tar.gz`.
+- Archive hash: `sha256:6c61606f15c63966009fd53b644611cdfe9b423ffb470797e60cfac4211c7898`.
+- Verification: all34 final-build browser checks passed, including8 dashboard refinement checks and26 existing My Week/shared navigation/Homeguard/hosted checks. All184 frontend logic tests, main TypeScript, isolated21-page static build and204 onboarding plus146 immutable foundation preservation checks passed. Light/dark1280px,375px and320px/150% screenshots, a full phone view and a520px desktop task sheet were inspected. The first browser pass caught the linked-record Agenda selection bug; it was repaired with the original assertion retained. The generic build helper encountered a Windows npm-shim path error; the same declared `npm run build` succeeded through PowerShell, and final source/build were packaged together. No dependency or approved baseline was altered.
+- Limits: connected dates are read-only preview joins and private edits/preferences remain visit-local. There is no live notification delivery, weekly scheduler, calendar sync, durable joined-date API, provider integration or new backend. Source dates are not added to completion/streak/impact totals. Existing missing forecast/history/analysis and device/accessibility/translation gates remain. Only isolated Site source was pushed; the application remains a local checkpoint. This is a refinement for Yogi's review, not screen approval or production readiness. Vibhav handoff remains deferred.
+
+## Earlier review: My Week calendar-led dashboard, October 11, 2026
 
 Version37 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. The new working My Week replaces the outline with a week/month/agenda calendar, shared canonical task editing, search/filter, unscheduled shelf, focus, connected records and follow-through. It adds optional action streak, manual repeat occurrence, real saved-event ICS export, Journal/check-in/recall/delete/undo, twelve-week Patterns, season overview and outdoor preparation. Read `components/expanded/MY_WEEK_REVIEW.md` for precise implemented/sample/deferred scope. A populated week is loaded deliberately through Load a sample week in review controls; production defaults are not seeded with these examples.
 
