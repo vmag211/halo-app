@@ -1,8 +1,8 @@
 /** Decorative original landscapes, never location, weather or environmental evidence. */
-export const WEEK_SCENE_DWELL_MS = 120_000;
+export const WEEK_SCENE_DWELL_MS = 30_000;
 export const WEEK_SCENE_DISSOLVE_MS = 3_600;
 export type WeekLandscape = {
-  id: 'lake' | 'coast' | 'forest';
+  id: 'lake' | 'coast' | 'forest' | 'meadow' | 'cove';
   name: string;
   src: string;
   water: readonly (readonly [number, number])[];
@@ -16,6 +16,10 @@ export const weekLandscapes: readonly WeekLandscape[] = [
     water: [[.45,.47],[.61,.47],[.77,.60],[.83,.80],[.80,1],[.25,1],[.18,.80],[.25,.60]] },
   { id: 'forest', name: 'Forest hush', src: '/preview-scenes/week-forest.webp', waterline: .51,
     water: [[.43,.53],[.58,.53],[.75,.63],[.84,.84],[.85,1],[.16,1],[.20,.84],[.28,.63]] },
+  { id: 'meadow', name: 'Meadow light', src: '/preview-scenes/week-meadow.webp', waterline: .47,
+    water: [[.18,.47],[.84,.47],[.82,.71],[.70,1],[.40,1],[.25,.75]] },
+  { id: 'cove', name: 'Quiet cove', src: '/preview-scenes/week-cove.webp', waterline: .53,
+    water: [[.02,.53],[.98,.53],[.98,1],[.02,1]] },
 ];
 
 /** New app-owned strings stay in one catalogue, including nonvisual controls. */

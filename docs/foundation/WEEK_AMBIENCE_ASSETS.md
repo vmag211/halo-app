@@ -2,6 +2,8 @@
 
 Created October 12, 2026 for HALO's editable full-app wireframe.
 
+This manifest preserves the original three scenes. The subsequent [visual library](VISUAL_LIBRARY_ASSETS.md) adds meadow and cove wallpapers, completing a five-scene rotation, alongside household/community artwork. The new dwell setting is30 seconds of eligible visible time.
+
 ## Provenance and use
 
 These are three original AI-generated environmental illustrations, made with the built-in `image_gen` tool in generation mode. No CLI/API fallback was used. The existing `public/preview-scenes/personal-hero-editorial.webp` was visually inspected as an art-direction reference, but was not submitted as an image input or altered. All three new images were generated independently from the exact prompts below.

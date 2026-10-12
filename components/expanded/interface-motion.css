@@ -1,19 +1,27 @@
 /* Motion is a progressive enhancement. There is no waiting opacity or hidden UI. */
 .halo-f-app[data-refined=true][data-interface-motion=on] {
-  --halo-motion-quick:160ms;
-  --halo-motion-ease:cubic-bezier(.2,.75,.2,1);
+  --halo-motion-quick:190ms;
+  --halo-motion-ease:cubic-bezier(.16,1,.3,1);
 }
 /* WAAPI owns these entrances; cancel legacy sheet entrance to avoid double travel. */
 .halo-f-app[data-refined=true][data-interface-motion=on] .halo-f-sheet {
   animation:none;
 }
 /* Retain ownership after the entrance, so old CSS entrances cannot restart. */
-.halo-f-app[data-refined=true] [data-interface-managed=true] { animation:none !important; }
+.halo-f-app[data-refined=true] :is([data-interface-managed=true],[data-interface-pending=true]) { animation:none !important; }
+/* These legacy entrances used to start at mount, before section observation was
+   ready. Remove that first dim/translation from server-rendered content too.
+   Ambient artwork and animation inside these sections retain their own motion. */
+.halo-f-app[data-refined=true] :is(
+  .mw-calendar,.mw-agenda,.mw-home-pulse,.mw-next-panel,.mw-review-panel,
+  .mw-shelf > .mw-task,.hg-content,.hp-alert-item,.ex-resource-menu,.how-add-menu > nav
+) { animation:none !important; }
 .halo-f-app[data-refined=true][data-interface-motion=on] :is(
   .mw-add,.mw-primary,.mw-icon,.mw-text,.mw-task-open,.mw-weekly-open,
   .hg-button,.hg-button-secondary,.hg-link,.ex-button,.ex-button-secondary,
   .ex-text-button,.hp-primary,.hp-text,.hp-setting-row,.how-overview-row,
   .halo-f-icon,.halo-f-tabs a,.mw-view-switch button,.ex-topic-tabs button,
+  .ex-involvement-cover,.ex-generated-lead,.ex-community-bridge,.ex-opportunity-card,.ex-generated-open,
   .halo-map-utility button,.halo-map-layers button,.halo-map-detail button,.halo-map-district-handle
 ) {
   transition:background-color var(--halo-motion-quick) ease,border-color var(--halo-motion-quick) ease,
@@ -22,14 +30,46 @@
 }
 .halo-f-app[data-refined=true][data-interface-motion=on] :is(
   .mw-add,.mw-primary,.hg-button,.hg-button-secondary,.ex-button,.ex-button-secondary,.hp-primary
-):active:not(:disabled) { translate:0 1px; }
-.halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open) > svg:last-child {
+):active:not(:disabled):not([class*="danger"]) { translate:0 1px; }
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open,.ex-text-button,.ex-community-bridge,.ex-opportunity-card) > svg:last-child {
   transition:translate 200ms var(--halo-motion-ease);
 }
+/* A single travelling highlight on decisive actions. Static contrast and focus
+   remain useful on touch; no picture, label, or action exists only on hover. */
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.mw-add,.mw-primary,.hg-button,.ex-button,.hp-primary):not([class*="danger"]):not(:disabled) {
+  background-image:linear-gradient(110deg,transparent 32%,color-mix(in srgb,var(--halo-primary) 28%,transparent) 43%,rgb(255 255 255 / .2) 48%,transparent 59%);
+  background-size:260% 100%;
+  background-position:100% 0;
+  transition:background-position 700ms var(--halo-motion-ease),background-color 190ms ease,
+    border-color 190ms ease,box-shadow 240ms ease,color 190ms ease,translate 190ms var(--halo-motion-ease);
+}
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.mw-add,.mw-primary,.hg-button,.ex-button,.hp-primary):focus-visible:not([class*="danger"]):not(:disabled) {
+  background-position:0 0;
+  box-shadow:inset 0 1px 0 rgb(255 255 255 / .15),0 4px 20px color-mix(in srgb,var(--halo-primary) 24%,transparent);
+}
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open,.ex-text-button,.ex-community-bridge,.ex-opportunity-card):focus-visible > svg:last-child { translate:3px 0; }
+/* Image-led entrances get a subtle focal change inside their existing crop.
+   The button, copy and its hit target never shift, and the image is always present. */
+.halo-f-app[data-refined=true] :is(.ex-involvement-cover,.ex-generated-lead) { transform:none !important; translate:none !important; }
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.ex-involvement-cover,.ex-generated-lead) .ex-photo img {
+  transform:scale(1);
+  filter:brightness(1) saturate(1);
+  transition:transform 650ms var(--halo-motion-ease),filter 450ms ease;
+}
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.ex-involvement-cover,.ex-generated-lead):focus-visible .ex-photo img {
+  transform:scale(1.025);
+  filter:brightness(1.035) saturate(1.06);
+}
 @media (hover:hover) and (pointer:fine) {
-  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open):hover > svg:last-child { translate:2px 0; }
-  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.mw-add,.mw-primary,.hg-button,.ex-button,.hp-primary):hover:not(:disabled) {
-    box-shadow:0 4px 16px color-mix(in srgb,var(--halo-primary) 16%,transparent);
+  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.ex-involvement-cover,.ex-generated-lead):hover .ex-photo img {
+    transform:scale(1.025);
+    filter:brightness(1.035) saturate(1.06);
+  }
+  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open,.ex-text-button,.ex-community-bridge,.ex-opportunity-card):hover > svg:last-child { translate:3px 0; }
+  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.mw-add,.mw-primary,.hg-button,.ex-button,.hp-primary):hover:not([class*="danger"]):not(:disabled) {
+    background-position:0 0;
+    box-shadow:inset 0 1px 0 rgb(255 255 255 / .15),0 5px 22px color-mix(in srgb,var(--halo-primary) 24%,transparent);
+    border-color:color-mix(in srgb,var(--halo-primary) 68%,var(--halo-border));
   }
 }
 .halo-f-app[data-refined=true][data-interface-motion=on] details > summary > svg:last-child {
@@ -40,4 +80,10 @@
   .halo-f-app[data-refined=true] .halo-f-sheet { animation:none !important; transition:none !important; }
   .halo-f-app[data-refined=true] [data-interface-entering] { animation:none !important; transform:none !important; }
   .halo-f-app[data-refined=true][data-interface-motion=on] :is(button,a,summary,summary > svg) { transition:none !important; translate:none !important; }
+  .halo-f-app[data-refined=true] :is(.mw-add,.mw-primary,.hg-button,.ex-button,.hp-primary) { background-image:none !important; }
+  .halo-f-app[data-refined=true] :is(.ex-involvement-cover,.ex-generated-lead) .ex-photo img { transform:none !important; filter:none !important; transition:none !important; }
+  /* The expanded review's full-motion switch cannot override the device, even
+     on the older Today Reveal wrappers. The archived and onboarding styles stay unchanged. */
+  .halo-f-app[data-refined=true] .halo-reveal[data-animate=true] { opacity:1 !important; transform:none !important; transition:none !important; }
+  .halo-f-app[data-refined=true] .halo-reveal[data-animate=true] :is(.halo-ph-ring-reveal,.halo-ph-chart-reveal,.halo-ph-limit > span,.halo-ph-scale > span,.halo-ph-daylight > span,.halo-ph-pollen-dots,.halo-rising-sun-disc) { animation:none !important; }
 }

@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, HandHeart, Leaf, MapPin, Search, Sprout, Trees } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, Droplets, Factory, HandHeart, House, Leaf, MapPin, Search, Sprout, Trees, Wind } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/Foundation';
+import EditorialScene, { type EditorialSceneKind } from '@/components/foundation/EditorialScene';
+import { MotionButton } from '@/components/foundation/PersonalHero';
+import { useSceneExperience } from '@/components/foundation/SceneExperience';
 import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
 import { ExplorePhoto } from './ExploreVisuals';
 import ExploreOutcome from './ExploreOutcome';
@@ -13,6 +16,7 @@ import type { ExploreSection } from '@/lib/frontend/explore-preview';
 import { blankEngagement } from '@/lib/frontend/explore-workspace';
 import { filterLocalResources, localParticipationResources, localResourceReviewDate, localResourceScope, type LocalParticipationResource, type LocalResourceScope } from '@/lib/frontend/explore-local-resources';
 import './explore-local.css';
+import './community-guide.css';
 
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
 const sources = [
@@ -100,10 +104,30 @@ const communityTopics = [
   { id: 'radon', title: 'The ground beneath us', label: 'Radon', text: 'A county radon zone describes regional context. Only an appropriate home test can establish a level in your home.', question: 'Where can I find reliable instructions for a home radon test?', next: 'Use Homeguard to review radon guidance and your own tests.' },
   { id: 'facilities', title: 'Public facility records', label: 'Facilities', text: 'A public compliance record describes a facility and reporting period. Being nearby does not establish a cause or a household exposure.', question: 'What does this record actually say, and which office can explain it?', next: 'Open the original record and keep its date with your question.' },
 ];
+const communityTopicVisuals: Record<string, { scene: EditorialSceneKind; Icon: typeof Droplets }> = {
+  water: { scene: 'water', Icon: Droplets }, air: { scene: 'air', Icon: Wind },
+  radon: { scene: 'ground', Icon: House }, facilities: { scene: 'facilities', Icon: Factory },
+};
 
 export function CommunityGuide({ go, mapHref, href }: { go: Go; mapHref: (layer: string) => string; href: (tab: string, destination?: string) => string }) {
+  const atmosphere = useSceneExperience();
   const [topic, setTopic] = useHomeDraft('explore:community-topic', 'water');
   const current = communityTopics.find(item => item.id === topic) ?? communityTopics[0];
   const [, setPrompt] = useHomeDraft('explore:note-starter', '');
-  return <section className="ex-detail"><ExplorePhoto scene="river" className="ex-detail-photo" /><div className="ex-topic-tabs" role="group" aria-label="Community topics">{communityTopics.map(item => <button key={item.id} aria-pressed={topic === item.id} onClick={() => setTopic(item.id)}>{item.label}</button>)}</div><article className="ex-community-lesson"><span className="ex-kicker">Understand the evidence</span><h4>{current.title}</h4><p>{current.text}</p><blockquote>{current.question}</blockquote><p>{current.next}</p><Link className="ex-button" prefetch={false} href={mapHref(current.id)}>Explore this map layer <ArrowUpRight size={16} aria-hidden="true" /></Link><button className="ex-text-button" onClick={() => { setPrompt(current.question); go('observations', 'new'); }}>Keep this question in My notes <ArrowRight size={16} aria-hidden="true" /></button></article><div className="ex-section-heading"><h4>From understanding to action</h4></div><div className="ex-checklist"><p><Check size={17} aria-hidden="true" />Read the source, date and geographic scope.</p><p><Check size={17} aria-hidden="true" />Write down what you know and what is still unknown.</p><p><Check size={17} aria-hidden="true" />Choose a qualified resource, community group or small next step.</p></div><button className="ex-text-button" onClick={() => go('projects')}>Explore practical ways to help <ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" onClick={() => go('outreach')}>Find the right contact <ArrowRight size={16} aria-hidden="true" /></button><section className="ex-community-actions"><h4>Choose a practical outcome</h4><p>{topic === 'water' ? 'Get a dated report, clarify your provider or arrange an appropriate test. The goal is an informed water decision, not a score for reading a lesson.' : topic === 'radon' ? 'Use qualified testing instructions to arrange a real home test. A regional zone alone cannot answer your home question.' : topic === 'air' ? 'Understand a dated monitor reading and choose a practical outdoor plan with Today and My Week.' : 'Read the source record and ask the responsible office a factual question. Proximity alone does not establish a cause.'}</p><Link className="ex-text-button" href={href(topic === 'air' ? 'today' : 'home', topic === 'water' || topic === 'radon' ? 'tests' : undefined)}>{topic === 'air' ? 'Continue into Today guidance' : topic === 'water' || topic === 'radon' ? 'Continue into tests and home records' : 'Review my household context'} <ArrowRight size={16} aria-hidden="true" /></Link></section><ExploreOutcome key={topic} origin={`community:${topic}`} title="My community next step" goal={current.question} mechanism="Turn the evidence into a specific question, qualified test or useful public-office conversation, then record what you learned." /></section>;
+  const visual = communityTopicVisuals[current.id];
+  return <section className="ex-detail ex-community-guide" data-community-topic={current.id}>
+    <div className="ex-topic-tabs" role="group" aria-label="Community topics">{communityTopics.map(item => { const Icon = communityTopicVisuals[item.id].Icon; return <button key={item.id} aria-pressed={topic === item.id} onClick={() => setTopic(item.id)}><Icon size={18} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>
+    <div className="ex-community-topic-frame" key={`community-scene:${current.id}`} data-motion-surface="community-topic">
+      <EditorialScene scene={visual.scene} eager />
+      <div className="ex-community-scene-motion">{!atmosphere.deviceReduced && (atmosphere.motion || atmosphere.paused) && <MotionButton />}</div>
+      <div className="ex-community-topic-heading"><visual.Icon size={24} strokeWidth={1.5} aria-hidden="true" /><h4>{current.title}</h4></div>
+    </div>
+    <article className="ex-community-lesson" data-motion-surface="community-evidence">
+      <p>{current.text}</p><blockquote>{current.question}</blockquote>
+      <div className="ex-community-next"><p>{current.next}</p><Link className="ex-button" prefetch={false} href={mapHref(current.id)}>Explore this map layer <ArrowUpRight size={16} aria-hidden="true" /></Link><button className="ex-text-button" onClick={() => { setPrompt(current.question); go('observations', 'new'); }}>Keep this question in My notes <ArrowRight size={16} aria-hidden="true" /></button></div>
+    </article>
+    <section className="ex-community-path" data-motion-surface="community-path"><div className="ex-section-heading"><h4>From understanding to action</h4></div><div className="ex-checklist"><p><Check size={17} aria-hidden="true" />Read the source, date and geographic scope.</p><p><Check size={17} aria-hidden="true" />Write down what you know and what is still unknown.</p><p><Check size={17} aria-hidden="true" />Choose a qualified resource, community group or small next step.</p></div><div className="ex-community-path-links"><button className="ex-text-button" onClick={() => go('projects')}>Explore practical ways to help <ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" onClick={() => go('outreach')}>Find the right contact <ArrowRight size={16} aria-hidden="true" /></button></div></section>
+    <section className="ex-community-actions" data-motion-surface="community-outcome"><h4>Choose a practical outcome</h4><p>{topic === 'water' ? 'Get a dated report, clarify your provider or arrange an appropriate test. The goal is an informed water decision, not a score for reading a lesson.' : topic === 'radon' ? 'Use qualified testing instructions to arrange a real home test. A regional zone alone cannot answer your home question.' : topic === 'air' ? 'Understand a dated monitor reading and choose a practical outdoor plan with Today and My Week.' : 'Read the source record and ask the responsible office a factual question. Proximity alone does not establish a cause.'}</p><Link className="ex-text-button" href={href(topic === 'air' ? 'today' : 'home', topic === 'water' || topic === 'radon' ? 'tests' : undefined)}>{topic === 'air' ? 'Continue into Today guidance' : topic === 'water' || topic === 'radon' ? 'Continue into tests and home records' : 'Review my household context'} <ArrowRight size={16} aria-hidden="true" /></Link></section>
+    <ExploreOutcome key={topic} origin={`community:${topic}`} title="My community next step" goal={current.question} mechanism="Turn the evidence into a specific question, qualified test or useful public-office conversation, then record what you learned." />
+  </section>;
 }

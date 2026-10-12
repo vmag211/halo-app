@@ -2,7 +2,9 @@
 import DateInput from '@/components/ui/DateInput';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowLeft, Check, NotebookPen, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Trash2 } from 'lucide-react';
+import EditorialScene from '@/components/foundation/EditorialScene';
+import './week-editorial.css';
 import { useHomeCollection, useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { useExpandedPreview } from './ExpandedPreviewState';
 import { Confirm } from '@/components/homeguard/HomeWorkspaceUI';
@@ -31,7 +33,7 @@ export default function WeekJournal({href,initialView='journal'}:{href:(tab:stri
    if(await collection.save({...draft,id:`journal:${draft.date}:${draft.band}`,title:`${dayLabel(draft.date)} check-in`,recalled:draft.date!==today})){setDraft({...draft,revision:draft.revision+1});setError('Check-in saved.');}}
  async function recall(){if(!batch.length)return;setBatchResult('');const failed:string[]=[];let saved=0,kept=0;for(const date of batch){if(collection.records.some(e=>e.date===date&&e.band===draft.band)){kept++;continue;}const next:WeekEntry={id:`journal:${date}:${draft.band}`,title:`${dayLabel(date)} recalled check-in`,revision:0,date,band:draft.band,fine:draft.fine,symptoms:[...draft.symptoms],severity:draft.severity,illness:draft.illness,note:'',recalled:true};if(!next.fine&&(!next.symptoms.length||!next.severity)){failed.push(date);continue;}if(await collection.save(next))saved++;else failed.push(date);}setBatch(failed);setBatchResult(`${saved} saved, ${kept} existing entries kept, ${failed.length} not saved. Retry applies only to remaining dates.`);}
  const seasonStart=`${year}-${season==='Spring'?'03':season==='Summer'?'06':season==='Fall'?'09':'12'}-01`;const nextSeason=season==='Winter'?`${Number(year)+1}-03-01`:`${year}-${season==='Spring'?'06':season==='Summer'?'09':'12'}-01`;const seasonEntries=filtered.filter(e=>e.date>=seasonStart&&e.date<nextSeason);const seasonKey=`${season}:${year}`;
- return <section className="mw-workspace mw-journal"><Link className="mw-text" href={href('plan')}><ArrowLeft size={16}/>Back to My Week</Link><header className="mw-intro"><span className="mw-eyebrow">Notice, without judgement</span><h2>Your days,<br/>in perspective.</h2><NotebookPen className="mw-journal-mark" size={48}/></header>
+ return <section className="mw-workspace mw-journal"><Link className="mw-text" href={href('plan')}><ArrowLeft size={16}/>Back to My Week</Link><header className="mw-intro mw-editorial-intro" data-motion-surface><EditorialScene scene={tab==='Season'?'care-garden':'care-study'} eager/><div><span className="mw-eyebrow">Notice, without judgement</span><h2>Your days,<br/>in perspective.</h2></div></header>
  <div className="mw-view-switch">{['Journal','Patterns','Season'].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</div>
  {unavailable?<div className="mw-empty" role="status">{workspace.scenario==='loading'?'Loading your check-ins...':'Check-ins could not load. Editing is unavailable until records return.'}<button onClick={()=>workspace.setScenario('ready')}>Try again</button></div>:<>
  {tab==='Journal'?<>

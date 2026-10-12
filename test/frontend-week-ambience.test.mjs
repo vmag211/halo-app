@@ -4,11 +4,11 @@ import { loadFrontend } from './frontend-test-loader.mjs';
 const { landscapeCrop, landscapeWave, weekLandscapes, WEEK_SCENE_DWELL_MS } = await loadFrontend('week-ambience');
 
 test('decorative landscapes are independent of household, weather and task data', () => {
-  assert.equal(weekLandscapes.length, 3);
-  assert.equal(new Set(weekLandscapes.map(scene => scene.src)).size, 3);
-  assert.equal(WEEK_SCENE_DWELL_MS, 120000);
+  assert.equal(weekLandscapes.length, 5);
+  assert.equal(new Set(weekLandscapes.map(scene => scene.src)).size, 5);
+  assert.equal(WEEK_SCENE_DWELL_MS, 30000);
   for (const scene of weekLandscapes) {
-    assert.match(scene.src, /^\/preview-scenes\/week-(lake|coast|forest)\.webp$/);
+    assert.match(scene.src, /^\/preview-scenes\/week-(lake|coast|forest|meadow|cove)\.webp$/);
     assert.ok(scene.waterline > .4 && scene.waterline < .6);
     assert.ok(scene.water.every(([x, y]) => x >= 0 && x <= 1 && y >= scene.waterline && y <= 1));
   }

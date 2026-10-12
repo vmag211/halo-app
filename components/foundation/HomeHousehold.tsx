@@ -7,10 +7,12 @@ import { factorColor, factorReadings } from '@/lib/frontend/factor-preview';
 import type { FoundationScenario } from '@/lib/frontend/foundation-preview';
 import SeverityPill from '@/components/ui/SeverityPill';
 import { Callout } from '@/components/ui/Foundation';
-import { Reveal } from './SceneExperience';
+import { Reveal, useSceneExperience } from './SceneExperience';
 import { usePreviewHousehold } from './PreviewHousehold';
-import type { FactorHref } from './PersonalHero';
+import { MotionButton, type FactorHref } from './PersonalHero';
+import EditorialScene, { type EditorialSceneKind } from './EditorialScene';
 import './home-household.css';
+import './household-editorial.css';
 import { useStageRuntime } from './StageRuntime';
 
 export type MemberHref = (member: HomeMemberKey) => string;
@@ -24,7 +26,7 @@ export default function HomeHousehold({ memberHref }: { memberHref: MemberHref }
   const runtime = useStageRuntime();
   const { bands } = usePreviewHousehold();
   const members = homeMemberKeys.filter(key => bands[memberCatalog[key].band]);
-  return <section className="halo-home-household" id="household" aria-label="Your Homeguard household">
+  return <section className="halo-home-household" id="household" aria-label="Your Homeguard household" data-motion-surface="household">
     <div className="halo-home-house" data-count={members.length}>
       <svg className="halo-home-roof" viewBox="0 0 400 112" preserveAspectRatio="none" aria-hidden="true"><path d="M12 104 200 10 388 104Z" /><path d="M304 62V26h35v54" /><path d="M3 105 200 6 397 105" /></svg>
       <div className="halo-home-attic" aria-hidden="true"><House size={21} strokeWidth={1.4} /></div>
@@ -35,9 +37,14 @@ export default function HomeHousehold({ memberHref }: { memberHref: MemberHref }
 }
 
 const factorIcons = { pfas: Droplets, radon: House, lead: ShieldCheck, mold: Leaf };
+const memberScenes: Record<HomeMemberKey, EditorialSceneKind> = {
+  toddler: 'care-playroom', child: 'care-playroom', teen: 'care-study', adult: 'care-study',
+  senior: 'care-rest', pregnant: 'care-garden', respiratory: 'care-rest',
+};
 
 export function HomeMemberGuidance({ member, scenario, memberHref, factorHref, parentHref }: { member: HomeMemberKey; scenario: FoundationScenario; memberHref: MemberHref; factorHref: FactorHref; parentHref: string }) {
   const runtime = useStageRuntime();
+  const atmosphere = useSceneExperience();
   const readings = runtime?.readings ?? factorReadings;
   const { bands } = usePreviewHousehold();
   const content = memberCatalog[member];
@@ -46,10 +53,14 @@ export function HomeMemberGuidance({ member, scenario, memberHref, factorHref, p
   const selected = bands[content.band];
   const otherMembers = homeMemberKeys.filter(key => key !== member && bands[memberCatalog[key].band]);
   return <article className="halo-home-member" data-member={member}>
-    <section className="halo-home-member-hero"><span className="halo-ph-kicker">Homeguard · Household guidance</span><div className="halo-home-member-portrait"><MemberFigure member={member} /></div><h2>{content.label}</h2><p>{content.intro}</p><span className="halo-home-member-tag">{selected ? runtime ? 'Selected household category' : 'Selected household category' : 'General category guide'}</span></section>
+    {runtime ? <section className="halo-home-member-hero"><span className="halo-ph-kicker">Homeguard · Household guidance</span><div className="halo-home-member-portrait"><MemberFigure member={member} /></div><h2>{content.label}</h2><p>{content.intro}</p><span className="halo-home-member-tag">{selected ? 'Selected household category' : 'General category guide'}</span></section> : <section className="halo-home-member-hero halo-household-editorial" data-motion-surface="household-intro">
+      <div className="halo-household-editorial-art"><EditorialScene scene={memberScenes[member]} eager /><div className="halo-household-editorial-motion">{!atmosphere.deviceReduced && (atmosphere.motion || atmosphere.paused) && <MotionButton />}</div></div>
+      <div className="halo-household-editorial-heading"><div className="halo-home-member-portrait"><MemberFigure member={member} /></div><div><span className="halo-ph-kicker">Homeguard · Household guidance</span><h2>{content.label}</h2></div></div>
+      <p>{content.intro}</p><span className="halo-home-member-tag">{selected ? 'Selected household category' : 'General category guide'}</span>
+    </section>}
     {!selected && <Callout tone="info"><p>{runtime ? 'This category is not selected in your household. You can still read its general guidance.' : 'This category is not selected in your household. You can still read its general guidance.'}</p></Callout>}
     {(missing || offline) && <Callout tone="notice"><p>{missing ? 'Readings are unavailable. The practical guidance remains general and does not describe conditions in this home.' : runtime ? 'Stored readings are shown with their original dates. These are not a new assessment.' : 'Stored readings are shown with their original dates. These are not a new assessment.'}</p></Callout>}
-    <section className="halo-home-member-focus"><span className="halo-ph-kicker">A useful place to start</span><h2>{content.focus}</h2><p>The home evidence stays the same for everyone. This page changes what to read and do next, not the score.</p></section>
+    <section className="halo-home-member-focus" data-motion-surface="household-focus"><span className="halo-ph-kicker">A useful place to start</span><h2>{content.focus}</h2><p>The home evidence stays the same for everyone. This page changes what to read and do next, not the score.</p></section>
     <div className="halo-home-member-actions">{content.actions.map((action, index) => {
       const factor = readings[action.factor]; const Icon = factorIcons[action.factor];
       const noReading = missing || (runtime ? factor.severity === 'no_data' : scenario === 'partial' && action.factor === 'pfas');
@@ -61,8 +72,8 @@ export function HomeMemberGuidance({ member, scenario, memberHref, factorHref, p
         <Link href={factorHref(action.factor)} prefetch={false}>Explore {factor.shortTitle.toLowerCase()}</Link>
       </section></Reveal>;
     })}</div>
-    <section className="halo-home-member-limits"><ShieldCheck size={23} aria-hidden="true" /><h2>About the person, not a personal score.</h2><p>HALO knows selected household categories, not names, medical histories, or individual exposure. These are educational suggestions, not a diagnosis or treatment plan. Speak with a qualified professional about individual health concerns.</p></section>
-    {otherMembers.length > 0 && <nav className="halo-home-member-switch" aria-label="Other household guidance"><h2>Others in your home</h2><div>{otherMembers.map(key => <Link key={key} href={memberHref(key)} prefetch={false}><MemberFigure member={key} /><span>{memberCatalog[key].shortLabel}</span></Link>)}</div></nav>}
+    <section className="halo-home-member-limits" data-motion-surface="household-limits"><ShieldCheck size={23} aria-hidden="true" /><h2>About the person, not a personal score.</h2><p>HALO knows selected household categories, not names, medical histories, or individual exposure. These are educational suggestions, not a diagnosis or treatment plan. Speak with a qualified professional about individual health concerns.</p></section>
+    {otherMembers.length > 0 && <nav className="halo-home-member-switch" aria-label="Other household guidance" data-motion-surface="household-switch"><h2>Others in your home</h2><div>{otherMembers.map(key => <Link key={key} href={memberHref(key)} prefetch={false}><MemberFigure member={key} /><span>{memberCatalog[key].shortLabel}</span></Link>)}</div></nav>}
     <Link className="halo-home-member-back" href={parentHref} prefetch={false}>Back to your Homeguard household</Link>
   </article>;
 }

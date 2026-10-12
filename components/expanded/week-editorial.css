@@ -1,0 +1,29 @@
+/* A short scene at the start of a task, not a second dashboard or extra card. */
+.halo-f-app[data-refined="true"] .mw-editorial-intro {
+  min-height:166px; isolation:isolate; padding:20px 18px; display:flex; align-items:end;
+  border-radius:8px; background:var(--ph-page,var(--halo-surface));
+}
+.mw-editorial-intro > .halo-editorial-scene { position:absolute; inset:0; height:100%; z-index:-2; }
+.mw-editorial-intro::after {
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(90deg,light-dark(#ecf5f5eb,#082030ee),light-dark(#ecf5f5a8,#08203099) 53%,transparent);
+}
+.halo-f-app .mw-editorial-intro h2 { max-width:100%; margin-bottom:0; }
+.mw-editorial-intro .mw-eyebrow { color:light-dark(#116567,#8ddacf); }
+.mw-outdoor-periods [data-period] {
+  --period-tint:light-dark(#37727f,#88cfdf);
+  position:relative; overflow:hidden; min-height:110px;
+  background:linear-gradient(150deg,color-mix(in srgb,var(--period-tint) 13%,var(--halo-surface)),var(--halo-surface));
+  border-color:color-mix(in srgb,var(--period-tint) 30%,var(--halo-border));
+}
+.mw-outdoor-periods [data-period="afternoon"] { --period-tint:light-dark(#597b46,#bbd69e); }
+.mw-outdoor-periods [data-period="evening"] { --period-tint:light-dark(#686293,#bdb5de); }
+.mw-outdoor-periods [data-period] > svg { color:var(--period-tint); margin-bottom:4px; }
+.mw-outdoor-periods [data-period][aria-pressed="true"] { box-shadow:inset 0 -3px var(--period-tint); border-color:var(--period-tint); }
+.halo-f-app[data-contrast="high"] .mw-editorial-intro { min-height:0; padding:10px 0; }
+.halo-f-app[data-contrast="high"] .mw-editorial-intro::after { display:none; }
+@media(forced-colors:active) {
+  .halo-f-app[data-refined="true"] .mw-editorial-intro { min-height:0; padding:10px 0; }
+  .mw-editorial-intro::after { display:none; }
+  .mw-outdoor-periods [data-period][aria-pressed="true"] { outline:2px solid Highlight; }
+}

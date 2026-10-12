@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 
 test('landscapes load on demand, retain the agenda and have touch-size controls', async ({ page }) => {
   const requested: string[] = [];
-  page.on('request', request => { if (/week-(?:lake|coast|forest)\.webp/.test(request.url())) requested.push(request.url()); });
+  page.on('request', request => { if (/week-(?:lake|coast|forest|meadow|cove)\.webp/.test(request.url())) requested.push(request.url()); });
   await page.goto(root.replace('tab=plan', 'tab=today'));
   expect(requested).toHaveLength(0);
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week', exact: true }).click();
@@ -56,7 +56,7 @@ test('rapid manual scene changes retain only useful layers and dissolve cached s
   await page.goto(root);
   const scene = page.locator('.mw-ambience');
   await expect(scene).toHaveAttribute('data-moving', 'true');
-  for (const name of ['coast', 'forest', 'lake', 'coast']) {
+  for (const name of ['coast', 'forest', 'meadow', 'cove', 'lake', 'coast']) {
     await page.getByRole('button', { name: 'Next landscape', exact: true }).click();
     await expect(scene).toHaveAttribute('data-scene', name);
     const layer = scene.locator(`.mw-ambience-layer[data-landscape=${name}]`);
@@ -68,7 +68,7 @@ test('rapid manual scene changes retain only useful layers and dissolve cached s
   expect(errors).toEqual([]);
 });
 
-test('two-minute scene dwell pauses offscreen and when the document is hidden', async ({ page }) => {
+test('thirty-second scene dwell pauses offscreen and when the document is hidden', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.clock.install();
   await page.goto(root);
@@ -76,17 +76,17 @@ test('two-minute scene dwell pauses offscreen and when the document is hidden', 
   await expect(scene).toHaveAttribute('data-rotation', 'true');
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
   await expect(scene).toHaveAttribute('data-moving', 'false');
-  await page.clock.fastForward(125_000);
+  await page.clock.fastForward(35_000);
   await expect(scene).toHaveAttribute('data-scene', 'lake');
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); });
   await expect(scene).toHaveAttribute('data-moving', 'true');
   await page.locator('.mw-calendar-options').scrollIntoViewIfNeeded();
   await expect(scene).toHaveAttribute('data-moving', 'false');
-  await page.clock.fastForward(125_000);
+  await page.clock.fastForward(35_000);
   await expect(scene).toHaveAttribute('data-scene', 'lake');
   await scene.scrollIntoViewIfNeeded();
   await expect(scene).toHaveAttribute('data-rotation', 'true');
-  await page.clock.fastForward(121_000);
+  await page.clock.fastForward(31_000);
   await expect(scene).toHaveAttribute('data-scene', 'coast');
   await expect(scene.getByRole('status')).toBeEmpty();
 });

@@ -27,7 +27,7 @@ The checkpoint includes current app components, styling, public assets, tests, f
 
 ## Review and actual implementation
 
-Latest October12 review is Version47: My Week has three original animated environmental wallpapers, visible-time two-minute rotation and pause/next controls. Shared refined-app entrances and deeper-screen transitions accompany richer Today/Homeguard ambience. Read `docs/foundation/AMBIENT_MOTION_REVIEW.md` and the latest hosted receipt for verified scope and accessibility/performance limits. No production/backend integration or new screen approval is implied.
+Latest October12 visual refinement expands My Week to five original wallpapers rotating after30 seconds of eligible visible time. Below-fold Homeguard/Explore sections and deeper workflows have independently verified entrances; category-specific household art, four community topic scenes and compact Journal/outdoor scenes extend the visual library. Read `docs/foundation/VISUAL_MOTION_REVIEW.md` and the latest hosted receipt for exact publication/verification status. Shared motion retains stationary editors, restrained interactive feedback and device accessibility preferences. No production/backend integration or new screen approval is implied.
 
 The preceding Version46 supplies compact calendar-led My Week, shared sans typography, clearer controls, refined light/dark palettes and grouped Settings with explicit appearance/ambient preferences. Read `components/expanded/SETTINGS_ALERTS_REVIEW.md` for its verified scope. Saved appearance also applies when returning to the map through browser history, and decorative map texture respects the global ambient setting. This does not approve screens or connect backend services.
 

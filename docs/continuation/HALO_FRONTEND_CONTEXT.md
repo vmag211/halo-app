@@ -2,7 +2,7 @@
 
 ## People, purpose, and working style
 
-Latest delivered visual iteration is October12 Version47: original rotating environmental art and genuine layered water/mist/light movement on My Week, plus shared progressive interface choreography and richer existing-scene ambience. It retains the compact homepage, both themes, typography, task/calendar semantics and all approval/backend boundaries. Read `../foundation/AMBIENT_MOTION_REVIEW.md`, the asset manifest and current hosted receipt before continuing this visual direction.
+Latest October12 visual iteration broadens the prior ambience pass: five My Week landscapes,30-second visible-time rotation, independently revealed below-fold Homeguard/Explore/deeper sections, contextual household imagery, four differentiated community topic scenes, compact Journal/outdoor art and restrained hover/keyboard feedback. It retains the compact homepage, both themes, typography, task/calendar semantics and all approval/backend boundaries. New household/family artwork is gated away from live StageRuntime. Read `../foundation/VISUAL_MOTION_REVIEW.md`, `../foundation/VISUAL_LIBRARY_ASSETS.md` and the current hosted receipt for exact publication and verification status before continuing.
 
 Yogi is the sole frontend person. Vibhav handles backend work and integration. Older assignment tables and parallel lanes are superseded. Naggi needs concise product information for video/slide preparation, not ownership of frontend tasks.
 

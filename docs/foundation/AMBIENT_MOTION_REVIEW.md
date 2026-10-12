@@ -2,6 +2,8 @@
 
 October 12, 2026. Editable wireframe review only. This is not approval of new screens or production/backend delivery.
 
+The subsequent [visual-coverage refinement](VISUAL_MOTION_REVIEW.md) supersedes the three-scene/two-minute values below with five scenes and30-second eligible visible-time rotation. Other renderer/fallback semantics remain. The original three-asset provenance stays intact.
+
 ## Direction
 
 My Week gains an edge-to-edge environmental welcome scene instead of a separate wallpaper card. Three original landscapes keep HALO's blue, teal and sage palette: a dawn lake, coastal estuary and woodland stream. The calendar, task model, tab order, typography and mobile shell remain intact.

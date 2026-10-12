@@ -1,6 +1,23 @@
 # Hosted wireframe preservation reference
 
-## Current review: environmental wallpapers and shared motion, October 12, 2026
+## Current review: app-wide visual and motion coverage, October 12, 2026
+
+Version48 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. My Week now has five original environmental wallpapers, rotating after30 seconds of eligible visible time. Meadow and cove join the original three landscapes, with independently masked moving water and retained pause/next/fallback behavior.
+
+Shared motion reaches independent below-fold Homeguard/Explore sections, home workspaces, project/opportunity/note/outreach workflows, settings/alerts, dialogs/disclosures and map utilities. Legacy double entrances are suppressed from initial rendering; active editors remain completely stationary. Primary controls have finite sheen/edge feedback, linked arrows travel slightly, and two existing photo-led Explore buttons have photo-only hover/keyboard depth. New review-only household category scenes, four distinct community factor visuals and compact Journal/outdoor scenes add restrained sage/sky/lilac variety while retaining HALO's navy/teal and sans typography. Community artwork replaces rather than stacks when topics switch. No new backend behavior is implied.
+
+- Review: [coverage, reference principles and limits](../foundation/VISUAL_MOTION_REVIEW.md), [seven original asset prompts and provenance](../foundation/VISUAL_LIBRARY_ASSETS.md).
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_c42c5fb64bc481919855fb7a785bfe4b`.
+- Pushed isolated source: `c2533f30c03b8ac70dea3f9d74c9da2fe1f32073`.
+- Successful deployment: `appgdep_6acd6f0776f881919478517e634564d5` at `2026-10-12T23:36:47.162842+00:00`.
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-visual-motion-v48-20261012.tar.gz`.
+- Native archive content hash: `sha256:d7a8b7a11c0390aee9d9b9146e13f551c905102ef26b96df4524dac9b0df5874`.
+- Local tar-file SHA256: `465b55f4f28647c0d8dbfd79ad2f86d7cc62267d7c6b5a8d924d8a4522b28662`.
+- Verification:89 distinct final browser cases passed against the final rebuilt export:67 shared workflow/wallpaper/Journal/outdoor/Luna/map cases,15 interface-motion cases and7 editorial cases.251 logic checks, main TypeScript and isolated21-page static build passed.204 onboarding and146 foundation archive files verified unchanged. Read-only visual review covered the main pages, lower sections, Settings/Alerts and new household/community imagery in both themes, including320px/150% text. Screenshots and tests verify actual below-fold entrances, stationary active editors/map canvas, single community hero, loaded/frozen Canvas pixels,30-second visible-time rotation, five-image cycling, image failures, contrast/reduced-motion/data-saving/hidden/offscreen states and retained workflows.
+- During development, tests found and fixes removed a duplicate React key that stacked topic art, a focused-editor entrance race and a competing legacy calendar fade. The timer test was adjusted to avoid asserting an exact boundary after previously accumulated visible time. All final runs passed without changing runtime behavior to satisfy the timer test.
+- Limits: desktop Chromium mobile emulation, not physical-phone/Safari/GPU/battery certification. Source imagery is1536x1024 with animated layers, not4K video or verified user locations. Live StageRuntime household rendering, production routes, source/safety qualifications, existing backend ownership and deferred Vibhav integration gates remain. Only isolated Site source was pushed; this publication is not screen approval.
+
+## Earlier review: environmental wallpapers and shared motion, October 12, 2026
 
 Version47 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. My Week now opens with an integrated full-width landscape. Three original generated assets, dawn lake, coastal estuary and woodland stream, rotate after two minutes of eligible visible time. Independently masked Canvas water, mist, light and reeds genuinely move; source mountains/banks and functional text stay stable. Pause/resume, Next landscape and the existing Settings ambient switch control motion. These are1536px source layers, not4K videos or live environmental observations.
 
