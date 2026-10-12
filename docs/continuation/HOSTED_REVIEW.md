@@ -1,6 +1,17 @@
 # Hosted wireframe preservation reference
 
-## Current review: Shorter workspace copy and consolidated actions, October 11, 2026
+## Current review: One compact Homeguard workspace feature, October 11, 2026
+
+Version36 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The default workspace is one primary panel with four whole-row entrances, short status lines, no repeated Open buttons, Add for creation and one Quick access disclosure. Exact current-record links, independently recorded milestones, maintenance observations, all food branches, garden continuation and My Week remain under that disclosure. Each main row opens its full workspace, including private summary selection. No deeper flow, score, approved core ordering or backend behavior changed.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_25e2507c02a081919ca90005a258cd8c`.
+- Source: `9a95a45081a7a9b6dbe0f8a14384114d7d3542b1`.
+- Successful deployment: `appgdep_6acc387f1d008191bdd70e38cc96aeab` at `2026-10-12T01:31:51.387471+00:00` (October11 in America/New_York).
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-home-workspace-four-rows-20261011.tar.gz`.
+- Archive hash: `sha256:10f3e2ce9ac589d50d01a00b7cc15027edc3e2cc90270bd8f0c31ac3df71bd9a`.
+- Verification:19 distinct browser checks validated across passes. The broad run passed17; two old scroll-position expectations assumed a panel taller than the viewport. Assertions now account for the short end-of-page panel remaining wholly visible, and all five overview tests passed against unchanged packaged source. Coverage includes16 exact entry routes, four primary rows, initially closed Quick access, native Add actions with44px targets, truthful stages and dates, count changes, error/empty/offline, both appearances and320px/150% without horizontal overflow. Default375px panel height is under420px. Normal/enlarged screenshots inspected. Main TypeScript, isolated21-page build and204 onboarding plus146 immutable foundation checks passed. API/provider calls remain blocked, no baseline was replaced and no new live integration or approval is implied. Only isolated Site source was pushed; the main repo is a local checkpoint.
+
+## Earlier review: Shorter workspace copy and consolidated actions, October 11, 2026
 
 Version35 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The primary workspace now has no subtitle, shorter Tests/Home care/Summary headings, compact counts and food labels, and one Add disclosure instead of repeated creation rows. The four creation actions and all exact current-record destinations remain. Stages retains independently recorded milestones; full dates, counts, garden continuation, private summary and My Week remain accessible. Approved core ordering and deeper workspaces are unchanged.
 

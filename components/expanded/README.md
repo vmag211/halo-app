@@ -89,4 +89,6 @@ Future review changes follow the hosted-update instruction in `docs/WIREFRAME_WO
 
 ## Compact home overview copy, October 11
 
+The latest revision supersedes the always-expanded snapshot below: one primary frame contains four whole-row links with a short status each. Add retains creation routes; Quick access retains current-record continuation, independently recorded milestones, maintenance records, food branches, the exact garden and My Week. Default375px height is below420px, while enlarged text remains readable. All deeper features stay intact, without new account writes or backend integration.
+
 Your home workspace keeps its single primary panel but removes the subtitle and repeated creation rows. Tests, Home care and Summary use short visible headings. The Add disclosure retains Plan a test, Add a report, Add routine and Record moisture. Compact food labels preserve named accessible destinations, and counts, exact records, full dates, recorded stages, garden continuation, Summary and My Week remain. This is an editable presentation review only; no backend or approved core behavior changed.

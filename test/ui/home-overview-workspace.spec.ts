@@ -17,29 +17,38 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     const workspace = page.locator('#home-workspace');
     await expect(workspace).toContainText('1 active');
     await expect(workspace).toContainText('3 reports');
+    await expect(workspace.locator('.how-shortcuts')).not.toHaveAttribute('open', '');
+    await expect(workspace.locator('.how-overview-row')).toHaveCount(4);
+    await workspace.locator('.how-shortcuts > summary').click();
     await workspace.locator('.how-stage-details > summary').click();
     await expect(page.getByRole('list', { name: /Recorded milestones/ })).toContainText('Not recorded');
     await expect(page.getByRole('list', { name: /Recorded milestones/ }).locator('[data-recorded="true"]')).toHaveCount(1);
     await workspace.locator('.how-stage-details > summary').click();
     await expect(workspace.locator('.how-stage-details')).not.toHaveAttribute('open','');
+    await workspace.locator('.how-shortcuts > summary').click();
     const house = await page.locator('.halo-home-household').boundingBox();
     const panel = await workspace.boundingBox();
     expect(panel!.y).toBeGreaterThan(house!.y + house!.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(workspace).not.toContainText('\u2014');
     if (width===375) {
-      expect((await workspace.boundingBox())!.height).toBeLessThan(1000);
-      await expect(workspace.getByRole('link',{name:'Open test records',exact:true})).toHaveText('Open');
-      await expect(workspace.locator('.how-food .how-action')).toHaveText('Open');
-      expect(await workspace.locator('#how-care-title').evaluate(node=>getComputedStyle(node).textAlign)).toBe('left');
+      expect((await workspace.boundingBox())!.height).toBeLessThan(420);
+      await expect(workspace.getByRole('link',{name:'Open test records',exact:true})).toContainText('Tests');
+      await expect(workspace.getByRole('link',{name:'Open Food and Garden',exact:true})).toContainText('Food and Garden');
     }
     await page.getByRole('link', { name: 'Open your home workspace' }).click();
     await expect(page).toHaveURL(/#home-workspace$/);
     await expect(workspace).toBeFocused();
     expect((await workspace.boundingBox())!.y).toBeGreaterThan(60);
-    expect((await workspace.boundingBox())!.y).toBeLessThan(110);
+    const jumped = (await workspace.boundingBox())!;
+    // A compact end-of-page panel cannot scroll to the top when it already fits.
+    expect(jumped.y).toBeLessThan(400);
+    if (width===375) expect(jumped.y + jumped.height).toBeLessThan(770);
     await page.screenshot({ path: info.outputPath(`workspace-top-${appearance}-${width}.png`) });
     await workspace.screenshot({ path: info.outputPath(`workspace-${appearance}-${width}.png`) });
+    await workspace.locator('.how-add-menu > summary').click();
+    await expect(workspace.getByRole('link', { name: 'Plan a test', exact:true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
   expect(errors).toEqual([]);
 });
@@ -66,6 +75,7 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     ['Create summary', 'summary', 'selection', ''],
   ]) {
     if (['Plan a test', 'Add a report', 'Add routine', 'Record moisture'].includes(name)) await workspace.locator('.how-add-menu > summary').click();
+    if (['Continue test', 'Kitchen filter upkeep', 'Window condensation', 'Your kitchen', 'Your gardens', 'Fish and waterways', 'Water stewardship', 'Continue with Back garden'].includes(name)) await workspace.locator('.how-shortcuts > summary').click();
     await workspace.getByRole('link', { name: new RegExp(`^${name}`) }).click();
     await expect(page.locator('.hg-workspace')).toHaveAttribute('data-home-section', destination);
     const query = new URL(page.url()).searchParams;
@@ -79,6 +89,7 @@ test('overview opens the exact records and all four feature areas', async ({ pag
 test('overview groups home care without duplicating continuation or hiding entrances', async ({ page }) => {
   await page.goto(home);
   const workspace = page.locator('#home-workspace');
+  await workspace.locator('.how-shortcuts > summary').click();
   const care = workspace.getByRole('region', { name: 'Records and home care', exact: true });
   await expect(care.getByRole('region', { name: 'Tests and records', exact: true })).toBeVisible();
   await expect(care.getByRole('region', { name: 'Maintenance and moisture', exact: true })).toBeVisible();
@@ -121,6 +132,7 @@ test('record creation updates the overview and review failures suppress counts',
   await expect(workspace).toContainText('2 active');
   await control.selectOption('empty');
   await expect(workspace).toContainText('0 active');
+  await workspace.locator('.how-shortcuts > summary').click();
   await expect(workspace.getByRole('link', { name: 'Continue test' })).toHaveCount(0);
   await expect(workspace).toContainText('Add food');
   await page.getByRole('button', { name: 'Reset Homeguard sample records' }).click();

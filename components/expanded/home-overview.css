@@ -164,3 +164,27 @@
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-heading { flex-wrap:wrap; }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-heading h2 { flex-basis:100%; }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-add-menu { margin-left: auto; }
+
+/* One compact feature entrance. Detailed shortcuts are optional, not another dashboard. */
+.how-overview { display:grid; }
+.halo-home-workspace .how-overview-row { --how-accent:var(--halo-primary); display:flex; align-items:center; gap:12px; min-width:0; min-height:66px; padding:10px 0; border:0; border-bottom:1px solid var(--halo-border); color:var(--halo-ink); text-decoration:none; }
+.halo-home-workspace .how-overview-row.how-tests { --how-accent:light-dark(#246794,#8cc9ef); }
+.halo-home-workspace .how-overview-row.how-food { --how-accent:light-dark(#397344,#a1d6ac); }
+.halo-home-workspace .how-overview-row.how-summary { --how-accent:light-dark(#615982,#c5b8e6); }
+.how-overview-row > span { flex:1; min-width:0; }
+.how-overview-row strong { display:block; font-size:calc(.94rem * var(--halo-text-scale)); font-weight:650; line-height:1.4; }
+.how-overview-row > svg { color:var(--how-accent); flex-shrink:0; }
+.how-overview-row > svg:last-child { color:var(--halo-secondary); }
+.how-overview-row:hover { background:color-mix(in srgb,var(--halo-primary) 5%,transparent); }
+.halo-home-workspace .how-shortcuts { border:0; border-radius:0; padding:0; background:none; min-width:0; }
+.how-shortcuts > summary { display:flex; align-items:center; justify-content:space-between; min-height:44px; gap:8px; color:var(--halo-secondary); font-size:calc(.78rem * var(--halo-text-scale)); cursor:pointer; }
+.how-shortcuts > summary::marker { content:''; }
+.how-shortcuts[open] > summary svg { transform:rotate(90deg); }
+.how-shortcuts > summary:focus-visible { outline:2px solid var(--halo-primary); outline-offset:2px; }
+.halo-home-workspace .how-shortcuts .how-modules { grid-template-columns:1fr; gap:0; }
+.halo-home-workspace .how-shortcuts .how-workbench { grid-row:auto; }
+.halo-home-workspace .how-shortcuts .how-module-heading { grid-template-columns:23px minmax(0,1fr); }
+.halo-home-workspace .how-shortcuts .how-continue { padding-left:0; }
+.halo-home-workspace .how-shortcuts .how-module-heading h3 { font-size:calc(.85rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-heading { padding-bottom:4px; }
+.halo-f-app[data-contrast="high"] .how-overview-row { --how-accent:var(--halo-ink); }

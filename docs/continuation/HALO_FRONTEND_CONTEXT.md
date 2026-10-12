@@ -20,6 +20,8 @@ The short Google Doc for Naggi is an overview, not the development specification
 
 ## Navigation and product organization
 
+Latest workspace structure: one compact primary Homeguard panel now has four whole-row feature entrances and one short status per row. Add groups creation. Quick access holds exact current-test/routine/moisture/garden links, independently recorded milestones, food branches and My Week, rather than showing stacked mini-dashboards by default. All deeper workflows remain, and the approved core order and backend/review boundaries are unchanged. See the current hosted receipt.
+
 Latest home quick-view refinement condenses the below-the-house workspace while retaining all four sections, current records, truthful milestones, counts and creation/summary/My Week routes. Headings are left aligned, section links have short visible labels and explicit accessible names, and compact dates retain their original full date. This is editable overview presentation only; see the latest hosted receipt.
 
 Latest October 11 visuals: project refresh/guide covers now select activity-matched real photography from12 reviewed local assets. Credits and reuse licenses remain available; photos are context, not exact builds or current listings. All editable Your home workspace destinations have task-specific artwork and flatter layouts, with a compact selector/back navigation, illustrated Food and Garden rows and a responsive selected-report outline. Existing record fields/history, exact result qualifiers, failure/confirmation/privacy and canonical Plan/export flows remain. Kitchen photos remain absent. See `components/homeguard/README.md`, current Explore review and hosted receipt. This is not approval or live backend integration.

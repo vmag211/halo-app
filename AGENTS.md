@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- Latest compact workspace structure supersedes the always-expanded overview: present one primary Homeguard panel with four whole-row entrances, each with a brief truthful status, and no repeated Open labels. Keep Add for creation and one Quick access disclosure for exact current records, factual milestones, food branches and My Week. Deeper workspaces and all16 entry routes remain intact. Do not restore the tall stacked mini-dashboards; approved core ordering and backend/review boundaries are unchanged.
+
 - Latest workspace copy refinement: shorten the overview's visible labels to Tests, Home care and Summary; remove the subtitle and repeated creation footers. Keep the four existing creation routes together under one Add disclosure. All records, counts, full dates, factual stages, deeper feature flows and approved core ordering remain accessible. This is review-only presentation, not a backend or approval change.
 
 - Latest primary-workspace direction: compress the below-the-house overview into one prominent Homeguard feature panel. Nest current-test continuation inside Tests and records; keep status visible and put independently recorded milestones behind a small Recorded stages disclosure. Preserve every workspace/action route and current-record target, readability, full dates, approved core ordering and review boundaries. Do not restore a separate tall continuation dashboard.
