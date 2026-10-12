@@ -77,3 +77,27 @@
 @keyframes halo-canopy { from { transform:scale(1.11) translate3d(-1.8%,0,0) rotate(-.25deg); } to { transform:scale(1.13) translate3d(1.8%,.5%,0) rotate(.25deg); } }
 @keyframes halo-water-camera { from { transform:scale(1.09) translate3d(-1%,0,0); } to { transform:scale(1.14) translate3d(1%,-1%,0); } }
 
+/* Separate layers move at independent depths. These are scenic lighting, not data. */
+.halo-env__atmosphere,.halo-env__canopy-light,.halo-env__water-light { display:none; position:absolute; pointer-events:none; }
+.halo-f-app[data-refined=true] :is(.halo-env__atmosphere,.halo-env__canopy-light,.halo-env__water-light) { display:block; }
+.halo-env__atmosphere { inset:0; overflow:hidden; }
+.halo-env__atmosphere i { position:absolute; inset:32% -26% 0; background:radial-gradient(ellipse at 28% 56%,#b9dce331,transparent 58%),radial-gradient(ellipse at 72% 38%,#dcebe01a,transparent 52%); opacity:.65; --scene-animation:halo-depth-haze 29s ease-in-out infinite alternate; animation:var(--scene-animation); }
+.halo-env__atmosphere i + i { inset:3% -35% 31%; background:radial-gradient(ellipse at 66% 36%,#c6e2ea24,transparent 49%); --scene-animation:halo-depth-haze 41s ease-in-out -13s infinite alternate-reverse; animation:var(--scene-animation); }
+.halo-env--page .halo-env__atmosphere i { inset:0 -20%; background:radial-gradient(ellipse at 14% 30%,light-dark(#a9d9cb29,#549fb61f),transparent 52%),radial-gradient(ellipse at 86% 72%,light-dark(#a7cadc24,#7799b41a),transparent 44%); opacity:.8; }
+.halo-env--page .halo-env__atmosphere i + i { background:radial-gradient(ellipse at 77% 38%,light-dark(#badfcb28,#62978818),transparent 48%); }
+.halo-env__canopy-light { inset:-12%; transform-origin:20% 5%; background:radial-gradient(ellipse at 14% 21%,#081e303c,transparent 19%),radial-gradient(ellipse at 33% 13%,#b4d8ba1c,transparent 25%),radial-gradient(ellipse at 69% 30%,#09263824,transparent 23%),radial-gradient(ellipse at 46% 74%,#e5efcc19,transparent 26%); --scene-animation:halo-canopy-light 13s ease-in-out infinite alternate; animation:var(--scene-animation); }
+.halo-env--home .halo-env__canopy-light,.halo-env--lead .halo-env__canopy-light,.halo-env--radon .halo-env__canopy-light { opacity:.6; --scene-animation:halo-canopy-light 17s ease-in-out -4s infinite alternate; }
+.halo-env__water-light { inset:65% 5% 5%; overflow:hidden; mask-image:linear-gradient(transparent,#000 22%,#000 65%,transparent); }
+.halo-env__water-light i { position:absolute; left:10%; top:22%; width:67%; height:2px; border-radius:50%; background:linear-gradient(90deg,transparent,#e8f8e78c 40%,transparent); opacity:.35; --scene-animation:halo-water-shimmer 6s ease-in-out infinite alternate; animation:var(--scene-animation); }
+.halo-env__water-light i:nth-child(2) { left:40%; top:51%; width:45%; --scene-animation:halo-water-shimmer 8s ease-in-out -3s infinite alternate-reverse; }
+.halo-env__water-light i:nth-child(3) { left:19%; top:78%; width:38%; --scene-animation:halo-water-shimmer 7s ease-in-out -5s infinite alternate; }
+.halo-env--pfas .halo-env__water-light { inset:48% 3% 5%; opacity:.6; }
+@keyframes halo-depth-haze { from { transform:translate3d(-3%,2%,0) scale(1); opacity:.4; } to { transform:translate3d(5%,-2%,0) scale(1.06); opacity:.85; } }
+@keyframes halo-canopy-light { from { transform:translate3d(-2%,0,0) rotate(-1deg); opacity:.5; } to { transform:translate3d(2%,1%,0) rotate(1deg); opacity:.8; } }
+@keyframes halo-water-shimmer { from { transform:translate3d(-6px,1px,0) scaleX(.86); opacity:.12; } to { transform:translate3d(9px,-2px,0) scaleX(1.15); opacity:.5; } }
+@media(prefers-reduced-motion:reduce) {
+  .halo-f-app[data-refined=true] .halo-env *,
+  .halo-f-app[data-refined=true][data-motion="full"][data-animate="true"] .halo-env * { animation-play-state:paused !important; }
+}
+.halo-f-app[data-refined=true][data-contrast=high] :is(.halo-env__atmosphere,.halo-env__canopy-light,.halo-env__water-light) { display:none; animation-play-state:paused !important; }
+

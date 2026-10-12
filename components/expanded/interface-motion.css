@@ -1,0 +1,43 @@
+/* Motion is a progressive enhancement. There is no waiting opacity or hidden UI. */
+.halo-f-app[data-refined=true][data-interface-motion=on] {
+  --halo-motion-quick:160ms;
+  --halo-motion-ease:cubic-bezier(.2,.75,.2,1);
+}
+/* WAAPI owns these entrances; cancel legacy sheet entrance to avoid double travel. */
+.halo-f-app[data-refined=true][data-interface-motion=on] .halo-f-sheet {
+  animation:none;
+}
+/* Retain ownership after the entrance, so old CSS entrances cannot restart. */
+.halo-f-app[data-refined=true] [data-interface-managed=true] { animation:none !important; }
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(
+  .mw-add,.mw-primary,.mw-icon,.mw-text,.mw-task-open,.mw-weekly-open,
+  .hg-button,.hg-button-secondary,.hg-link,.ex-button,.ex-button-secondary,
+  .ex-text-button,.hp-primary,.hp-text,.hp-setting-row,.how-overview-row,
+  .halo-f-icon,.halo-f-tabs a,.mw-view-switch button,.ex-topic-tabs button,
+  .halo-map-utility button,.halo-map-layers button,.halo-map-detail button,.halo-map-district-handle
+) {
+  transition:background-color var(--halo-motion-quick) ease,border-color var(--halo-motion-quick) ease,
+    box-shadow var(--halo-motion-quick) ease,color var(--halo-motion-quick) ease,
+    translate var(--halo-motion-quick) var(--halo-motion-ease);
+}
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(
+  .mw-add,.mw-primary,.hg-button,.hg-button-secondary,.ex-button,.ex-button-secondary,.hp-primary
+):active:not(:disabled) { translate:0 1px; }
+.halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open) > svg:last-child {
+  transition:translate 200ms var(--halo-motion-ease);
+}
+@media (hover:hover) and (pointer:fine) {
+  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.hp-setting-row,.how-overview-row,.hg-link,.mw-task-open):hover > svg:last-child { translate:2px 0; }
+  .halo-f-app[data-refined=true][data-interface-motion=on] :is(.mw-add,.mw-primary,.hg-button,.ex-button,.hp-primary):hover:not(:disabled) {
+    box-shadow:0 4px 16px color-mix(in srgb,var(--halo-primary) 16%,transparent);
+  }
+}
+.halo-f-app[data-refined=true][data-interface-motion=on] details > summary > svg:last-child {
+  transition:rotate 200ms var(--halo-motion-ease);
+}
+/* No motion override can defeat a device's accessibility preference. */
+@media (prefers-reduced-motion:reduce), (forced-colors:active) {
+  .halo-f-app[data-refined=true] .halo-f-sheet { animation:none !important; transition:none !important; }
+  .halo-f-app[data-refined=true] [data-interface-entering] { animation:none !important; transform:none !important; }
+  .halo-f-app[data-refined=true][data-interface-motion=on] :is(button,a,summary,summary > svg) { transition:none !important; translate:none !important; }
+}

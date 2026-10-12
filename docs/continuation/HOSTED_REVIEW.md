@@ -1,6 +1,22 @@
 # Hosted wireframe preservation reference
 
-## Current review: interface, appearance and compact homepage, October 12, 2026
+## Current review: environmental wallpapers and shared motion, October 12, 2026
+
+Version47 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. My Week now opens with an integrated full-width landscape. Three original generated assets, dawn lake, coastal estuary and woodland stream, rotate after two minutes of eligible visible time. Independently masked Canvas water, mist, light and reeds genuinely move; source mountains/banks and functional text stay stable. Pause/resume, Next landscape and the existing Settings ambient switch control motion. These are1536px source layers, not4K videos or live environmental observations.
+
+The new shared motion system adds brief progressive entrances to meaningful main/deeper surfaces, dialogs, date popovers and disclosures, with responsive controls and no remounting of app state. Today/Homeguard/factor backgrounds have more depth haze, dappled light and water glints. New motion respects device reduction, forced colors and document visibility. Wallpaper additionally pauses offscreen, with higher contrast or data saving. Image failures retain the usable scene and allow subsequent choices; Canvas failures retain the photograph. Existing features,430px shell, light/dark styling, logo and approved archives remain.
+
+- Review details: [motion behavior and limits](../foundation/AMBIENT_MOTION_REVIEW.md), [original image prompts and provenance](../foundation/WEEK_AMBIENCE_ASSETS.md).
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_85a6233082788191862a007b80783837`.
+- Pushed isolated source: `9adb3bcd9727fbffb31035a01ce10cd257bb6bbd`.
+- Successful deployment: `appgdep_6acd640309c881919aeaa731ad45fe24` at `2026-10-12T22:49:47.824374+00:00`.
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-ambient-motion-20261012.tar.gz`.
+- Native archive content hash: `sha256:c29f805d727afd6204806d029159408871408d99a31c05f5f3b1a1b448ed8486`.
+- Local tar-file SHA256: `378d06aa87949cd4b2919c4f3189ede39335b0bc486b9247b43bf5c14bdf95c2`.
+- Verification:81 distinct browser cases covered by scoped passing runs:64 existing scenarios plus11 wallpaper and6 interface-motion cases. The first64-case run passed56 and caught a wallpaper gutter overflow, one ambiguous status selector after adding landscape announcements, one obsolete assertion for a deliberately omitted empty shelf, and a transient Explore-width check. Gutter fixed; selectors preserve their semantic assertions. The complete34-case follow-up passed, including all initially failing scenarios. All17 new motion cases then passed against the final export.251 logic checks passed (248 existing plus3 new), main TypeScript and isolated21-page static build passed.204 onboarding and146 foundation archive files verified unchanged. Visual checks cover light/dark landscapes,320px/150% and390/768/1440px layouts. New tests verify actual moving/frozen Canvas pixels, cached-image fade opacity, visible-time rotation, failed/stalled assets, reduced-motion overrides, retained forms and stationary map canvas.
+- Limits: desktop Chromium mobile emulation, not physical-phone/Safari/GPU/battery certification. A scene request already in flight can settle to a static image after pause; continuous rendering/rotation remain stopped. Backend services, durable settings, actual AI generation at runtime, real opportunity/contact retrieval, email, reminders and production-route delivery are unchanged. Vibhav owns the deferred integration handoff. Only isolated Site source was pushed; new screen approval is still required.
+
+## Earlier review: interface, appearance and compact homepage, October 12, 2026
 
 Version46 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The editable app now uses its existing sans fonts rather than decorative serif headings. White/pale-blue light surfaces and restrained sky, sage and lilac accents complement the navy/teal dark theme. Shared primary and secondary actions have clearer surfaces and focus feedback. Existing photography, source meanings, all main/deeper routes, the430px mobile shell and immutable approved archives remain.
 

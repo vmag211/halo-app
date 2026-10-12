@@ -8,6 +8,7 @@ import { BottomSheet, Callout } from '@/components/ui/Foundation';
 import Button from '@/components/ui/Button';
 import SeverityPill from '@/components/ui/SeverityPill';
 import { SceneProvider, useSceneExperience } from '@/components/foundation/SceneExperience';
+import InterfaceMotion from '@/components/expanded/InterfaceMotion';
 import ExpandedLunaPreview from '@/components/expanded/ExpandedLunaPreview';
 import { useRouter } from 'next/navigation';
 import LunaMark from '@/components/foundation/LunaMark';
@@ -200,7 +201,8 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
   const countN=layer==='water'?water.length:points.length;
   const inView=blocked||loading||current==='empty'?[]:points.filter(p=>visibleIds.includes(p.id));
   const results:MapResult[]=layer==='water'?visibleWater.map(w=>({id:w.pwsid,name:w.name,severity:waterSeverity(w,compound),reading:`${waterMapReading(w,compound)} · ${readingDate(waterSampleDate(w,compound))}`,sub:w.lat===null||w.lng===null?'No mapped location':w.pwsid===sampleHome.pwsid&&hasHome?'Your water system':'Service-area center',lat:w.lat,lng:w.lng})):points.map(p=>({id:p.id,name:p.name,severity:p.severity,reading:layer==='air'?`${airStations.find(a=>a.id===p.id)?.aqi ?? 'Unknown'} AQI · ${observationTime(airStations.find(a=>a.id===p.id)?.last_reading_at)}`:layer==='facilities'?`Last inspection: ${readingDate(facilities.find(f=>f.id===p.id)?.last_inspection)}`:'Regional potential, not a home reading',sub:layer==='radon'?`Zone ${p.zone}`:layer==='air'?'Monitoring station':'Selected facility',lat:p.lat,lng:p.lng}));
-  return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-refined="true" data-wide="true" data-motion={motion?'reduce':'system'} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
+  return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-refined="true" data-wide="true" data-motion={motion?'reduce':'system'} data-animate={experience.enabled} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
+    <InterfaceMotion />
     <header className="halo-map-header"><div className="halo-map-header-left"><Link className="halo-f-icon" aria-label="Back to Explore" href={foundationHref('act')} prefetch={false}><ArrowLeft size={21}/></Link>{!sheet&&<button className="halo-map-luna" aria-label="Open Luna" onClick={()=>openSheet({kind:'assistant'})}><LunaMark size={25}/></button>}</div><div><h1>Map</h1><p>Within Explore</p></div><div className="halo-map-header-tools"><button className="halo-f-icon" aria-label="About this map" onClick={()=>openSheet({kind:'about'})}><Info size={21}/></button><Link href={foundationHref('settings')} className="halo-f-icon" aria-label="Settings" prefetch={false}><Settings size={21}/></Link></div></header>
     {offline&&<div className="halo-map-offline" role="status"><WifiOff size={16}/><span>{noSaved?'This layer is not saved on this device.':'Showing saved map data from Oct 1, 2026.'}</span>{<button onClick={retry}>Try again</button>}</div>}
     <main aria-label="Environmental map" className="halo-map-main">

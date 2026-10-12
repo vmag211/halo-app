@@ -2,6 +2,8 @@
 
 ## People, purpose, and working style
 
+Latest delivered visual iteration is October12 Version47: original rotating environmental art and genuine layered water/mist/light movement on My Week, plus shared progressive interface choreography and richer existing-scene ambience. It retains the compact homepage, both themes, typography, task/calendar semantics and all approval/backend boundaries. Read `../foundation/AMBIENT_MOTION_REVIEW.md`, the asset manifest and current hosted receipt before continuing this visual direction.
+
 Yogi is the sole frontend person. Vibhav handles backend work and integration. Older assignment tables and parallel lanes are superseded. Naggi needs concise product information for video/slide preparation, not ownership of frontend tasks.
 
 HALO helps households understand environmental evidence, choose practical actions, and follow through. The expanded app preserves the useful original capabilities while adding home records, food/garden context, conservation action and planning. Technical depth means usable functions, trustworthy source context, and connected actions, without crowded screens or unnecessary complexity.

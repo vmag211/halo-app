@@ -9,7 +9,7 @@ const photos: Record<EnvironmentalVariant, string> = { landscape: 'personal-hero
 
 /** Decorative atmosphere, never a visualization of measured contamination. */
 export default function EnvironmentalScene({ variant = 'landscape', page = false }: { variant?: EnvironmentalVariant; page?: boolean }) {
-  const { clock, motion } = useSceneExperience();
+  const { clock, motion, deviceReduced } = useSceneExperience();
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(true);
   const [activeTab, setActiveTab] = useState(true);
@@ -22,7 +22,7 @@ export default function EnvironmentalScene({ variant = 'landscape', page = false
   }, []);
   const style = { '--scene-image': `url('/preview-scenes/${photos[variant]}.webp')`, '--daylight': clock.daylight, '--night': 1 - clock.daylight, '--warmth': clock.warmth } as CSSProperties;
   const sky = ['landscape', 'air', 'uv', 'pollen', 'pfas'].includes(variant);
-  return <div ref={ref} className={`halo-env halo-env--${variant}${page ? ' halo-env--page' : ''}`} data-phase={clock.phase} data-moving={motion && visible && activeTab} aria-hidden="true" style={style}>
+  return <div ref={ref} className={`halo-env halo-env--${variant}${page ? ' halo-env--page' : ''}`} data-phase={clock.phase} data-moving={motion && !deviceReduced && visible && activeTab} aria-hidden="true" style={style}>
     <div className="halo-env__photo" />
     {!page && <><div className="halo-env__night" /><div className="halo-env__warmth" />
       {sky && <><div className="halo-env__sun" /><div className="halo-env__moon" /><div className="halo-env__stars" />
@@ -33,6 +33,9 @@ export default function EnvironmentalScene({ variant = 'landscape', page = false
       {['mold', 'air'].includes(variant) && <div className="halo-env__mist" />}
       {['home', 'lead', 'radon', 'uv'].includes(variant) && <div className="halo-env__window-light" />}
     </>}
+    {(page || sky || variant === 'mold') && <div className="halo-env__atmosphere"><i /><i /></div>}
+    {!page && ['landscape', 'home', 'lead', 'radon', 'pollen', 'uv'].includes(variant) && <div className="halo-env__canopy-light" />}
+    {!page && ['landscape', 'pfas'].includes(variant) && <div className="halo-env__water-light"><i /><i /><i /></div>}
     <div className="halo-env__particles">{Array.from({ length: page ? 9 : 18 }, (_, i) => <i key={i} style={{ '--x': `${(i * 47 + 7) % 100}%`, '--y': `${(i * 31 + 19) % 100}%`, '--duration': `${12 + i % 7 * 2}s`, '--delay': `${-i * 1.7}s`, '--size': `${1.5 + (i % 4) * .6}px` } as CSSProperties} />)}</div>
     {!page && <div className="halo-env__veil" />}
   </div>;

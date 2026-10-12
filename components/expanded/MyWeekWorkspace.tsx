@@ -24,7 +24,8 @@ import {WeekPlanningReviewControls} from './WeekUpdates';
 import HomepageHub from './HomepageHub';
 import WeekConnectedExamples from './WeekConnectedExamples';
 import WeekDashboardSummary from './WeekDashboardSummary';
-import WeekDashboardOverview, {WeekToolVisual,DashboardWelcomeArt} from './WeekDashboardOverview';
+import WeekDashboardOverview, {WeekToolVisual} from './WeekDashboardOverview';
+import WeekAmbience from './WeekAmbience';
 import {dashboardKinds, weekDashboard} from '@/lib/frontend/week-dashboard';
 import './my-week.css';
 import './week-dashboard.css';
@@ -92,7 +93,7 @@ export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}
   if(destination==='journal'||destination==='patterns'||destination==='recap')return <WeekJournal href={href} initialView={destination}/>;
   if(destination==='outdoors')return <WeekOutdoors href={href}/>;
   return <section className="mw-workspace mw-dashboard" aria-label="My Week workspace">
-    {!unavailable&&<header className="mw-welcome"><time dateTime={today}>{dayLabel(today,{weekday:"long",month:"long",day:"numeric"})}</time><h2>Your day</h2><DashboardWelcomeArt/></header>}
+    {!unavailable&&<WeekAmbience><header className="mw-welcome"><time dateTime={today}>{dayLabel(today,{weekday:"long",month:"long",day:"numeric"})}</time><h2>Your day</h2></header></WeekAmbience>}
     {notice&&<p role="status" className="mw-feedback">{notice}</p>}{workspace.scenario==='offline'&&<p className="mw-feedback">Offline. Reconnect to save changes.</p>}
     {['loading','error'].includes(workspace.scenario)?<div className="mw-empty" role="status">{workspace.scenario==='loading'?'Loading your week...':'Your week could not load.'}<button onClick={()=>workspace.setScenario('ready')}>Try again</button></div>:<>
     <div className="mw-dashboard-layout"><div className="mw-dashboard-main">

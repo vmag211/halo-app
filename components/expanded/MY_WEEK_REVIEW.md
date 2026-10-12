@@ -2,7 +2,11 @@
 
 This is the P01-P06 working review with the October12 dashboard, mobile-shell and final-app presentation refinements, not approval or production integration. It replaces the old agenda outline only in the expanded preview. Approved archives, production routes and backend remain unchanged; the current editable Homeguard order and shared app copy follow Yogi's newest directions.
 
-## Latest October12 refinement: a calmer homepage
+## Latest October12 refinement: environmental ambience
+
+The homepage adds a full-width original landscape above the unchanged calendar, with independently moving water, mist, light and reeds. Three scenes rotate after two minutes of visible active time, with pause and next controls. Shared progressive page/sheet/disclosure motion keeps controls and form state usable. Existing theme and ambient Settings apply; device reduction, hidden/offscreen suspension, contrast and data-saving safeguards are verified. Read [the motion review](../../docs/foundation/AMBIENT_MOTION_REVIEW.md) and [asset manifest](../../docs/foundation/WEEK_AMBIENCE_ASSETS.md). This is frontend scenery, not live conditions or runtime AI image generation. Version47 and full verification are in the hosted receipt.
+
+## Earlier October12 refinement: a calmer homepage
 
 Yogi requested less clutter and fewer prominent statistics, clearer interactive controls, more visual variety within HALO's blue/teal identity, and removal of the decorative serif treatment. This supersedes earlier Fraunces styling for the editable homepage. Instrument Sans headings and existing numeric typography accompany restrained sky and sage accents in both appearances. The same centered430px shell and all underlying workflows remain.
 
