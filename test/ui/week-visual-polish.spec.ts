@@ -14,12 +14,12 @@ async function examples(page: Page) {
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
 }
 
-for (const appearance of ['light', 'dark']) test(`fieldbook dashboard remains compact and useful in ${appearance}`, async ({ page }, info) => {
+for (const appearance of ['light', 'dark']) test(`calendar canvas dashboard remains compact and useful in ${appearance}`, async ({ page }, info) => {
   for (const [width, scale] of [[375, 100], [320, 150], [1920, 100]]) {
     await page.setViewportSize({ width, height: 950 });
     await page.goto(`${root}&appearance=${appearance}&scale=${scale}`);
     await examples(page);
-    await expect(page.locator('.mw-fieldbook')).toBeVisible();
+    await expect(page.locator('.mw-board-month')).toBeVisible();
     await expect(page.locator('.mw-agenda .ex-photo-solar')).toBeVisible();
     await expect(page.locator('.mw-time-track')).toContainText('9:00');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

@@ -71,7 +71,7 @@ test('planned follow-up save, edit, status, deduplication and return are one in-
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
-  await expect(page.getByRole('heading', { name: 'Room for what matters.' })).toBeVisible();
+  await expect(page.locator('.mw-board-month')).toBeVisible();
   await page.getByLabel('Choose a day').fill('2026-10-04');
   await expect(page.locator('.mw-agenda .mw-task:visible, .mw-shelf .mw-task:visible')).toHaveCount(1);
   await page.locator('.mw-task-open').filter({ hasText: 'Review the kitchen filter schedule' }).first().click();

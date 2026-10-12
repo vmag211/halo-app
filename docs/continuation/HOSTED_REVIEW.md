@@ -1,6 +1,22 @@
 # Hosted wireframe preservation reference
 
-## Current review: final-app copy, Homeguard order and shared calendars, October 12, 2026
+## Current review: My Week calendar canvas and connected activity dashboard, October 12, 2026
+
+Version42 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. My Week now leads with a warm full-bleed calendar, oversized month, grouped view/period controls, factual plan/done/linked-date counts and activity-color filters. A distinct selected-day timeline includes original linked dates; paired planning tools, photo-led ongoing work, a saved-idea shelf and compact weekly utilities retain the430px mobile shell. Luna moves into this overview's sticky header without changing its conversation, logo or motion. Other main tabs keep their styling and all existing calendar/task/record/Journal/Patterns/season/outdoor/reminder/export/weekly-review flows remain.
+
+Planned-effort detail counts explicit estimates or valid timed durations, retains unknown effort and splits overnight plans at actual display-zone day boundaries. Overlapping effort is additive, not a free/busy or measured-time claim. Saved ideas gain a Schedule entrance to the existing captured-revision Move review; only confirmed Save changes the same canonical action. Cancel, Back, offline and conflicts retain the unscheduled original. Read `components/expanded/MY_WEEK_REVIEW.md` for precise behavior and contracts.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_68ed60f8a51881919a9be8e54a375247`.
+- Source: `d7354e197882da01c99d9b64b2847765892f4901`.
+- Successful deployment: `appgdep_6accd9c4c0588191aeb35056977a9b84` at `2026-10-12T12:59:56.829788+00:00`.
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-week-calendar-canvas-20261012.tar.gz`.
+- Stored archive content hash returned by Sites: `sha256:16f27173a20edd19c4f467c1e3a996e78f913090778b03350fd71a2b943e0c78`.
+- Local tar-file SHA256: `85dcb2a8d819ac8e9565e8eb4303a81cffb949aee64f152002127e3b5dff8f40`.
+- Verification:230 frontend logic tests, main TypeScript, isolated21-page static build and204 onboarding plus146 immutable foundation preservation checks passed. All83 final-source browser scenarios passed in one run, covering new canvas/effort/scheduling checks and preserved My Week, dashboard, timeline, review, activity, Luna, shared dates and final-app flows. Final dark375px and high-contrast320px/150% calendar screenshots were inspected, alongside earlier light/dark, full-page and enlarged-text views. Observed320px gutter overflow, header alignment and category-select labeling were repaired. Existing layout-title assertions were updated for the new composition; connected-example effort expectations now match the actual fixture, and native drag setup keeps source and target above the fixed nav. No behavior assertion or approved archive was removed.
+- Publication recovery: packaging was resumed after an interruption and the helper reconfirmed the same pushed source. Initial native deployment `appgdep_6accd9573b388191908221ead746ec5a` reported "Failed to publish the built site." The Site remained active and the package was verified; retrying the same saved Version42 succeeded without altering source, audience or saved archive.
+- Limits: this remains a visit-local design review, not live AI/web generation, authenticated durable plans, provider subscriptions, calendar sync, free/busy integration, measured time, delivered reminders, organizer registration or email sending. Source dates remain distinct from task completion/effort. Only isolated Site source was pushed, not the main GitHub application. Vibhav's deferred whole-app handoff, production integration and Yogi's approval gates remain.
+
+## Earlier review: final-app copy, Homeguard order and shared calendars, October 12, 2026
 
 Version41 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Open `/foundation/preview/expanded/?tab=plan`. My Week uses a compact fieldbook/calendar style, flat date-led rows and aligned visual/keyboard utility order. One shared HALO date picker replaces native calendar affordances across15 editable component files, retaining ISO manual entry, bounds, keyboard navigation, focus restoration and explicit Today timezone anchors. Homeguard's four-row workspace now precedes the house, and its redundant people-context box is removed without losing category guidance. Repeated development explanations are outside the product screens, not repeated inside forms or assistant replies. Source dates, unknown data, privacy, registration and actual no-send/unavailable states remain.
 
