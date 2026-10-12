@@ -150,7 +150,8 @@ test('context photography is local, credited and not represented as a real event
   await page.getByLabel('Explore resources', { exact: true }).click();
   await page.getByText('About the photos', { exact: true }).click();
   await expect(page.locator('.ex-photo-credits')).toContainText('not photos of the organizations');
-  await expect(page.locator('.ex-photo-credits a')).toHaveCount(3);
+  await expect(page.locator('.ex-photo-credits li')).toHaveCount(12);
+  await expect(page.locator('.ex-photo-credits')).toContainText('CC BY 2.0');
 });
 
 test('photo failure keeps every Explore entry usable', async ({ page }) => {

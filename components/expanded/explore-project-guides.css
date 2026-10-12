@@ -158,6 +158,12 @@
 .halo-explore .ex-generated-open { grid-template-columns:82px minmax(0,1fr) 18px; gap:13px; padding-block:17px 8px; }
 .halo-explore .ex-generated-reason { padding-left:95px; }
 .ex-guide-cover > .ex-action-art { height:180px; }
+.ex-guide-photo-frame { position:relative; min-width:0; }
+.ex-guide-photo-frame > .ex-action-art { position:absolute; right:10px; bottom:10px; width:70px; height:64px; border:1px solid var(--halo-border); background:var(--halo-card); border-radius:5px; }
+.ex-photo-tree img,.ex-photo-cleanup img { object-position:50% 70%; }
+.ex-photo-soil img { object-position:50% 60%; }
+.ex-photo-moisture img { object-position:50% 42%; }
+.halo-f-app[data-contrast="high"] .ex-guide-photo-frame { display:none; }
 .halo-f-app[data-text-scale="150"] .ex-generated-open { grid-template-columns:60px minmax(0,1fr); }
 .halo-f-app[data-text-scale="150"] .ex-generated-open > .ex-action-art { width:60px; }
 .halo-f-app[data-text-scale="150"] .ex-generated-open > svg { display:none; }

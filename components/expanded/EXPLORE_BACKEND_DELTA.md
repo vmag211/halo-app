@@ -1,5 +1,9 @@
 # Explore evergreen workspace and integration delta
 
+## Latest October 11: reviewed media library, no additional service required
+
+The static frontend now has12 licensed context-photo scenes, selected by canonical guide rather than random image rotation. This addition needs no image-search endpoint or account request. Future generated project responses should map a reviewed semantic visual family to an approved asset ID from this library, with a safe fallback, rather than embedding arbitrary scraped URLs or using an image as scientific/build evidence. Newly acquired assets need per-file creator, source, reuse license, modification notice and provenance review before delivery. Preserve image-failure navigation, lazy loading, rectangular crops and higher-contrast alternatives. Live web project research and owned records retain the existing separate contracts and Vibhav ownership.
+
 ## Latest October 11: interests, fresh projects and nearby upcoming/rolling discovery
 
 The user explicitly restores scheduled-opportunity discovery alongside rolling programs, inside an evergreen three-path hub. The earlier statement that no event service is needed is superseded for this finder. This is additional backend scope, not authorization to implement production routes from the frontend lane.

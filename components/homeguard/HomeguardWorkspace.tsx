@@ -13,6 +13,8 @@ import { Empty, type HomeSection, type WorkspaceProps } from './HomeWorkspaceUI'
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import './homeguard-workspace.css';
 import WorkspaceFeedback from '@/components/expanded/WorkspaceFeedback';
+import { WorkspaceArtworkProvider, workspaceArtwork } from './WorkspaceArtwork';
+import './workspace-editorial.css';
 
 const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
@@ -42,13 +44,15 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     return () => cancelAnimationFrame(frame);
   }, [section, view, recordId]);
   const props: WorkspaceProps = { view, recordId, factor, go, navigate: (next, id) => go(section, next, id) };
-  return <div className="hg-workspace" data-home-section={section}>
+  return <WorkspaceArtworkProvider kind={workspaceArtwork(section, view)}><div className="hg-workspace" data-home-section={section} data-home-view={view}>
+    <div className="hg-workspace-nav">
     <Link className="hg-back" href={href('home')}><ArrowLeft size={17} />Back to Homeguard</Link>
-    <div className="hg-workspace-select"><label>Home workspace<select value={section} onChange={event => go(event.target.value as HomeSection)}>{(Object.keys(sections) as HomeSection[]).map(key => <option value={key} key={key}>{sections[key].name}</option>)}</select></label>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}</div>
+    <div className="hg-workspace-select"><label><span>Home workspace</span><select value={section} onChange={event => go(event.target.value as HomeSection)}>{(Object.keys(sections) as HomeSection[]).map(key => <option value={key} key={key}>{sections[key].name}</option>)}</select></label></div>
+    </div>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}
     <details className="hg-session-note"><summary>Design preview · Sample records only</summary><p>Try the actions with fictional details. Changes reset on reload, and files are not uploaded. Food guide source links are real; local notices and test results are examples.</p></details>
     <WorkspaceFeedback />
     {state.scenario === 'stale' && <p className="hg-notice">Sample evidence is out of date. Review source dates before using it; your own records are shown separately.</p>}
     {state.scenario === 'offline' && <p className="hg-notice">Offline review: retained sample records can be read. Changes are not saved or queued.</p>}
     {state.scenario === 'loading' ? <div className="hg-empty" role="status"><span className="halo-spinner" /><h2>Opening your home workspace</h2><button className="hg-button-secondary" onClick={() => state.setScenario('ready')}>Finish loading sample</button></div> : state.scenario === 'error' ? <Empty title="This section could not load"><p>Your other home information is unchanged.</p><button className="hg-button" onClick={() => state.setScenario('ready')}>Retry sample section</button></Empty> : <div className="hg-content" key={`${section}:${view}:${recordId ?? ''}`}>{section === 'tests' ? <TestsWorkspace {...props} /> : section === 'maintenance' ? <MaintenanceWorkspace {...props} /> : section === 'food' ? <FoodGardenWorkspace {...props} /> : <SummaryWorkspace {...props} />}</div>}
-  </div>;
+  </div></WorkspaceArtworkProvider>;
 }

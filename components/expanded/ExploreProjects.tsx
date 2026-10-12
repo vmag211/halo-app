@@ -80,7 +80,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
 
   return <section className="ex-detail ex-project-workspace ex-guide-workspace" data-project-id={project.id} data-guide-version={project.version}>
     <button className="ex-text-button" onClick={() => go('projects')}><ArrowLeft size={16} aria-hidden="true" />All projects</button>
-    <div className="ex-guide-cover"><ProjectIllustration kind={artworkForProject(project.id)} /><span className="ex-guide-cover-caption"><Icon size={18} aria-hidden="true" />{project.cause} · Project sketch</span></div>
+    <div className="ex-guide-cover"><div className="ex-guide-photo-frame"><ExplorePhoto scene={project.scene} className="ex-detail-photo" eager /><ProjectIllustration kind={artworkForProject(project.id)} compact /></div><span className="ex-guide-cover-caption"><Icon size={18} aria-hidden="true" />{project.cause} · Context photo, not build instructions</span></div>
     <span className="ex-kicker">{project.effort} · {needsReview ? 'Completion needs review' : record?.status ?? 'Not started'}</span>
     <h3>{project.title}</h3><p>{project.description}</p>
     <details className="ex-guide-purpose"><summary>Purpose and fit</summary><p>{project.purpose}</p><p>{project.suitability}</p></details>

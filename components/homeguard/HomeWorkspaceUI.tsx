@@ -6,16 +6,16 @@ import { BottomSheet } from '@/components/ui/Foundation';
 import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import { useHomeWorkspace } from './HomeWorkspaceState';
-import { HomeWorkspaceScene } from './HomeWorkspaceScene';
+import { WorkspaceArtwork, type WorkspaceArtworkKind } from './WorkspaceArtwork';
 
 export type HomeSection = 'tests' | 'maintenance' | 'food' | 'summary';
 export type WorkspaceProps = { view: string; recordId?: string; navigate: (view: string, recordId?: string) => void; go: (section: HomeSection, view?: string, recordId?: string) => void; factor?: FactorKey };
 export function PageIntro({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon?: ReactNode }) {
-  return <header className="hg-intro"><HomeWorkspaceScene /><span className="hg-kicker">{icon && <span className="hg-intro-icon" aria-hidden="true">{icon}</span>}{eyebrow}</span><h2 tabIndex={-1} data-home-heading>{title}</h2><p>{description}</p></header>;
+  return <header className="hg-intro"><WorkspaceArtwork /><span className="hg-kicker">{icon && <span className="hg-intro-icon" aria-hidden="true">{icon}</span>}{eyebrow}</span><h2 tabIndex={-1} data-home-heading>{title}</h2><p>{description}</p></header>;
 }
 type RecordDeletion = { remove: () => Promise<boolean>; description: string };
-export function WorkspaceLink({ onClick, title, detail, icon, deletion }: { onClick: () => void; title: string; detail?: string; icon?: ReactNode; deletion?: RecordDeletion }) {
-  const link = <button type="button" className="hg-link" onClick={onClick}>{icon && <span className="hg-link-icon" aria-hidden="true">{icon}</span>}<span><strong>{title}</strong>{detail && <small>{detail}</small>}</span><ArrowUpRight size={18} aria-hidden="true" /></button>;
+export function WorkspaceLink({ onClick, title, detail, icon, deletion, artwork }: { onClick: () => void; title: string; detail?: string; icon?: ReactNode; deletion?: RecordDeletion; artwork?: WorkspaceArtworkKind }) {
+  const link = <button type="button" className="hg-link" onClick={onClick}>{artwork ? <WorkspaceArtwork kind={artwork} compact /> : icon && <span className="hg-link-icon" aria-hidden="true">{icon}</span>}<span><strong>{title}</strong>{detail && <small>{detail}</small>}</span><ArrowUpRight size={18} aria-hidden="true" /></button>;
   return deletion ? <DeletableRecord title={title} deletion={deletion}>{link}</DeletableRecord> : link;
 }
 export function DeletableRecord({ title, deletion, children }: { title: string; deletion: RecordDeletion; children: ReactNode }) {

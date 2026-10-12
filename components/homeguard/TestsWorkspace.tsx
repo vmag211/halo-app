@@ -68,8 +68,8 @@ function TestsList({ records, navigate, factor, remove }: WorkspaceProps & { rec
   return <div className="hg-stack">
     <PageIntro eyebrow="Homeguard" title="Home tests & reports" description="Keep real-world water, radon, lead and soil tests in one place." icon={<FlaskConical />} />
     <div className="hg-choice-grid">
-      <WorkspaceLink title="Plan a test" detail="Track a test you arrange outside HALO." icon={<CalendarDays />} onClick={() => navigate('new')} />
-      <WorkspaceLink title="Add a report" detail="Already have results? Start here." icon={<FileText />} onClick={() => navigate('report')} />
+      <WorkspaceLink title="Plan a test" detail="Track a test you arrange outside HALO." artwork="tests" onClick={() => navigate('new')} />
+      <WorkspaceLink title="Add a report" detail="Already have results? Start here." artwork="report" onClick={() => navigate('report')} />
     </div>
     <p className="hg-inline-meta">HALO keeps your records. It does not perform tests or automatically change your score.</p>
     <section className="hg-stack" aria-label="Filter tests">

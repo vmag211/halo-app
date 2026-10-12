@@ -6,7 +6,7 @@ export type ProjectGuideSource = { id: string; title: string; publisher: string;
 export type ProjectGuideStep = { title: string; instructions: string[]; checkpoint: string; sourceIds: string[] };
 export type ProjectGuide = {
   id: string; version: string; title: string; cause: 'Water' | 'Habitats' | 'Community' | 'Energy' | 'Air';
-  scene: 'garden' | 'trail' | 'river'; icon: 'plant' | 'bee' | 'cleanup' | 'sun' | 'water' | 'air';
+  scene: import('./explore-photos').ExplorePhotoScene; icon: 'plant' | 'bee' | 'cleanup' | 'sun' | 'water' | 'air';
   description: string; purpose: string; effort: string; cost: string; scope: string;
   suitability: string; materials: string[]; constraints: string[]; steps: ProjectGuideStep[];
   completion: string; followup: string; sources: ProjectGuideSource[];
@@ -65,7 +65,7 @@ export const projectGuides: ProjectGuide[] = [
     followup: 'Review establishment and bloom gaps later. Record survival or observed visitors without turning them into a measured biodiversity increase.', sources: [native, wildlife, woody],
   },
   {
-    id: 'bee-house', version: '2026-10-11.1', title: 'Make a small solitary-bee house', cause: 'Habitats', scene: 'garden', icon: 'bee',
+    id: 'bee-house', version: '2026-10-11.1', title: 'Make a small solitary-bee house', cause: 'Habitats', scene: 'bee', icon: 'bee',
     description: 'Build or assemble a modest nesting shelter, then take responsibility for its maintenance.',
     purpose: 'Offer nesting space for cavity-nesting bees. A hotel is not a honeybee hive or a guaranteed conservation benefit.',
     effort: 'Assembly, placement and seasonal maintenance', cost: 'Use a suitable existing shelter or price untreated wood and nesting materials locally.', scope: 'NC State guidance for North Carolina. Species and seasonal timing differ elsewhere.',
@@ -93,7 +93,7 @@ export const projectGuides: ProjectGuide[] = [
     },
   },
   {
-    id: 'community-cleanup', version: '2026-10-11.1', title: 'Host an organizer-supported cleanup', cause: 'Community', scene: 'trail', icon: 'cleanup',
+    id: 'community-cleanup', version: '2026-10-11.1', title: 'Host an organizer-supported cleanup', cause: 'Community', scene: 'cleanup', icon: 'cleanup',
     description: 'Bring a small group together with permission, supplies, a safety briefing and a disposal plan.',
     purpose: 'Remove ordinary litter from an approved area and leave a clear record for the organizer. Avoid hazardous or unsupervised collection.',
     effort: 'Organizer preparation, a cleanup and a report', cost: 'Charlotte offers borrowed supplies to residents. Confirm availability and eligibility with the program.', scope: 'Charlotte organizer example. Use the responsible program for your actual location.',
@@ -110,7 +110,7 @@ export const projectGuides: ProjectGuide[] = [
     followup: 'Follow up on hazards through official channels and ask about another suitable activity. HALO does not verify attendance or agency responses.', sources: [cleanup, cleanupSafety],
   },
   {
-    id: 'solar-oven', version: '2026-10-11.1', title: 'Build a solar-energy experiment', cause: 'Energy', scene: 'trail', icon: 'sun',
+    id: 'solar-oven', version: '2026-10-11.1', title: 'Build a solar-energy experiment', cause: 'Energy', scene: 'solar', icon: 'sun',
     description: 'Make a simple solar oven, measure temperature and improve one part of your design.',
     purpose: 'Explore how sunlight can be collected and converted to heat. This is a learning experiment, not a food-safety or energy-savings claim.',
     effort: 'One supervised build and a sunny-day test', cost: 'Reuse clean materials where practical. A suitable thermometer may need to be borrowed or purchased.', scope: 'Adapted from NASA’s classroom design challenge. Outdoor results depend on conditions.',
@@ -127,7 +127,7 @@ export const projectGuides: ProjectGuide[] = [
     followup: 'Choose another controlled comparison if useful. This teaches an energy concept but does not demonstrate a household emission reduction.', sources: [solar, solarEnergy],
   },
   {
-    id: 'demo-water-project', version: '2026-10-11.1', title: 'Get to know your water', cause: 'Water', scene: 'river', icon: 'water',
+    id: 'demo-water-project', version: '2026-10-11.1', title: 'Get to know your water', cause: 'Water', scene: 'water', icon: 'water',
     description: 'Get a dated source, ask a specific question and carry the answer into your home records.',
     purpose: 'Resolve a practical water-information question without treating a public system sample as a test of your own tap.',
     effort: 'Three short sessions, at your pace', cost: 'Reading public information has no app fee. Ask a certified lab for any testing quote.', scope: 'US public-system reports and private-well resources; local testing needs vary.',
@@ -157,7 +157,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'Permitted containers were planted and a realistic care check was chosen.', followup: 'Adjust the care routine to actual plant condition and seasonal requirements.', sources: [balcony, native],
   }),
   practicalGuide({
-    id: 'native-tree', title: 'Plant and establish one native tree', cause: 'Habitats', scene: 'garden', icon: 'plant',
+    id: 'native-tree', title: 'Plant and establish one native tree', cause: 'Habitats', scene: 'tree', icon: 'plant',
     description: 'Give one suitable tree the space and early care it needs.', purpose: 'Establish a locally appropriate tree as a long-term habitat project, not a quantified carbon offset.',
     effort: 'Site planning, planting and establishment care', cost: 'Tree, mulch and equipment need a local quote.', scope: 'North Carolina Extension guidance. Recheck species, season and site rules elsewhere.',
     suitability: 'A permitted ground site with room for the mature canopy and roots and someone to provide establishment care.', materials: ['Site plan and utility-location information', 'A suitable nursery tree and planting instructions', 'Shovel, gloves, water source and organic mulch', 'Plant label and care record'],
@@ -170,7 +170,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'One permitted tree was planted and its establishment care was recorded.', followup: 'Continue establishment checks. Planting does not update AQI or a household score.', sources: [native, woody],
   }),
   practicalGuide({
-    id: 'winter-habitat', title: 'Make a small winter habitat corner', cause: 'Habitats', scene: 'garden', icon: 'plant',
+    id: 'winter-habitat', title: 'Make a small winter habitat corner', cause: 'Habitats', scene: 'trail', icon: 'plant',
     description: 'Keep a manageable patch of leaves and stems for seasonal habitat.', purpose: 'Retain suitable ground and plant cover in a permitted area.', effort: 'One site check and a seasonal follow-up', cost: 'Use suitable material already on the site.', scope: 'US Fish and Wildlife seasonal guidance. Local fire, drainage and property rules take priority.',
     suitability: 'A permitted planted corner that can remain clear of paths, drains and required fire-clearance areas.', materials: ['Small site sketch', 'Existing suitable leaves and standing plant stems', 'Gloves and hand tools if needed', 'A seasonal observation record'],
     constraints: ['Keep exits, walking routes and drains unobstructed.', 'Do not retain hazardous standing dead trees or work on trees yourself.', 'Follow local fire-clearance, pest and property requirements; do not move unknown plant material from another site.'],
@@ -182,7 +182,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'A suitable habitat patch was retained and a seasonal care review was chosen.', followup: 'Recheck access, drainage and plant care without inventing biodiversity gains.', sources: [winter, native],
   }),
   practicalGuide({
-    id: 'home-compost', title: 'Start a manageable compost system', cause: 'Community', scene: 'garden', icon: 'plant',
+    id: 'home-compost', title: 'Start a manageable compost system', cause: 'Community', scene: 'compost', icon: 'plant',
     description: 'Choose a method that fits your space and keep the material stream clean.', purpose: 'Handle suitable food and garden scraps through a maintained compost method.', effort: 'Setup and regular care over several months', cost: 'A bin, bedding or collection service may have a cost. Check the method you choose.', scope: 'EPA household compost guidance. Collection programs have their own accepted-material rules.',
     suitability: 'A permitted backyard bin, a maintainable indoor worm system or a genuinely available collection program.', materials: ['Chosen method and its accepted-material list', 'Suitable closed scrap container', 'Bin, bedding or collection container appropriate to the method', 'A maintenance record'],
     constraints: ['Do not put meat, dairy, greasy food, pet waste or treated wood into the backyard method in this guide.', 'A collection service must confirm accepted materials; a compostable label is not enough.', 'Do not release compost worms outdoors. Use a suitable species and maintain the selected bin.'],
@@ -230,7 +230,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'A known watering context was checked and an actual suitable adjustment or request was recorded.', followup: 'Review the routine as plant and seasonal conditions change.', sources: [watering],
   }),
   practicalGuide({
-    id: 'home-leak-check', title: 'Find a hidden household water leak', cause: 'Water', scene: 'river', icon: 'water',
+    id: 'home-leak-check', title: 'Find a hidden household water leak', cause: 'Water', scene: 'moisture', icon: 'water',
     description: 'Do a small leak check and keep a clear repair or landlord follow-up.', purpose: 'Identify a practical water-maintenance question without guessing water loss.', effort: 'A short check and a repair follow-up', cost: 'Food coloring or a dye tablet if suitable; repairs require a quote.', scope: 'EPA WaterSense household leak guidance.',
     suitability: 'A permitted household check with safe access to fixtures. Renters can report rather than repair.', materials: ['Clock or timer', 'Food coloring or a suitable dye tablet', 'Fixture instructions and a safe way to handle the tank lid', 'A landlord, owner or plumber contact'],
     constraints: ['Do not lift a heavy tank lid without suitable help.', 'Follow fixture instructions and flush after the dye check to avoid staining.', 'Do not open walls, modify plumbing or attempt electrical/pressurized repairs.'],
@@ -242,7 +242,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'A suitable check and its real finding were recorded, with a repair or follow-up resolved or still waiting.', followup: 'Keep the owner/plumber reply and a later leak check if needed.', sources: [leaks],
   }),
   practicalGuide({
-    id: 'soil-test-plan', title: 'Match your garden question to a soil test', cause: 'Water', scene: 'garden', icon: 'plant',
+    id: 'soil-test-plan', title: 'Match your garden question to a soil test', cause: 'Water', scene: 'soil', icon: 'plant',
     description: 'Find the right laboratory scope before collecting a sample.', purpose: 'Resolve whether a garden question needs fertility advice, contaminant testing or qualified site review.', effort: 'A focused question and laboratory conversation', cost: 'The selected lab must provide current fees.', scope: 'North Carolina Extension soil-testing guidance. Exact laboratory scope must be confirmed locally.',
     suitability: 'An existing or proposed garden site with a question or an unclear report.', materials: ['Site label and known soil history', 'One answerable question', 'Existing report with its original units and qualifiers if available', 'Provider-confirmed laboratory instructions'],
     constraints: ['A routine fertility panel does not certify crop safety or screen every contaminant.', 'Do not infer contamination from an unknown source, home age or nearby facility.', 'Obtain the lab’s matrix/analyte/method and collection instructions before sampling.'],
@@ -254,7 +254,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'The test purpose and appropriate service were clarified, or remaining limitations were documented.', followup: 'Link the actual report to its garden site without turning it into a crop-safety score.', sources: [soil],
   }),
   practicalGuide({
-    id: 'food-waste-week', title: 'Try a food-waste reduction week', cause: 'Community', scene: 'garden', icon: 'plant',
+    id: 'food-waste-week', title: 'Try a food-waste reduction week', cause: 'Community', scene: 'food', icon: 'plant',
     description: 'Observe what gets discarded, then test one practical kitchen change.', purpose: 'Reduce avoidable food waste through a small observed routine change.', effort: 'Short daily observations across a week', cost: 'Use a paper or app record. No new equipment is required.', scope: 'EPA household food-waste guidance. Follow food-safety and product storage instructions.',
     suitability: 'A kitchen or shared household routine you can influence, without needing a yard.', materials: ['A simple discarded-food log', 'Existing pantry/fridge inventory', 'Shopping and meal plan', 'Safe food-storage instructions'],
     constraints: ['Do not eat food that may be unsafe to avoid recording waste.', 'Keep required cold storage and product safety instructions.', 'Only actual observations or measurements can become quantities; inventory presence does not prove waste.'],
@@ -278,7 +278,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'A confirmed contribution happened and the actual outcome was recorded. A pending enquiry stays waiting.', followup: 'Keep organizer replies and deliberate future commitments separate from one completed visit.', sources: [garden],
   }),
   practicalGuide({
-    id: 'moisture-check', title: 'Understand a damp room', cause: 'Water', scene: 'river', icon: 'water',
+    id: 'moisture-check', title: 'Understand a damp room', cause: 'Water', scene: 'moisture', icon: 'water',
     description: 'Keep actual indoor observations and a focused owner or maintenance follow-up.', purpose: 'Clarify a moisture source without diagnosing indoor mold from an outdoor forecast.', effort: 'One indoor check and a follow-up', cost: 'A humidity meter can be borrowed or priced locally; professional help may cost.', scope: 'EPA home-moisture guidance. This is an observation project, not remediation instructions.',
     suitability: 'A safely accessible room with condensation, a leak question or a chosen indoor humidity check.', materials: ['Room label and actual observation date', 'Optional indoor humidity meter and its instructions', 'A leak/condensation record', 'Owner, landlord or qualified maintenance contact'],
     constraints: ['Outdoor humidity and rain estimates do not establish indoor humidity or detected mold.', 'Do not disturb suspected contaminated material, open walls or enter unsafe damp areas.', 'Report leaks and significant moisture problems to the responsible owner or qualified resource.'],
@@ -290,7 +290,7 @@ export const projectGuides: ProjectGuide[] = [
     ], completion: 'A factual indoor record and an appropriate follow-up were kept.', followup: 'Continue the chosen maintenance or landlord conversation in Homeguard.', sources: [moisture],
   }),
   practicalGuide({
-    id: 'filter-check', title: 'Check your drinking-water filter plan', cause: 'Water', scene: 'river', icon: 'water',
+    id: 'filter-check', title: 'Check your drinking-water filter plan', cause: 'Water', scene: 'water', icon: 'water',
     description: 'Match the exact product claim and instructions to the question you want answered.', purpose: 'Review a real filter’s scope and maintenance without assuming a generic filter removes every contaminant.', effort: 'Product/source review and a care follow-up', cost: 'Check actual product, replacement and service prices.', scope: 'EPA PFAS-filter guidance. Certification scope and current product instructions must be checked.',
     suitability: 'A household that has or is considering an appropriate drinking-water filter. A utility sample is not a tap test.', materials: ['Exact filter model and product instructions', 'The specific contaminant question', 'Certification listing and its precise reduction claim', 'A manufacturer-supported maintenance plan'],
     constraints: ['Do not infer certification or effectiveness from a generic filter record.', 'Follow the exact product’s installation and maintenance requirements; use qualified help where needed.', 'A utility sample or completed replacement does not establish the household’s current tap-water result.'],

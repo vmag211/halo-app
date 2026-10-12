@@ -13,7 +13,7 @@ const pending = ['components/foundation/FoundationPreview.tsx', 'components/map-
 const copied = new Set();
 function allowed(path) {
   // assistant.js is the reviewed, pure diagnostic guard, not the assistant API.
-  return /^(components\/(foundation|expanded|homeguard|map-preview|ui)\/|lib\/frontend\/)/.test(path) || ['lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js'].includes(path);
+  return /^(components\/(foundation|expanded|homeguard|map-preview|ui)\/|lib\/frontend\/)/.test(path) || ['lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js', 'public/explore/photo-sources.json'].includes(path);
 }
 function copy(path) {
   mkdirSync(dirname(resolve(target, path)), { recursive: true });

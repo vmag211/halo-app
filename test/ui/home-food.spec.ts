@@ -17,7 +17,7 @@ test.afterEach(async ({ page }) => { expect(failures.get(page)).toEqual([]); });
 
 test('five destinations and a kitchen entry stay available and fish matching retains overlapping, unknown and conflict states', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Food, water & what you grow' })).toBeVisible();
-  const links = page.locator('.hg-grid .hg-link');
+  const links = page.locator('.hg-food-destinations .hg-link');
   await expect(links).toHaveCount(5);
   await expect(page.getByRole('button', { name: /Food at home Your foods/ })).toBeVisible();
   await page.getByText('Arrange your topics', { exact: true }).click();

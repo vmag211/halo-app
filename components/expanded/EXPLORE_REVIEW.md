@@ -1,5 +1,11 @@
 # Explore connected community review, October 11, 2026
 
+## Latest: activity-matched real project photography
+
+The project lead and nineteen guide covers now choose from twelve bundled photo scenes rather than the original three. Nine additions cover bee nesting, tree planting, soil sampling, water-laboratory work, compost, fresh produce, window condensation, a solar cooker and shore cleanup. Refresh changes the eligible idea and its matched photograph; photography is not rotated independently of the project. Guide covers retain their activity-specific sketch as a small companion. Unknown image failures keep navigation and do not carry onto a different scene. The local assets add about1.25 MB and load only when needed. The original river, trail and pollinator-garden assets remain unchanged.
+
+Asset provenance, individual rights, dimensions, byte counts and SHA256 hashes are recorded in `public/explore/photo-sources.json`. The shared About the photos disclosure lists all12 sources and credits, the CC0/CC BY2 license links and modification notice. Compost is by normanack; solar is by Nadya Peek, both CC BY2. These are context photographs, not the user's house, exact builds or actual upcoming listings. The parabolic solar cooker and bee nesting example do not replace the source-backed build instructions. The Homeguard kitchen retains its established illustration-only decision. No authenticated retrieval, AI generation, score change or extra event integration was added.
+
 ## Latest: three primary paths and visual action discovery
 
 Yogi clarified that Projects, community involvement and the live-map target are Explore's three core deliverables. The current wireframe gives Get involved a full-width photo entrance, followed by the project entrance and a primary map preview. All three share heading prominence; Notebook, outreach, learning and follow-through remain supplementary. The map itself and approved shell are unchanged. The static atlas is still sample data, not a live map deployment.

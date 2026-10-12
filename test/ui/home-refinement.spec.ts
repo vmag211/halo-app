@@ -47,12 +47,12 @@ for (const appearance of ['light', 'dark']) test(`refined forms, icons and typog
 test('section ambience honors reduced motion and higher contrast', async ({ page }) => {
   for (const destination of ['tests', 'food', 'maintenance', 'summary']) {
     await page.goto(url(destination));
-    await expect(page.locator('.hg-scene')).toBeVisible();
-    const moving = await page.locator('.hg-scene-drift,.hg-scene-leaf').evaluateAll(elements => elements.some(el => getComputedStyle(el).animationName !== 'none'));
+    await expect(page.locator('.hg-intro [data-work-art]')).toBeVisible();
+    const moving = await page.locator('.hg-intro [data-work-art] *').evaluateAll(elements => elements.some(el => getComputedStyle(el).animationName !== 'none'));
     expect(moving).toBe(false);
   }
   await page.goto(`${url('food')}&contrast=true`);
-  await expect(page.locator('.hg-scene')).not.toBeVisible();
+  await expect(page.locator('.hg-intro [data-work-art]')).not.toBeVisible();
 });
 
 for (const appearance of ['light', 'dark']) test(`garden tools and linked-test actions stay separated at narrow large text in ${appearance}`, async ({ page }, testInfo) => {
@@ -112,7 +112,7 @@ test('focused garden link editor retains a failed draft and supports retry witho
   for (const scenario of ['save-error', 'conflict']) {
     await state.selectOption(scenario);
     await page.getByRole('button', { name: 'Save test links', exact: true }).click();
-    await expect(page.getByRole('status').filter({ hasText: scenario === 'save-error' ? 'The sample save failed' : 'Revision conflict' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: scenario === 'save-error' ? 'The sample save failed' : 'Revision conflict' })).toBeVisible();
     await expect(choice).toBeChecked();
   }
   await state.selectOption('ready');

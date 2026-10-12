@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Download, FileText, Image as ImageIcon, Printer, Share2 } from 'lucide-react';
+import { Download, FileText, Image as ImageIcon, Printer, Share2, ShieldCheck } from 'lucide-react';
 import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import { usePreviewHousehold } from '@/components/foundation/PreviewHousehold';
 import { factorKeys, factorReadings } from '@/lib/frontend/factor-preview';
@@ -168,6 +168,7 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
       <label className="hg-option"><input type="checkbox" checked={selection.appendix} onChange={e => update({ appendix: e.target.checked })} /><span><strong>Detailed appendix</strong><small>Evidence explanations and maintenance history.</small></span></label>
       <p className="hg-meta">Original photos, metadata, device location and account fields are not included. Review selected record names and notes, which may contain personal details you entered.</p>
     </details>
+    <section className="hg-summary-selections" aria-label="Selected report contents"><header><FileText size={19} aria-hidden="true" /><h3>Your report contents</h3><ShieldCheck size={19} aria-hidden="true" /></header>{Object.values(selection.sections).some(Boolean) ? <ol>{(Object.keys(sectionLabels) as SummarySection[]).filter(key => selection.sections[key]).map(key => <li key={key}>{sectionLabels[key]}{recordSections.includes(key) && <span>{selectedRecords(key).length} {selectedRecords(key).length === 1 ? 'record' : 'records'}{missingSections.includes(key) ? ' · Section unavailable' : ''}</span>}</li>)}</ol> : <p className="hg-meta">No evidence sections selected.</p>}<footer>{selection.notes || selection.location || selection.categories || selection.attachments ? 'Optional private fields selected. Review their contents before sharing.' : 'Private notes, place labels, household categories and attachment names stay out.'}</footer></section>
     {error && <p role="alert">{error}</p>}<div className="hg-summary-cta"><p className="hg-meta">{Object.values(selection.sections).filter(Boolean).length} sections selected. You can review everything before sharing.</p><button className="hg-primary" onClick={preview}>Create household PDF</button></div>
   </>;
 }

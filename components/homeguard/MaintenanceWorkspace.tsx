@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, Droplets, Pencil, Plus, Wrench } from 'lucide-react';
+import { ClipboardList, Droplets, Pencil, Wrench } from 'lucide-react';
 import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import { BottomSheet } from '@/components/ui/Foundation';
 import { factorKeys, factorReadings } from '@/lib/frontend/factor-preview';
@@ -30,11 +30,11 @@ export default function MaintenanceWorkspace(props: WorkspaceProps) {
   }
   return <>
     <PageIntro eyebrow="Homeguard" title="Maintenance & moisture" description="Keep up with home care and follow up on leaks, dampness or humidity." icon={<Wrench />} />
-    <div className="hg-choice-grid"><WorkspaceLink title="Add a routine" detail="Keep a schedule for filters or other home care." icon={<Plus />} onClick={() => props.navigate('create')} /><WorkspaceLink title="Record moisture" detail="Save what you noticed or measured." icon={<Droplets />} onClick={() => props.navigate('observation')} /></div>
-    <section className="hg-stack"><h2>Your routines</h2>
+    <div className="hg-choice-grid"><WorkspaceLink title="Add a routine" detail="Keep a schedule for filters or other home care." artwork="maintenance" onClick={() => props.navigate('create')} /><WorkspaceLink title="Record moisture" detail="Save what you noticed or measured." artwork="moisture" onClick={() => props.navigate('observation')} /></div>
+    <section className="hg-stack hg-care-group" data-care-group="routines"><header><Wrench size={20} aria-hidden="true" /><h2>Your routines</h2></header>
       {assets.records.length ? assets.records.map(asset => <WorkspaceLink key={asset.id} deletion={{ remove: () => assets.remove(asset.id), description: 'This removes this routine, its schedule and service history. Separate moisture observations, tests and saved My Week actions are kept.' }} title={asset.title} detail={`${asset.status === 'active' ? asset.nextDue ? `Due ${asset.snoozedUntil || asset.nextDue}` : 'Routine ended' : asset.status === 'paused' ? 'Paused' : 'Replaced'} · ${scheduleDescription(asset)}`} icon={<Wrench />} onClick={() => props.navigate('detail', asset.id)} />) : <Empty title="No routines yet">Add equipment only when keeping its instructions or service history is useful.</Empty>}
     </section>
-    <section className="hg-stack"><h2>Moisture observations</h2><p className="hg-meta">Your indoor observations, separate from the outdoor mold estimate.</p>
+    <section className="hg-stack hg-care-group" data-care-group="moisture"><header><Droplets size={20} aria-hidden="true" /><h2>Moisture observations</h2></header><p className="hg-meta">Your indoor observations, separate from the outdoor mold estimate.</p>
       {observations.records.length ? observations.records.map(record => <WorkspaceLink key={record.id} deletion={{ remove: () => observations.remove(record.id), description: 'This removes this observation and its local photo. Linked routines, tests and saved My Week actions are kept.' }} title={record.title} detail={`${record.observedAt.replace('T', ' ')} · ${record.room || 'Room not supplied'} · User reported`} icon={<Droplets />} onClick={() => props.navigate('observation-detail', record.id)} />) : <Empty title="No observations recorded">A note, time and optional measurement can help you follow up.</Empty>}
     </section>
     <SourceNote>Logging home care does not prove a hazard is resolved. Reminders are not sent in this preview.</SourceNote>
