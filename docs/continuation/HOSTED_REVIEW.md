@@ -1,6 +1,17 @@
 # Hosted wireframe preservation reference
 
-## Current review: Primary Homeguard workspace panel, October 11, 2026
+## Current review: Shorter workspace copy and consolidated actions, October 11, 2026
+
+Version35 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The primary workspace now has no subtitle, shorter Tests/Home care/Summary headings, compact counts and food labels, and one Add disclosure instead of repeated creation rows. The four creation actions and all exact current-record destinations remain. Stages retains independently recorded milestones; full dates, counts, garden continuation, private summary and My Week remain accessible. Approved core ordering and deeper workspaces are unchanged.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_3b365891052c8191bd41288d40759a79`.
+- Source: `3f8e4c01b1807f4c491dcc8828b75dafc5e0a0df`.
+- Successful deployment: `appgdep_6acc36d1adc881919fdd2ddc3decbbf6` at `2026-10-12T01:24:40.684124+00:00` (October11 in America/New_York).
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-home-workspace-short-copy-20261011.tar.gz`.
+- Archive hash: `sha256:12526b030cd90ac51ac4cc5d5cadeb694e69a1a9753eb5f54fc440944b7229de`.
+- Verification: all19 static browser checks passed, including16 exact routes, native Add disclosure and44px creation targets, stage truth, count updates, error/empty/offline states, core order and shared navigation. Both appearances and320px/150% retain no horizontal overflow. Normal/enlarged screenshots inspected. Main TypeScript, isolated21-page build and204 onboarding plus146 immutable foundation preservation checks passed. API/provider calls remain blocked; no backend, score logic, account write or production integration changed. Only the isolated Site source was pushed; main repo remains a local checkpoint. Review publication is not approval.
+
+## Earlier review: Primary Homeguard workspace panel, October 11, 2026
 
 Version34 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. Your home workspace is now one prominent framed feature with a stronger heading, unified surface and compact section rows. Current-test continuation is inside Tests and records, not a separate tall panel. Its title/status and Continue link remain visible; Recorded stages reveals the factual independently recorded milestones and their count. All four sections, creation routes, exact records, full dates, garden continuation, Summary and My Week remain. Approved core ordering, deeper workspaces, private state and backend are unchanged.
 

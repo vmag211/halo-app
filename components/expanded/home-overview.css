@@ -144,3 +144,23 @@
 .halo-f-app[data-wide="true"] .halo-home-workspace .how-food { border-top:1px solid var(--halo-border); }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-continue { padding-left:0; }
 @container home-snapshot (max-width:280px) { .halo-home-workspace .how-continue { padding-left:0; } .halo-home-workspace .how-record-line { flex-wrap:wrap; } .halo-home-workspace .how-record-line > span { flex-basis:100%; } }
+
+/* Short labels and one creation menu keep the main panel focused on current state. */
+.halo-home-workspace .how-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:10px; }
+.halo-f-app .halo-home-workspace .how-heading h2 { font-size:calc(1.3rem * var(--halo-text-scale)); flex:1; min-width:0; }
+.how-add-menu { position:relative; flex:0 0 auto; }
+.halo-home-workspace .how-add-menu > summary { display:flex; align-items:center; gap:4px; min-height:44px; color:var(--halo-primary); font:600 calc(.8rem * var(--halo-text-scale))/1.4 var(--font-instrument),sans-serif; cursor:pointer; }
+.how-add-menu > summary::marker { content:''; }
+.how-add-menu > nav { position:absolute; z-index:5; right:0; top:100%; display:grid; min-width:180px; max-width:calc(100vw - 70px); padding:6px 12px; border:1px solid var(--halo-border); border-radius:8px; background:var(--halo-card); box-shadow:0 8px 22px rgb(0 0 0 / .15); }
+.how-add-menu > nav a { display:flex; align-items:center; min-height:44px; padding:8px 2px; color:var(--halo-ink); text-decoration:none; font-size:calc(.85rem * var(--halo-text-scale)); }
+.how-add-menu > nav a + a { border-top:1px solid var(--halo-border); }
+.how-add-menu > summary:focus-visible { outline:2px solid var(--halo-primary); outline-offset:3px; }
+.halo-home-workspace .how-module { padding-block:9px; }
+.halo-home-workspace .how-continue { padding-top:2px; }
+.halo-home-workspace .how-stage-details > summary { font-size:calc(.72rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-food-entries a { min-height:54px; padding-block:6px; }
+.halo-home-workspace .how-garden-return { font-size:calc(.78rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-plan-return { min-height:44px; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-heading { flex-wrap:wrap; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-heading h2 { flex-basis:100%; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-add-menu { margin-left: auto; }

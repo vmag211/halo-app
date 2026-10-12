@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- Latest workspace copy refinement: shorten the overview's visible labels to Tests, Home care and Summary; remove the subtitle and repeated creation footers. Keep the four existing creation routes together under one Add disclosure. All records, counts, full dates, factual stages, deeper feature flows and approved core ordering remain accessible. This is review-only presentation, not a backend or approval change.
+
 - Latest primary-workspace direction: compress the below-the-house overview into one prominent Homeguard feature panel. Nest current-test continuation inside Tests and records; keep status visible and put independently recorded milestones behind a small Recorded stages disclosure. Preserve every workspace/action route and current-record target, readability, full dates, approved core ordering and review boundaries. Do not restore a separate tall continuation dashboard.
 
 - Latest home-workspace overview refinement: keep the below-the-house panel as a condensed quick view of current records, not another dashboard. Use clear left-aligned headings, short section links, restrained spacing and concise counts/dates. Preserve continuation/milestone truth, every workspace and creation route, exact record targets, private summary and My Week links. Full dates must remain available. This does not alter approved core ordering, backend behavior or review gates.

@@ -15,7 +15,7 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     await page.goto(`${home}&appearance=${appearance}&scale=${scale}`);
     await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
     const workspace = page.locator('#home-workspace');
-    await expect(workspace).toContainText('1 active test');
+    await expect(workspace).toContainText('1 active');
     await expect(workspace).toContainText('3 reports');
     await workspace.locator('.how-stage-details > summary').click();
     await expect(page.getByRole('list', { name: /Recorded milestones/ })).toContainText('Not recorded');
@@ -65,6 +65,7 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     ['Continue with Back garden', 'food', 'garden-detail', 'demo-garden'],
     ['Create summary', 'summary', 'selection', ''],
   ]) {
+    if (['Plan a test', 'Add a report', 'Add routine', 'Record moisture'].includes(name)) await workspace.locator('.how-add-menu > summary').click();
     await workspace.getByRole('link', { name: new RegExp(`^${name}`) }).click();
     await expect(page.locator('.hg-workspace')).toHaveAttribute('data-home-section', destination);
     const query = new URL(page.url()).searchParams;
@@ -89,6 +90,8 @@ test('overview groups home care without duplicating continuation or hiding entra
   await expect(care).toContainText('Observed Sep 30');
   await expect(care.locator('time[datetime="2026-10-01"]')).toHaveAttribute('aria-label','Oct 1, 2026');
   await expect(care.locator('time[datetime="2026-09-30"]')).toHaveAttribute('aria-label','Sep 30, 2026');
+  await expect(workspace.locator('.how-add-menu')).not.toHaveAttribute('open', '');
+  await workspace.locator('.how-add-menu > summary').click();
   for (const name of ['Plan a test', 'Add a report', 'Add routine', 'Record moisture', 'Create summary']) {
     const entrance = workspace.getByRole('link', { name, exact: true });
     await expect(entrance).toBeVisible();
@@ -98,6 +101,7 @@ test('overview groups home care without duplicating continuation or hiding entra
 
 test('record creation updates the overview and review failures suppress counts', async ({ page }) => {
   await page.goto(home);
+  await page.locator('#home-workspace .how-add-menu > summary').click();
   await page.locator('#home-workspace').getByRole('link', { name: 'Plan a test' }).click();
   await page.getByLabel('Test label (required)').fill('Overview test');
   await page.getByLabel('Sample medium (required)').selectOption('water');
@@ -107,20 +111,20 @@ test('record creation updates the overview and review failures suppress counts',
   await expect(page.getByRole('heading', { name: 'Overview test', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Back to Homeguard', exact: true }).click();
   const workspace = page.locator('#home-workspace');
-  await expect(workspace).toContainText('2 active tests');
+  await expect(workspace).toContainText('2 active');
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   const control = page.getByLabel('Homeguard workspace state');
   await control.selectOption('error');
   await expect(workspace).toContainText('Your home records could not load.');
-  await expect(workspace).not.toContainText('2 active tests');
+  await expect(workspace).not.toContainText('2 active');
   await workspace.getByRole('button', { name: 'Retry sample records' }).click();
-  await expect(workspace).toContainText('2 active tests');
+  await expect(workspace).toContainText('2 active');
   await control.selectOption('empty');
-  await expect(workspace).toContainText('0 active tests');
+  await expect(workspace).toContainText('0 active');
   await expect(workspace.getByRole('link', { name: 'Continue test' })).toHaveCount(0);
-  await expect(workspace).toContainText('Add your first food');
+  await expect(workspace).toContainText('Add food');
   await page.getByRole('button', { name: 'Reset Homeguard sample records' }).click();
   await control.selectOption('offline');
   await expect(workspace).toContainText('Offline review');
-  await expect(workspace).toContainText('1 active test');
+  await expect(workspace).toContainText('1 active');
 });
