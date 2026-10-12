@@ -27,9 +27,9 @@ import { useStageRuntime } from './StageRuntime';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
-type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; familyHref?: string; memberHref?: MemberHref; home?: boolean; homeWorkspace?: boolean };
+type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; familyHref?: string; memberHref?: MemberHref; home?: boolean; homeWorkspace?: boolean; workspace?: ReactNode };
 
-export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false, homeWorkspace = false }: OverviewProps) {
+export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false, homeWorkspace = false, workspace }: OverviewProps) {
   const { clock } = useSceneExperience();
   const runtime = useStageRuntime();
   const overview = runtime ? (home ? runtime.home : runtime.today) : null;
@@ -52,9 +52,9 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
         <span className="halo-ph-higher">Higher is better</span>
       </div>
     </section>
-    <div className="halo-ph-introduction"><div className="halo-ph-headline">{(missing || score === 0 || zeroRisk || home) && <h2>{missing ? 'A few readings are missing' : score === 0 ? 'Take a closer look at your readings' : zeroRisk ? 'A little more room to breathe' : 'Know your home a little better.'}</h2>}<SeverityPill severity={severity} /></div><p>{home ? 'Water, ground, and the place you call home.' : 'Your air, sunlight, pollen, and moisture, brought into focus.'}</p><span className="halo-f-meta">{overview ? overview.asOf : 'Sample household · September 30, 2026'}</span></div>
+    <div className="halo-ph-introduction"><div className="halo-ph-headline">{(missing || score === 0 || zeroRisk || home) && <h2>{missing ? 'A few readings are missing' : score === 0 ? 'Take a closer look at your readings' : zeroRisk ? 'A little more room to breathe' : 'Know your home a little better.'}</h2>}<SeverityPill severity={severity} /></div><p>{home ? 'Water, ground, and the place you call home.' : 'Your air, sunlight, pollen, and moisture, brought into focus.'}</p><span className="halo-f-meta">{overview ? overview.asOf : 'Updated September 30, 2026'}</span></div>
     {partial && (!runtime || !missing) && <Callout tone="notice">{overview ? <p>{`Partial score. Missing inputs: ${overview.missingInputs.join(', ') || 'Some readings are unavailable'}.`}</p> : <p>Based on {home ? 1 : 3} of {home ? 2 : 4} scored factors. {home ? 'PFAS' : 'Pollen'} data is not available right now.</p>}</Callout>}
-    {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'We could not get readings for this sample. Missing data does not mean low risk.'}</p></Callout>}
+    {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'Readings unavailable. Missing data is not an all-clear.'}</p></Callout>}
     {overview?.notice && <Callout tone="notice"><p>{overview.notice}</p></Callout>}
     <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
     {home && homeWorkspace && <PreviewSectionLink className="how-text-action how-workspace-jump" target="home-workspace">Open your home workspace <ArrowDown size={17} aria-hidden="true" /></PreviewSectionLink>}
@@ -65,7 +65,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     })}</div>
     {!home && <HouseholdContext familyHref={familyHref} />}
     <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score.' : 'Today brings together air quality, UV, pollen, and mold conditions. Check each reading’s update time.'} Estimates are identified in each factor.</p>
-    {home && <HouseholdContext home />}
+    {home && workspace}
     {home && memberHref && <HomeHousehold memberHref={memberHref} />}
   </div>;
 }
@@ -84,9 +84,9 @@ function HouseholdContext({ home = false, familyHref }: { home?: boolean; family
     <span className="halo-ph-family-symbol"><Users size={25} aria-hidden="true" /></span>
     <span><span className="halo-ph-kicker">Today · Your household</span><strong>A little guidance for everyone.</strong><span>{runtime ? `${selected.join(', ') || 'General household guidance'} · Explore your daily guidance` : 'Young children and adults · Explore your daily guidance'}</span></span>
   </Link>;
-  return <aside className="halo-ph-household" data-prominent={home} aria-label={runtime ? 'Your household' : 'Sample household'}>
+  return <aside className="halo-ph-household" data-prominent={home} aria-label="Your household">
     <div className="halo-ph-household-icon"><Users size={23} aria-hidden="true" /></div>
-    <div><h3>{home ? 'The people who make it home' : 'Looking out for your household'}</h3><p>{runtime ? selected.join(', ') || 'No categories selected' : home ? `Sample household · ${selected.join(', ') || 'No categories selected'}` : 'Sample profile · Adults and a young child'}</p>{home && <span>Choose someone below for guidance on the home you share.</span>}</div>
+    <div><h3>{home ? 'The people who make it home' : 'Looking out for your household'}</h3><p>{runtime ? selected.join(', ') || 'No categories selected' : home ? `Sample household · ${selected.join(', ') || 'No categories selected'}` : 'Adults and a young child'}</p>{home && <span>Choose someone below for guidance on the home you share.</span>}</div>
   </aside>;
 }
 

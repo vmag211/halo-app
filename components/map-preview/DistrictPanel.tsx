@@ -99,7 +99,7 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: Dis
             ) : <p className="halo-map-district-inline-notice">The district/state comparison is unavailable because one tested-system share is missing. No substitute percentage is shown.</p>}
             <details className="halo-map-district-explainer">
               <summary><CircleHelp size={16} aria-hidden="true" /><span>What does “tested” mean here?</span><ChevronDown size={16} aria-hidden="true" /></summary>
-              <p>The backend calls this count “tested.” It includes systems with a numeric detection record for a regulated compound. It is not complete testing coverage: a system with only non-detect records may not appear in that denominator.</p>
+              <p>“Tested” counts systems with a numeric regulated-compound result, not all testing. Systems with only non-detect records may be missing.</p>
               <p>These summaries use each compound’s latest available sample, so the underlying samples can have different dates.</p>
             </details>
           </section>
@@ -133,7 +133,7 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: Dis
                   <div className="halo-map-district-compound-body">
                     {compound.tested === 0 ? <p>No numeric records were returned for {name === "HFPO-DA" ? "HFPO-DA (GenX)" : name}. This is missing information, not a finding of no concern.</p> : <p><strong>{compound.over} of {compound.tested} systems</strong> with a numeric record for {name === "HFPO-DA" ? "HFPO-DA (GenX)" : name} have a latest sample above the returned limit.</p>}
                     <dl><div><dt>Systems tested</dt><dd>{compound.tested}</dd></div><div><dt>Systems over limit</dt><dd>{compound.tested === 0 ? "Not available" : compound.over}</dd></div><div><dt>Comparison limit in this response</dt><dd>{compound.limit} ppt</dd></div><div><dt>People served by over-limit systems</dt><dd>{compound.population_over === null ? "Not available" : `${compound.over_population_unknown > 0 ? "At least " : ""}${formatNumber.format(compound.population_over)}`}</dd></div></dl>
-                    <p className="halo-map-district-note">{compound.proposed_for_rescission ? "The sample backend response flags this limit as proposed for rescission. " : ""}The comparison uses the supplied response limit, not an independent statement of current regulation.</p>
+                    <p className="halo-map-district-note">Comparison uses the supplied limit, not a determination of current regulation.</p>
                     {compound.over_population_unknown > 0 && <p className="halo-map-district-note">Population is unknown for {compound.over_population_unknown} over-limit {compound.over_population_unknown === 1 ? "system" : "systems"} in this row.</p>}
                     {compound.over === 0 && compound.tested > 0 && <p className="halo-map-district-note">Zero over-limit findings in the available records does not establish complete testing or no risk.</p>}
                   </div>
@@ -146,7 +146,7 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: Dis
             <MapPinned size={21} aria-hidden="true" />
             <div><h3>{data.unlocated_systems} statewide systems could not be placed</h3>
               <p>These North Carolina records have no mapped service-area location. Their district membership is unknown, so they are not included in the district figures.</p>
-              <details><summary>See the unlocated sample systems <ChevronDown size={15} aria-hidden="true" /></summary><ul>{unlocatedDistrictPreviewSystems.map((name) => <li key={name}>{name}</li>)}</ul><p className="halo-map-district-note">Fictional utility names for this wireframe. This list is statewide, not a list of systems confirmed in NC-08.</p></details>
+              <details><summary>See unmapped systems <ChevronDown size={15} aria-hidden="true" /></summary><ul>{unlocatedDistrictPreviewSystems.map((name) => <li key={name}>{name}</li>)}</ul><p className="halo-map-district-note">Statewide list. These systems are not confirmed within NC-08.</p></details>
             </div>
           </aside>
         </>
@@ -154,9 +154,9 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: Dis
 
       <footer className="halo-map-district-sources">
         <strong>Sources &amp; boundaries</strong>
-        <p>Water records: EPA UCMR 5. Population and service-area placement: the existing EPA boundary-data join. All figures displayed in this wireframe are illustrative.</p>
+        <p>Source basis: EPA UCMR 5, with EPA population and service-area boundaries.</p>
         <p>Boundaries: U.S. Census Bureau TIGERweb, 119th Congressional Districts and counties. NC-08 uses the 2023 district map, not the 2026 election map. District membership uses system service-area centroids.</p>
-        <p>Boundary source retrieved September 27, 2026. Sample response assembled <time dateTime={data.assembled_at}>October 1, 2026 at 11:00 UTC</time>. Assembly time is not a water-sample date.</p>
+        <p>Boundary source retrieved September 27, 2026. Records assembled <time dateTime={data.assembled_at}>October 1, 2026 at 11:00 UTC</time>. Assembly time is not a water-sample date.</p>
       </footer>
     </div>
   );

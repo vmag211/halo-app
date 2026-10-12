@@ -70,7 +70,7 @@ export function foodOriginContext(guide: FoodGuide, origin: FoodOrigin) {
   if (safeOrigin === 'caught') return {
     title: 'Start with the place it was caught',
     text: 'FDA recommends checking state fish and shellfish advisories for recreational catches. Use the waterbody, species and the audience in the official rule.',
-    source: 'fdaQuestions' as FoodSourceKey, nextView: 'fish', nextTitle: 'Explore fish advisories', nextDetail: 'The wireframe uses example records. Follow the official source for current advice.',
+    source: 'fdaQuestions' as FoodSourceKey, nextView: 'fish', nextTitle: 'Explore fish advisories', nextDetail: 'Check the official source for current advice.',
     question: 'Which current advisory applies to this waterbody, species and person eating the catch?',
   };
   if (safeOrigin === 'homegrown') return {

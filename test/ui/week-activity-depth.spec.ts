@@ -14,7 +14,7 @@ test('connected examples have activity photos, useful step details and a real da
   await expect(page.locator('.mw-agenda .mw-task')).toContainText('Draw a testable design');
   await expect(page.locator('.mw-agenda .mw-task .ex-photo-solar')).toBeVisible();
   await expect(page.locator('.mw-time-track')).toContainText('9:00');
-  await page.getByRole('button', { name: 'Edit Draw a testable design', exact: true }).click();
+  await page.locator('.mw-task-open').filter({hasText:'Draw a testable design'}).click();
   const detail = page.locator('#week-task-detail'); await expect(detail.locator('.mw-activity-detail')).toContainText('Build a solar-energy experiment');
   await detail.getByText('How to do this step', { exact: true }).click(); await expect(detail).toContainText('Sketch a box with a dark absorbing surface');
   await expect(detail.getByRole('link', { name: 'NASA', exact: true })).toHaveAttribute('href', 'https://www.nasa.gov/wp-content/uploads/2024/02/nasa-lp-solar-oven.pdf');
@@ -42,7 +42,7 @@ test('project continuation and quick completion use the canonical Explore step',
 
 test('community example stays illustrative and retains the chosen future date', async ({ page }) => {
   await page.goto(root); await examples(page); await page.getByRole('button', { name: 'Agenda', exact: true }).click();
-  await page.getByRole('button', { name: 'Edit Community cleanup example', exact: true }).click();
+  await page.locator('.mw-task-open').filter({hasText:'Community cleanup example'}).click();
   const detail = page.locator('#week-task-detail');
   await expect(detail).toContainText('Example meeting place, confirm with organizer');
   await expect(detail).toContainText('Your status is self-reported. Saving is not registration.');

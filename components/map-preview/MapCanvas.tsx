@@ -310,7 +310,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
           ctx.textAlign='left';ctx.fillStyle=white;layout.characters.forEach(c=>ctx.fillText(c.character,lx+8+c.x,ly+h/2));ctx.textAlign='center';
         }
       }
-      hits.current.push({ id: point.id, name: `${point.name}${point.reading ? ` · ${point.reading}` : ''}`, x, y });
+      hits.current.push({ id: point.id, name: `${point.name.replace(/\s*\(sample\)$/i, '')}${point.reading ? ` · ${point.reading}` : ''}`, x, y });
     });
     if (home) {
       const [anchorX, anchorY] = project(home.lng, home.lat);
@@ -323,7 +323,7 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
         ctx.beginPath(); ctx.roundRect(x-15,y-15,30,30,[12,12,5,5]); ctx.fillStyle = '#123b4b'; ctx.fill(); ctx.strokeStyle = '#c4f8ee'; ctx.lineWidth = selectedId === 'home' ? 3 : 1.5; ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x - 8, y); ctx.lineTo(x, y - 7); ctx.lineTo(x + 8, y); ctx.moveTo(x - 5.5, y - 1); ctx.lineTo(x - 5.5, y + 7); ctx.lineTo(x + 5.5, y + 7); ctx.lineTo(x + 5.5, y - 1); ctx.stroke();
         ctx.fillStyle = '#c4f8ee'; ctx.fillRect(x - 1.5, y + 2, 3, 5);
-        hits.current.push({ id: 'home', name: 'Sample household location', x, y });
+        hits.current.push({ id: 'home', name: 'Approximate home location', x, y });
       }
     }
     const metersPerPixel = 40075016.686 * Math.cos(view.lat * Math.PI / 180) / scale;
@@ -401,8 +401,8 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     <div className="halo-map-atlas-north" aria-hidden="true"><span>N</span><svg viewBox="0 0 16 22"><path d="M8 1 15 20 8 15 1 20Z" /></svg></div>
     <span className="halo-map-atlas-crosshair" aria-hidden="true" />
     {hover && <div className="halo-map-atlas-tooltip" style={{ left: clamp(hover.x, 95, dimensions.width - 95), top: Math.max(12, hover.y - 44) }}>{hover.name}</div>}
-    {!geography && <div className="halo-map-atlas-status" role="status"><span className="halo-map-atlas-status-symbol" aria-hidden="true">◎</span><strong>{error ? 'The map could not be drawn' : 'Opening the atlas'}</strong><p>{error ? 'Your sample observations are still available in the results list.' : 'Loading local Census boundaries. No map account is needed.'}</p>{error && !previewOnly && <button onClick={() => { setError(false); setAttempt(value => value + 1); }}>Try the map again</button>}</div>}
-    <div className="halo-map-atlas-credit">{previewOnly ? <span>Census · Natural Earth · Sample observations</span> : <><a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener noreferrer">Census</a> · <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth</a> · Sample observations</>}</div>
+    {!geography && <div className="halo-map-atlas-status" role="status"><span className="halo-map-atlas-status-symbol" aria-hidden="true">◎</span><strong>{error ? 'The map could not be drawn' : 'Opening the atlas'}</strong><p>{error ? 'Records are still available in the results list.' : 'Loading map boundaries.'}</p>{error && !previewOnly && <button onClick={() => { setError(false); setAttempt(value => value + 1); }}>Try the map again</button>}</div>}
+    <div className="halo-map-atlas-credit">{previewOnly ? <span>Census · Natural Earth</span> : <><a href="https://www.census.gov/geographies/mapping-files.html" target="_blank" rel="noopener noreferrer">Census</a> · <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth</a></>}</div>
     <p className="halo-map-atlas-sr" role="status" aria-live="polite">{announcement}</p>
   </div>;
 }

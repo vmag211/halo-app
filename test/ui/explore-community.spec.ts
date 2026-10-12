@@ -19,10 +19,10 @@ async function openSendPreview(page: Page) {
   await page.getByLabel('I checked the recipient and their service area').check();
   await page.getByLabel('Draft for Utility').fill('Please help me find the right dated water records.');
   await page.getByRole('button', { name: 'Review what you will share' }).click();
-  await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Preview Gmail connection' }).click();
-  await page.getByRole('button', { name: 'Use preview account' }).click();
+  await page.getByText('Send with Gmail', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Connect Gmail' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
 }
 
 test('hub is evergreen and every photo uses regular rectangular frames', async ({ page }) => {
@@ -84,7 +84,7 @@ test('volunteer guide is filtered by interest, uses official handoff and saves a
   await expect(page.locator('.ex-local-detail')).toContainText('Mailing address only');
   await page.locator('.ex-local-detail').getByRole('button', { name: 'Save to My Week' }).click();
   await expect(page.getByLabel('All-day date (optional)')).toHaveValue('');
-  await page.getByRole('button', { name: 'Save sample action' }).click();
+  await page.getByRole('button', { name: 'Save action' }).click();
   await expect(page.locator('.ex-local-detail').getByRole('button', { name: 'Open saved action' })).toBeVisible();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
@@ -126,27 +126,28 @@ test('notes support types, pinning, search and no required observation time for 
 test('Luna request requires deliberate consent and excludes place and time by default', async ({ page }) => {
   await page.goto(`${root}&destination=observations&exploreView=detail&exploreRecord=demo-field-note`);
   await page.getByText('Prepare with Luna', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Preview Luna request' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Review Luna request' })).toBeDisabled();
   await expect(page.getByLabel('Place label', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Date and timezone', { exact: true })).not.toBeChecked();
   await page.getByLabel('I choose only these fields for this request').check();
-  await page.getByRole('button', { name: 'Preview Luna request' }).click();
+  await page.getByRole('button', { name: 'Review Luna request' }).click();
   await expect(page.locator('.ex-luna-request pre')).toContainText('water looked cloudier');
   await expect(page.locator('.ex-luna-request pre')).not.toContainText('Example creek path');
   await expect(page.locator('.ex-luna-request pre')).not.toContainText('2026-10-01');
   await page.getByLabel('Place label', { exact: true }).check();
-  await expect(page.getByRole('button', { name: 'Preview Luna request' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Review Luna request' })).toBeDisabled();
   await expect(page.locator('.ex-luna-request')).toHaveCount(0);
 });
 
-test('contact matching is clearly simulated and has verified-source alternatives', async ({ page }) => {
+test('unavailable contact matching does not invent a recipient and keeps official alternatives', async ({ page }) => {
   await page.goto(`${root}&destination=outreach`);
-  await page.getByText('Preview automatic contact matching', { exact: true }).click();
-  await page.getByRole('button', { name: 'Show an example contact' }).click();
-  await expect(page.locator('.ex-contact-match')).toContainText('not matched');
-  await expect(page.locator('.ex-contact-match')).toContainText('No official source');
-  await page.getByRole('button', { name: 'Use example in this preview' }).click();
-  await expect(page.getByLabel('Recipient email', { exact: true })).toHaveValue('contact@example.invalid');
+  await page.getByText('Find a contact for my area', { exact: true }).click();
+  await page.getByRole('button', { name: 'Find a contact' }).click();
+  await expect(page.locator('.ex-contact-match')).toContainText('Contact lookup unavailable');
+  await expect(page.locator('.ex-contact-match')).toContainText('No verified contact');
+  await expect(page.getByRole('button', { name: 'Use example in this preview' })).toHaveCount(0);
+  await page.getByText('Recipient details', { exact: true }).click();
+  await expect(page.getByLabel('Recipient email', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('I checked the recipient and their service area')).not.toBeChecked();
   await page.getByRole('button', { name: 'Representative', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Find your elected officials' })).toHaveAttribute('href', 'https://www.usa.gov/elected-officials');
@@ -176,31 +177,31 @@ test('selected notes add only chosen text to outreach, and a revised note requir
 
 test('Gmail preview requires confirmation and prevents a duplicate submitted attempt', async ({ page }) => {
   await openSendPreview(page);
-  await page.getByRole('button', { name: 'Preview send', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Review this send (preview)' })).toBeVisible();
+  await page.getByRole('button', { name: 'Review send', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Review this send' })).toBeVisible();
   await page.getByRole('button', { name: 'Keep editing' }).click();
-  await expect(page.getByText(/Sample status: submitted/)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Preview send', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm preview send' }).click();
-  await expect(page.getByText(/Sample status: submitted to Gmail/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
-  await expect(page.getByText(/exact message already has a submitted sample attempt/)).toBeVisible();
+  await expect(page.getByText(/Your reviewed draft is kept/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Review send', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm send' }).click();
+  await expect(page.getByText(/Your reviewed draft is kept/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeDisabled();
+  await expect(page.getByText(/message has an existing attempt/)).toBeVisible();
 });
 
 test('unknown send outcome blocks automatic retries even after internal navigation', async ({ page }) => {
   await openSendPreview(page);
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Email preview outcome').selectOption('unknown');
-  await page.getByRole('button', { name: 'Preview send', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm preview send' }).click();
-  await expect(page.getByText(/Sample status: outcome unknown/)).toBeVisible();
+  await page.getByRole('button', { name: 'Review send', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm send' }).click();
+  await expect(page.getByText(/Check the existing attempt before retrying/)).toBeVisible();
   await page.getByRole('button', { name: 'Open my notes', exact: true }).first().click();
   await page.getByLabel('Explore resources', { exact: true }).click();
   await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
   await page.getByRole('button', { name: 'Review what you will share' }).click();
-  await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
-  await expect(page.getByText(/Sample status: outcome unknown/)).toBeVisible();
+  await page.getByText('Send with Gmail', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeDisabled();
+  await expect(page.getByText(/Check the existing attempt before retrying/)).toBeVisible();
 });
 
 test('offline does not lose drafts or connect sending', async ({ page }) => {
@@ -211,22 +212,22 @@ test('offline does not lose drafts or connect sending', async ({ page }) => {
   await expect(page.getByLabel('Draft for Utility')).toHaveValue('Keep this private question.');
   await expect(page.locator('.ex-offline')).toContainText('reconnect to save or open official links');
   await page.getByRole('button', { name: 'Review what you will share' }).click();
-  await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
+  await page.getByText('Send with Gmail', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeDisabled();
 });
 
 test('changing outreach context requires checking the recipient again', async ({ page }) => {
   await openSendPreview(page);
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeEnabled();
   await page.getByLabel('What is your question about?').selectOption('Parks & public spaces');
   await expect(page.getByLabel('I checked the recipient and their service area')).not.toBeChecked();
   await page.getByRole('button', { name: 'Review what you will share' }).click();
-  await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeDisabled();
+  await page.getByText('Send with Gmail', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeDisabled();
   await page.getByLabel('I checked the recipient and their service area').check();
   await page.getByRole('button', { name: 'Review what you will share' }).click();
-  await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeEnabled();
+  await page.getByText('Send with Gmail', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeEnabled();
 });
 
 test('community question offers deliberate append without replacing an unfinished note', async ({ page }) => {
@@ -248,13 +249,13 @@ test('unknown attempt can be reconciled without automatically sending again', as
   await openSendPreview(page);
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Email preview outcome').selectOption('unknown');
-  await page.getByRole('button', { name: 'Preview send', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm preview send' }).click();
+  await page.getByRole('button', { name: 'Review send', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm send' }).click();
   await page.getByLabel('Email attempt check outcome').selectOption('not-submitted');
-  await page.getByRole('button', { name: 'Check sample attempt status' }).click();
-  await expect(page.getByText(/Sample check: no submission recorded/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Preview send', exact: true })).toBeEnabled();
-  await expect(page.getByText(/Sample status: submitted to Gmail/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Check attempt status' }).click();
+  await expect(page.locator('.ex-share-preview').getByText(/No submission recorded/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeEnabled();
+  await expect(page.getByText(/Your reviewed draft is kept/)).toHaveCount(0);
 });
 
 test('returning from a program guide preserves filters, then another interest shows appropriate routes', async ({ page }) => {
@@ -297,23 +298,24 @@ for (const appearance of ['light', 'dark']) test(`deep Explore flows remain usab
       await page.getByText('My preparation and questions', { exact: true }).click();
     }
     if (destination === 'outreach') {
-      await page.getByText('Preview automatic contact matching', { exact: true }).click();
-      await page.getByRole('button', { name: 'Show an example contact' }).click();
-      await page.getByRole('button', { name: 'Use example in this preview' }).click();
+      await page.getByText('Find a contact for my area', { exact: true }).click();
+      await page.getByRole('button', { name: 'Find a contact' }).click();
+      await page.getByText('Recipient details', { exact: true }).click();
+      await page.getByLabel('Recipient email', { exact: true }).fill('person@example.invalid');
       await page.getByLabel('I checked the recipient and their service area').check();
       await page.getByText('Add context you choose', { exact: true }).click();
       await page.getByLabel('A change near the walking path', { exact: true }).check();
       await page.getByRole('button', { name: 'Review what you will share' }).click();
-      await page.getByText('Send from HALO with Gmail (proposed)', { exact: true }).click();
-      await page.getByRole('button', { name: 'Preview Gmail connection' }).click();
-      await page.getByRole('button', { name: 'Use preview account' }).click();
-      await page.getByRole('button', { name: 'Preview send', exact: true }).click();
+      await page.getByText('Send with Gmail', { exact: true }).click();
+      await page.getByRole('button', { name: 'Connect Gmail' }).click();
+      await page.getByRole('button', { name: 'Continue' }).click();
+      await page.getByRole('button', { name: 'Review send', exact: true }).click();
     }
     if (destination === 'observations') {
       await page.getByRole('button', { name: /A change near the walking path/ }).first().click();
       await page.getByText('Prepare with Luna', { exact: true }).click();
       await page.getByLabel('I choose only these fields for this request').check();
-      await page.getByRole('button', { name: 'Preview Luna request' }).click();
+      await page.getByRole('button', { name: 'Review Luna request' }).click();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), destination).toBe(true);
     await page.screenshot({ path: info.outputPath(`${destination}-${appearance}-320-enlarged.png`), fullPage: destination !== 'outreach' });

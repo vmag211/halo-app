@@ -1,8 +1,18 @@
 # My Week working wireframe
 
-This is the P01-P06 working review with the October12 dashboard refinement and subsequent mobile-shell correction, not approval or production integration. It replaces the old agenda outline only in the expanded preview. Approved Today/Homeguard core, archived screens, production routes and backend remain unchanged.
+This is the P01-P06 working review with the October12 dashboard, mobile-shell and final-app presentation refinements, not approval or production integration. It replaces the old agenda outline only in the expanded preview. Approved archives, production routes and backend remain unchanged; the current editable Homeguard order and shared app copy follow Yogi's newest directions.
 
 ## Action dashboard depth and Luna motion, October12
+
+### Final-app visual and copy pass
+
+The current editable review keeps development explanations in the external review controls, rather than repeating them inside every form, assistant reply and task sheet. Actual missing-source, offline, privacy, organizer-registration, source-age, export and unconnected notification states remain concise and visible. No live AI, web retrieval, record persistence, provider monitoring or send capability was added. Invented fish meal limits and water restriction percentages/instructions are withheld in favor of unavailable-source states and official resources. Gmail confirmation scaffolding retains an explicit no-send result and contact matching does not fabricate a local person.
+
+My Week has a compact fieldbook sketch, restrained focal calendar, selected-day rail, flat date-led upcoming rows, warmer weekly reset and activity-specific thumbnail/details. Task titles open the exact detail sheet; one trailing completion control replaces redundant Edit controls. Advanced calendar/tool disclosures follow the planning panel in both visual and keyboard order. The same430px shell, all task/date joins, timelines, proposals, Journal/Patterns/season/outdoor paths and motion constraints remain.
+
+The shared DateInput is used by15 editable component files across Homeguard, projects, community commitments, Luna proposals, Journal, outdoor plans, action scheduling and weekly review. ISO-valued manual date entry remains intact. A HALO top-layer calendar replaces the native popup affordance, with month/year navigation, date bounds, six stable week rows, Today/optional Clear, roving keyboard navigation, Escape and opener focus restoration. Date arithmetic never shifts all-day values through the device timezone. No schedule/reminder contract was changed.
+
+Homeguard now renders one compact workspace above the house. The separate people-context box is removed; the selected-category house and all deeper guidance/record routes remain. This order follows Yogi's newest explicit request, superseding the earlier current-screen order but not modifying the approved archive.
 
 The current pass implements all six requested directions while retaining the430px mobile shell. Functional references include [Sunsama timeboxing](https://help.sunsama.com/docs/getting-started/basics/timeboxing-the-basics/), [Todoist duration controls](https://www.todoist.com/help/todoist/features/set-a-task-duration-L1kYkZv8d) and [Sunsama weekly review](https://help.sunsama.com/docs/usage-guides/weekly-objectives/weekly-review/). Mazah remains inspiration for the household/community connection, not a verified copied dashboard. Existing licensed local project photography is reused in regular rectangular crops; no new remote images or services are required.
 

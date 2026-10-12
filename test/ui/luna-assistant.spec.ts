@@ -26,12 +26,12 @@ for (const appearance of ['light', 'dark']) test(`Luna ${appearance} welcome, sa
   const input = panel.getByRole('textbox', { name: 'Message Luna' });
   await input.fill('Can I ask a question?');
   await input.press('Enter');
-  await expect(panel.getByRole('log')).toContainText('This preview does not generate live AI answers.');
+  await expect(panel.getByRole('log')).toContainText('I cannot answer that request right now.');
   await expect(input).toHaveValue('');
   await panel.getByRole('button', { name: 'Luna options' }).click();
-  await panel.getByRole('button', { name: 'About this preview' }).click();
-  await expect(panel.locator('.halo-luna-about')).toContainText('Nothing is sent to HALO');
-  await panel.getByRole('button', { name: 'Close preview information' }).click();
+  await panel.getByRole('button', { name: 'About Luna' }).click();
+  await expect(panel.locator('.halo-luna-about')).toContainText('Messages clear when you close this panel');
+  await panel.getByRole('button', { name: 'Close Luna information' }).click();
   await panel.getByRole('button', { name: 'Luna options' }).click();
   await panel.getByRole('button', { name: 'Start a new conversation' }).click();
   await expect(panel.locator('.halo-luna-message')).toHaveCount(0);

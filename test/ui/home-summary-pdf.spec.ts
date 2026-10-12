@@ -30,8 +30,9 @@ test('Luna generates a real, paginated PDF locally with a readable fallback', as
   expect(document.getPageCount()).toBeLessThan(10);
   await page.locator('.hg-report-builder').screenshot({ path: testInfo.outputPath('report-ready.png') });
   await page.getByRole('link', { name: 'Back to Homeguard', exact: true }).click();
-  await expect(page.locator('#home-workspace')).toContainText('Last PDF created');
-  await expect(page.locator('#home-workspace').getByRole('link', { name: 'Create a new summary' })).toBeVisible();
+  await expect(page.locator('#home-workspace')).toContainText('PDF:');
+  await expect(page.locator('#home-workspace')).toContainText('2 pages');
+  await expect(page.locator('#home-workspace').getByRole('link', { name: 'Create a new summary', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

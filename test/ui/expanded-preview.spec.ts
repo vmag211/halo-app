@@ -62,7 +62,7 @@ test('planned follow-up save, edit, status, deduplication and return are one in-
   const dialog = page.getByRole('dialog', { name: 'Save a practical step' });
   await dialog.getByLabel('Action title').fill('Review the kitchen filter schedule');
   await dialog.getByLabel('All-day date (optional)').fill('2026-10-04');
-  await dialog.getByRole('button', { name: 'Save sample action' }).click();
+  await dialog.getByRole('button', { name: 'Save action' }).click();
   await expect(dialog).not.toBeVisible();
   await page.getByRole('button', { name: 'Open saved action' }).click();
   await expect(page.getByLabel('Action title')).toHaveValue('Review the kitchen filter schedule');
@@ -74,7 +74,7 @@ test('planned follow-up save, edit, status, deduplication and return are one in-
   await expect(page.getByRole('heading', { name: 'Room for what matters.' })).toBeVisible();
   await page.getByLabel('Choose a day').fill('2026-10-04');
   await expect(page.locator('.mw-agenda .mw-task:visible, .mw-shelf .mw-task:visible')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Edit Review the kitchen filter schedule', exact: true }).first().click();
+  await page.locator('.mw-task-open').filter({ hasText: 'Review the kitchen filter schedule' }).first().click();
   await expect(page.locator('#week-task-detail-title')).toHaveText('Task details');
   await page.locator('#week-task-detail').getByLabel('Status', { exact: true }).selectOption('completed');
   await page.locator('#week-task-detail').getByRole('button', { name: 'Save task', exact: true }).click();
@@ -89,15 +89,15 @@ test('failure retains edits; Back cancels pending save and retains draft', async
   await page.getByLabel('Simulate failed action save').check();
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await page.getByLabel('Action title').fill('Review filter instructions');
-  await page.getByRole('button', { name: 'Save sample action' }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('sample save failed');
+  await page.getByRole('button', { name: 'Save action' }).click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Could not save');
   await expect(page.getByLabel('Action title')).toHaveValue('Review filter instructions');
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByLabel('Simulate failed action save').uncheck();
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await expect(page.getByLabel('Action title')).toHaveValue('Review filter instructions');
-  await page.getByRole('button', { name: 'Save sample action' }).click();
+  await page.getByRole('button', { name: 'Save action' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open saved action' })).toBeVisible();
 });
@@ -105,8 +105,8 @@ test('failure retains edits; Back cancels pending save and retains draft', async
 test('offline actions cannot save or imply queued work', async ({ page }) => {
   await page.goto(`${routine}&scenario=offline`);
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Save sample action' })).toBeDisabled();
-  await expect(page.getByText(/this review does not queue saves/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save action' })).toBeDisabled();
+  await expect(page.getByText(/Offline\. Your draft is kept\. Reconnect to save\./)).toBeVisible();
 });
 
 test('all factor journeys keep detail sections and show the matching connection', async ({ page }) => {
@@ -130,7 +130,7 @@ test('expanded household Settings requires Save and only selected figures appear
   await expect(page.locator('.halo-home-person[data-member="senior"]')).toHaveCount(1);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.locator('form').getByLabel('Older adults')).not.toBeChecked();
-  await form.getByRole('button', { name: 'Save sample household' }).click();
+  await form.getByRole('button', { name: 'Save household' }).click();
   await mainNav(page).getByRole('link', { name: 'Homeguard' }).click();
   await expect(page.locator('.halo-home-person[data-member="senior"]')).toHaveCount(0);
   await expect(page.locator('.halo-home-person[data-member="pregnant"]')).toHaveCount(1);

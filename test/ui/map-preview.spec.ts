@@ -74,7 +74,7 @@ test('all seven water comparisons and layer-specific legends are available', asy
     if (value !== 'overall') expect(new URL(page.url()).searchParams.get('contaminant')).toBe(value);
   }
   await page.getByRole('button', { name: 'Standard change information' }).click();
-  await expect(page.getByRole('dialog')).toContainText('proposed change');
+  await expect(page.getByRole('dialog')).toContainText('Supplied comparisons are not a determination of current regulation.');
   await page.getByRole('button', { name: 'Close sheet' }).click();
   for (const [layer, meaning] of [['Radon', 'regional potential'], ['Facilities', 'not every regulated site'], ['Air', 'monitoring stations']]) {
     await page.getByRole('radio', { name: layer, exact: true }).click();
@@ -112,9 +112,9 @@ test('list search includes unlocated systems and distinguishes zero from missing
 for (const feature of [
   { layer: 'water', id: 'SAMPLE-01', title: 'Meadow Water', copy: 'Latest sample:' },
   { layer: 'radon', id: 'Union County', title: 'Union County', copy: 'County-level radon potential' },
-  { layer: 'facilities', id: 'facility-1', title: 'Piedmont Works (sample)', copy: '6 of 12' },
-  { layer: 'air', id: 'air-1', title: 'Meadow monitoring station (sample)', copy: 'PM2.5' },
-  { layer: 'water', id: 'home', title: 'Your home', copy: 'Today score from the sample session' },
+  { layer: 'facilities', id: 'facility-1', title: 'Piedmont Works', copy: '6 of 12' },
+  { layer: 'air', id: 'air-1', title: 'Meadow monitoring station', copy: 'PM2.5' },
+  { layer: 'water', id: 'home', title: 'Your home', copy: 'Today score' },
 ]) test(`direct-linked ${feature.layer} ${feature.id} details close without navigating away`, async ({ page }) => {
   await page.goto(`/foundation/preview/map?layer=${feature.layer}&system=${encodeURIComponent(feature.id)}&motion=reduce`);
   const sheet = page.getByRole('dialog');
@@ -133,7 +133,7 @@ test('layer result lists open each kind of feature without stacking sheets', asy
   await openReadyMap(page);
   for (const [layer, name, copy] of [
     ['Water', 'Meadow Water', '5.8 ppt'], ['Radon', 'Union County', 'County-level radon potential'],
-    ['Facilities', 'Piedmont Works (sample)', 'Programs currently in violation'], ['Air', 'Meadow monitoring station (sample)', 'Dominant pollutant'],
+    ['Facilities', 'Piedmont Works', 'Programs currently in violation'], ['Air', 'Meadow monitoring station', 'Dominant pollutant'],
   ]) {
     await page.getByRole('radio', { name: layer, exact: true }).click();
     await page.getByRole('button', { name: 'List', exact: true }).click();
@@ -175,7 +175,7 @@ test('record search intersects visible scope, recovers empty matches and sorts m
   await page.getByLabel('Sort results',{exact:true}).selectOption('nearest');
   await expect(rows.nth(13)).toContainText('No mapped location');
   await expect(rows.nth(14)).toContainText('No mapped location');
-  await expect(page.getByRole('dialog')).toContainText('not necessarily your supplier');
+  await expect(page.getByRole('dialog')).toContainText('Nearby utilities may not supply your water.');
   await page.getByRole('searchbox').fill('sample-04 longleaf');
   await expect(rows).toHaveCount(1);
   await expect(rows).toContainText('Longleaf');
@@ -263,7 +263,7 @@ test('district includes nine counties, five expandable compounds, unlocated cont
   await expect(sheet.locator('.halo-map-district-compound')).toHaveCount(5);
   await sheet.locator('.halo-map-district-compound summary').first().click();
   await expect(sheet.locator('.halo-map-district-compound[open]')).toContainText('2 of 5 systems');
-  await sheet.getByText('See the unlocated sample systems', { exact: true }).click();
+  await sheet.getByText('See unmapped systems', { exact: true }).click();
   await expect(sheet).toContainText('Unmapped Community Water');
   await expect(sheet).toContainText('membership is unknown');
   await sheet.getByRole('button', { name: 'Explore Union County on the map' }).click();
@@ -336,7 +336,7 @@ test('offline saved water restricts quarters and uncached layers, reconnect reco
   await expect(page.getByRole('dialog')).toContainText('No saved results for this layer');
   await expect(page.locator('.halo-map-results > button')).toHaveCount(0);
   await page.getByRole('button', { name: 'Close sheet' }).click();
-  await page.getByRole('button', { name: 'Simulate reconnect' }).click();
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByTestId('map-product').getByRole('alert')).toHaveCount(0);
   await openMap(page, 'mapScenario=offline-empty');
   await expect(page.getByRole('slider', { name: 'Water sample quarter' })).toBeDisabled();
@@ -426,7 +426,7 @@ test('loading, slow, empty and session review states offer a working recovery', 
     await openMap(page, `mapScenario=${scenario}`);
     await expect(page.getByText('Loading map data.', { exact: true })).toBeVisible();
     if (scenario === 'slow') await expect(page.getByText('This source is taking longer. Your location stays in view.', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Finish sample loading' }).click();
+    await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByText('Loading map data.', { exact: true })).toHaveCount(0);
   }
   await openReadyMap(page, 'mapScenario=empty');
@@ -487,8 +487,9 @@ test('area brief compiles visible records, coverage, and selected-system context
   await page.getByRole('button',{name:'Open area brief'}).click();
   const dialog=page.getByRole('dialog');
   await expect(dialog).toContainText('13 of 15 returned systems have a map location');
-  await expect(dialog).toContainText('35 km smoothing radius');
-  await expect(dialog).toContainText('No household risk or new score');
+  await expect(dialog).toContainText('35 km display radius is not a service area or pollution boundary');
+  await expect(dialog.locator('.halo-map-brief-metrics dt')).toHaveText(['systems in view', 'over limit', 'without a comparable result']);
+  await expect(dialog.locator('.halo-ph-score, [data-score]')).toHaveCount(0);
   const counts=await dialog.locator('.halo-map-brief-metrics dd').allTextContents();
   expect(Number(counts[0])).toBeGreaterThan(0);
   expect(Number(counts[1])).toBeLessThanOrEqual(Number(counts[0]));

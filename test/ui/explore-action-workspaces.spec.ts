@@ -29,7 +29,7 @@ test('map preview draws local geography and opens the selected full map without 
   await expect(page.locator('.ex-mini-map-canvas')).toHaveAttribute('data-map-preview-state', 'ready');
   await expect(page.locator('.ex-map-entry a,.ex-map-entry button')).toHaveCount(0);
   await expect(page.locator('.ex-mini-map-canvas canvas')).toHaveAttribute('tabindex', '-1');
-  await page.getByRole('combobox', { name: 'Preview map layer' }).selectOption('air');
+  await page.getByRole('combobox', { name: 'Map layer' }).selectOption('air');
   await page.getByRole('link', { name: /open the full air map/ }).click();
   await expect(page.getByRole('radio', { name: 'Air', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('link', { name: 'Back to Explore' })).toBeVisible();
@@ -65,7 +65,7 @@ test('a personally selected opportunity can be prepared, recorded and followed u
   await expect(page.locator('.ex-commitment-detail')).toContainText('Time reported by me: 2 hours');
   await page.locator('.ex-followup-band').getByRole('button', { name: 'Save to My Week' }).click();
   await expect(page.getByLabel('All-day date (optional)')).toHaveValue('2026-10-25');
-  await page.getByRole('button', { name: 'Save sample action' }).click();
+  await page.getByRole('button', { name: 'Save action' }).click();
   await expect(page.locator('.ex-followup-band').getByRole('button', { name: 'Open saved action' })).toBeVisible();
 });
 
@@ -98,7 +98,7 @@ test('community result validation, saved follow-up and topic independence make l
   await panel.getByRole('button', { name: 'Save my update' }).click();
   await expect(panel.locator('.ex-recorded-result')).toContainText('dated provider report');
   await panel.getByRole('button', { name: 'Save to My Week' }).click();
-  await page.getByRole('button', { name: 'Save sample action' }).click();
+  await page.getByRole('button', { name: 'Save action' }).click();
   await page.getByRole('group', { name: 'Community topics' }).getByRole('button', { name: 'Air', exact: true }).click();
   await expect(panel.locator('.ex-recorded-result')).toHaveCount(0);
   await page.getByRole('group', { name: 'Community topics' }).getByRole('button', { name: 'Water', exact: true }).click();
@@ -141,7 +141,7 @@ test('project workspace plans selected steps, deduplicates and retains explicit 
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(2);
-  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText(['Completed by you', 'All day']);
+  await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText(['Completed by you', 'Any time']);
 });
 
 test('project completion requires every real step and a result, and Homeguard handoff keeps the same workspace', async ({ page }) => {
@@ -184,7 +184,7 @@ test('a failed project batch creates no partial tasks and keeps choices', async 
   await plan.getByRole('button', { name: 'Review selected steps for My Week' }).click();
   await page.getByRole('button', { name: 'Add selected steps', exact: true }).click();
   await expect(plan.getByRole('checkbox').nth(0)).toBeChecked();
-  await expect(plan.getByRole('alert')).toContainText('nothing was added');
+  await expect(plan.getByRole('alert')).toContainText('Could not save the plan. Your choices are kept.');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.locator('.mw-followup > summary').click();
@@ -210,7 +210,7 @@ test('a note case records a factual result, exports deliberately and retains ind
   const panel = page.locator('.ex-outcome-workspace');
   await recordResult(panel, 'I received a reference after contacting the appropriate office.');
   await panel.getByRole('button', { name: 'Save to My Week' }).click();
-  await page.getByRole('button', { name: 'Save sample action' }).click();
+  await page.getByRole('button', { name: 'Save action' }).click();
   await panel.getByRole('button', { name: 'Review my record for export' }).click();
   await expect(panel.locator('.ex-share-preview pre')).toContainText('not independent confirmation');
   await page.getByRole('button', { name: 'All notes', exact: true }).click();
@@ -248,7 +248,7 @@ test('a selected public map record becomes a private question with explicit opti
   await expect(page.getByLabel('Selected public map context')).not.toBeChecked();
   await page.getByLabel('Selected public map context').check();
   await page.getByLabel('I choose only these fields for this request').check();
-  await page.getByRole('button', { name: 'Preview Luna request' }).click();
+  await page.getByRole('button', { name: 'Review Luna request' }).click();
   await expect(page.locator('.ex-luna-request pre')).toContainText('not a tap test');
 });
 

@@ -54,7 +54,7 @@ test('filters retain selections and distinguish no coverage from errors', async 
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Explore workspace state').selectOption('error');
   await expect(page.getByRole('heading', { name: 'Explore could not load' })).toBeVisible();
-  await page.getByRole('button', { name: 'Retry sample view' }).click();
+  await page.getByRole('button', { name: 'Try again' }).click();
   await expect(page.locator('.ex-opportunity-finder')).toContainText('No reviewed local coverage');
   await expect(page.getByLabel('What interests you?')).toHaveValue('Trees & habitat');
 });
@@ -64,7 +64,7 @@ test('project browsing does not complete steps and saved completion uses My Week
   await page.getByRole('button', { name: 'Next project step' }).click();
   await expect(page.getByRole('button', { name: 'Mark this step completed' })).toHaveCount(0);
   await page.locator('.ex-project-step').getByRole('button', { name: 'Save to My Week' }).click();
-  await page.getByRole('button', { name: 'Save sample action' }).click();
+  await page.getByRole('button', { name: 'Save action' }).click();
   await page.getByRole('button', { name: 'Mark this step completed' }).click();
   await expect(page.locator('.ex-project-step')).toContainText('Completed by you');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
@@ -84,7 +84,7 @@ test('outreach retains independent drafts and private water omits Utility', asyn
   await page.getByRole('button', { name: 'Review what you will share' }).click();
   await expect(page.locator('.ex-share-preview pre')).toHaveText('Utility draft A');
   await page.getByText('Template and water context', { exact: true }).click();
-  await page.getByLabel('Water context').selectOption('Private well');
+  await page.getByRole('combobox', { name: 'Water context', exact: true }).selectOption('Private well');
   await expect(page.getByRole('button', { name: 'Utility', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Landlord', exact: true }).click();
   await expect(page.getByLabel('Draft for Landlord')).toHaveValue('Landlord draft B');
@@ -103,7 +103,7 @@ test('field note failure preserves input, successful save and cancellation retai
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Explore workspace state').selectOption('save-error');
   await page.getByRole('button', { name: 'Save note' }).click();
-  await expect(page.locator('.halo-explore')).toContainText('sample save failed');
+  await expect(page.locator('.halo-explore')).toContainText('Could not save');
   await expect(page.getByLabel('Title (required)')).toHaveValue('Example path note');
   await page.getByLabel('Explore workspace state').selectOption('ready');
   await page.getByRole('button', { name: 'Save note' }).click();

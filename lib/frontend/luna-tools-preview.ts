@@ -29,9 +29,9 @@ export function lunaCalendarAnchor(instant = new Date(), timezone = 'America/New
 export function resolveLunaCalendarDate(text: string, options: { anchor: string; timezone: string; referenceDate?: string }): { date: string; requiresDate: boolean; explanation: string; ambiguous?: string } {
   const explicit = explicitLunaDate(text);
   if (explicit.invalid || !validActionDate(options.anchor) || !options.anchor) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Choose one valid calendar date.' };
-  if (explicit.date && /\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b/i.test(text)) return { date: '', requiresDate: true, explanation: '', ambiguous: 'This preview saves all-day tasks, not timed reminders. Choose the calendar date below.' };
+  if (explicit.date && /\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b/i.test(text)) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Choose an all-day date below. You can add a time in My Week.' };
   if (explicit.date) return { date: explicit.date, requiresDate: true, explanation: `All-day date in ${options.timezone}.` };
-  if (/\b(tonight|weekend|next week)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b/i.test(text)) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Which exact all-day date do you mean? This preview does not create timed reminders.' };
+  if (/\b(tonight|weekend|next week)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b/i.test(text)) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Which date do you mean? You can add a time in My Week.' };
   const add = (day: string, amount: number) => { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + amount); return date.toISOString().slice(0, 10); };
   if (/\btomorrow\b/i.test(text)) return { date: add(options.anchor, 1), requiresDate: true, explanation: `Tomorrow, based on ${options.anchor} in ${options.timezone}.` };
   if (/\btoday\b/i.test(text)) return { date: options.anchor, requiresDate: true, explanation: `Today in ${options.timezone}.` };
@@ -64,7 +64,7 @@ export function lunaIntent(value: string): LunaIntent {
   }
   if (/^(?:please\s+)?(?:start|begin)\b/i.test(text)) return { kind: 'start-project', name: text.replace(/^(?:please\s+)?(?:start|begin)\s+(?:(?:a|the|my|this)\s+)?(?:project\s*)?[:,-]?\s*/i, '').replace(/\s+(?:on|for)\s+(?:\d{4}-\d{2}-\d{2}|today|tomorrow|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b.*$/i, '').trim() };
   if (/\b(delete|remove|erase)\b/i.test(text)) {
-    if (!/\bnotes?\b/i.test(text)) return { kind: 'clarify', message: 'This preview can remove a named note after review. Which note do you mean? Other record deletion still uses its own record controls.' };
+    if (!/\bnotes?\b/i.test(text)) return { kind: 'clarify', message: 'Which note should I remove? I will ask you to confirm first.' };
     const name = text.replace(/^(?:please\s+)?(?:delete|remove|erase)\s+/i, '').replace(/^(?:my|the|a)\s+/i, '').replace(/^(?:note(?:\s+(?:called|named|titled))?)\s*[:,-]?\s*/i, '').replace(/\s+note$/i, '').replace(/^["“']|["”']$/g, '').trim();
     return { kind: 'delete-note', name: /^(all|some|my|notes?|these|selected|those)(?:\s+notes?)?$/i.test(name) ? '' : name };
   }

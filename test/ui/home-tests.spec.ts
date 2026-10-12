@@ -103,7 +103,7 @@ test('failed save retains a draft across Cancel and a later successful edit', as
   await page.getByRole('button', { name: 'Edit test details', exact: true }).click();
   await page.getByLabel('Test label (required)').fill('Kitchen tap, corrected label');
   await page.getByRole('button', { name: 'Save test details' }).click();
-  await expect(page.getByText(/The sample save failed/)).toBeVisible();
+  await expect(page.getByText(/Could not save/)).toBeVisible();
   await expect(page.getByLabel('Test label (required)')).toHaveValue('Kitchen tap, corrected label');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('dialog', { name: 'Leave this form?' }).getByRole('button', { name: 'Confirm', exact: true }).click();
@@ -128,9 +128,9 @@ test('comparison rejects mismatches and export excludes sample context by defaul
   await page.getByRole('button', { name: /Export this record/ }).click();
   await expect(page.getByLabel('Include home or site context and sample location')).not.toBeChecked();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download sample JSON' }).click();
+  await page.getByRole('button', { name: 'Download JSON' }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('halo-sample-test-record.json');
+  expect(download.suggestedFilename()).toBe('halo-test-record.json');
   const downloadedPath = await download.path();
   expect(downloadedPath).not.toBeNull();
   const exported = JSON.parse(await readFile(downloadedPath!, 'utf8'));
@@ -166,14 +166,14 @@ test('archive is reversible and deletion requires Yes after a cancellable confir
 test('local report selection is explicitly unuploaded and can be removed', async ({ page }) => {
   await septemberRecord(page);
   await page.getByRole('button', { name: 'Review a local report', exact: true }).click();
-  await page.getByLabel('Choose a sample report').setInputFiles({ name: 'synthetic-report.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nSynthetic report fixture\n%%EOF') });
+  await page.getByLabel('Choose a report').setInputFiles({ name: 'synthetic-report.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nSynthetic report fixture\n%%EOF') });
   await expect(page.getByText('synthetic-report.pdf', { exact: true })).toBeVisible();
-  await expect(page.getByText(/PDF rendering is unavailable/)).toBeVisible();
-  await expect(page.getByText(/A file selection is not an upload receipt/)).toBeVisible();
+  await expect(page.getByText(/PDF viewing is unavailable here/)).toBeVisible();
+  await expect(page.getByText(/Uploads and automatic result extraction are unavailable/)).toBeVisible();
   await page.getByRole('button', { name: 'Remove local selection' }).click();
   await expect(page.getByText('synthetic-report.pdf', { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel('Choose a sample report')).toHaveValue('');
-  await page.getByLabel('Choose a sample report').setInputFiles({ name: 'synthetic-report.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nSynthetic report fixture\n%%EOF') });
+  await expect(page.getByLabel('Choose a report')).toHaveValue('');
+  await page.getByLabel('Choose a report').setInputFiles({ name: 'synthetic-report.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nSynthetic report fixture\n%%EOF') });
   await expect(page.getByText('synthetic-report.pdf', { exact: true })).toBeVisible();
 });
 
@@ -203,7 +203,7 @@ test('revision conflict keeps local edits and allows deliberate discard after in
   await page.getByLabel('Test label (required)').fill('Conflicting local edit');
   await reviewScenario(page, 'conflict');
   await page.getByRole('button', { name: 'Save test details' }).click();
-  await expect(page.getByText(/Revision conflict: nothing was overwritten/)).toBeVisible();
+  await expect(page.getByText(/This record changed\. Your draft is kept/)).toBeVisible();
   await expect(page.getByLabel('Test label (required)')).toHaveValue('Conflicting local edit');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('dialog', { name: 'Leave this form?' }).getByRole('button', { name: 'Confirm', exact: true }).click();

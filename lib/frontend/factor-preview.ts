@@ -92,9 +92,9 @@ export const factorReadings: Record<FactorKey, FactorReading> = {
     details: { mold: { humidity_pct: 76, precip_pct: 55 } },
   },
   pfas: {
-    key: 'pfas', title: 'PFAS in water', shortTitle: 'PFAS', score: 42, severity: 'high', reading: '8.3', unit: 'ppt PFOS', provenance: 'measured', source: 'EPA UCMR 5, sample utility', asOf: 'Sample collected March 2025',
+    key: 'pfas', title: 'PFAS in water', shortTitle: 'PFAS', score: 42, severity: 'high', reading: '8.3', unit: 'ppt PFOS', provenance: 'measured', source: 'EPA UCMR 5, public utility', asOf: 'Sample collected March 2025',
     sentence: 'One sample compound is above its comparison limit.', detail: 'PFAS results come from public utility testing. They are not a test of your tap or a live reading of what you drank today. Parts per trillion is abbreviated ppt.',
-    why: 'The sample utility result for PFOS is 8.3 ppt, about 2.1 times the supplied limit of 4.0 ppt.', householdNote: 'Sample household context: filtered water for drinking and formula matters especially when young children or pregnancy are part of the household.',
+    why: 'The utility result for PFOS is 8.3 ppt, about 2.1 times the supplied limit of 4.0 ppt.', householdNote: 'filtered water for drinking and formula matters especially when young children or pregnancy are part of the household.',
     trend: [
       { date: '2024-06-01', label: 'Jun 24', value: 9.2 }, { date: '2024-09-01', label: 'Sep 24', value: 8.8 },
       { date: '2024-12-01', label: 'Dec 24', value: 8.5 }, { date: '2025-03-01', label: 'Mar 25', value: 8.3 },

@@ -1,8 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { loadFrontend } from './frontend-test-loader.mjs';
 
 const { compareUsage, validateUsage, periodDays, validFoodDate, initialUsage, matchFishRules, droughtReleases, fishRules, foodEvidence } = await loadFrontend('home-food-preview');
+
+test('unverified public fixtures never become food limits or utility instructions', () => {
+  const fish = readFileSync(new URL('../components/homeguard/FoodFish.tsx', import.meta.url), 'utf8');
+  const water = readFileSync(new URL('../components/homeguard/FoodWater.tsx', import.meta.url), 'utf8');
+  const evidence = readFileSync(new URL('../components/homeguard/FoodEvidence.tsx', import.meta.url), 'utf8');
+  const share = readFileSync(new URL('../components/homeguard/FoodShared.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(fish, /\{rule\.wording\}|\{rule\.condition\}/, 'invented servings and time windows cannot be displayed as advice');
+  assert.match(fish, /No verified recommendation is available/);
+  assert.doesNotMatch(water, /\{release\[item\.key\]\}|Synthetic notice instructions/);
+  assert.match(water, /No verified instructions are available/);
+  assert.doesNotMatch(evidence, /\{evidence\.finding\}|\{evidence\.instruction\}/);
+  assert.match(evidence, /No verified notice or study is available/);
+  assert.match(share, /sourceStatus: 'unverified'/);
+  assert.match(share, /record: kind === 'resource' \? record : \{ sourceAvailable: false \}/, 'unverified advice must not escape through reference exports');
+});
 
 test('fish matching keeps statewide and local records separate and unresolved labels unresolved', () => {
   assert.deepEqual(matchFishRules('demo-willow-lake', 'Largemouth bass').map(item => item.kind), ['Waterbody-specific', 'Statewide']);

@@ -40,7 +40,7 @@ export default function ExploreWorkspace({ destination, href, mapHref, environme
     </header>
     <WorkspaceFeedback />
     {workspace.scenario === 'offline' && <p className="ex-offline" role="status">Offline. Read your notes; reconnect to save or open official links.</p>}
-    {workspace.scenario === 'loading' || workspace.scenario === 'error' ? <div className="ex-empty" role="status"><h3>{workspace.scenario === 'loading' ? 'Opening Explore' : 'Explore could not load'}</h3><p>Your drafts stay in this visit.</p><button className="ex-button" onClick={() => workspace.setScenario('ready')}>Retry sample view</button></div>
+    {workspace.scenario === 'loading' || workspace.scenario === 'error' ? <div className="ex-empty" role="status"><h3>{workspace.scenario === 'loading' ? 'Opening Explore' : 'Explore could not load'}</h3><p>Your drafts are kept.</p><button className="ex-button" onClick={() => workspace.setScenario('ready')}>Try again</button></div>
       : section === 'opportunities' ? <>{view === 'list' ? <><ExploreOpportunities go={go} /><details className="ex-opportunity-programs"><summary>My volunteering and follow-through</summary><VolunteerCommitments go={go} /></details></> : <VolunteerCommitments go={go} view={view} id={id} />}</>
       : section === 'projects' ? <ExploreProjects go={go} view={view} id={id} href={href} environmentAvailable={environmentAvailable} />
       : section === 'community' ? <CommunityGuide go={go} mapHref={mapHref} href={href} />
@@ -80,7 +80,13 @@ export function ExploreReviewControls() {
   const workspace = useHomeWorkspace();
   const [sendScenario, setSendScenario] = useHomeDraft('explore:send-scenario', 'submitted');
   const [reconcile, setReconcile] = useHomeDraft('explore:send-reconcile', 'unknown');
+  const [lunaState, setLunaState] = useHomeDraft('luna:review-state', 'ready');
+  const [failPreparation, setFailPreparation] = useHomeDraft('luna:preparation-failure', false);
+  const [generationState, setGenerationState] = useHomeDraft('explore:generation-review-state', 'ready');
   return <>
+    <label>Assistant service review state<select value={lunaState} onChange={event => setLunaState(event.target.value)}>{['ready','no-source','unavailable','unconfigured','rate-limit','slow'].map(value => <option key={value}>{value}</option>)}</select></label>
+    <label><input type="checkbox" checked={failPreparation} onChange={event => setFailPreparation(event.target.checked)} />Simulate project preparation save failure</label>
+    <label>Project generation review state<select value={generationState} onChange={event => setGenerationState(event.target.value)}>{['ready','failed','slow'].map(value => <option key={value}>{value}</option>)}</select></label>
     <label>Explore workspace state<select value={workspace.scenario} onChange={event => workspace.setScenario(event.target.value as typeof workspace.scenario)}>{['ready', 'empty', 'loading', 'error', 'offline', 'stale', 'conflict', 'save-error'].map(value => <option key={value} value={value}>{value.replace('-', ' ')}</option>)}</select></label>
     <label>Email preview outcome<select value={sendScenario} onChange={event => setSendScenario(event.target.value)}><option value="submitted">Submitted (simulated)</option><option value="failed">Failed (simulated)</option><option value="unknown">Outcome unknown (simulated)</option></select></label>
     <label>Email attempt check outcome<select value={reconcile} onChange={event => setReconcile(event.target.value)}><option value="unknown">Still unknown (simulated)</option><option value="submitted">Submission recorded (simulated)</option><option value="not-submitted">No submission recorded (simulated)</option></select></label>

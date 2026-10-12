@@ -77,7 +77,7 @@ test('moisture keeps a user-entered zero and measured source without a safety re
   await expect(page.getByText(/It is not a mold identification or a diagnosis/)).toBeVisible();
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Save a practical step' });
-  await dialog.getByRole('button', { name: 'Save sample action' }).click();
+  await dialog.getByRole('button', { name: 'Save action' }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Open saved action' })).toBeVisible();
 });
@@ -162,7 +162,7 @@ for (const outcome of ['cancelled', 'denied', 'unsupported'] as const) test(`nat
   await page.getByText('Review the included information', { exact: true }).click();
   await page.getByText('Other formats & printing', { exact: true }).click();
   await page.getByRole('button', { name: 'Share text', exact: true }).click();
-  await expect(page.getByText(outcome === 'cancelled' ? 'Sharing cancelled. Your preview and selections are still here.' : outcome === 'denied' ? 'Permission to share was denied. Your preview is retained. Download a file or image instead.' : 'Native sharing is unsupported in this browser. Download the file or image instead.', { exact: true })).toBeVisible();
+  await expect(page.getByText(outcome === 'cancelled' ? 'Sharing cancelled. Your selections are kept.' : outcome === 'denied' ? 'Sharing permission denied. Download a file or image instead.' : 'Native sharing is unsupported in this browser. Download the file or image instead.', { exact: true })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Selected household summary' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download accessible text' })).toBeEnabled();
 });

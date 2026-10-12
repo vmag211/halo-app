@@ -28,7 +28,8 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     await workspace.locator('.how-shortcuts > summary').click();
     const house = await page.locator('.halo-home-household').boundingBox();
     const panel = await workspace.boundingBox();
-    expect(panel!.y).toBeGreaterThan(house!.y + house!.height);
+    expect(panel!.y + panel!.height).toBeLessThan(house!.y);
+    await expect(page.getByRole('heading', { name: 'The people who make it home', exact: true })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(workspace).not.toContainText('\u2014');
     if (width===375) {
@@ -41,7 +42,7 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     await expect(workspace).toBeFocused();
     expect((await workspace.boundingBox())!.y).toBeGreaterThan(60);
     const jumped = (await workspace.boundingBox())!;
-    // A compact end-of-page panel cannot scroll to the top when it already fits.
+    // The primary workspace now precedes the household illustration.
     expect(jumped.y).toBeLessThan(400);
     if (width===375) expect(jumped.y + jumped.height).toBeLessThan(770);
     await page.screenshot({ path: info.outputPath(`workspace-top-${appearance}-${width}.png`) });
@@ -128,7 +129,7 @@ test('record creation updates the overview and review failures suppress counts',
   await control.selectOption('error');
   await expect(workspace).toContainText('Your home records could not load.');
   await expect(workspace).not.toContainText('2 active');
-  await workspace.getByRole('button', { name: 'Retry sample records' }).click();
+  await workspace.getByRole('button', { name: 'Try again' }).click();
   await expect(workspace).toContainText('2 active');
   await control.selectOption('empty');
   await expect(workspace).toContainText('0 active');
@@ -137,6 +138,6 @@ test('record creation updates the overview and review failures suppress counts',
   await expect(workspace).toContainText('Add food');
   await page.getByRole('button', { name: 'Reset Homeguard sample records' }).click();
   await control.selectOption('offline');
-  await expect(workspace).toContainText('Offline review');
+  await expect(workspace).toContainText('Offline');
   await expect(workspace).toContainText('1 active');
 });

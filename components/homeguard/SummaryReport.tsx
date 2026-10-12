@@ -54,6 +54,6 @@ function ReportAttempt({ snapshot, onRetry, onReady }: { snapshot: string; onRet
     {(failure || cancelled) && <button className="hg-button" onClick={onRetry}>Try creating PDF again</button>}
     {ready && <><p className="hg-report-ready" role="status">PDF ready · {ready.pages} {ready.pages === 1 ? 'page' : 'pages'} · {Math.max(1, Math.round(ready.blob.size / 1024))} KB</p><a className="hg-report-download" href={ready.url} download="halo-household-summary.pdf"><Download size={19} />Download PDF</a><div className="hg-actions"><a href={ready.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={17} />Open PDF</a><button onClick={share}><Share2 size={17} />Share PDF</button></div></>}
     {status && <p role="status" className="hg-meta">{status}</p>}
-    <p className="hg-meta">Sample household report. Review your selected information before sharing. No public link is created.</p>
+    <p className="hg-meta">Review selected information before sharing. No public link is created.</p>
   </section>;
 }

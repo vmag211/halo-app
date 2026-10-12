@@ -26,49 +26,50 @@ test('five destinations and a kitchen entry stay available and fish matching ret
   await page.getByRole('button', { name: /Fish advisories Find advice/ }).click();
   await page.getByLabel('Lake or river').selectOption('demo-willow-lake');
   await page.getByRole('combobox', { name: 'Species', exact: true }).selectOption('Largemouth bass');
-  await expect(page.getByRole('heading', { name: 'More than one advisory applies' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Related advisory references' })).toBeVisible();
   await expect(page.getByText('Choose your group to check which wording applies. You can still read every source.')).toBeVisible();
-  await page.getByRole('radio', { name: 'People who are pregnant or may become pregnant; children under 18 (synthetic category B)' }).check();
+  await page.getByRole('radio', { name: 'Pregnancy or children' }).check();
   await page.getByRole('button', { name: /Willow Lake, north basin Waterbody-specific/ }).click();
-  await expect(page.getByText(/Training example only. Category A/)).toBeVisible();
+  await expect(page.getByText(/No verified recommendation is available/)).toBeVisible();
+  await expect(page.locator('.hg-content')).not.toContainText('4 oz');
   await page.getByRole('button', { name: 'View extent diagram', exact: true }).click();
-  await expect(page.getByRole('img', { name: /Fictional lake with its northern basin highlighted/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /Boundary diagram: a lake's northern basin is highlighted/ })).toBeVisible();
   await page.getByRole('button', { name: 'Hide extent diagram', exact: true }).click();
   await page.getByRole('button', { name: 'Save reference', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Follow updates', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Following in preview', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Following', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Share reference', exact: true }).click();
   await page.getByText('Preview exported data', { exact: true }).click();
-  await expect(page.locator('.hg-export-preview')).toContainText('SYNTHETIC HALO REVIEW');
+  await expect(page.locator('.hg-export-preview')).toContainText('unverified');
   await page.getByRole('button', { name: 'Change your selection' }).click();
   await expect(page.getByLabel('Lake or river')).toHaveValue('demo-willow-lake');
   await page.getByLabel('Lake or river').selectOption('demo-uncovered');
-  await expect(page.getByRole('heading', { name: 'No matching sample advisory' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No verified advisory' })).toBeVisible();
   await page.getByLabel('Lake or river').selectOption('demo-willow-river');
   await page.getByRole('combobox', { name: 'Species', exact: true }).selectOption('Catfish (unresolved group)');
   await page.getByRole('button', { name: /Willow River, unresolved source text/ }).click();
-  await expect(page.getByText(/Recommendation withheld/)).toBeVisible();
+  await expect(page.getByText(/No verified recommendation is available/)).toBeVisible();
 });
 
 test('fish detail respects the selected extent and saved water references restore their scope', async ({ page }) => {
   await page.getByRole('button', { name: /Fish advisories Find advice/ }).click();
   await page.getByLabel('Lake or river').selectOption('demo-willow-river');
   await page.getByRole('combobox', { name: 'Species', exact: true }).selectOption('Largemouth bass');
-  await page.getByRole('button', { name: /Statewide example species rule Statewide/ }).click();
+  await page.getByRole('button', { name: /Statewide species reference Statewide/ }).click();
   await expect(page.getByText('No additional reviewed rule matches this selection.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Willow Lake, north basin/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Workspace overview', exact: true }).click();
   await page.getByRole('button', { name: /Water & conservation Understand local/ }).click();
-  await page.getByLabel('Utility matching example').selectOption('mandatory');
+  await page.getByLabel('Utility source').selectOption('mandatory');
   const utility = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Conservation notices' }) });
   await utility.getByRole('button', { name: 'Save reference', exact: true }).click();
   await expect(utility.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
-  await page.getByLabel('Utility matching example').selectOption('voluntary');
+  await page.getByLabel('Utility source').selectOption('voluntary');
   await page.getByRole('button', { name: 'Workspace overview', exact: true }).click();
-  await page.getByRole('button', { name: /Example Utility notice Saved/ }).click();
-  await expect(page.getByLabel('Utility matching example')).toHaveValue('mandatory');
-  await expect(page.getByText('Mandatory in synthetic notice', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Utility notice Saved/ }).click();
+  await expect(page.getByLabel('Utility source')).toHaveValue('mandatory');
+  await expect(page.getByText('Source unavailable', { exact: true })).toBeVisible();
 });
 
 test('fish note failure retains draft and correction, export and deletion leave advisories separate', async ({ page }) => {
@@ -82,7 +83,7 @@ test('fish note failure retains draft and correction, export and deletion leave 
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Homeguard workspace state').selectOption('save-error');
   await page.getByRole('button', { name: 'Save private note', exact: true }).click();
-  await expect(page.getByText(/The sample save failed/)).toBeVisible();
+  await expect(page.getByText(/Could not save/)).toBeVisible();
   await expect(page.getByLabel('Note label')).toHaveValue('Example afternoon catch');
   await page.getByLabel('Homeguard workspace state').selectOption('ready');
   await page.getByRole('button', { name: 'Save private note', exact: true }).click();
@@ -134,7 +135,7 @@ test('food notice lifecycle, source-only share and private question remain disti
   await page.getByLabel('Area covered').selectOption('Uncovered area');
   await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible();
   await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
-  await page.getByRole('button', { name: /Archived example recall Terminated/ }).click();
+  await page.getByRole('button', { name: /Seafood notice reference Notice · Source unavailable/ }).click();
   await expect(page.getByText(/Terminated status is an event lifecycle/)).toBeVisible();
   await page.getByLabel('Question for the issuer or producer').fill('Does this archived lot match my example package?');
   await page.getByLabel('Private report reference, optional', { exact: false }).selectOption('test-water-september');
@@ -145,7 +146,7 @@ test('food notice lifecycle, source-only share and private question remain disti
   await expect(page.locator('.hg-export-preview')).not.toContainText('my example package');
   await expect(page.locator('.hg-export-preview')).not.toContainText('test-water-september');
   await page.getByRole('button', { name: 'Return to food information', exact: true }).click();
-  await page.getByRole('button', { name: /Archived example recall Terminated/ }).click();
+  await page.getByRole('button', { name: /Seafood notice reference Notice · Source unavailable/ }).click();
   await expect(page.getByLabel('Question for the issuer or producer')).toHaveValue('Does this archived lot match my example package?');
 });
 
@@ -180,11 +181,12 @@ test('grower preparation saves user-reported progress and an official handoff se
 
 test('water county distribution is separate from notices and comparisons reject estimated corrections', async ({ page }) => {
   await page.getByRole('button', { name: /Water & conservation Understand local/ }).click();
-  await expect(page.getByText('50% of county area', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Regional source unavailable' })).toBeVisible();
+  await expect(page.locator('.hg-content')).not.toContainText('% of county area');
   await expect(page.getByRole('heading', { name: 'Choose your utility' })).toBeVisible();
-  await page.getByLabel('Utility matching example').selectOption('stale');
-  await expect(page.getByText('Old cached example', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Effective June 4, 2026/)).toBeVisible();
+  await page.getByLabel('Utility source').selectOption('stale');
+  await expect(page.getByText('Needs a current source', { exact: true })).toBeVisible();
+  await expect(page.getByText(/No verified instructions are available/)).toBeVisible();
   await page.getByRole('button', { name: /Water-use records/ }).click();
   await page.getByLabel('First record').selectOption('demo-use-1');
   await page.getByLabel('Second record').selectOption('demo-use-2');
@@ -208,6 +210,6 @@ test('food journeys fit a 320px viewport and source errors retry without request
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Homeguard workspace state').selectOption('error');
   await expect(page.getByRole('heading', { name: 'This section could not load' })).toBeVisible();
-  await page.getByRole('button', { name: 'Retry sample section', exact: true }).click();
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Make every drop count' })).toBeVisible();
 });

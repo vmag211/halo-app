@@ -1,4 +1,5 @@
 'use client';
+import DateInput from '@/components/ui/DateInput';
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BottomSheet, Callout } from '@/components/ui/Foundation';
@@ -120,21 +121,21 @@ export function ExpandedActionDialog({ offline }: { offline: boolean }) {
     setPending(true);
     timer.current = setTimeout(() => {
       setPending(false);
-      if (state.fail) setError('The sample save failed. Your changes are still here. Turn off the failure simulation and retry.');
+      if (state.fail) setError('Could not save. Your edits are kept. Try again.');
       else state.save();
     }, 400);
   }
   return <BottomSheet id="expanded-action" title={exists ? 'Your saved action' : 'Save a practical step'} height="standard" onClose={() => { if (timer.current) clearTimeout(timer.current); setPending(false); setError(''); state.close(); }}>
     <form className="halo-expanded-form" onSubmit={e => { e.preventDefault(); submit(); }}>
-      <p className="halo-f-meta">Design review only. Actions stay in memory during this visit, not in your HALO account. Use sample text only.</p>
+
       {exists && <Callout tone="info"><p>This step is already in My Week. Update the same action here.</p></Callout>}
       <label>Action title<input maxLength={160} required value={draft.title} disabled={pending} onChange={e => state.setDraft({ ...draft, title: e.target.value })} /></label>
       <p>{draft.seed.reason}</p>
-      <label>All-day date (optional)<input type="date" value={draft.date} disabled={pending} onChange={e => state.setDraft({ ...draft, date: e.target.value })} /></label>
-      <p className="halo-f-meta">{draft.date ? `Planned for ${draft.date}. This is a calendar date, not a timed reminder.` : 'No date selected. This action will stay in Saved for later.'} Timed reminders and recurring schedules are not connected in this review.</p>
-      {offline && <Callout tone="notice"><p>You are offline. Your draft stays here, but this review does not queue saves.</p></Callout>}
+      <label>All-day date (optional)<DateInput value={draft.date} disabled={pending} onChange={e => state.setDraft({ ...draft, date: e.target.value })} /></label>
+      <p className="halo-f-meta">{draft.date ? `Planned for ${draft.date}. This is a calendar date, not a timed reminder.` : 'No date selected. This action will stay in Saved for later.'}</p>
+      {offline && <Callout tone="notice"><p>Offline. Your draft is kept. Reconnect to save.</p></Callout>}
       {error && <p role="alert">{error}</p>}
-      <Button type="submit" busy={pending} disabled={offline}>{exists ? 'Update sample action' : 'Save sample action'}</Button>
+      <Button type="submit" busy={pending} disabled={offline}>{exists ? 'Update action' : 'Save action'}</Button>
       <Button type="button" variant="tertiary" disabled={pending} onClick={() => { setError(''); state.close(); }}>Close and keep draft</Button>
     </form>
   </BottomSheet>;

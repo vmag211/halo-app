@@ -67,17 +67,17 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
       setMessage('Offline: your draft remains here. Nothing has been saved or queued.'); return false;
     }
     const version = generation.current;
-    locks.current.add(lock); setPending(true); setMessage('Saving this sample change...');
+    locks.current.add(lock); setPending(true); setMessage('Saving...');
     await new Promise(resolve => setTimeout(resolve, 260));
     locks.current.delete(lock);
     if (!alive.current) return false;
     setPending(locks.current.size > 0);
-    if (version !== generation.current) { setMessage('The review state changed. Your draft is retained; check it before retrying.'); return false; }
+    if (version !== generation.current) { setMessage('Saving was interrupted. Your draft is kept. Review it before retrying.'); return false; }
     if (typeof navigator !== 'undefined' && !navigator.onLine) { setMessage('Connection lost before saving. Your draft remains here. Nothing was saved or queued.'); return false; }
-    if (scenarioRef.current === 'save-error') { setMessage('The sample save failed. Your draft is retained. Choose Ready in review controls, then retry.'); return false; }
-    if (scenarioRef.current === 'conflict') { setMessage('Revision conflict: nothing was overwritten. Your local draft is retained. Return to the record to compare it, then retry after resolving the review scenario.'); return false; }
+    if (scenarioRef.current === 'save-error') { setMessage('Could not save. Your draft is kept. Please try again.'); return false; }
+    if (scenarioRef.current === 'conflict') { setMessage('This record changed. Your draft is kept. Review the latest version before saving.'); return false; }
     const result = change();
-    if (result) setMessage('Updated in this sample session only. Reloading clears your changes.');
+    if (result) setMessage('Saved.');
     return result;
   }
   async function write(key: string, record: HomeRecord) {
@@ -118,7 +118,7 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
   return <Context.Provider value={{ collections, drafts, scenario, message, pending, setScenario, clearMessage: () => setMessage(''), seed, write, remove, removeNotes,
     setDraft: (key, update) => setDrafts(previous => ({ ...previous, [key]: update(previous[key]) })),
     clearDraft: key => setDrafts(previous => { const next = { ...previous }; delete next[key]; return next; }),
-    reset: () => { generation.current++; commit(initialCollections()); setDrafts({}); setScenario('ready'); setMessage('Sample workspace reset. No account data was changed.'); },
+    reset: () => { generation.current++; commit(initialCollections()); setDrafts({}); setScenario('ready'); setMessage('Workspace reset.'); },
   }}>{children}</Context.Provider>;
 }
 

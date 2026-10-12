@@ -122,7 +122,8 @@ test('review component has no live writes, persistence or automatic extraction',
   const helper = readFileSync(new URL('../lib/frontend/home-test-preview.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(component + helper, /fetch\(|localStorage|sessionStorage|supabase|\/api\//);
   assert.doesNotMatch(component + helper, /\u2014/);
-  assert.match(component, /A file selection is not an upload receipt/);
+  assert.match(component, /This file is viewed locally, not uploaded/, 'selecting a file must not imply a completed upload');
+  assert.match(component, /Uploads and automatic result extraction are unavailable/);
   assert.match(component, /confirm the transcription/);
   assert.match(component, /revision: draft\.baseRevision/, 'result edits must send the revision captured with their draft');
 });

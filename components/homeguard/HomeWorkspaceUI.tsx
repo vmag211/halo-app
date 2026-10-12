@@ -30,7 +30,7 @@ export function DeletableRecord({ title, deletion, children }: { title: string; 
       setConfirming(false);
       requestAnimationFrame(() => (next?.isConnected ? next : previous?.isConnected ? previous : heading)?.focus({ preventScroll: true }));
     }
-  }}><p>Delete <strong>{title}</strong>?</p><p>{deletion.description}</p><p className="hg-meta">This cannot be undone during this visit.</p></Confirm>}</>;
+  }}><p>Delete <strong>{title}</strong>?</p><p>{deletion.description}</p><p className="hg-meta">This cannot be undone.</p></Confirm>}</>;
 }
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return <section className="hg-empty"><span aria-hidden="true"><FolderOpen size={30} /></span><h3>{title}</h3>{children}{action}</section>;
@@ -39,13 +39,13 @@ export function SourceNote({ children }: { children: ReactNode }) { return <asid
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return <label className="hg-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
-export function RecordForm({ onSubmit, children, submitLabel = 'Save sample record', onCancel, busy }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<unknown>; children: ReactNode; submitLabel?: string; onCancel?: () => void; busy?: boolean }) {
+export function RecordForm({ onSubmit, children, submitLabel = 'Save record', onCancel, busy }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<unknown>; children: ReactNode; submitLabel?: string; onCancel?: () => void; busy?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [cancel, setCancel] = useState(false);
   const [dirty, setDirty] = useState(false);
   const { scenario, pending } = useHomeWorkspace();
   const disabled = saving || !!busy || pending;
-  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" disabled={disabled || scenario === 'offline'}>{disabled ? 'Saving sample...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div><p className="hg-meta">{scenario === 'offline' ? 'Offline: keep your draft and return when connected. Nothing is queued.' : 'Sample session only. Use fictional information. No account data is sent.'}</p></form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your last saved record stays unchanged. Any draft retained by this form will remain available during this visit.</Confirm>}</>;
+  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" disabled={disabled || scenario === 'offline'}>{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
 }
 export function DeleteButton({ label, onClick, disabled, compact = false }: { label: string; onClick: () => void; disabled?: boolean; compact?: boolean }) {
   const { pending, scenario } = useHomeWorkspace();

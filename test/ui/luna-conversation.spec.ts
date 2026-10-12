@@ -10,6 +10,18 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => expect(faults.get(page)).toEqual([]));
 async function open(page: Page) { await page.getByRole('button', { name: 'Ask Luna', exact: true }).click(); return page.getByRole('dialog', { name: 'Luna', exact: true }); }
 async function say(page: Page, text: string) { await page.getByRole('textbox', { name: 'Message Luna', exact: true }).fill(text); await page.getByRole('button', { name: 'Send message', exact: true }).click(); }
+async function reviewControl(page: Page, label: string, value: string | boolean) {
+  const dialog = page.getByRole('dialog', { name: 'Luna', exact: true });
+  const resume = await dialog.isVisible();
+  if (resume) await dialog.getByRole('button', { name: 'Close sheet', exact: true }).click();
+  const summary = page.getByText('Expanded app review · Not approved', { exact: true });
+  const control = page.getByRole(typeof value === 'boolean' ? 'checkbox' : 'combobox', { name: label, exact: true });
+  if (!await control.isVisible()) await summary.click();
+  if (typeof value === 'boolean') await control.setChecked(value);
+  else await control.selectOption(value);
+  await summary.click();
+  if (resume) await open(page);
+}
 
 test('Luna creates and edits one canonical task through an inline conversation review', async ({ page }) => {
   await page.goto(root); const dialog = await open(page);
@@ -69,13 +81,14 @@ test('Natural scheduling shows an editable date with the disclosed timezone anch
   await expect(dialog.getByLabel('All-day date', { exact: true })).toHaveValue('2026-10-13');
 });
 
-test('Luna reviews remain intact after a failed sample save', async ({ page }) => {
+test('Luna reviews remain intact after a failed save', async ({ page }) => {
   await page.goto(root);
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Explore workspace state').selectOption('save-error');
   const dialog = await open(page); await say(page, 'Create a task: review the source');
   await dialog.getByRole('button', { name: 'Save task', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toContainText('sample save failed');
+  await expect(dialog.getByRole('alert')).toContainText('Could not save');
+  await expect(dialog.getByRole('alert')).toContainText('Nothing changed');
   await expect(dialog.getByLabel('Task title')).toHaveValue('review the source');
   await expect(dialog.locator('.lc-receipt')).toHaveCount(0);
 });
@@ -123,17 +136,16 @@ test('Luna shows scoped real organization programmes instead of claiming live ne
 });
 
 test('Service cancel restores the question and retry does not duplicate the user message', async ({ page }) => {
-  await page.goto(root); const dialog = await open(page);
-  await dialog.getByRole('button', { name: 'Context & privacy' }).click();
-  await dialog.getByLabel('Assistant service review state').selectOption('slow');
+  await page.goto(root); await reviewControl(page, 'Assistant service review state', 'slow'); const dialog = await open(page);
   await say(page, 'Find project ideas');
   await expect(dialog.getByRole('button', { name: 'New conversation', exact: true })).toBeDisabled();
-  await expect(dialog.getByLabel('Assistant service review state')).toBeDisabled();
+  await expect(dialog.getByLabel('Assistant service review state')).toHaveCount(0);
+  await expect(page.getByLabel('Assistant service review state')).not.toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel request', exact: true }).click();
   await expect(dialog.getByRole('textbox', { name: 'Message Luna' })).toHaveValue('Find project ideas');
-  await dialog.getByLabel('Assistant service review state').selectOption('unavailable');
+  await reviewControl(page, 'Assistant service review state', 'unavailable');
   await say(page, 'Find local ways to volunteer');
-  await dialog.getByLabel('Assistant service review state').selectOption('ready');
+  await reviewControl(page, 'Assistant service review state', 'ready');
   await dialog.getByRole('button', { name: 'Retry request', exact: true }).click();
   await expect(dialog.locator('.lc-message--user')).toHaveCount(2);
   await expect(dialog.locator('.lc-local article')).toHaveCount(3);
@@ -141,10 +153,10 @@ test('Service cancel restores the question and retry does not duplicate the user
 
 test('A failed project request keeps the existing generated batch unchanged', async ({ page }) => {
   await page.goto(root); const dialog = await open(page); await say(page, 'Find 12 project ideas');
-  await dialog.getByRole('button', { name: 'Context & privacy' }).click();
-  await dialog.getByLabel('Assistant service review state').selectOption('unavailable');
+  await expect(dialog.getByRole('button', { name: 'View all 12 project ideas', exact: true })).toBeVisible();
+  await reviewControl(page, 'Assistant service review state', 'unavailable');
   await say(page, 'Find 10 project ideas');
-  await expect(dialog).toContainText('service is unavailable');
+  await expect(dialog).toContainText('Luna is unavailable');
   await dialog.getByRole('button', { name: 'View all 12 project ideas' }).click();
   await expect(page).toHaveURL(/destination=projects/);
   await expect(page.locator('.ex-generated-title')).toContainText('12 ideas');
@@ -160,9 +172,7 @@ test('Missing environmental readings never become fixture-based personal explana
 });
 
 test('A partial project-start failure can cancel preparation without denying the saved project', async ({ page }) => {
-  await page.goto(root); const dialog = await open(page);
-  await dialog.getByRole('button', { name: 'Context & privacy' }).click();
-  await dialog.getByLabel('Simulate project preparation save failure').check();
+  await page.goto(root); await reviewControl(page, 'Simulate project preparation save failure', true); const dialog = await open(page);
   await say(page, 'Start the solar oven project on 2026-10-17');
   await dialog.getByRole('button', { name: 'Start project', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('workspace was started, but the preparation task was not saved');
@@ -179,13 +189,11 @@ test('A partial project-start failure can cancel preparation without denying the
 });
 
 test('Partial project preparation can retry once without a second workspace or duplicate task', async ({ page }) => {
-  await page.goto(root); const dialog = await open(page);
-  await dialog.getByRole('button', { name: 'Context & privacy' }).click();
-  await dialog.getByLabel('Simulate project preparation save failure').check();
+  await page.goto(root); await reviewControl(page, 'Simulate project preparation save failure', true); const dialog = await open(page);
   await say(page, 'Start the solar oven project on 2026-10-17');
   await dialog.getByRole('button', { name: 'Start project', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('preparation task was not saved');
-  await dialog.getByLabel('Simulate project preparation save failure').uncheck();
+  await reviewControl(page, 'Simulate project preparation save failure', false);
   await dialog.getByRole('button', { name: 'Save preparation', exact: true }).click();
   await expect(dialog.locator('.lc-receipt')).toContainText('Project workspace started with its preparation in My Week');
   await dialog.locator('.lc-receipt').getByRole('button', { name: 'Open', exact: true }).click();

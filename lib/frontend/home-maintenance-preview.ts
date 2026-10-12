@@ -15,13 +15,13 @@ export type MoistureObservation = {
 };
 export const sampleAssets: HomeAsset[] = [{
   id: 'sample-filter', title: 'Kitchen filter upkeep', revision: 1, model: '', installed: '2026-07-01', serviced: '2026-09-01', factor: 'pfas',
-  instructions: 'Sample user reminder to review the product instructions. Model and certification have not been supplied.', basis: 'user', policy: 'calendar',
+  instructions: 'Review the product instructions. Model and certification have not been supplied.', basis: 'user', policy: 'calendar',
   interval: 1, unit: 'months', nextDue: '2026-10-01', calendarAnchor: '2026-10-01', endDate: '', lastCompleted: '2026-09-01', snoozedUntil: '', status: 'active', testId: '',
-  history: [{ id: 'sample-filter-service', kind: 'completed', date: '2026-09-01', due: '2026-09-01', note: 'Sample user-reported service record.' }],
+  history: [{ id: 'sample-filter-service', kind: 'completed', date: '2026-09-01', due: '2026-09-01', note: 'Service recorded by you.' }],
 }];
 export const sampleObservations: MoistureObservation[] = [{
   id: 'sample-moisture', title: 'Window condensation', revision: 1, kind: 'condensation', observedAt: '2026-09-30T08:30', timezone: 'America/New_York',
-  room: 'Sample bathroom', reading: '', unit: '% RH', source: 'Visual observation by household', note: '', photoName: '', photoData: '', assetId: '', testId: '',
+  room: 'Bathroom', reading: '', unit: '% RH', source: 'Visual observation by household', note: '', photoName: '', photoData: '', assetId: '', testId: '',
 }];
 export function blankAsset(factor: FactorKey = 'pfas'): HomeAsset {
   return { id: '', title: '', revision: 0, model: '', installed: '', serviced: '', factor, instructions: '', basis: 'user', policy: 'calendar', interval: 1, unit: 'months', nextDue: '', calendarAnchor: '', endDate: '', lastCompleted: '', snoozedUntil: '', status: 'active', history: [], testId: '' };

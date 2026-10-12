@@ -7,7 +7,7 @@ import { useHomeCollection, useHomeWorkspace } from './HomeWorkspaceState';
 import { downloadPreview } from './HomeWorkspaceUI';
 
 export function FoodPreviewNote() {
-  return <p className="hg-preview-label">Sample records, not current food or water advice.</p>;
+  return null;
 }
 export function FoodDetails({ title, children }: { title: string; children: React.ReactNode }) {
   return <details className="hg-disclosure"><summary>{title}</summary><div className="hg-stack">{children}</div></details>;
@@ -27,14 +27,14 @@ export function FoodSaveFollow({ id, title, revision, kind, record }: { id: stri
     await follows.save({ id: existing?.id ?? `follow-${kind}-${id}`, title, revision: existing?.revision ?? 0, kind, targetId: id, sourceRevision: revision, saved: existing?.saved ?? false, following: existing?.following ?? false, [field]: !existing?.[field] });
     setBusy(false);
   }
-  const shareText = JSON.stringify({ notice: 'SYNTHETIC HALO REVIEW. Not current guidance or a real notice.', title, version: revision, record }, null, 2);
+  const shareText = JSON.stringify({ sourceStatus: 'unverified', title, version: revision, record: kind === 'resource' ? record : { sourceAvailable: false } }, null, 2);
   return <>
     <div className="hg-food-reference-actions" role="group" aria-label="Reference options">
       <button className="hg-button-secondary" type="button" disabled={busy || pending || scenario === 'offline'} aria-pressed={Boolean(existing?.saved)} onClick={() => void update('saved')}>{existing?.saved ? <Check size={16} aria-hidden="true" /> : <Bookmark size={16} aria-hidden="true" />}{existing?.saved ? 'Saved' : 'Save reference'}</button>
-      <button className="hg-button-secondary" type="button" disabled={busy || pending || scenario === 'offline'} aria-pressed={Boolean(existing?.following)} onClick={() => void update('following')}><Radio size={16} aria-hidden="true" />{existing?.following ? 'Following in preview' : 'Follow updates'}</button>
+      <button className="hg-button-secondary" type="button" disabled={busy || pending || scenario === 'offline'} aria-pressed={Boolean(existing?.following)} onClick={() => void update('following')}><Radio size={16} aria-hidden="true" />{existing?.following ? 'Following' : 'Follow updates'}</button>
       <button className="hg-button-secondary" type="button" aria-expanded={share} onClick={() => setShare(!share)}><Share2 size={16} aria-hidden="true" />Share reference</button>
     </div>
-    {existing?.following && <p className="hg-meta">Following version {existing.sourceRevision} in this preview. No notifications are sent.</p>}
+    {existing?.following && <p className="hg-meta">Saved source version {existing.sourceRevision}. Updates are not connected.</p>}
     {share && <section className="hg-card"><h3>Share this reference</h3><p>Private notes, sites and test reports are not included.</p><FoodDetails title="Preview exported data"><pre className="hg-export-preview">{shareText}</pre></FoodDetails><div className="hg-actions"><button className="hg-button-secondary" onClick={async () => { try { await navigator.clipboard.writeText(shareText); setMessage('Reference copied.'); } catch { setMessage('Clipboard unavailable. Use Download reference.'); } }}>Copy reference</button><button className="hg-button-secondary" onClick={() => downloadPreview(`${id}.json`, shareText)}><Download size={16} />Download reference</button></div>{message && <p role="status">{message}</p>}</section>}
   </>;
 }

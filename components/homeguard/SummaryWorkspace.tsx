@@ -1,4 +1,5 @@
 'use client';
+import DateInput from '@/components/ui/DateInput';
 
 import { useMemo, useState } from 'react';
 import { Download, FileText, Image as ImageIcon, Printer, Share2, ShieldCheck } from 'lucide-react';
@@ -51,10 +52,10 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
   const missingSections = scenario === 'error' ? ['tests' as const] : unavailable ? [unavailable] : [];
   const selectedRecords = (section: SummarySection) => (sources[section] ?? []).filter(record => !selection.excluded.includes(`${section}:${record.id}`) && withinSummaryDates(recordDate(record), selection));
   const sections: { title: string; lines: string[] }[] = [];
-  if (selection.sections.scores) sections.push({ title: 'Two score snapshot', lines: [`Today: 74 / 100 · Moderate · Sample snapshot, September 30, 2026.`, privateWater ? 'Homeguard: unavailable for this private-water context. No household water test is supplied by the environmental fixture.' : 'Homeguard: 58 / 100 · Elevated · Sample snapshot, September 30, 2026.', 'Higher scores are better. Today uses air, UV, pollen and the outdoor mold estimate. Homeguard uses available PFAS and radon inputs. Lead is shown separately, not scored. Completing an action does not change either score.'] });
+  if (selection.sections.scores) sections.push({ title: 'Two score snapshot', lines: [`Today: 74 / 100 · Moderate · September 30, 2026.`, privateWater ? 'Homeguard: unavailable for this private-water context. No household water test is available.' : 'Homeguard: 58 / 100 · Elevated · September 30, 2026.', 'Higher scores are better. Today uses air, UV, pollen and the outdoor mold estimate. Homeguard uses available PFAS and radon inputs. Lead is shown separately, not scored. Completing an action does not change either score.'] });
   if (selection.sections.factors) sections.push({ title: 'Seven factors, with their original dates', lines: factorKeys.map(key => {
     const factor = factorReadings[key];
-    if (key === 'pfas' && privateWater) return 'PFAS in water: missing household measurement. Private well or spring; the sample utility result does not apply. Review the selected private tests below, or arrange a test.';
+    if (key === 'pfas' && privateWater) return 'PFAS in water: missing household measurement. Private well or spring; the utility result does not apply. Review the selected private tests below, or arrange a test.';
     const kind = factor.provenance || (key === 'uv' || key === 'pollen' ? 'forecast' : 'source supplied');
     return `${factor.title}: ${factor.reading} ${factor.unit} · ${factor.severity.replace('_', ' ')} · ${kind}. Source: ${factor.source}. Original observation or classification date: ${factor.asOf}.${key === 'pfas' ? ' Older utility sample, not a current tap measurement.' : key === 'radon' ? ' County estimate, not a home measurement.' : key === 'mold' ? ' Outdoor weather estimate, not detected mold.' : key === 'lead' ? ' Building-era estimate, not measured lead; not scored.' : ''}`;
   }) });
@@ -64,7 +65,7 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
     const records = selectedRecords(section);
     const lines = records.flatMap(record => {
       const testContext = section === 'tests' ? [`Sample medium: ${scalar(record.medium) || 'Unknown'}. Method: ${scalar(record.method) || 'Not supplied'}. Collection: ${scalar(record.collectionStart) || 'Not supplied'}${record.collectionEnd ? ` through ${scalar(record.collectionEnd)}` : ''}.`, `Transcription review: ${({ not_received: 'No results received', unreviewed: 'Not checked against the original report', needs_clarification: 'Needs clarification', user_confirmed: 'Checked by you, not verified by a laboratory' } as Record<string, string>)[scalar(record.review)] || 'Not supplied'}.${record.reviewReason ? ` ${scalar(record.reviewReason)}` : ''}`] : [];
-      const details = [`${record.title}: ${recordDescription(record)} · User-reported sample record${record.revision ? `, revision ${record.revision}` : ''}.`, ...testContext, ...resultLines(record)];
+      const details = [`${record.title}: ${recordDescription(record)} · User-reported record${record.revision ? `, revision ${record.revision}` : ''}.`, ...testContext, ...resultLines(record)];
       if (selection.location) { const place = scalar(record.room) || scalar(record.sampleLabel) || scalar(record.siteLabel) || scalar(record.county); if (place) details.push(`Included place label: ${place}.`); if (section === 'tests' && record.contextId) details.push(`Sample context: ${scalar(record.contextId)}.`); }
       if (selection.notes) { const note = scalar(record.note) || scalar(record.privateNote); if (note) details.push(`Included private note: ${note}`); }
       if (selection.attachments) { const name = scalar(record.photoName); if (name) details.push(`Selected attachment reference: ${name}. Image contents and metadata are omitted from this summary export.`); if (Array.isArray(record.attachments) && record.attachments.length) details.push(`${record.attachments.length} attachment reference(s). Original files are omitted; this summary is not a full private-data export.`); }
@@ -73,18 +74,18 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
     });
     sections.push({ title: sectionLabels[section], lines: lines.length ? lines : ['No selected records in this date range. Undated records are labelled separately. No result is inferred from an empty section.'] });
   }
-  if (selection.categories) sections.push({ title: 'Household categories you chose to include', lines: [selectedCategories.length ? selectedCategories.join(', ') : 'No categories selected in the sample household.'] });
-  if (selection.location) sections.push({ title: 'Included location context', lines: ['Sample Iredell County, North Carolina. Approximate fixture context only; no street address or device location is used.'] });
+  if (selection.categories) sections.push({ title: 'Household categories you chose to include', lines: [selectedCategories.length ? selectedCategories.join(', ') : 'No household categories selected.'] });
+  if (selection.location) sections.push({ title: 'Included location context', lines: ['Iredell County, North Carolina. No street address or device location included.'] });
   const omissions = [!selection.categories && 'Household categories', !selection.location && 'Location labels', !selection.notes && 'Private notes', !selection.attachments && 'Attachment references', 'Original attachment contents and metadata', ...recordSections.filter(key => !selection.sections[key]).map(key => sectionLabels[key])].filter(Boolean).join('; ');
   const lines = [
-    `Purpose: ${selection.purpose}. Sample-data review only; not a live household report.`,
+    `Purpose: ${selection.purpose}.`,
     `Generated: ${generated || openedAt}. Selected private-record dates: ${selection.start} through ${selection.end}. Existing environmental observations retain their original dates even when older than this range.`,
-    `Water context: ${waterContext === 'utility' ? 'Sample public utility' : waterContext === 'well' ? 'Private well, no inferred utility match' : 'Private spring, no inferred utility match'}.`,
-    ...(scenario === 'stale' ? ['The shared review is showing older saved information. Check original source dates before relying on it.'] : []),
+    `Water context: ${waterContext === 'utility' ? 'Public utility' : waterContext === 'well' ? 'Private well, no inferred utility match' : 'Private spring, no inferred utility match'}.`,
+    ...(scenario === 'stale' ? ['Older saved information. Check original source dates.'] : []),
     ...sections.flatMap(section => [section.title, ...section.lines]),
     `Omitted by selection or export scope: ${omissions}.`,
     ...(selection.excluded.length ? [`${selection.excluded.length} record selection(s) are excluded.`] : []),
-    ...(selection.appendix ? ['Evidence appendix', ...factorKeys.filter(() => selection.sections.factors).map(key => `${factorReadings[key].title}: ${key === 'pfas' && privateWater ? 'No applicable household water measurement.' : factorReadings[key].detail}`), 'Scores and readings are existing design fixtures. Record selections are local review data. Household actions, equipment upkeep and garden observations do not prove improved water, air or health.'] : []),
+    ...(selection.appendix ? ['Evidence appendix', ...factorKeys.filter(() => selection.sections.factors).map(key => `${factorReadings[key].title}: ${key === 'pfas' && privateWater ? 'No applicable household water measurement.' : factorReadings[key].detail}`), 'Recorded work does not prove improved water, air or health.'] : []),
   ];
   const update = (patch: Partial<SummarySelection>) => { setSelection({ ...selection, ...patch }); setStatus(''); setError(''); };
   function preview() { const invalid = summaryDateError(selection); setError(invalid ?? ''); if (invalid) return; setGenerated(new Date().toISOString()); setStatus(''); props.navigate('preview'); }
@@ -93,7 +94,7 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
     if (busy) return; setError(''); setStatus('Preparing your selected summary...'); setBusy(true);
     try {
       const html = summaryHtml(lines);
-      if (kind === 'file') { download(new Blob([html], { type: 'text/html;charset=utf-8' }), 'html'); setStatus('The selected summary file was prepared and the browser download was started.'); }
+      if (kind === 'file') { download(new Blob([html], { type: 'text/html;charset=utf-8' }), 'html'); setStatus('Download started.'); }
       else if (kind === 'image') {
         const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Image export is unsupported here. Download the file or print instead.');
         ctx.font = '20px Arial';
@@ -115,22 +116,22 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
         if (wrapped.length > 480) throw new Error('This summary is too long for one readable image. Download the file or reduce sections.');
         canvas.width = 1120; canvas.height = Math.max(320, 100 + wrapped.length * 30); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#111'; ctx.font = '20px Arial'; wrapped.forEach((line, i) => ctx.fillText(line, 48, 58 + i * 30));
         const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('The image could not be created. Try downloading the file.')), 'image/png'));
-        download(blob, 'png'); setStatus('The readable PNG was prepared and the browser download was started.');
+        download(blob, 'png'); setStatus('Image download started.');
       } else if (kind === 'print') {
         const frame = document.createElement('iframe'); frame.title = 'Selected household summary print document'; frame.setAttribute('aria-hidden', 'true'); frame.style.cssText = 'position:fixed;width:1px;height:1px;left:-9999px;border:0';
         document.body.appendChild(frame);
-        try { await new Promise<void>((resolve, reject) => { frame.onload = () => resolve(); frame.onerror = () => reject(new Error('The print document could not be prepared.')); frame.srcdoc = html; }); const target = frame.contentWindow; if (!target) throw new Error('Printing is unsupported. Download the file instead.'); target.focus(); target.print(); setStatus('The print dialog was opened. Your preview is retained whether you print or cancel.'); } finally { window.setTimeout(() => frame.remove(), 1000); }
+        try { await new Promise<void>((resolve, reject) => { frame.onload = () => resolve(); frame.onerror = () => reject(new Error('The print document could not be prepared.')); frame.srcdoc = html; }); const target = frame.contentWindow; if (!target) throw new Error('Printing is unsupported. Download the file instead.'); target.focus(); target.print(); setStatus('Print dialog opened. Your selections are kept.'); } finally { window.setTimeout(() => frame.remove(), 1000); }
       } else {
         if (!navigator.share) { setStatus('Native sharing is unsupported in this browser. Download the file or image instead.'); return; }
         const file = new File([html], 'halo-household-summary.html', { type: 'text/html' });
         if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: 'HALO household summary', files: [file] });
         else await navigator.share({ title: 'HALO household summary', text: lines.join('\n\n') });
-        setStatus('The selected summary was handed to the device share sheet. Delivery is controlled by the app you chose.');
+        setStatus('Share sheet opened. Confirm in your chosen app.');
       }
     } catch (failure) {
-      if (failure instanceof DOMException && failure.name === 'AbortError') setStatus('Sharing cancelled. Your preview and selections are still here.');
-      else if (failure instanceof DOMException && failure.name === 'NotAllowedError') { setStatus(''); setError('Permission to share was denied. Your preview is retained. Download a file or image instead.'); }
-      else { setStatus(''); setError(failure instanceof Error ? failure.message : 'Export failed. Your preview is retained. Try again.'); }
+      if (failure instanceof DOMException && failure.name === 'AbortError') setStatus('Sharing cancelled. Your selections are kept.');
+      else if (failure instanceof DOMException && failure.name === 'NotAllowedError') { setStatus(''); setError('Sharing permission denied. Download a file or image instead.'); }
+      else { setStatus(''); setError(failure instanceof Error ? failure.message : 'Export failed. Your selections are kept. Try again.'); }
     } finally { setBusy(false); }
   }
   if (props.view === 'preview') return <>
@@ -139,14 +140,14 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
     <button className="hg-button-secondary" onClick={() => { setStatus(''); props.navigate('selection'); }}>Edit included information</button>
     <details className="hg-record-tools hg-card"><summary>Other formats & printing</summary><div className="hg-actions"><button disabled={busy} onClick={() => exportSummary('file')}><Download size={18} />Download accessible text</button><button disabled={busy} onClick={() => exportSummary('image')}><ImageIcon size={18} />Save image</button><button disabled={busy} onClick={() => exportSummary('print')}><Printer size={18} />Print</button><button disabled={busy} onClick={() => exportSummary('share')}><Share2 size={18} />Share text</button></div></details>
     {status && <p role="status" className="hg-notice">{status}</p>}{error && <div role="alert" className="hg-notice"><p>{error}</p><p>Use any export button to retry. No public link was created.</p></div>}
-    <details className="hg-summary-readable"><summary>Review the included information</summary><article className="hg-summary-preview" aria-label="Selected household summary"><header><p className="hg-eyebrow">HALO · Sample household</p><h2>{selection.purpose}</h2><p>Generated {generated || openedAt}</p><p>Water context: {waterContext === 'utility' ? 'Sample public utility' : waterContext === 'well' ? 'Private well, no inferred utility match' : 'Private spring, no inferred utility match'}.</p><p>Private records: {selection.start} to {selection.end}. Environmental evidence retains its original dates.</p></header>{scenario === 'stale' && <p>Older saved information. Check each original source date.</p>}{sections.map(section => <section key={section.title}><h3>{section.title}</h3>{section.lines.map((line, index) => <p key={index}>{line}</p>)}</section>)}<footer><h3>Omissions and scope</h3><p>{omissions}.</p>{selection.excluded.length > 0 && <p>{selection.excluded.length} record selection(s) excluded.</p>}<p>Original files and photo metadata are not included. Selected attachment references are text only. This sample report is not a live home assessment.</p></footer>{selection.appendix && <section><h3>Evidence appendix</h3>{factorKeys.filter(() => selection.sections.factors).map(key => <p key={key}><strong>{factorReadings[key].title}: </strong>{key === 'pfas' && privateWater ? 'No applicable household water measurement.' : factorReadings[key].detail}</p>)}<p>Scores and readings are existing design fixtures. Record selections are local review data. Household actions, equipment upkeep and garden observations do not prove improved water, air or health.</p></section>}</article></details>
-    <SourceNote>Downloads use a neutral filename. Sharing starts only when you choose Share and confirm in your device. No public summary URL or account export is created.</SourceNote>
+    <details className="hg-summary-readable"><summary>Review the included information</summary><article className="hg-summary-preview" aria-label="Selected household summary"><header><p className="hg-eyebrow">HALO · Household summary</p><h2>{selection.purpose}</h2><p>Generated {generated || openedAt}</p><p>Water context: {waterContext === 'utility' ? 'Public utility' : waterContext === 'well' ? 'Private well, no inferred utility match' : 'Private spring, no inferred utility match'}.</p><p>Private records: {selection.start} to {selection.end}. Environmental evidence retains its original dates.</p></header>{scenario === 'stale' && <p>Older saved information. Check each original source date.</p>}{sections.map(section => <section key={section.title}><h3>{section.title}</h3>{section.lines.map((line, index) => <p key={index}>{line}</p>)}</section>)}<footer><h3>Omissions and scope</h3><p>{omissions}.</p>{selection.excluded.length > 0 && <p>{selection.excluded.length} record selection(s) excluded.</p>}<p>Attachment names only. Original files and photo metadata are not included.</p></footer>{selection.appendix && <section><h3>Evidence appendix</h3>{factorKeys.filter(() => selection.sections.factors).map(key => <p key={key}><strong>{factorReadings[key].title}: </strong>{key === 'pfas' && privateWater ? 'No applicable household water measurement.' : factorReadings[key].detail}</p>)}<p>Recorded work does not prove improved water, air or health.</p></section>}</article></details>
+    <SourceNote>Only selected information is shared. No public link is created.</SourceNote>
   </>;
   return <>
     <PageIntro eyebrow="Homeguard" title="Household summary" description="Choose what to include. Luna will arrange it into a PDF you can keep or share." icon={<FileText />} />
     <section className="hg-card hg-stack"><h2>Set up your summary</h2>
       <Field label="What is this summary for?"><select value={selection.purpose} onChange={e => update({ purpose: e.target.value })}><option>Household review</option><option>Water provider questions</option><option>Landlord or contractor discussion</option><option>Care professional questions</option></select></Field>
-      <Field label="Water context for this summary"><select value={waterContext} onChange={e => setWaterContext(e.target.value as typeof waterContext)}><option value="utility">Sample public utility</option><option value="well">Private well</option><option value="spring">Private spring</option></select></Field>
+      <Field label="Water context for this summary"><select value={waterContext} onChange={e => setWaterContext(e.target.value as typeof waterContext)}><option value="utility">Public utility</option><option value="well">Private well</option><option value="spring">Private spring</option></select></Field>
       {privateWater && <SourceNote>Utility readings do not apply to your well or spring. This summary will show the missing measurement, not a complete Homeguard score.</SourceNote>}
     </section>
     <section className="hg-card hg-stack"><h2>What to include</h2>
@@ -157,7 +158,7 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
           <label className="hg-option"><input type="checkbox" aria-label={sectionLabels[key]} checked={selection.sections[key]} onChange={e => update({ sections: { ...selection.sections, [key]: e.target.checked } })} /><span><strong>{sectionLabels[key]}</strong><small>{sectionDescriptions[key]}</small></span></label>
           {selection.sections[key] && <fieldset className="hg-fieldset"><legend>Choose {sectionLabels[key].toLowerCase()}</legend>{sources[key]?.length ? sources[key].map(record => <label key={record.id} className="hg-option"><input type="checkbox" checked={!selection.excluded.includes(`${key}:${record.id}`)} onChange={e => update({ excluded: e.target.checked ? selection.excluded.filter(id => id !== `${key}:${record.id}`) : [...selection.excluded, `${key}:${record.id}`] })} /><span><strong>{record.title}</strong><small>{recordDescription(record)}{withinSummaryDates(recordDate(record), selection) ? '' : ' · Outside this date range; omitted'}</small></span></label>) : <p className="hg-meta">No records yet. This section will say so.</p>}</fieldset>}
         </div>)}
-        <div className="hg-grid"><Field label="Private records from"><input type="date" value={selection.start} onChange={e => update({ start: e.target.value })} /></Field><Field label="Private records through"><input type="date" value={selection.end} onChange={e => update({ end: e.target.value })} /></Field></div>
+        <div className="hg-grid"><Field label="Private records from"><DateInput value={selection.start} onChange={e => update({ start: e.target.value })} /></Field><Field label="Private records through"><DateInput value={selection.end} onChange={e => update({ end: e.target.value })} /></Field></div>
         <p className="hg-meta">These dates filter your records only. Environmental readings keep their original dates. Records without a date are labelled.</p>
       </details>
       {privateWater && <WorkspaceLink title="Open home tests & reports" detail="Keep your own water test with this summary." onClick={() => props.go('tests')} />}

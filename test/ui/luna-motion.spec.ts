@@ -16,10 +16,12 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => expect(faults.get(page)).toEqual([]));
 
 async function pendingReply(page: Page) {
+  const review = page.getByText('Expanded app review · Not approved', { exact: true });
+  await review.click();
+  await page.getByRole('combobox', { name: 'Assistant service review state', exact: true }).selectOption('slow');
+  await review.click();
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Luna', exact: true });
-  await dialog.getByRole('button', { name: 'Context & privacy', exact: true }).click();
-  await dialog.getByLabel('Assistant service review state').selectOption('slow');
   await dialog.getByRole('textbox', { name: 'Message Luna', exact: true }).fill('Find projects that fit my home');
   await dialog.getByRole('button', { name: 'Send message', exact: true }).click();
   const loading = dialog.locator('.halo-luna-loading');
