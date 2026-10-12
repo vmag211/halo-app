@@ -1,0 +1,44 @@
+.mw-review-planner { display:grid; gap:14px; border-bottom:1px solid var(--halo-border); padding-bottom:20px; margin-bottom:4px; }
+.mw-review-planner header h3 { margin:4px 0 0; font:600 calc(1.2rem * var(--halo-text-scale))/1.25 var(--font-fraunces),serif; }
+.mw-review-done { border:0; }
+.mw-review-done summary { display:flex; align-items:center; gap:8px; font-weight:600; }
+.mw-review-done summary > svg:first-child { color:var(--halo-primary); }
+.mw-review-done summary > svg:last-child { margin-left:auto; }
+.mw-review-done p { display:grid; padding:8px 0; border-bottom:1px solid var(--halo-border); margin:0; }
+.mw-review-done small { font-size:calc(.74rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.mw-review-capacity { padding:12px 0; border-block:1px solid var(--halo-border); display:grid; gap:10px; }
+.mw-review-capacity > div:first-child { display:grid; grid-template-columns:20px 1fr; align-items:center; gap:5px 8px; }
+.mw-review-capacity > div:first-child small { grid-column:2; color:var(--halo-secondary); }
+.mw-review-capacity svg { color:var(--halo-primary); }
+.mw-review-capacity label { font-size:calc(.8rem * var(--halo-text-scale)); }
+.mw-capacity-line { height:5px; background:var(--halo-border); overflow:hidden; border-radius:1px; }
+.mw-capacity-line span { display:block; height:100%; background:var(--halo-primary); }
+.mw-review-capacity > small { font-size:calc(.74rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.mw-review-decisions summary { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.mw-review-decisions summary span { font-size:calc(.7rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.mw-review-decision { border-top:1px solid var(--halo-border); padding:12px 0; }
+.mw-review-select { display:flex !important; align-items:start; gap:9px; margin-top:0 !important; }
+.mw-review-select input { margin-top:6px; flex-shrink:0; }
+.mw-review-select span { display:grid; gap:4px; min-width:0; }
+.mw-review-select strong { font-size:calc(.85rem * var(--halo-text-scale)); font-weight:600; }
+.mw-review-select small { color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); }
+.mw-review-decision-fields { padding-left:26px; }
+.mw-review-decision-fields small { color:var(--halo-secondary); display:block; padding-top:8px; }
+.mw-review-confirm { display:grid; gap:10px; padding:14px; border:1px solid var(--halo-primary); background:var(--halo-tint); }
+.mw-review-confirm ul { margin:0; padding-left:18px; display:grid; gap:8px; font-size:calc(.8rem * var(--halo-text-scale)); }
+.mw-activity-updates { margin-top:18px; padding-top:16px; border-top:1px solid var(--halo-border); }
+.mw-activity-update { display:grid; grid-template-columns:28px minmax(0,1fr); gap:9px; padding:14px 0; border-bottom:1px solid var(--halo-border); }
+.mw-update-icon { color:var(--halo-primary); padding-top:3px; }
+.mw-activity-update[data-kind="cancelled"] .mw-update-icon,.mw-activity-update[data-kind="conditions"] .mw-update-icon { color:light-dark(#9b6618,#e4bd80); }
+.mw-activity-update strong { display:block; margin:5px 0; font-size:calc(.9rem * var(--halo-text-scale)); }
+.mw-activity-update small,.mw-update-linked { display:block; color:var(--halo-secondary); font-size:calc(.7rem * var(--halo-text-scale)); }
+.mw-activity-update p { margin:6px 0 9px; font-size:calc(.8rem * var(--halo-text-scale)); }
+.mw-update-actions { display:flex; gap:5px 14px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+.mw-update-actions .mw-text { font-size:calc(.78rem * var(--halo-text-scale)); }
+.mw-update-ack { display:flex; align-items:center; gap:5px; padding:6px 0; min-height:44px; border:0; background:none; color:var(--halo-secondary); font:inherit; font-size:calc(.74rem * var(--halo-text-scale)); cursor:pointer; }
+.mw-activity-update details { margin-top:8px; }
+.mw-activity-update summary { font-size:calc(.74rem * var(--halo-text-scale)); }
+.mw-update-overflow { padding:12px 0; border-top:1px solid var(--halo-border); font-size:calc(.8rem * var(--halo-text-scale)); }
+.mw-update-overflow .mw-text { margin-right:12px; }
+@media(prefers-reduced-motion:no-preference) { .halo-f-app:not([data-motion="reduce"]) .mw-capacity-line span { transition:width .25s ease-out; } }
+.halo-f-app[data-contrast="high"] .mw-review-confirm { background:var(--halo-card); border-color:var(--halo-ink); }

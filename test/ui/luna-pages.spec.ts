@@ -35,7 +35,7 @@ test('Luna opens and closes without losing the page across the shared app and su
     const original = new URL(page.url());
     await launcher.click();
     await expect(page.getByRole('dialog', { name: 'Luna', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Close Luna', exact: true }).click();
+    await page.getByRole('dialog', {name:'Luna',exact:true}).getByRole('button', { name: /^Close (Luna|sheet)$/ }).click();
     await expect(page.getByRole('dialog', { name: 'Luna', exact: true })).toHaveCount(0);
     await expect(launcher).toBeVisible();
     await expect.poll(() => new URL(page.url()).searchParams.get('sheet')).not.toBe('assistant');
@@ -50,6 +50,6 @@ test('opening Luna does not discard a Homeguard form draft', async ({ page }) =>
   await page.goto(`${expanded}&tab=home&destination=tests&homeView=new`);
   await page.getByLabel('Test label (required)').fill('My retained draft');
   await page.getByRole('button', { name: /^(Ask|Open) Luna$/ }).click();
-  await page.getByRole('button', { name: 'Close Luna', exact: true }).click();
+  await page.getByRole('dialog', {name:'Luna',exact:true}).getByRole('button', { name: 'Close sheet', exact:true }).click();
   await expect(page.getByLabel('Test label (required)')).toHaveValue('My retained draft');
 });

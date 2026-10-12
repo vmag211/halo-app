@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BottomSheet, Callout } from '@/components/ui/Foundation';
 import Button from '@/components/ui/Button';
-import { actionDraftError, type ActionSeed, type PreviewAction } from '@/lib/frontend/expanded-preview';
+import { actionDraftError, revisedActionBatch, type ActionRevision, type ActionSeed, type PreviewAction } from '@/lib/frontend/expanded-preview';
 import type { HouseholdBands } from '@/lib/frontend/home-household';
 import { HomeWorkspaceReviewControls } from '@/components/homeguard/HomeWorkspaceState';
 import { ExploreReviewControls } from './ExploreWorkspace';
@@ -19,6 +19,7 @@ type PreviewState = {
   addActions: (seeds: ActionSeed[], date: string) => boolean;
   updateAction: (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date'>) => boolean;
   reviseAction: (id: string, revision: number, patch: Pick<PreviewAction, 'title' | 'date' | 'state'>) => boolean;
+  reviseActions: (changes:ActionRevision[])=>boolean;
   deleteAction: (id: string, revision: number) => boolean;
 };
 const State = createContext<PreviewState | null>(null);
@@ -87,7 +88,8 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
     if (fail || !actionsRef.current.some(action => action.id === id && (action.revision ?? 1) === revision)) return false;
     actionsRef.current = actionsRef.current.filter(action => action.id !== id); setActions(actionsRef.current); return true;
   };
-  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, reviseAction, deleteAction, changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
+  const reviseActions=(changes:ActionRevision[])=>{if(fail||!navigator.onLine)return false;const next=revisedActionBatch(actionsRef.current,changes);if(!next)return false;actionsRef.current=next;setActions(next);return true;};
+  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, addActions, updateAction, reviseAction, reviseActions, deleteAction, changeState: (id, state) => setActions(previous => { const result = previous.map(action => action.id === id ? { ...action, state, revision: (action.revision ?? 1) + 1 } : action); actionsRef.current = result; return result; }), reset: () => { close(); actionsRef.current = []; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
 export function ExpandedReviewControls() {

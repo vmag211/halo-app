@@ -38,3 +38,11 @@ export function actionDraftError(title: string, date: string): string | null {
   if (!validActionDate(date)) return 'Choose a valid calendar date.';
   return null;
 }
+
+export type ActionRevision = { id:string; revision:number; patch:Pick<PreviewAction,'title'|'date'|'state'> };
+/** Validate the whole captured review before replacing any canonical action. */
+export function revisedActionBatch(actions:PreviewAction[],changes:ActionRevision[]):PreviewAction[]|null {
+  if(new Set(changes.map(c=>c.id)).size!==changes.length)return null;
+  for(const c of changes){const a=actions.find(a=>a.id===c.id);if(!a||(a.revision??1)!==c.revision||actionDraftError(c.patch.title,c.patch.date)||!['saved','waiting','completed'].includes(c.patch.state))return null;}
+  return actions.map(a=>{const c=changes.find(c=>c.id===a.id);return c?{...a,...c.patch,title:c.patch.title.trim(),revision:c.revision+1}:a;});
+}

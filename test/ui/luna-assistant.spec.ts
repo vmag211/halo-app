@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 for (const appearance of ['light', 'dark']) test(`Luna ${appearance} welcome, sample conversation, options and keyboard close`, async ({ page }, info) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/foundation/preview/?appearance=${appearance}&motion=reduce&time=day`);
+  await page.goto(`/foundation/preview/?edition=original&appearance=${appearance}&motion=reduce&time=day`);
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   const panel = page.getByRole('dialog', { name: 'Luna', exact: true });
   await expect(panel).toBeVisible();
@@ -44,13 +44,13 @@ for (const appearance of ['light', 'dark']) test(`Luna ${appearance} welcome, sa
 });
 
 test('Luna keeps Homeguard and factor context, missing data and browser Back', async ({ page }) => {
-  await page.goto('/foundation/preview/?tab=home&motion=reduce');
+  await page.goto('/foundation/preview/?edition=original&tab=home&motion=reduce');
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await page.getByRole('button', { name: 'What does my PFAS result mean?', exact: true }).click();
   await expect(page.getByRole('log')).toContainText('not a test of your tap');
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.goto('/foundation/preview/factor/uv/?scenario=no-data&motion=reduce');
+  await page.goto('/foundation/preview/factor/uv/?edition=original&scenario=no-data&motion=reduce');
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await page.getByRole('button', { name: 'Help me understand uv index', exact: true }).click();
   await expect(page.getByRole('log')).toContainText('Current readings are unavailable');
@@ -61,7 +61,7 @@ test('Luna keeps Homeguard and factor context, missing data and browser Back', a
 });
 
 test('Luna offline keeps a draft but cannot send', async ({ page }) => {
-  await page.goto('/foundation/preview/?scenario=offline&motion=reduce');
+  await page.goto('/foundation/preview/?edition=original&scenario=offline&motion=reduce');
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   const input = page.getByRole('textbox', { name: 'Message Luna' });
   await input.fill('Keep this draft');
@@ -73,7 +73,7 @@ test('Luna offline keeps a draft but cannot send', async ({ page }) => {
 
 test('Luna fits enlarged text and a short mobile viewport, handles multiline and plain text safely', async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 760 });
-  await page.goto('/foundation/preview/?scale=150&appearance=dark&contrast=true&motion=reduce');
+  await page.goto('/foundation/preview/?edition=original&scale=150&appearance=dark&contrast=true&motion=reduce');
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   const panel = page.getByRole('dialog');
   expect(await panel.evaluate(node => node.scrollWidth <= node.clientWidth)).toBeTruthy();

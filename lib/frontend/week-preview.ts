@@ -1,6 +1,6 @@
 import { validActionDate, type PreviewAction } from './expanded-preview';
 
-export type WeekMeta = { note: string; paused: boolean; archived: boolean; completedOn: string; time: string; duration: number; zone: string; recurrence: 'none' | 'weekly' | 'after-completion'; reminder: boolean; history: string[] };
+export type WeekMeta = { note: string; paused: boolean; archived: boolean; completedOn: string; time: string; duration: number; estimateSet?: boolean; zone: string; recurrence: 'none' | 'weekly' | 'after-completion'; reminder: boolean; history: string[] };
 export const emptyWeekMeta: WeekMeta = { note:'', paused:false, archived:false, completedOn:'', time:'', duration:60, zone:'America/New_York', recurrence:'none', reminder:false, history:[] };
 export function dayAdd(day: string, amount: number) { const d=new Date(`${day}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+amount);return d.toISOString().slice(0,10); }
 export function weekStart(day: string) {return dayAdd(day,-((new Date(`${day}T12:00:00Z`).getUTCDay()+6)%7));}
