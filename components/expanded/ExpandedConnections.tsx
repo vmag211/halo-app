@@ -59,8 +59,8 @@ export function ExpandedAct({ href, mapHref, environmentAvailable = true }: { hr
   return <ExploreWorkspace href={href} mapHref={mapHref} environmentAvailable={environmentAvailable} />;
 }
 
-export function ExpandedPlan({ href }: { href: Href }) {
-  return <MyWeekWorkspace href={href} />;
+export function ExpandedPlan({ href, scoreScenario }: { href: Href; scoreScenario?:string }) {
+  return <MyWeekWorkspace href={href} scoreScenario={scoreScenario} />;
 }
 
 export function ExpandedSettings({ offline }: { offline: boolean }) {

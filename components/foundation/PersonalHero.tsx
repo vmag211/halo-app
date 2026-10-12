@@ -24,6 +24,7 @@ import FactorSteps from './FactorSteps';
 import PreviewSectionLink from './PreviewSectionLink';
 import RisingSun from './RisingSun';
 import { useStageRuntime } from './StageRuntime';
+import { previewOverviewScore } from '@/lib/frontend/overview-preview';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
@@ -39,8 +40,9 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
   const missingKey = home ? 'pfas' : 'pollen';
   const keys = home ? homeFactorKeys : personalFactorKeys;
   const zeroRisk = scenario === 'contribution-zero' || scenario === 'score-full';
-  const score = overview ? overview.score : missing ? null : scenario === 'score-zero' ? 0 : zeroRisk ? 100 : home ? 58 : 74;
-  const severity = overview ? overview.severity : missing ? 'no_data' : score === 0 ? 'severe' : home ? 'elevated' : 'moderate';
+  const fixture = previewOverviewScore(home, scenario);
+  const score = overview ? overview.score : fixture.score;
+  const severity = overview ? overview.severity : fixture.severity;
   const segments: ScoreSegment[] = keys.filter(key => key !== 'lead').map((key, index) => ({
     key, label: readings[key].shortTitle, color: factorColor(key), href: factorHref(key),
     share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,

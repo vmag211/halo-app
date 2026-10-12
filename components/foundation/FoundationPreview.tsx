@@ -240,7 +240,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
   if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} />;
   if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
-    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : <ExpandedPlan href={expandedHref} />;
+    content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : <ExpandedPlan href={expandedHref} scoreScenario={current} />;
   } else if (showExpanded && (route === 'today' || route === 'home')) {
     content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
   }
