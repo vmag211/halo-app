@@ -72,3 +72,46 @@
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .how-food-entries a { padding-left:0; border-right:0; border-bottom:1px solid var(--halo-border); }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .how-food-entries a:last-child { border-bottom:0; }
 @media(max-width:350px) { .how-food-entries { grid-template-columns:minmax(0,1fr); } .how-food-entries a { padding-left:0 !important; border-right:0 !important; border-bottom:1px solid var(--halo-border); } .how-food-entries a:last-child { border-bottom:0; } .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .how-care-list,.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .how-module footer { padding-left:0; } }
+
+/* A quick current-state view, not a second dashboard. Scoped to the editable overview. */
+.halo-home-workspace { container:home-snapshot / inline-size; gap:12px; }
+.halo-home-workspace .how-heading h2 { text-align:left; font-size:calc(1.35rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-continue { padding:10px 14px 14px; gap:8px; border-left-width:2px; background:color-mix(in srgb,var(--halo-primary) 8%,var(--halo-card)); }
+.halo-home-workspace .how-kicker { font-size:calc(.67rem * var(--halo-text-scale)); letter-spacing:.025em; text-transform:none; }
+.halo-home-workspace .how-continue-heading { gap:0 12px; }
+.halo-home-workspace .how-record-line { gap:10px; }
+.halo-home-workspace .how-continue strong { font-size:calc(.91rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-test-track { margin-top:7px; }
+.halo-home-workspace .how-test-track li { gap:4px; }
+.halo-home-workspace .how-test-track small { font-size:calc(.66rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-modules { gap:4px; }
+.halo-home-workspace .how-module { padding:14px 0; gap:6px; }
+.halo-f-app .halo-home-workspace .how-module .how-module-heading { grid-template-columns:20px minmax(0,1fr) auto; gap:6px 10px; align-items:center; }
+.halo-f-app .halo-home-workspace .how-module .how-module-heading > .how-action { grid-column:3; grid-row:1; align-self:center; }
+.halo-home-workspace .how-module-heading > svg { width:20px; height:20px; margin:0; }
+.halo-f-app .halo-home-workspace .how-module-heading h3 { font-size:calc(.98rem * var(--halo-text-scale)); line-height:1.4; text-align:left; text-wrap:pretty; }
+.halo-home-workspace .how-module-heading > div { gap:3px; }
+.halo-home-workspace .how-action { border-bottom:0; font-size:calc(.79rem * var(--halo-text-scale)); gap:5px; color:var(--halo-primary); }
+.halo-home-workspace .how-action:hover { text-decoration:underline; text-underline-offset:4px; }
+.halo-home-workspace .how-action > svg { width:15px; height:15px; }
+.halo-home-workspace .how-module footer { padding-left:30px; gap:0 14px; }
+.halo-home-workspace .how-module footer .how-text-action { padding-block:6px; font-size:calc(.78rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-care-list { padding-left:30px; }
+.halo-home-workspace .how-care-list a { padding:9px 0; min-height:52px; gap:9px; }
+.halo-home-workspace .how-care-list strong { font-size:calc(.87rem * var(--halo-text-scale)); font-weight:600; }
+.halo-home-workspace time { font-family:var(--font-onest),var(--font-instrument),sans-serif; font-variant-numeric:tabular-nums; }
+.halo-home-workspace .how-food-entries a { padding-top:10px; padding-bottom:10px; gap:8px; min-height:62px; }
+.halo-home-workspace .how-food-entries a > svg:first-child { width:18px; height:18px; }
+.halo-home-workspace .how-food-entries a > svg:last-child { width:13px; height:13px; }
+.halo-home-workspace .how-food-entries strong { font-size:calc(.8rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-food-entries small { font-size:calc(.73rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-garden-return { padding-block:4px; gap:8px; }
+.halo-home-workspace .how-garden-return small { color:var(--halo-primary); }
+.halo-home-workspace .how-plan-return { margin-top:2px; font-size:calc(.78rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-plan-return span { margin-left:auto; color:var(--halo-secondary); }
+@container home-snapshot (max-width:330px) {
+  .halo-f-app .halo-home-workspace .how-module .how-module-heading { grid-template-columns:18px minmax(0,1fr) auto; gap:5px 8px; }
+  .halo-home-workspace .how-care-list,.halo-home-workspace .how-module footer { padding-left:0; }
+}
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-module .how-module-heading { grid-template-columns:20px minmax(0,1fr); }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-workspace .how-module .how-module-heading > .how-action { grid-column:2; grid-row:auto; justify-self:start; padding-block:4px; }

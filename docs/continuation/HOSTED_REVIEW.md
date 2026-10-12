@@ -1,6 +1,18 @@
 # Hosted wireframe preservation reference
 
-## Current review: Diverse project photography and tailored Homeguard workspaces, October 11, 2026
+## Current review: Home workspace quick-view refinement, October 11, 2026
+
+Version33 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The below-the-house Your home workspace is a condensed current-record snapshot with compact continuation, left-aligned headings, short Open/Create section links, concise counts/dates and less repeated explanatory text. All four sections, independently recorded test milestones, exact current-record links, creation routes, garden continuation, summary and My Week access remain. Month/day display retains full dates in semantic time metadata, accessible names and record details. Offline wording explicitly says no save or queue. The approved core ordering and deeper record workspaces are unchanged.
+
+- Version ID: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_d0e7585bb548819183b9831a4cfdfdd6`.
+- Source: `a3d4cac569af45a6647d3167251758ea4a78bd30`.
+- Successful deployment: `appgdep_6acc31eda6e881918d05a756a827f0c1` at `2026-10-12T01:03:49.432239+00:00` (October11 in America/New_York).
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-home-quickview-20261011.tar.gz`.
+- Archive hash: `sha256:3d56f6446b078943717cbe6f4b1aa7030908e65a1e34457d18d8b6d64826d1c4`.
+- Verification: all19 final static browser checks passed across overview, shared navigation/drafts/actions, core ordering and hosted isolation. All16 overview entrances retain their exact destination/record. Snapshot height is below1150px at375px/100% without hiding the sections;320px/150% and both appearances retain readability, full dates and recorded/missing milestone distinctions. Counts update after sample writes and disappear on section error. An earlier10-case pass also succeeded before the final accessible-label refinement. Main TypeScript, the isolated21-page build and204 onboarding plus146 foundation archive checks passed. Normal/enlarged screenshots were inspected; no approved baseline changed. Backend/provider requests are blocked in browser checks.
+- Scope: only editable overview presentation and accessible labels changed. No backend, score calculation, account write or live integration was added. Only the isolated Site source was pushed; the main application is a local checkpoint. This is review publication, not approval or a production HALO release.
+
+## Earlier review: Diverse project photography and tailored Homeguard workspaces, October 11, 2026
 
 Version32 is deployed at https://halo-wireframe-review.yogirajapaturi.chatgpt.site with the existing public audience. Project refresh and guide covers now use12 activity-matched real photo scenes, including nine new images with recorded reuse rights. Matching is tied to the project, not an arbitrary photo carousel. All sources, creators, licenses and resizing/crop notices are accessible through About the photos. The original three photos remain. Homeguard's editable Tests, Maintenance/moisture, Food and Garden branches and Summary have task-specific artwork, compact shared navigation, flatter record/form layouts and restrained topic colors. Summary selection includes a responsive selected-contents/privacy outline; the local PDF and other export workflows are unchanged. Food at home still uses illustrations, not photographs.
 

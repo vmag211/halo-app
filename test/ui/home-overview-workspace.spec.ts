@@ -24,6 +24,12 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     expect(panel!.y).toBeGreaterThan(house!.y + house!.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(workspace).not.toContainText('\u2014');
+    if (width===375) {
+      expect((await workspace.boundingBox())!.height).toBeLessThan(1150);
+      await expect(workspace.locator('.how-tests .how-action')).toHaveText('Open');
+      await expect(workspace.locator('.how-food .how-action')).toHaveText('Open');
+      expect(await workspace.locator('#how-care-title').evaluate(node=>getComputedStyle(node).textAlign)).toBe('left');
+    }
     await page.getByRole('link', { name: 'Open your home workspace' }).click();
     await expect(page).toHaveURL(/#home-workspace$/);
     await expect(workspace).toBeFocused();
@@ -42,8 +48,8 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     ['Continue test', 'tests', 'detail', 'test-radon'],
     ['Plan a test', 'tests', 'new', ''],
     ['Add a report', 'tests', 'report', ''],
-    ['View records', 'tests', '', ''],
-    ['View home care', 'maintenance', '', ''],
+    ['Open test records', 'tests', '', ''],
+    ['Open home care', 'maintenance', '', ''],
     ['Kitchen filter upkeep', 'maintenance', 'detail', 'sample-filter'],
     ['Window condensation', 'maintenance', 'observation-detail', 'sample-moisture'],
     ['Add routine', 'maintenance', 'create', ''],
@@ -52,7 +58,7 @@ test('overview opens the exact records and all four feature areas', async ({ pag
     ['Your gardens', 'food', 'gardens', ''],
     ['Fish and waterways', 'food', 'fish', ''],
     ['Water stewardship', 'food', 'water', ''],
-    ['Explore Food and Garden', 'food', '', ''],
+    ['Open Food and Garden', 'food', '', ''],
     ['Continue with Back garden', 'food', 'garden-detail', 'demo-garden'],
     ['Create summary', 'summary', 'selection', ''],
   ]) {
@@ -74,8 +80,10 @@ test('overview groups home care without duplicating continuation or hiding entra
   await expect(care.getByRole('region', { name: 'Maintenance and moisture', exact: true })).toBeVisible();
   await expect(workspace.getByRole('link', { name: 'Continue test', exact: true })).toHaveCount(1);
   await expect(workspace.getByRole('list', { name: /Recorded milestones/ })).toHaveCount(1);
-  await expect(care).toContainText('Scheduled Oct 1, 2026');
-  await expect(care).toContainText('Observed Sep 30, 2026');
+  await expect(care).toContainText('Scheduled Oct 1');
+  await expect(care).toContainText('Observed Sep 30');
+  await expect(care.locator('time[datetime="2026-10-01"]')).toHaveAttribute('aria-label','Oct 1, 2026');
+  await expect(care.locator('time[datetime="2026-09-30"]')).toHaveAttribute('aria-label','Sep 30, 2026');
   for (const name of ['Plan a test', 'Add a report', 'Add routine', 'Record moisture', 'Create summary']) {
     const entrance = workspace.getByRole('link', { name, exact: true });
     await expect(entrance).toBeVisible();
