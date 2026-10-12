@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 test('renamed navigation, overview paths and map keep Explore ownership', async ({ page }) => {
   await page.goto(root);
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
-  await expect(nav.getByRole('link')).toHaveText(['Today', 'Homeguard', 'Explore', 'My Week']);
+  await expect(nav.getByRole('link')).toHaveText(['My Week', 'Today', 'Homeguard', 'Explore']);
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   await expect(page.locator('.halo-companion,.ex-intro,.ex-subnav,.ex-contact-utility,.ex-summary-link')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open my notes' })).toHaveCount(1);

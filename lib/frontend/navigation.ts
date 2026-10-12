@@ -1,9 +1,9 @@
 /** Product ownership is separate from delivery. Planned routes are not live links. */
 export const appTabs = [
+  { key: 'plan', label: 'My Week', href: '/plan', delivered: false },
   { key: 'today', label: 'Today', href: '/today', delivered: true },
   { key: 'home', label: 'Homeguard', href: '/home', delivered: true },
   { key: 'act', label: 'Explore', href: '/act', delivered: false },
-  { key: 'plan', label: 'My Week', href: '/plan', delivered: false },
 ] as const;
 export type AppTab = typeof appTabs[number]['key'];
 

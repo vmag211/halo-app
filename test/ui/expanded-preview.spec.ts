@@ -17,8 +17,8 @@ const routine = `${root}&tab=home&destination=maintenance&homeView=detail&record
 const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main navigation' });
 
 test('revised overview preserves factors and moves navigation ownership', async ({ page }) => {
-  await page.goto(root);
-  await expect(mainNav(page).getByRole('link')).toHaveText(['Today', 'Homeguard', 'Explore', 'My Week']);
+  await page.goto(`${root}&tab=today`);
+  await expect(mainNav(page).getByRole('link')).toHaveText(['My Week', 'Today', 'Homeguard', 'Explore']);
   await expect(page.locator('.halo-ph-factor-grid a')).toHaveCount(4);
   await expect(page.locator('.halo-ph-factor-grid')).not.toContainText('PFAS');
   await mainNav(page).getByRole('link', { name: 'Homeguard' }).click();

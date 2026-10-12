@@ -14,12 +14,12 @@ test('hosted entry retains review settings and opens the shared four-tab layout'
   await page.goto('/?tab=home&appearance=light&motion=reduce&scale=115&time=day');
   await expect(page).toHaveURL(/\/foundation\/preview\/expanded\//);
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
-  await expect(nav.getByRole('link')).toHaveText(['Today', 'Homeguard', 'Explore', 'My Week']);
+  await expect(nav.getByRole('link')).toHaveText(['My Week', 'Today', 'Homeguard', 'Explore']);
   await expect(nav.getByRole('link', { name: 'Homeguard' })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode', 'light');
   expect(new URL(page.url()).searchParams.get('scale')).toBe('115');
   await page.goto('/foundation/preview/expanded/?edition=legacy&motion=reduce');
-  await expect(nav.getByRole('link')).toHaveText(['Today', 'Homeguard', 'Explore', 'My Week']);
+  await expect(nav.getByRole('link')).toHaveText(['My Week', 'Today', 'Homeguard', 'Explore']);
   expect(unexpected).toEqual([]);
 });
 

@@ -3,11 +3,11 @@ export type EvidenceReference = { recordId: string; title: string; layer: string
 export type Engagement = {
   id: string; revision: number; title: string; organizer: string; cause: string;
   url: string; place: string; date: string; status: 'Considering' | 'Contacted' | 'Confirmed by me' | 'Participated' | 'Follow-up' | 'Closed';
-  statusDate: string; hours: string; preparation: string; outcome: string; reference: string; followupDate: string;
+  statusDate: string; participatedOn?: string; hours: string; preparation: string; outcome: string; reference: string; followupDate: string;
   history: { status: string; date: string; note: string }[];
 };
 export const noEngagements: Engagement[] = [];
-export const blankEngagement = (): Engagement => ({ id: '', revision: 0, title: '', organizer: '', cause: 'Water', url: '', place: '', date: '', status: 'Considering', statusDate: '', hours: '', preparation: '', outcome: '', reference: '', followupDate: '', history: [] });
+export const blankEngagement = (): Engagement => ({ id: '', revision: 0, title: '', organizer: '', cause: 'Water', url: '', place: '', date: '', status: 'Considering', statusDate: '', participatedOn: '', hours: '', preparation: '', outcome: '', reference: '', followupDate: '', history: [] });
 export type OutcomeRecord = {
   id: string; revision: number; title: string; goal: string;
   status: 'Open' | 'Working on it' | 'Waiting for a response' | 'Result recorded' | 'Closed without a result';
@@ -36,7 +36,9 @@ export function engagementError(record: Engagement): string | null {
   if (!record.title.trim() || !record.organizer.trim()) return 'Add the opportunity name and organizer.';
   if (record.title.length > 160 || record.organizer.length > 160 || record.preparation.length > 2000 || record.outcome.length > 2000) return 'Keep the name short and each note under 2,000 characters.';
   if (record.url && !safePublicLink(record.url)) return 'Use an HTTPS organizer link without sign-in details.';
-  if ([record.date, record.statusDate, record.followupDate].some(day => day && !validDay(day))) return 'Choose valid calendar dates.';
+  if ([record.date, record.statusDate, record.followupDate, record.participatedOn].some(day => day && !validDay(day))) return 'Choose valid calendar dates.';
+  if (record.participatedOn && futureReportedDay(record.participatedOn)) return 'Participation must use a date that has actually happened.';
+  if (record.participatedOn && !['Participated','Follow-up','Closed'].includes(record.status)) return 'Choose a participation or follow-up status for a recorded participation date.';
   if (record.status !== 'Considering' && !record.statusDate) return 'Add the date of the update you are recording.';
   if (futureReportedDay(record.statusDate)) return 'An update about something that happened cannot have a future date. Keep the activity date for future plans.';
   if (record.hours && (!/^\d+(\.\d+)?$/.test(record.hours) || !Number.isFinite(Number(record.hours)) || Number(record.hours) < 0 || Number(record.hours) > 1000)) return 'Use hours from 0 to 1,000, or leave them blank.';

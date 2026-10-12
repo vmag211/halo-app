@@ -17,6 +17,7 @@ import { useExpandedPreview } from './ExpandedPreviewState';
 import LunaLoading from './LunaLoading';
 import {isLunaWeekRequest,prepareLunaWeekPlan,lunaWeekChanges,weekMetaSignature,type LunaWeekPlan} from '@/lib/frontend/luna-week-plan';
 import {type WeekMeta} from '@/lib/frontend/week-preview';
+import {homepageAttention,weeklyHomepageRecap} from '@/lib/frontend/homepage-preview';
 import './luna-conversation.css';
 
 type Guide = { id: string; title: string; stepTitle: string; instructions: string[]; source: string };
@@ -107,6 +108,15 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
     respond(request);
   }
   function respond(request:string){
+    if(/\bwhat (?:needs|requires) (?:my )?attention\b/i.test(request)){
+      const anchor=lunaCalendarAnchor(new Date(),weekZone);
+      const items=homepageAttention(preview?.actions??[],weekMetas,[],{},anchor,weekZone);
+      append(items.length?`Among your saved tasks, ${items.length} need review: ${items.slice(0,3).map(item=>item.title).join('; ')}. Open Needs attention for record updates and to decide what happens next.`:'None of your saved tasks are earlier or waiting. Needs attention also includes relevant record changes.',{links:[{label:'Open your homepage',tab:'plan'}]});return;
+    }
+    if(/\b(?:how did (?:my|this) week go|(?:show|summarize|review) (?:my )?weekly recap)\b/i.test(request)){
+      const recap=weeklyHomepageRecap(preview?.actions??[],weekMetas,{},lunaCalendarAnchor(new Date(),weekZone));
+      append(`From recorded completion dates: ${recap.completed.length} actions completed this week, including ${recap.steps} project steps and ${recap.home} home tasks. These are recorded actions, not measured environmental improvements. Open your weekly recap for participation records.`,{links:[{label:'Open your homepage',tab:'plan'}]});return;
+    }
     if(isLunaWeekRequest(request)){
       const plan=prepareLunaWeekPlan(request,preview?.actions??[],weekMetas,weekDay);
       append(plan.items.length?`I found ${plan.items.length} saved task${plan.items.length===1?'':'s'} that fit${plan.items.length===1?'s':''}${plan.budget!==null?` within ${plan.budget} minutes`:''}. Review the dates before applying. Existing commitments stay as they are.`:plan.explanation,{proposal:plan.items.length?{id:crypto.randomUUID(),kind:'week-plan',plan,status:'review'}:undefined,links:[{label:'Open My Week',tab:'plan'}]});return;

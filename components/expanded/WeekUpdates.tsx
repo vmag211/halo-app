@@ -9,15 +9,20 @@ import { actionCategory, dayAdd, dayLabel, type WeekMeta } from '@/lib/frontend/
 import { changeEvidenceKey, compareWeekSources, usableWeekChanges, weekSourceSnapshots, type WeekChangeEvidence, type WeekSourceSnapshot } from '@/lib/frontend/week-planning';
 
 type Href=(tab:string,destination?:string)=>string;
-export default function WeekUpdates({actions,metas,onOpen,href}:{actions:PreviewAction[];metas:Record<string,WeekMeta>;onOpen:(action:PreviewAction)=>void;href:Href}){
+export function useWeekChanges({actions,metas,href}:{actions:PreviewAction[];metas:Record<string,WeekMeta>;href:Href}){
   const workspace=useHomeWorkspace();const [baseline,setBaseline]=useHomeDraft<WeekSourceSnapshot[]|null>('week:source-snapshots',null);const [acknowledged,setAcknowledged]=useHomeDraft<string[]>('week:acknowledged-updates',[]);const [samples]=useHomeDraft<WeekChangeEvidence[]>('week:sample-updates',[]);const [feedback,setFeedback]=useState('');
   const current=weekSourceSnapshots(actions,workspace.collections);const sourceReady=!['loading','error','empty'].includes(workspace.scenario);
   useEffect(()=>{if(!sourceReady)return;if(baseline===null){setBaseline(current);return;}const added=current.filter(snapshot=>!baseline.some(existing=>existing.actionId===snapshot.actionId&&existing.recordId===snapshot.recordId));if(added.length)setBaseline([...baseline,...added]);},[sourceReady,baseline,current,setBaseline]);
   const changes=usableWeekChanges([...(sourceReady&&baseline?compareWeekSources(baseline,current,actions):[]),...samples],actions,acknowledged).filter(change=>!metas[change.actionKey]?.archived);
-  if(!sourceReady||!changes.length)return null;
   function sourceHref(change:WeekChangeEvidence){if(!change.recordCollection||!change.recordId)return '';const exists=(workspace.collections[change.recordCollection]??[]).some(r=>r.id===change.recordId);return exists?`${href('home',change.recordCollection==='tests'?'tests':'maintenance')}&homeView=detail&record=${encodeURIComponent(change.recordId)}`:'';}
   function acknowledge(change:WeekChangeEvidence){if(workspace.pending||['offline','loading','error','save-error','conflict'].includes(workspace.scenario)||!navigator.onLine){setFeedback('This update could not be acknowledged. It remains here.');return;}setAcknowledged(previous=>[...new Set([...previous,changeEvidenceKey(change)])]);setFeedback('Update reviewed. Your task and its completion are unchanged.');}
   function forecastScope(change:WeekChangeEvidence){const expired=Boolean(change.validUntil)&&Date.parse(change.validUntil!)<Date.now();return `${change.issuedAt?`Issued ${change.issuedAt}. `:'Issue time not supplied. '}${change.validUntil?`Valid until ${change.validUntil}. `:'Validity period not supplied. '}${change.sample?'Forecast unavailable. ':expired?'This forecast is expired. Get current supported conditions before continuing. ':''}Missing factors stay unknown. Review supported conditions before changing your plan.`;}
+  return {changes:sourceReady?changes:[],sourceHref,acknowledge,forecastScope,feedback};
+}
+export type WeekChangeManager=ReturnType<typeof useWeekChanges>;
+export function WeekUpdateList({manager,actions,onOpen}:{manager:WeekChangeManager;actions:PreviewAction[];onOpen:(action:PreviewAction)=>void}){
+  const {changes,sourceHref,acknowledge,forecastScope,feedback}=manager;
+  if(!changes.length)return null;
   return <section className="mw-activity-updates" aria-label="Changes to your plans">
     <div className="mw-section-head"><h3>A change to review</h3><span>{changes.length}</span></div>
     {changes.slice(0,3).map(change=>{
@@ -37,6 +42,10 @@ export default function WeekUpdates({actions,metas,onOpen,href}:{actions:Preview
     {changes.length>3&&<details><summary>{changes.length-3} more changes</summary>{changes.slice(3).map(change=><div className="mw-update-overflow" key={changeEvidenceKey(change)}><strong>{change.title}</strong><p>{change.summary}</p><button className="mw-text" type="button" onClick={()=>onOpen(actions.find(a=>a.id===change.actionId)!)}>Review task</button><button className="mw-text" type="button" onClick={()=>acknowledge(change)}>Reviewed</button></div>)}</details>}
     {feedback&&<p role="status">{feedback}</p>}
   </section>;
+}
+
+export default function WeekUpdates(props:{actions:PreviewAction[];metas:Record<string,WeekMeta>;onOpen:(action:PreviewAction)=>void;href:Href}){
+  const manager=useWeekChanges(props);return <WeekUpdateList manager={manager} actions={props.actions} onOpen={props.onOpen}/>;
 }
 
 /** Review controls intentionally create illustrative evidence, never mutate a source or registration. */

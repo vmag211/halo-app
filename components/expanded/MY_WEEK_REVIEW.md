@@ -4,6 +4,18 @@ This is the P01-P06 working review with the October12 dashboard, mobile-shell an
 
 ## Action dashboard depth and Luna motion, October12
 
+### First-tab HALO homepage
+
+Yogi requested My Week as the first/default homepage, followed by Today, Homeguard and Explore. The expanded review and Site entry now open it by default; explicit tab/record/factor links retain their destinations. Shared navigation order changes without changing internal keys or live delivery flags. Production still enters an approved delivered screen until the new homepage is approved and integrated.
+
+A dated welcome, the existing score/action glance, three compact quick views and an Explore/repeat/reminder utility row introduce the calendar-led workspace. Needs attention combines earlier chosen tasks, waiting states, independently expected dates, actually recorded unreviewed reports and versioned source changes. Get ready opens the next14 days of chosen plans, exact instructions/source links, saved meeting-label Maps searches and user-recorded preparation checks. Checklists bind to the current action/source/schedule signature, do not register or complete anything, and retain offline/conflicting drafts. Source-change acknowledgement keeps its original evidence-version semantics; it now lives inside the unified attention sheet.
+
+Weekly progress uses actual recorded completion dates, unique canonical tasks and explicit project-step subsets, with previous-week drilldown and original task links. Volunteer hours require the new optional actual participation date, not planned event/status-update dates. Legacy undated participation and unknown hours/completion dates remain honest exclusions, not invented zeros. The seasonal review also uses recorded completion dates consistently. No health/environmental benefit is inferred.
+
+Repeating plans shows upcoming all-day date previews and saves guarded automatic-repeat consent intent without creating more tasks or claiming a scheduler. The original manual occurrence flow stays available. Reminders lists real task requests with no-delivery state and existing settings/task entrances. Homepage alerts reuses the existing inbox and read/dismiss behavior. Luna gains bounded read-only attention/recap responses from saved tasks and known completion dates, excluding Journal and preparation text. All source, task, calendar, export, confirmed planning, project/participation, Journal/Patterns/outdoors and motion capabilities remain.
+
+Functional reference: [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started) informs explicit place-label search links; [Todoist reminders](https://www.todoist.com/help/todoist/features/introduction-to-reminders-9PezfU) informs the distinction between a preference and actual delivery. The design is HALO's composition, not a copied winning interface. `HOMEPAGE_BACKEND_DELTA.md` records the additional aggregate, preparation, participation, recurrence, reminder, assistant and production-entry contracts. No backend/provider, live notification or screen approval was added.
+
 ### HALO palette correction and compact overview
 
 Yogi rejected Version42's ivory/green palette, not HALO's blues. The editable dashboard again inherits the exact app ink, primary, card and secondary tokens and existing Instrument Sans/Fraunces/Onest roles. A compact, open-arc Today/Homeguard glance links to those original overviews, followed by a seven-day action rhythm and the integrated calendar/daily workspace. Two original code-native journal/topographic illustrations, photo-led ongoing work and paired utilities provide visual variety within the same430px shell. No environmental trend or new score formula is drawn.
