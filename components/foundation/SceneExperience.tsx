@@ -6,7 +6,7 @@ import { sceneClockAt, type MotionMode, type SceneClock, type SceneTime } from '
 type Experience = { clock: SceneClock; enabled: boolean; motion: boolean; paused: boolean; togglePaused: () => void; deviceReduced: boolean; ready: boolean };
 const initialClock: SceneClock = { phase: 'day', daylight: 1, warmth: 0, progress: .5, label: 'Local time' };
 const SceneContext = createContext<Experience>({ clock: initialClock, enabled: false, motion: false, paused: false, togglePaused: () => {}, deviceReduced: false, ready: false });
-export function SceneProvider({ children, mode, time }: { children: ReactNode; mode: MotionMode; time: SceneTime }) {
+export function SceneProvider({ children, mode, time, ambient = true }: { children: ReactNode; mode: MotionMode; time: SceneTime; ambient?: boolean }) {
   const [clock, setClock] = useState(initialClock);
   const [deviceReduced, setDeviceReduced] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -23,7 +23,7 @@ export function SceneProvider({ children, mode, time }: { children: ReactNode; m
     return () => { cancelAnimationFrame(firstFrame); clearInterval(timer); media.removeEventListener('change', updatePreference); document.removeEventListener('visibilitychange', visible); };
   }, [time]);
   const enabled = ready && mode !== 'reduce' && (mode === 'full' || !deviceReduced);
-  const motion = enabled && !paused;
+  const motion = enabled && !paused && ambient;
   return <SceneContext.Provider value={{ clock, enabled, motion, paused, togglePaused: () => setPaused(p => !p), deviceReduced, ready }}>{children}</SceneContext.Provider>;
 }
 export function useSceneExperience() { return useContext(SceneContext); }

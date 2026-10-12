@@ -1,6 +1,23 @@
 # Hosted wireframe preservation reference
 
-## Current review: dashboard, Settings and alerts polish, October 12, 2026
+## Current review: interface, appearance and compact homepage, October 12, 2026
+
+Version46 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. The editable app now uses its existing sans fonts rather than decorative serif headings. White/pale-blue light surfaces and restrained sky, sage and lilac accents complement the navy/teal dark theme. Shared primary and secondary actions have clearer surfaces and focus feedback. Existing photography, source meanings, all main/deeper routes, the430px mobile shell and immutable approved archives remain.
+
+My Week prioritizes the calendar and daily work, with statistics/effort under Week details and source/timezone/follow-through options under Calendar options. Empty shelves are omitted until relevant, the optional action ribbon uses recorded completions, and the weekly review is one compact control. The environment score glance remains separate from task progress. Finite entrances and accessible number reveals, plus independently pausable ambient light, add motion without blocking controls. Explore loses redundant slogans, Homeguard Add dismisses predictably with Escape/outside click and returns focus, and Alerts has clear actions/category icons without a duplicate introduction.
+
+Settings uses searchable grouped lists, current-value summaries and System/Light/Dark preview choices. Appearance and ambient changes apply on explicit Save; cancel, retained drafts, conflict rebase, offline safeguards and reviewable restore-defaults remain. Device timezone uses the shared calendar preference. Saved theme survives map/history navigation; ambient-off also stops map contour texture. Source dates, unconnected states, privacy controls and safety-relevant qualifications remain visible rather than being removed as clutter.
+
+- Version: `appgprj_6abd679629688191ae2eea6173fb2b49~appgver_6a3ba6c256b4819190284a0cb102f8e0`.
+- Pushed isolated source: `716fc36d60f92f9d274003ae34140bd8b07bc990`.
+- Successful deployment: `appgdep_6acd5dd45f988191bd7dee33dff5baae` at `2026-10-12T22:23:23.603119+00:00`.
+- Archive: `C:/Users/ympat/.codex/visualizations/2026/10/09/01a11e76-db31-7213-9f7a-9622b99cd10d/halo-interface-refinement-20261012.tar.gz`.
+- Native archive content hash: `sha256:2206314ac53db690f08509bb9f4fe70c4a0967375f27412a13501e05098b1646`.
+- Local tar-file SHA256: `22bed58e65a5eed9b5314b8f31a1a774247f328bc9f40cfd28795b227358a256`.
+- Verification:277 distinct browser scenarios covered successfully across the scoped runs after fixes,248 frontend logic tests, main TypeScript and isolated21-page static build passed. The broad197-case run passed194; its three remaining failures were ambiguous volunteering test selectors after the label changed, corrected without weakening assertions. All76 final map/appearance/action-workspace checks then passed, as did50 focused week cases and27 final Settings/alerts cases. Final76 also includes three map-motion cases beyond the197-case set. Earlier checks caught and repaired map tabular numerals and historical-theme/ambient preference bugs. Screenshot review covered light/dark main tabs and secondary forms, Settings, Alerts, map, populated/default homepage and320px/150% layouts.204 onboarding and146 immutable foundation files verified unchanged. Browser workflow checks used the local static export, with API/provider access blocked in the applicable app suites; this is not physical-device, production-security or backend acceptance.
+- Limits: preferences, records, assistant tools and generated-project examples remain visit-local wireframe behavior. No live AI/web retrieval, geocoded opportunity/contact service, email sending, durable preference store, calendar scheduler, notification delivery or production-route integration was added. Vibhav retains backend ownership; the whole-app handoff is saved, not sent. Only the isolated Site source was pushed. Yogi's design approval is still required.
+
+## Earlier review: dashboard, Settings and alerts polish, October 12, 2026
 
 Version45 is deployed at the same public https://halo-wireframe-review.yogirajapaturi.chatgpt.site. My Week remains the default first tab, then Today, Homeguard and Explore. The homepage now prioritizes calendar/daily work before its supplementary quick views and managers, while keeping its compact environmental score glance, actual-completion rhythm, existing photography and all deeper flows. Finite original line art, clearer selection/toggle transitions and compact single-record continuation retain HALO blue/teal/type and430px width. Today/factor/onboarding approved archives are unchanged.
 

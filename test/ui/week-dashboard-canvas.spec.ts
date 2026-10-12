@@ -7,9 +7,9 @@ for(const appearance of ['light','dark'])test(`calendar-first canvas, paired too
   await page.goto(`${root}&appearance=${appearance}`);await connected(page);
   await expect(page.locator('.mw-intro')).toHaveCount(0);
   await expect(page.locator('.mw-board-month')).toBeVisible();
-  const paper=await page.locator('.mw-calendar').evaluate(el=>getComputedStyle(el).backgroundColor);
-  const agendaColor=await page.locator('.mw-agenda').evaluate(el=>getComputedStyle(el).backgroundColor);
-  expect(paper).not.toBe(agendaColor);
+  const paper=await page.locator('.mw-calendar').evaluate(el=>{const style=getComputedStyle(el);return [style.backgroundColor,style.backgroundImage];});
+  const agendaColor=await page.locator('.mw-agenda').evaluate(el=>{const style=getComputedStyle(el);return [style.backgroundColor,style.backgroundImage];});
+  expect(paper).not.toEqual(agendaColor);
   const calendar=(await page.locator('.mw-calendar').boundingBox())!,agenda=(await page.locator('.mw-agenda').boundingBox())!;
   expect(calendar.y).toBeLessThan(agenda.y);
   const tools=await page.locator('.mw-dashboard-tools a').all();const left=(await tools[0].boundingBox())!,right=(await tools[1].boundingBox())!;
@@ -22,7 +22,7 @@ for(const appearance of ['light','dark'])test(`calendar-first canvas, paired too
 
 test('weekly effort uses supplied values and opens a day without rescheduling anything',async({page})=>{
   await page.goto(root);await connected(page);
-  await expect(page.locator('.mw-effort-open strong')).toHaveText('1h 45m planned');
+  await page.locator('.mw-week-details > summary').click();await expect(page.locator('.mw-effort-open strong')).toHaveText('1h 45m planned');
   await page.getByRole('button',{name:/Plan effort/}).click();
   const sheet=page.locator('#week-effort');await expect(sheet).toContainText('Not tracked time or free calendar space.');
   await expect(sheet.locator('.mw-effort-days > button')).toHaveCount(7);
@@ -36,7 +36,7 @@ test('weekly effort uses supplied values and opens a day without rescheduling an
 
 test('activity key filters the same agenda and toggles back to all work',async({page})=>{
   await page.goto(root);await connected(page);
-  const button=page.getByRole('navigation',{name:'Filter agenda by activity'}).getByRole('button',{name:/^Projects,/});
+  await page.locator('.mw-week-details > summary').click();const button=page.getByRole('navigation',{name:'Filter agenda by activity'}).getByRole('button',{name:/^Projects,/});
   await button.click();await expect(page.getByLabel('Show',{exact:true})).toHaveValue('Projects');
   await expect(page.locator('.mw-agenda .mw-task')).toHaveCount(1);await expect(page.locator('.mw-agenda')).toContainText('Draw a testable design');
   await button.click();await expect(page.getByLabel('Show',{exact:true})).toHaveValue('Everything');
@@ -61,7 +61,7 @@ test('calendar month, large text and high contrast fit the phone shell with real
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.getByRole('button',{name:'Month',exact:true}).click();await expect(page.locator('.mw-days button')).toHaveCount(42);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
-  await page.screenshot({path:info.outputPath('canvas-high-contrast-month-320.png')});
+  await page.screenshot({path:info.outputPath('canvas-high-contrast-month-320.png')});await page.locator('.mw-week-details > summary').click();
   await page.getByRole('button',{name:/Plan effort/}).click();
   await expect(page.locator('#week-effort')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });

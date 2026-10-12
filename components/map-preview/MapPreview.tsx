@@ -7,12 +7,12 @@ import AppNavigation from '@/components/ui/AppNavigation';
 import { BottomSheet, Callout } from '@/components/ui/Foundation';
 import Button from '@/components/ui/Button';
 import SeverityPill from '@/components/ui/SeverityPill';
-import { SceneProvider } from '@/components/foundation/SceneExperience';
+import { SceneProvider, useSceneExperience } from '@/components/foundation/SceneExperience';
 import ExpandedLunaPreview from '@/components/expanded/ExpandedLunaPreview';
 import { useRouter } from 'next/navigation';
 import LunaMark from '@/components/foundation/LunaMark';
 import MapRecordToExplore from '@/components/expanded/MapRecordToExplore';
-import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
+import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import MapCanvas, { type MapPoint, type MapView } from './MapCanvas';
 import MapResults from './MapResults';
 import MapSymbol from './MapSymbol';
@@ -23,6 +23,7 @@ import { radonPoints } from '@/lib/frontend/map-radon-fixture';
 import { airStations, assembledAt, compoundKey, compounds, facilities, mapLayers, mapScenarios, milesFromHome, quarterLabel, quarters, readingDate, readMapQuery, sampleHome, waterFeatures, waterSeverity, waterMapReading, waterSampleDate, observationTime, type Compound, type MapLayer, type MapScenario, type WaterFeature } from '@/lib/frontend/map-preview';
 import '@/components/foundation/refinement.css';
 import './map-preview.css';
+import '@/components/expanded/interface-refinement.css';
 
 type Sheet = { kind: 'feature'; id: string } | { kind: 'district' | 'legend' | 'results' | 'assistant' | 'about' | 'brief' } | { kind: 'learn'; topic: 'pfas' | 'radon'; id: string } | null;
 const defaultView: MapView = { lng:-80.40, lat:35.15, zoom:8 };
@@ -30,6 +31,10 @@ let session: { layer: MapLayer; compound: Compound; quarter: string; view: MapVi
 const layerIcons = { water:Droplets, radon:Mountain, facilities:Factory, air:Wind };
 
 export default function MapPreview() {
+  const workspace=useHomeWorkspace();
+  const ambient=workspace.drafts['halo-ambient']!==false;
+  const savedAppearance=workspace.drafts['halo-appearance'];
+  const appliedAppearance=useRef<unknown>(undefined);
   const [scenario,setScenario] = useState<MapScenario>('ready');
   const [appearance,setAppearance] = useState('system');
   const [scale,setScale] = useState('100');
@@ -45,6 +50,12 @@ export default function MapPreview() {
     if (['100','115','130','150'].includes(p.get('scale') ?? '')) setScale(p.get('scale')!);
     setMotion(p.get('motion') === 'reduce'); setContrast(p.get('contrast') === 'true'); setInitialized(true);
   },[]);
+  useEffect(()=>{
+    if(!initialized)return;
+    if(savedAppearance==='system'||savedAppearance==='light'||savedAppearance==='dark')setAppearance(savedAppearance);
+    else if(appliedAppearance.current!==undefined)setAppearance('system');
+    appliedAppearance.current=savedAppearance;
+  },[savedAppearance,initialized]);
   useEffect(()=>{if (!initialized) return; const url=new URL(location.href); url.searchParams.set('appearance',appearance); url.searchParams.set('scale',scale); url.searchParams.set('motion',motion?'reduce':'system'); url.searchParams.set('contrast',String(contrast)); url.searchParams.set('mapScenario',scenario); history.replaceState(history.state,'',url);},[appearance,scale,motion,contrast,scenario,initialized]);
   function changeScenario(next:MapScenario) { const url=new URL(location.href); ['system','panel','learn','mapSheet'].forEach(k=>url.searchParams.delete(k)); history.replaceState({...history.state,_haloMapSheet:false},'',url); setScenario(next); }
   return <div className="halo-f-review halo-map-review" data-mode={appearance}>
@@ -55,11 +66,12 @@ export default function MapPreview() {
       <div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={motion} onChange={e=>setMotion(e.target.checked)}/>Reduce motion</label><label className="halo-f-tool-check"><input type="checkbox" checked={contrast} onChange={e=>setContrast(e.target.checked)}/>Higher contrast</label></div>
       <p>The atlas previews map behavior without paid tiles or a token. The production Mapbox renderer and offline storage will be connected only after design approval. Sample values do not describe these communities.</p>
     </details>
-    <SceneProvider mode={motion?'reduce':'system'} time="live">{initialized&&<MapExperience key={scenario} scenario={scenario} appearance={appearance} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
+    <SceneProvider mode={motion?'reduce':'system'} time="live" ambient={ambient}>{initialized&&<MapExperience key={scenario} scenario={scenario} appearance={appearance} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
   </div>;
 }
 
 function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:MapScenario;appearance:string;scale:number;motion:boolean;contrast:boolean}) {
+  const experience=useSceneExperience();
   const router = useRouter();
   const restoredSession=useRef(session);
   const [previewLayer,setPreviewLayer]=useHomeDraft<MapLayer>('explore:map-layer','water');
@@ -188,7 +200,7 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
   const countN=layer==='water'?water.length:points.length;
   const inView=blocked||loading||current==='empty'?[]:points.filter(p=>visibleIds.includes(p.id));
   const results:MapResult[]=layer==='water'?visibleWater.map(w=>({id:w.pwsid,name:w.name,severity:waterSeverity(w,compound),reading:`${waterMapReading(w,compound)} · ${readingDate(waterSampleDate(w,compound))}`,sub:w.lat===null||w.lng===null?'No mapped location':w.pwsid===sampleHome.pwsid&&hasHome?'Your water system':'Service-area center',lat:w.lat,lng:w.lng})):points.map(p=>({id:p.id,name:p.name,severity:p.severity,reading:layer==='air'?`${airStations.find(a=>a.id===p.id)?.aqi ?? 'Unknown'} AQI · ${observationTime(airStations.find(a=>a.id===p.id)?.last_reading_at)}`:layer==='facilities'?`Last inspection: ${readingDate(facilities.find(f=>f.id===p.id)?.last_inspection)}`:'Regional potential, not a home reading',sub:layer==='radon'?`Zone ${p.zone}`:layer==='air'?'Monitoring station':'Selected facility',lat:p.lat,lng:p.lng}));
-  return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-wide="true" data-motion={motion?'reduce':'system'} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
+  return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-refined="true" data-wide="true" data-motion={motion?'reduce':'system'} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
     <header className="halo-map-header"><div className="halo-map-header-left"><Link className="halo-f-icon" aria-label="Back to Explore" href={foundationHref('act')} prefetch={false}><ArrowLeft size={21}/></Link>{!sheet&&<button className="halo-map-luna" aria-label="Open Luna" onClick={()=>openSheet({kind:'assistant'})}><LunaMark size={25}/></button>}</div><div><h1>Map</h1><p>Within Explore</p></div><div className="halo-map-header-tools"><button className="halo-f-icon" aria-label="About this map" onClick={()=>openSheet({kind:'about'})}><Info size={21}/></button><Link href={foundationHref('settings')} className="halo-f-icon" aria-label="Settings" prefetch={false}><Settings size={21}/></Link></div></header>
     {offline&&<div className="halo-map-offline" role="status"><WifiOff size={16}/><span>{noSaved?'This layer is not saved on this device.':'Showing saved map data from Oct 1, 2026.'}</span>{<button onClick={retry}>Try again</button>}</div>}
     <main aria-label="Environmental map" className="halo-map-main">
@@ -207,13 +219,13 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
         <div className="halo-map-viewport" data-testid="map-viewport">
         <div className="halo-map-right-controls">{hasHome&&<button aria-label="Locate your home" onClick={()=>{navigateView({lng:sampleHome.lng,lat:sampleHome.lat,zoom:8});setNotice('Centered on your approximate home.');}}><LocateFixed size={20}/></button>}<button aria-label="Zoom in" disabled={view.zoom>=12} onClick={()=>navigateView({...view,zoom:view.zoom+1})}><Plus size={20}/></button><button aria-label="Zoom out" disabled={view.zoom<=5} onClick={()=>navigateView({...view,zoom:view.zoom-1})}><Minus size={20}/></button></div>
         <div className="halo-map-left-controls"><div className="halo-map-presentation" role="group" aria-label="Map presentation">{[true,false].map(value=><button key={String(value)} aria-pressed={patterns===value} onClick={()=>{setPatterns(value);const url=new URL(location.href);url.searchParams.set('presentation',value?'patterns':'locations');history.replaceState(history.state,'',url);}}>{value?'Patterns':'Locations'}</button>)}</div><button onClick={()=>openSheet({kind:'results'})}><List size={17}/>List</button></div>
-        <div ref={mapFocus} className="halo-map-canvas-host"><MapCanvas layer={layer} points={blocked||loading||current==='empty'||quarterEmpty?[]:points} selectedId={sheet?.kind==='feature'?sheet.id:focusedId} home={hasHome?sampleHome:null} view={view} patterns={patterns} labels={labels} animatePatterns={patternMotion} onNavigationStart={rememberView} onViewChange={changeView} onSelect={id=>openSheet({kind:'feature',id})} onReady={setReady} onUnavailable={()=>setRendererFailed(true)} onVisibleCountChange={setVisibleCount} onVisibleIdsChange={setVisibleIds} forceEmpty={current==='empty'}/></div>
+        <div ref={mapFocus} className="halo-map-canvas-host"><MapCanvas layer={layer} points={blocked||loading||current==='empty'||quarterEmpty?[]:points} selectedId={sheet?.kind==='feature'?sheet.id:focusedId} home={hasHome?sampleHome:null} view={view} patterns={patterns} labels={labels} animatePatterns={patternMotion&&experience.motion} onNavigationStart={rememberView} onViewChange={changeView} onSelect={id=>openSheet({kind:'feature',id})} onReady={setReady} onUnavailable={()=>setRendererFailed(true)} onVisibleCountChange={setVisibleCount} onVisibleIdsChange={setVisibleIds} forceEmpty={current==='empty'}/></div>
         {(loading||!ready)&&!blocked&&<div className="halo-map-state" role="status"><span className="halo-spinner"/><strong>Loading map data.</strong>{current==='slow'&&<p>This source is taking longer. Your location stays in view.</p>}{['loading','slow'].includes(current)&&<button onClick={retry}>Try again</button>}</div>}
         {blocked&&<div className="halo-map-state" role="alert"><Info size={25}/><strong>{current==='session-required'?'Verify your session to load map data.':'This layer’s data couldn’t load.'}</strong><p>{noSaved?'Reconnect to load this layer. Saved water data remains available.':'Other layers and the district summary are still available.'}</p>{!offline&&<Button variant="secondary" onClick={retry}>Try again</Button>}</div>}
         {(current==='empty'||quarterEmpty||visibleCount===0)&&ready&&!loading&&!blocked&&<div className="halo-map-state"><strong>{quarterEmpty?'No samples in this quarter.':'No data for this layer in the area you’re viewing.'}</strong><p>{quarterEmpty?'This does not mean there were no contaminants.':'Try zooming out.'}</p><button onClick={()=>{if(quarterEmpty)loadQuarter('latest');else{setResolved(true);changeView({...defaultView,zoom:6});}}}>{quarterEmpty?'Return to Latest':'Zoom out'}</button></div>}
         </div>
         <div className="halo-map-inline-key"><MapKey layer={layer} patterns={patterns} onOpen={()=>openSheet({kind:'legend'})}/></div>
-        {patterns&&layer!=='radon'&&<div className="halo-map-contour-note"><span>Illustrative record contours. Not a moving pollution or weather forecast.</span><button aria-pressed={!patternMotion} onClick={()=>setPatternMotion(value=>!value)}>{patternMotion?'Pause texture':'Resume texture'}</button></div>}
+        {patterns&&layer!=='radon'&&<div className="halo-map-contour-note"><span>Illustrative record contours. Not a moving pollution or weather forecast.</span><button aria-pressed={!patternMotion||!experience.motion} disabled={!experience.motion} title={!experience.motion?'Paused by your motion settings':undefined} onClick={()=>setPatternMotion(value=>!value)}>{!experience.motion?'Texture paused':patternMotion?'Pause texture':'Resume texture'}</button></div>}
         <div className="halo-map-bottom">
           {notice&&<p className="halo-map-notice" role="status">{notice}{current==='quarter-error'&&<button onClick={retry}>Try again</button>}</p>}
           {!blocked&&<MapInsightCard points={inView} layer={layer} loading={loading||!ready} onOpen={()=>openSheet({kind:'brief'})}/>}

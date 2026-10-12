@@ -1,7 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {loadFrontend} from './frontend-test-loader.mjs';
-const {recordFingerprint,actionFingerprint,selectedPrivateExport,alertSeed,changeAlert,mergeUnedited}=await loadFrontend('settings-preview');
+const {recordFingerprint,actionFingerprint,selectedPrivateExport,alertSeed,changeAlert,mergeUnedited,appearancePreference}=await loadFrontend('settings-preview');
+test('appearance is validated and only saved visual preferences enter a selected export',()=>{
+ assert.equal(appearancePreference('dark'),'dark');assert.equal(appearancePreference('light'),'light');assert.equal(appearancePreference('invalid'),'system');
+ const data=selectedPrivateExport({collections:{},actions:[],drafts:{'halo-appearance':'light','halo-ambient':false,'settings:edits':{display:{appearance:'dark'}}},groups:['preferences'],privateText:false});
+ assert.equal(data.preferences.appearance,'light');assert.equal(data.preferences.ambientAnimation,false);assert.ok(!JSON.stringify(data).includes('settings:edits'));
+});
 test('conflict rebase preserves edited fields and adopts fresh unedited flags',()=>{
  const baseline={home:{year:'2000',water:'utility'},household:{adult:true,child:false}};
  const draft={home:{year:'2001',water:'utility'},household:{adult:false,child:false}};

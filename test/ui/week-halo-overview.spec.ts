@@ -8,7 +8,8 @@ for(const appearance of ['light','dark'])test(`compact overview inherits HALO st
   const colors=await page.evaluate(()=>{const a=getComputedStyle(document.querySelector('.halo-f-app')!),b=getComputedStyle(document.querySelector('.mw-dashboard')!);return ['--halo-ink','--halo-primary','--halo-card','--halo-secondary'].map(k=>[a.getPropertyValue(k).trim(),b.getPropertyValue(k).trim()]);});
   for(const [app,dashboard]of colors)expect(dashboard).toBe(app);
   await expect(glance).toContainText('September 30, 2026');
-  await expect(glance.locator('.mw-rhythm-days > span')).toHaveCount(7);
+  await expect(glance.locator('.mw-rhythm-days > span')).toHaveCount(0);
+  await page.locator('.mw-calendar-options > summary').click();await page.locator('.mw-rhythm > summary').click();await page.getByLabel('Show my action streak',{exact:true}).check();await expect(glance.locator('.mw-rhythm-days > span')).toHaveCount(7);await page.getByLabel('Show my action streak',{exact:true}).uncheck();await page.locator('.mw-calendar-options > summary').click();
   await expect(page.locator('.mw-tool-art')).toHaveCount(2);
   await page.screenshot({path:info.outputPath(`halo-dashboard-${appearance}-375.png`),fullPage:true});
 });

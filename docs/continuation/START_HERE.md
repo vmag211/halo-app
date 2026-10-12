@@ -27,6 +27,8 @@ The checkpoint includes current app components, styling, public assets, tests, f
 
 ## Review and actual implementation
 
+Latest October12 review is Version46: compact calendar-led My Week, shared sans typography, clearer controls, refined light/dark palettes and grouped Settings with explicit appearance/ambient preferences. Read the newest hosted receipt and `components/expanded/SETTINGS_ALERTS_REVIEW.md` first for its verified scope. Saved appearance also applies when returning to the map through browser history, and decorative map texture respects the global ambient setting. This does not approve screens or connect backend services.
+
 Latest visual pass expands project photography to12 activity-matched real scenes and tailors every editable Homeguard workspace, including the Food and Garden branches and PDF selection. Read the latest Homeguard README and Explore review for visuals, preserved flows and media rights. Approved core/archives and backend contracts remain separate.
 
 Latest October 11 Explore direction has three balanced primary paths: projects, community involvement and map. The finder now demonstrates location-influenced upcoming/rolling snapshots; projects add direct interests, smaller shortlists, novelty refresh, activity-specific artwork and cancellable loading. Read the newest sections of the Explore review/delta first. Live retrieval, nearby geocoding/distance and fresh event ingestion remain backend additions, not Site integrations.

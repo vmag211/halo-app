@@ -41,13 +41,13 @@ test('failed map preview retains the full-map entry and other feature routes', a
   await expect(page.locator('.ex-mini-map-canvas')).toHaveAttribute('data-map-preview-state', 'unavailable');
   await expect(page.getByRole('link', { name: /Explore the map/ })).toBeVisible();
   await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
-  await page.getByText('My volunteering and follow-through', { exact: true }).click();
+  await page.locator('summary').filter({ hasText: /^My volunteering$/ }).click();
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
 });
 
 test('a personally selected opportunity can be prepared, recorded and followed up without an event feed', async ({ page }) => {
   await page.goto(`${root}&destination=opportunities`);
-  await page.getByText('My volunteering and follow-through', { exact: true }).click();
+  await page.locator('summary').filter({ hasText: /^My volunteering$/ }).click();
   await page.getByRole('button', { name: 'Add my own opportunity' }).click();
   await page.getByLabel('Opportunity name (required)').fill('My organizer-led sample activity');
   await page.getByLabel('Organizer (required)').fill('Sample stewardship group');
@@ -109,7 +109,7 @@ test('legacy organizations route opens the combined local participation workspac
   await page.goto(`${root}&destination=organizations&exploreView=detail&exploreRecord=demo-creek`);
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await expect(page.locator('.ex-subnav')).toHaveCount(0);
-  await page.getByText('My volunteering and follow-through', { exact: true }).click();
+  await page.locator('summary').filter({ hasText: /^My volunteering$/ }).click();
   await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeVisible();
   await page.getByRole('button', { name: 'Open my notes' }).click();
   await expect(page.getByRole('heading', { name: 'My notes', exact: true })).toBeVisible();
@@ -138,6 +138,7 @@ test('project workspace plans selected steps, deduplicates and retains explicit 
   await page.getByRole('button', { name: 'Add selected steps', exact: true }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(2);
@@ -187,6 +188,7 @@ test('a failed project batch creates no partial tasks and keeps choices', async 
   await expect(plan.getByRole('alert')).toContainText('Could not save the plan. Your choices are kept.');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(0);
@@ -219,6 +221,7 @@ test('a note case records a factual result, exports deliberately and retains ind
   await expect(page.locator('.ex-note-row')).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);

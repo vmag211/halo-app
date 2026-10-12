@@ -29,6 +29,8 @@ import { destinations, isDestination } from '@/lib/frontend/expanded-preview';
 import type { AppTab } from '@/lib/frontend/navigation';
 import AlertCenter,{useAlertInbox} from '@/components/expanded/AlertCenter';
 import type {SettingsProps} from '@/components/expanded/SettingsWorkspace';
+import {useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
+import '@/components/expanded/interface-refinement.css';
 
 const tabIcons = { today: Sunrise, home: House, map: MapIcon, journal: Notebook, act: Hand };
 const topics = ['pfas', 'radon', 'lead', 'air', 'pollen', 'uv', 'mold'];
@@ -38,12 +40,22 @@ type ToastState = { id: number; message: string; action?: () => void };
 
 export default function FoundationPreview({ initialScenario, initialFactor, initialFamily = false, initialMember, preferences = {} }: { initialScenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; preferences?: PreviewPreferences }) {
   const expanded = preferences.expanded === true;
+  const workspace = useHomeWorkspace();
+  const savedAppearance = workspace.drafts['halo-appearance'];
+  const ambient = workspace.drafts['halo-ambient'] !== false;
+  const appliedAppearance = useRef<unknown>(undefined);
   const [scenario, setScenario] = useState(initialScenario);
   const [mode, setMode] = useState(preferences.appearance ?? 'system');
   const [scale, setScale] = useState(preferences.scale ?? '100');
   const [contrast, setContrast] = useState(preferences.contrast ?? false);
   const [motion, setMotion] = useState<MotionMode>(preferences.motion ?? 'system');
   const [time, setTime] = useState<SceneTime>(preferences.time ?? 'live');
+  useEffect(() => {
+    if (!expanded) return;
+    if (savedAppearance === 'system' || savedAppearance === 'light' || savedAppearance === 'dark') setMode(savedAppearance);
+    else if (appliedAppearance.current !== undefined) setMode('system');
+    appliedAppearance.current = savedAppearance;
+  }, [savedAppearance, expanded]);
   useEffect(() => {
     const url = new URL(window.location.href);
     // Only review settings live in the URL. No household information is persisted.
@@ -73,7 +85,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
       <p>Scene lighting follows the device’s local clock, independently of app appearance. This is decorative scenery, not local weather or a sunrise forecast. Play animations overrides the device preference for this preview only.</p>
       <PreviewHouseholdPicker />
     </details>
-    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time}><Product expanded={expanded} key={`${scenario}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} onDisplay={next=>{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);}} /></SceneProvider></ExpandedMode>
+    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time} ambient={!expanded || ambient}><Product expanded={expanded} key={`${scenario}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} onDisplay={next=>{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);}} /></SceneProvider></ExpandedMode>
   </div>;
 }
 
@@ -242,7 +254,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   if (initialFamily && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FamilyGuidance scenario={current} factorHref={factorHref} parentHref={previewHref('today')} />;
   if (initialMember && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <HomeMemberGuidance member={initialMember} scenario={current} memberHref={memberHref} factorHref={factorHref} parentHref={`${previewHref('home')}#household`} />;
   const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
-  if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} href={expandedHref} factorHref={factorHref} onAlerts={()=>openSheet({type:'alerts',height:'tall'})} display={{scale:String(Math.round(scale*100)),motion,contrast}} onDisplay={onDisplay} />;
+  if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} href={expandedHref} factorHref={factorHref} onAlerts={()=>openSheet({type:'alerts',height:'tall'})} display={{scale:String(Math.round(scale*100)),motion,contrast,appearance}} onDisplay={onDisplay} />;
   if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
     content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : <ExpandedPlan href={expandedHref} scoreScenario={current} />;
   } else if (showExpanded && (route === 'today' || route === 'home')) {
@@ -250,11 +262,11 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   }
   const activeTab = route === 'settings' ? null : destination && isDestination(destination) ? destinations[destination].tab : route === 'map' ? 'act' : route === 'journal' ? 'plan' : route as AppTab;
   const dashboardHeader=showExpanded && route==="plan" && !destination && !inDetail;
-  return <div className="halo-app halo-f-app" data-testid="foundation-product" data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
+  return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined={expanded} data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
     <EnvironmentalScene page variant={initialFactor ?? (route === 'home' ? 'home' : 'landscape')} />
     {!isGate && <header className="halo-f-header">{dashboardHeader&&<button className="halo-f-icon halo-f-bell mw-home-alerts" aria-label={c.unread(unread)} onClick={()=>openSheet({type:"alerts",height:"standard"})}><Bell size={22} aria-hidden="true"/>{unread>0&&<span className="halo-f-badge">{unread>9?"9+":unread}</span>}</button>}{inDetail ? <Link className="halo-f-icon" href={previewHref(backTab)} aria-label={`Back to ${routeTitles[backTab]}`} prefetch={false}><ArrowLeft size={22} aria-hidden="true" /></Link> : route === 'settings' && <button className="halo-f-icon" aria-label={c.labels.back} onClick={backFromSettings}><ArrowLeft size={22} aria-hidden="true" /></button>}<h1>{initialMember ? memberCatalog[initialMember].label : initialFamily ? 'Your household' : initialFactor ? factorReadings[initialFactor].title : routeTitles[route]}</h1><div className="halo-f-header-actions">{(dashboardHeader || showExpanded && route === 'settings') && assistantEnabled && !sheet && <button className="halo-f-icon halo-f-assistant mw-header-luna" aria-label={c.labels.assistant} onClick={()=>openSheet({type:"assistant",height:"tall"})}><LunaMark size={24}/></button>}{route === 'today' && !inDetail && <button className="halo-f-icon halo-f-bell" aria-label={c.unread(unread)} onClick={() => openSheet({ type: 'alerts', height: 'standard' })}><Bell size={22} aria-hidden="true" />{unread > 0 && <span className="halo-f-badge">{unread > 9 ? '9+' : unread}</span>}</button>}{route !== 'settings' && <button className="halo-f-icon" aria-label={c.labels.settings} onClick={() => navigate('settings')}><Settings size={22} aria-hidden="true" /></button>}</div></header>}
     {offline && <div className="halo-f-offline"><WifiOff size={18} aria-hidden="true" /><p>{current === 'offline-empty' ? c.offlineEmpty : c.offline}</p></div>}
-    <main className="halo-f-main" aria-label={ariaTitle}>{!isGate && !(showExpanded && route === 'plan') && <p className="halo-f-eyebrow">{initialFactor ? 'A closer look' : 'Your world, understood'}</p>}{current === 'stale' && <Callout tone="notice"><p>{c.stale}</p><button className="halo-text-button" onClick={() => mockRequest(() => setResolved(true))} disabled={busy}>{c.retry}</button></Callout>}{current === 'refreshing' && <p role="status" className="halo-f-refreshing"><span className="halo-spinner" aria-hidden="true" />{c.refreshing}</p>}{content}</main>
+    <main className="halo-f-main" aria-label={ariaTitle}>{!isGate && !expanded && <p className="halo-f-eyebrow">{initialFactor ? 'A closer look' : 'Your world, understood'}</p>}{current === 'stale' && <Callout tone="notice"><p>{c.stale}</p><button className="halo-text-button" onClick={() => mockRequest(() => setResolved(true))} disabled={busy}>{c.retry}</button></Callout>}{current === 'refreshing' && <p role="status" className="halo-f-refreshing"><span className="halo-spinner" aria-hidden="true" />{c.refreshing}</p>}{content}</main>
     {!isGate && <>{expanded ? <AppNavigation active={activeTab} href={previewHref} onNavigate={navigate} /> : <nav className="halo-f-tabs" aria-label={c.labels.navigation}>{previewTabs.map(tab => { const Icon = tabIcons[tab]; return <a key={tab} href={previewHref(tab)} aria-current={route === tab ? 'page' : undefined} onClick={e => { e.preventDefault(); if (route !== tab || inDetail) navigate(tab); }}><Icon size={23} aria-hidden="true" /><span>{tabLabels[tab]}</span></a>; })}</nav>}{assistantEnabled && !sheet && !dashboardHeader && !(showExpanded && route === 'settings') && <button className="halo-f-assistant" aria-label={c.labels.assistant} onClick={() => openSheet({ type: 'assistant', height: 'tall' })}><LunaMark size={28} /></button>}</>}
     {expanded && <ExpandedActionDialog offline={offline} />}
     {!sheet && toastElement}

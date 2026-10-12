@@ -33,6 +33,7 @@ test('revised overview preserves factors and moves navigation ownership', async 
   await expect(page.getByRole('heading', { name: 'Your home workspace' })).toBeVisible();
   await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await page.getByRole('link', { name: 'Check in & look back' }).click();
@@ -69,6 +70,7 @@ test('planned follow-up save, edit, status, deduplication and return are one in-
   await page.getByRole('button', { name: 'Close and keep draft' }).click();
   await mainNav(page).getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-board-month')).toBeVisible();

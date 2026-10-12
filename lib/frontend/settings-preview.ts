@@ -1,6 +1,9 @@
 /** Isolated settings/notification models. No auth, transport, persistent storage or delivery. */
 export const notificationKinds = ['air_quality_change','weather_advisory','new_water_results','radon_season','season_summary'] as const;
 export type NotificationKind = typeof notificationKinds[number];
+export type AppearancePreference = 'system'|'light'|'dark';
+export const appearancePreferenceKey='halo-appearance';
+export function appearancePreference(value:unknown):AppearancePreference{return value==='light'||value==='dark'?value:'system';}
 export type SettingsValues = {
   home: { year:string; water:'utility'|'well'|'spring'|'other'; tenure:'owner'|'renter'|'other' };
   notifications: Record<NotificationKind,boolean>;
@@ -45,7 +48,7 @@ export function selectedPrivateExport({collections,actions,drafts,groups,private
     if(group==='journal')output.journal=redact(collections.weekJournal??[],privateText);
     // A conversation has no meaningful non-private transcript. Export only on explicit opt-in.
     if(group==='conversation')output.conversation=privateText?redact(drafts['luna:conversation']??{},true):{excluded:'Private text was not selected.'};
-    if(group==='preferences')output.preferences=redact(drafts['settings:values']??initialSettings,false);
+    if(group==='preferences')output.preferences={...(redact(drafts['settings:values']??initialSettings,false)as Record<string,unknown>),appearance:appearancePreference(drafts[appearancePreferenceKey]),ambientAnimation:drafts['halo-ambient']!==false};
   }
   return output;
 }

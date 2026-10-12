@@ -2,6 +2,20 @@
 
 This is the P01-P06 working review with the October12 dashboard, mobile-shell and final-app presentation refinements, not approval or production integration. It replaces the old agenda outline only in the expanded preview. Approved archives, production routes and backend remain unchanged; the current editable Homeguard order and shared app copy follow Yogi's newest directions.
 
+## Latest October12 refinement: a calmer homepage
+
+Yogi requested less clutter and fewer prominent statistics, clearer interactive controls, more visual variety within HALO's blue/teal identity, and removal of the decorative serif treatment. This supersedes earlier Fraunces styling for the editable homepage. Instrument Sans headings and existing numeric typography accompany restrained sky and sage accents in both appearances. The same centered430px shell and all underlying workflows remain.
+
+Calendar and the selected daily agenda now precede quick actions and the compact environmental overview in both visual and keyboard order. Add task is the single primary creation control; the empty agenda is one short status. Week details reveals unchanged plan/completion/linked-date counts, activity filters and supplied-effort detail. Calendar options groups timezone, source visibility, connected work, earlier/waiting/completed/archived tasks and the optional streak. Search, category selection, keyboard disclosure controls and retained shared preferences remain available.
+
+Empty saved-for-later, in-progress and upcoming sections no longer fill the homepage. They appear when relevant records exist, including legitimate pending tests; saving an undated task immediately restores its shelf and original scheduling workflow. The action ribbon appears after a known completion or explicit streak opt-in. Weekly review becomes one clear button row, and repeated eyebrows, date captions and promotional empty-state copy are removed. Scores remain separate from action completion, with zero/null/partial and source-date semantics unchanged.
+
+Finite entrance, artwork and gauge/number reveals use the shared motion preferences, with static final values under reduced motion. Accessible score links expose their actual final value independently of decorative number animation. Focus indicators, narrow layouts, large text and high contrast remain supported. No animation invents a reading, progress percentage or external activity.
+
+This pass changes editable presentation and discoverability only. Canonical action IDs, captured-revision confirmation, date/timezone rules, explicit recurrence and reminder intentions, private preparation, Journal/Patterns, source links, exports and offline retention are unchanged. It does not connect live services, approve production routes or replace the immutable archive.
+
+Final-artifact verification:50 focused homepage/week browser scenarios passed against the isolated static export with API/provider requests blocked. Light/dark default and populated screens,320px enlarged text, keyboard disclosures, retained preferences, saved-item scheduling and original task/record/score behaviors were checked. Evidence is in `test-results-interface-week-final`; this does not establish live-backend or physical-device readiness.
+
 ## Action dashboard depth and Luna motion, October12
 
 ### First-tab HALO homepage

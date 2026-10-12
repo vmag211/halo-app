@@ -171,8 +171,8 @@ export function PersonalizedProjectsPreview({ go, environmentAvailable = true }:
   const [lead] = generation.batch.items;
   return <section className="ex-personalized-preview" aria-label="Projects for you">
     <div className="ex-personalized-heading"><h3>Projects for you</h3><button className="ex-text-button" onClick={() => go('projects')}>See all {generation.batch.items.length}<ArrowRight size={16} aria-hidden="true" /></button></div>
-    {lead ? <button className="ex-generated-lead" onClick={() => go('projects', 'detail', lead.id)}><ExplorePhoto scene={findProjectGuide(lead.id)?.scene ?? 'garden'} eager /><span className="ex-generated-lead-copy"><span>{lead.fit === 'general' ? 'An idea to make your own' : 'Made to fit your world'}</span><strong>{lead.title}</strong><small>{lead.tags[0]}</small><ArrowRight size={20} aria-hidden="true" /></span></button> : <div className="ex-empty"><p>No reviewed projects fit those choices.</p><button className="ex-text-button" onClick={() => go('projects')}>Adjust my project choices</button></div>}
-    <div className="ex-project-preview-tools"><button className="ex-text-button" disabled={generation.busy} onClick={() => generation.regenerate()}><RefreshCw size={15} aria-hidden="true" />Refresh project ideas</button><button className="ex-text-button" onClick={() => go('projects')}>Add interests or preferences</button></div><ProjectGenerationStatus generation={generation} />
+    {lead ? <button className="ex-generated-lead" onClick={() => go('projects', 'detail', lead.id)}><ExplorePhoto scene={findProjectGuide(lead.id)?.scene ?? 'garden'} eager /><span className="ex-generated-lead-copy"><strong>{lead.title}</strong><small>{lead.tags[0]}</small><ArrowRight size={20} aria-hidden="true" /></span></button> : <div className="ex-empty"><p>No reviewed projects fit those choices.</p><button className="ex-text-button" onClick={() => go('projects')}>Adjust my project choices</button></div>}
+    <div className="ex-project-preview-tools"><button className="ex-text-button" aria-label="Refresh project ideas" disabled={generation.busy} onClick={() => generation.regenerate()}><RefreshCw size={15} aria-hidden="true" />Refresh ideas</button><button className="ex-text-button" aria-label="Add interests or preferences" onClick={() => go('projects')}>Preferences</button></div><ProjectGenerationStatus generation={generation} />
   </section>;
 }
 
@@ -189,14 +189,14 @@ function ProjectInterestInput({ generation }: { generation: Generation }) {
   const [request, setRequest] = useHomeDraft('explore:project-direct-interest', '');
   return <form className="ex-project-interest" onSubmit={event => { event.preventDefault(); if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); }}>
     <label>What interests you right now?<textarea rows={2} maxLength={500} value={request} onChange={event => setRequest(event.target.value)} placeholder="A solar experiment, native plants, or something to try with friends..." /></label>
-    <div><small>Start with a few ideas, then refine them.</small><button className="ex-button" type="submit" disabled={!request.trim() || generation.busy}>Generate a few ideas<ArrowRight size={16} aria-hidden="true" /></button></div>
+    <div><button className="ex-button" type="submit" disabled={!request.trim() || generation.busy}>Generate a few ideas<ArrowRight size={16} aria-hidden="true" /></button></div>
   </form>;
 }
 
 function ProjectGenerationStatus({ generation }: { generation: Generation }) {
   if (generation.busy) return <div className="ex-project-generating" role="status">
     <svg viewBox="0 0 180 58" aria-hidden="true" focusable="false"><path className="ex-generation-thread" d="M8 43C33 45 38 15 65 25s35 31 61 11 33-13 48-18" />{[35,70,105,140].map((x, index) => <path className="ex-generation-leaf" key={x} style={{ animationDelay: `${index * .18}s` }} d={`M${x} 29c-8-20 9-25 9-25s8 16-9 25Z`} />)}</svg>
-    <div><strong>Ideas taking shape</strong><small>Preparing ideas for you.</small></div><button className="ex-text-button" onClick={generation.cancel}>Cancel generation</button>
+    <div><strong>Ideas taking shape</strong></div><button className="ex-text-button" onClick={generation.cancel}>Cancel generation</button>
   </div>;
   return generation.message ? <div className="ex-generation-message" role={/failed|could not|changed|no source-backed/.test(generation.message) ? 'alert' : 'status'}><p>{generation.message}</p>{/failed|could not|changed|cancelled|Reconnect/.test(generation.message) && <button className="ex-text-button" onClick={generation.retry}>Retry generation</button>}</div> : null;
 }

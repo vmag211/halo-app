@@ -38,6 +38,7 @@ test('Luna creates and edits one canonical task through an inline conversation r
   await dialog.getByRole('button', { name: 'Close sheet', exact: true }).click();
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
@@ -112,6 +113,7 @@ test('Luna starts a real project and one canonical preparation action without ma
   await expect(page.locator('.ex-project-workspace')).toContainText('Pause project');
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);
@@ -183,6 +185,7 @@ test('A partial project-start failure can cancel preparation without denying the
   await expect(page.locator('.ex-project-workspace')).toContainText('Pause project');
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(0);
@@ -200,6 +203,7 @@ test('Partial project preparation can retry once without a second workspace or d
   await expect(page.locator('.ex-project-workspace')).toContainText('0 of');
   await page.getByRole('link', { name: 'My Week', exact: true }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toHaveCount(1);

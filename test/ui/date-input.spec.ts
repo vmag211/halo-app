@@ -83,6 +83,7 @@ test('picker Today follows the chosen calendar timezone without shifting a saved
   // Choose a stored calendar date before changing the display timezone.
   // An untouched initial view follows the newly selected timezone's current day.
   await page.locator('.mw-days button').filter({has:page.locator('strong').filter({hasText:/^12$/})}).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-calendar-prefs > summary').click();
   await page.getByLabel('Display timezone', { exact: true }).selectOption('Pacific/Honolulu');
   const { field } = await taskDate(page);

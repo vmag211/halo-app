@@ -25,7 +25,7 @@ export function GetInvolvedPreview({ go }: { go: Go }) {
   const [area] = useHomeDraft('explore:area', blankArea);
   return <section className="ex-involvement-preview" aria-label="Get involved">
     <div className="ex-workbench-section-head"><h3>Get involved</h3><button className="ex-text-button" onClick={() => go('opportunities')}>Find opportunities<ArrowRight size={16} aria-hidden="true" /></button></div>
-    <button className="ex-involvement-cover" onClick={() => go('opportunities')} aria-label="Get involved: find local volunteering and organizations"><ExplorePhoto scene="trail" /><span><small>Upcoming events &amp; rolling programs</small><strong>A little of your time.<br />A place to make it count.</strong><span><MapPin size={15} aria-hidden="true" />{areaLabel(area) || 'Choose your area'}<ArrowRight size={18} aria-hidden="true" /></span></span></button>
+    <button className="ex-involvement-cover" onClick={() => go('opportunities')} aria-label="Get involved: find local volunteering and organizations"><ExplorePhoto scene="trail" /><span><small>Events &amp; ongoing programs</small><strong>Community volunteering</strong><span><MapPin size={15} aria-hidden="true" />{areaLabel(area) || 'Choose your area'}<ArrowRight size={18} aria-hidden="true" /></span></span></button>
   </section>;
 }
 

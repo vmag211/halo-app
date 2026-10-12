@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {ArrowUpRight, Check, Flame, House, Sunrise} from 'lucide-react';
 import {useStageRuntime} from '@/components/foundation/StageRuntime';
+import {AnimatedNumber} from '@/components/foundation/SceneExperience';
 import {previewOverviewScore} from '@/lib/frontend/overview-preview';
 import {actionStreak, calendarDays, dayLabel, emptyWeekMeta, type WeekMeta} from '@/lib/frontend/week-preview';
 import type {PreviewAction} from '@/lib/frontend/expanded-preview';
@@ -14,22 +15,22 @@ export default function WeekDashboardOverview({href,scenario,actions,metas,date,
   const days=calendarDays(date);
   const unavailable=['card-no-data','empty','offline-empty','loading','error'].includes(scenario);
   return <section className="mw-overview" aria-label="Your HALO overview">
-    <header><span>Your overview</span><small>Scores, higher is better</small></header>
+    <header><span>Around you</span><small>Scores, higher is better</small></header>
     <div className="mw-score-pair">{(['today','home'] as const).map(tab=>{
       // A mounted live provider is authoritative, including null. No fixture fallback.
       const value=runtime?runtime[tab]:previewOverviewScore(tab==='home',unavailable?'no-data':scenario);
       const Icon=tab==='home'?House:Sunrise;
       return <Link href={href(tab)} key={tab} className="mw-score-glance" aria-label={`Open ${tab==='home'?'Homeguard':'Today'}, ${value.score===null?'score unavailable':`${value.score} out of 100`}${value.partial?', partial score':''}`}>
-        <div className="mw-mini-gauge" aria-hidden="true"><svg viewBox="0 0 80 64"><path className="mw-gauge-track" pathLength="100" d="M 12 51 A 32 32 0 1 1 68 51"/>{value.score!==null&&<path className="mw-gauge-value" pathLength="100" strokeDasharray={`${value.score} 100`} d="M 12 51 A 32 32 0 1 1 68 51"/>}</svg><strong>{value.score===null?'N/A':value.score}</strong></div>
+        <div className="mw-mini-gauge" aria-hidden="true"><svg viewBox="0 0 80 64"><path className="mw-gauge-track" pathLength="100" d="M 12 51 A 32 32 0 1 1 68 51"/>{value.score!==null&&<path className="mw-gauge-value" pathLength="100" strokeDasharray={`${value.score} 100`} d="M 12 51 A 32 32 0 1 1 68 51"/>}</svg><strong>{value.score===null?'N/A':<AnimatedNumber value={value.score}/>}</strong></div>
         <span><b><Icon size={14} aria-hidden="true"/>{tab==='home'?'Homeguard':'Today'}</b><small>{value.score===null?'No score':value.partial?'Partial score':'View readings'}</small></span><ArrowUpRight size={14} aria-hidden="true"/>
         <span className="halo-sr-only">{value.asOf}. Scores do not change when tasks are completed.</span>
       </Link>;
     })}</div>
-    <div className="mw-action-rhythm" aria-label="Action rhythm">
+    {(streak||completed.some(Boolean))&&<div className="mw-action-rhythm" aria-label="Action rhythm">
       <div className="mw-rhythm-title"><span><Flame size={15} aria-hidden="true"/>{streak?`${actionStreak(completed,today)} day${actionStreak(completed,today)===1?'':'s'} of follow-through`:'This week’s follow-through'}</span><button type="button" aria-pressed={streak} onClick={()=>onStreak(!streak)}>{streak?'Hide streak':'Show streak'}</button></div>
       <div className="mw-rhythm-days">{days.map(day=>{const count=completed.filter(d=>d===day).length;return <span key={day} data-complete={count>0} data-today={day===today} aria-label={`${dayLabel(day)}, ${count} completed actions`}><small>{dayLabel(day,{weekday:'narrow'})}</small><i aria-hidden="true">{count>0&&<Check size={12}/>}</i></span>;})}</div>
       <small className="mw-rhythm-caption">Completed actions. Check-ins do not count.</small>
-    </div>
+    </div>}
   </section>;
 }
 

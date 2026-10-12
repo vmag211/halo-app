@@ -41,7 +41,7 @@ export default function ExploreWorkspace({ destination, href, mapHref, environme
     <WorkspaceFeedback />
     {workspace.scenario === 'offline' && <p className="ex-offline" role="status">Offline. Read your notes; reconnect to save or open official links.</p>}
     {workspace.scenario === 'loading' || workspace.scenario === 'error' ? <div className="ex-empty" role="status"><h3>{workspace.scenario === 'loading' ? 'Opening Explore' : 'Explore could not load'}</h3><p>Your drafts are kept.</p><button className="ex-button" onClick={() => workspace.setScenario('ready')}>Try again</button></div>
-      : section === 'opportunities' ? <>{view === 'list' ? <><ExploreOpportunities go={go} /><details className="ex-opportunity-programs"><summary>My volunteering and follow-through</summary><VolunteerCommitments go={go} /></details></> : <VolunteerCommitments go={go} view={view} id={id} />}</>
+      : section === 'opportunities' ? <>{view === 'list' ? <><ExploreOpportunities go={go} /><details className="ex-opportunity-programs"><summary>My volunteering</summary><VolunteerCommitments go={go} /></details></> : <VolunteerCommitments go={go} view={view} id={id} />}</>
       : section === 'projects' ? <ExploreProjects go={go} view={view} id={id} href={href} environmentAvailable={environmentAvailable} />
       : section === 'community' ? <CommunityGuide go={go} mapHref={mapHref} href={href} />
       : section === 'outreach' ? <ExploreOutreach />
@@ -58,7 +58,7 @@ function ExploreOverview({ go, mapHref, environmentAvailable }: { go: Go; mapHre
       <PersonalizedProjectsPreview go={go} environmentAvailable={environmentAvailable} />
         <ExploreMapPreview mapHref={mapHref} />
     </div>
-    <button className="ex-community-bridge" onClick={() => go('community')} aria-label="Understand your community: water, air and public records"><ExplorePhoto scene="river" /><span><BookOpen size={17} aria-hidden="true" /><strong>Understand your community</strong><small>Read the evidence. Choose your next step.</small></span><ChevronRight size={17} aria-hidden="true" /></button>
+    <button className="ex-community-bridge" onClick={() => go('community')} aria-label="Understand your community: water, air and public records"><ExplorePhoto scene="river" /><span><BookOpen size={17} aria-hidden="true" /><strong>Understand your community</strong><small>Water, air and public records</small></span><ChevronRight size={17} aria-hidden="true" /></button>
   </>;
 }
 

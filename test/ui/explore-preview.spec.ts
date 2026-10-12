@@ -69,6 +69,7 @@ test('project browsing does not complete steps and saved completion uses My Week
   await expect(page.locator('.ex-project-step')).toContainText('Completed by you');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week' }).click();
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
+  if (await page.locator('.mw-calendar-options').getAttribute('open') === null) await page.locator('.mw-calendar-options > summary').click();
   await page.locator('.mw-followup > summary').click();
   await page.getByLabel('Include completed items').check();
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText('Completed by you');
