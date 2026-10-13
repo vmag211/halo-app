@@ -2,6 +2,8 @@
 
 Implementation date: October 13, 2026. Branch: `codex/frontend-integration-ready-2026-10-13`.
 
+Production source and test checkpoint: `82865aa27b3644a933448695c03b1aa868ec3e5a` (182 changed files). The final receipt and subpixel test correction are recorded in a follow-up verification commit on the same branch. The Git log preserves both implementation and verification history.
+
 This receipt accompanies the [integration guide](FRONTEND_INTEGRATION_READY.md), not a claim that a deployed backend or provider has passed acceptance. The frontend is implemented against explicit canonical service contracts while preserving the reviewed screens. No live integration, external delivery or production deployment was performed during these tests.
 
 ## Verification results
@@ -14,7 +16,9 @@ This receipt accompanies the [integration guide](FRONTEND_INTEGRATION_READY.md),
 | Isolated production build | Passed, 41 generated pages/routes including retained existing handlers. Uses fake public auth configuration for browser acceptance. |
 | Production browser suite | 44 passed, zero failures/skips, against the stable production build. |
 | Stage/legacy integration compatibility | 37 passed, zero failures/skips, in a clean full run. |
-| Full review regression suite | Final run in progress, 759 scheduled cases. |
+| Full review regression suite | 759 cases: 756 passed, two hosted-only skips, one numerical-precision assertion failed. That assertion was corrected and then passed five repeated runs against the same unchanged production build. |
+| Corrected motion precision case | Five of five repeated runs passed; 757 distinct review cases now have passing evidence on the final application source. The original full run is not represented as uninterrupted all-green. |
+| Focused startup regressions | Six passed, including both Homeguard deep-link sweeps and delayed-hydration Explore filters. |
 | Approved archive integrity | 204 onboarding files and 146 foundation files verified unchanged. |
 | Diff whitespace validation | Passed. |
 | Runtime operation registration audit | 72 registered operations; literal operation names audited with no missing registrations. Dynamic food/recovery dispatch also checked. |
@@ -40,6 +44,10 @@ These are coverage categories, not a claim that every possible input or third-pa
 The first broad runs were not entirely green. Failures were investigated, corrected and rerun. Real corrections included cached images settling before hydration, unwanted homepage artwork preload on an explicit Today link, review-fixture task metadata being lost between asynchronous saves, refresh cooldown retention, exact source-scope fish matching, retained failure-state interactions and safer incomplete-export behavior. The final deep-link sweep also exposed a non-deterministic unsaved-report timestamp and a native Explore selection that could be made before its client state was ready. Both required source fixes, not relaxed assertions.
 
 Tests with obsolete assumptions were updated to the new production contracts or current approved labels. Functional assertions were retained. Immutable visual baselines were not replaced and failures were not hidden by accepting new screenshots. Local-host-only skips are reported in the final totals rather than counted as passes.
+
+The last full run's only failure compared a button height of `43.999969482421875` with exactly `44`. The motion test now compares x, width and height to three decimal places, allowing less than 0.0005px compositor rounding. Its existing under-1px vertical movement limit, actual click, confirmation dialog, Cancel and focus checks remain unchanged. Five repeat passes verified this test-only correction without another application rebuild. There are no unresolved failures from these runs; this does not imply exhaustive proof of every possible state.
+
+The final local output directories under `test-results-production-review/` are `verified-regression`, `verified-motion-precision`, `verified-production`, `verified-stage` and `verified-startup`. The distinct passing browser coverage is 757 review cases, 44 production cases and 37 compatibility cases. Focused repetitions are not added again to that count.
 
 ## Visual review
 
@@ -67,4 +75,4 @@ Vibhav must connect the actual service contracts, configure auth/providers and r
 
 Physical-device Safari/iOS/Android behavior, screen-reader acceptance, real notification permission/delivery, battery/performance, reviewed Spanish translations and any expanded geographic renderer remain release checks. The current bundled geographic atlas is scoped to the reviewed North Carolina geometry; unlocated/out-of-atlas records are not invented as local points. The frontend does not promise unlimited free AI, measured benefit from task completion, or zero remaining integration defects.
 
-The hosted wireframe was not republished. The GitHub branch, once push verification is recorded by the completing task, is the source handoff for backend integration, not a deployed working service.
+The hosted wireframe was not republished. The source handoff is branch `codex/frontend-integration-ready-2026-10-13` in `vmag211/halo-app`, not a deployed working service. The completing task verifies its pushed remote head against the local commit before reporting delivery.

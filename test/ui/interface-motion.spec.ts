@@ -149,9 +149,9 @@ test('pressing a revealing record keeps its delete target still until the click 
   const pressedBounds = await remove.boundingBox();
   // Allow subpixel compositor rounding, never the 22px entrance translation.
   expect(Math.abs(pressedBounds!.y - bounds!.y)).toBeLessThan(1);
-  expect(pressedBounds!.x).toBe(bounds!.x);
-  expect(pressedBounds!.width).toBe(bounds!.width);
-  expect(pressedBounds!.height).toBe(bounds!.height);
+  expect(pressedBounds!.x).toBeCloseTo(bounds!.x, 3);
+  expect(pressedBounds!.width).toBeCloseTo(bounds!.width, 3);
+  expect(pressedBounds!.height).toBeCloseTo(bounds!.height, 3);
   await page.mouse.up();
   await expect(page.getByRole('button', { name: 'Yes, delete', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'No, keep it', exact: true }).click();
