@@ -1,6 +1,6 @@
 /** English catalog. Future locales replace this module, not component strings. */
 export const copy = {
-  preview: { title: 'Onboarding development preview', disclaimer: 'Sample data only. No account, location, or answers are saved.', scenario: 'Test scenario', restart: 'Restart onboarding', complete: 'Onboarding flow complete', handoff: 'In the connected app, this button opens Today. This isolated preview ends here.' },
+  preview: { title: 'Onboarding development preview', disclaimer: 'Sample data only. No account, location, or answers are saved.', scenario: 'Test scenario', restart: 'Restart onboarding', complete: 'Onboarding flow complete', handoff: 'Continue to your HALO dashboard.' },
   handoff: { title: 'Today', message: 'Onboarding is complete. The Today dashboard is the next frontend stage and is not implemented yet.', review: 'Review onboarding' },
   common: { back: "Back", continue: "Continue", retry: "Retry", working: "Working", checking: "Checking", optional: "Optional", noData: "No data", offline: "You're offline.", offlineCached: "You're offline. Showing your last readings.", loading: "Loading", empty: "There is no data to show yet.", progress: (step: number) => `Step ${step} of 4` },
   welcome: { title: "Welcome", subtitle: "To Halo", subtitleTo: "to", subtitleBrand: "HALO", description: "See what's in the air, water, and ground around your home, and what to do about it.", account: "No account needed.", start: "Get started", duration: "Takes about a minute." },

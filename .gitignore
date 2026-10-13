@@ -13,10 +13,15 @@
 # testing
 /coverage
 /test-results/
+/test-results-production-frontend/
+/test-results-production-review/
 /playwright-report/
 
 # next.js
 /.next/
+/.next-stage-test/
+/.next-stage-test-prerender-retry/
+/.next-stage-test-second-retry/
 /out/
 
 # production

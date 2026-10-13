@@ -1,0 +1,11 @@
+.ex-notebook-toolbar { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+.ex-notebook-toolbar .ex-button { width:auto; font-size:calc(.85rem * var(--halo-text-scale)); padding:9px 14px; }
+.ex-notebook-filters { display:grid; grid-template-columns:minmax(0,1fr) minmax(110px,.5fr); gap:10px; }
+.ex-notebook-filters label { min-width:0; }
+.ex-notebook-filters :is(input[type=search],select) { width:100%; min-width:0; min-height:44px; padding:10px 12px; border:1px solid var(--halo-border); background:var(--halo-card); border-radius:7px; color:var(--halo-ink); font:inherit; }
+.ex-notebook-filters .ex-search { display:flex; align-items:center; position:relative; }
+.ex-notebook-filters .ex-search svg { position:absolute; left:12px; color:var(--halo-secondary); }
+.ex-notebook-filters input[type=search] { padding-left:38px; }
+.ex-notebook-filters .ex-check { grid-column:1/-1; font-size:calc(.8rem * var(--halo-text-scale)); }
+.ex-notebook-workspace .halo-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.halo-f-app[data-text-scale="150"] .ex-notebook-filters { grid-template-columns:minmax(0,1fr); }

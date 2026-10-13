@@ -1,0 +1,52 @@
+/* Get involved: one coherent program catalogue, not separate organization tabs. */
+.halo-explore .ex-local { gap:22px; }
+.halo-explore .ex-local-hero { display:grid; gap:18px; min-width:0; }
+.halo-explore .ex-local-hero .ex-catalogue-photo { height:156px; }
+.halo-explore .ex-local-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; min-width:0; }
+.halo-explore .ex-local-search { grid-column:1/-1; }
+.halo-explore .ex-local-search > span:last-child { position:relative; display:block; }
+.halo-explore .ex-local-search svg { position:absolute; left:13px; top:16px; color:var(--halo-secondary); }
+.halo-explore .ex-local-search input { padding-left:40px; }
+.halo-explore .ex-local-scope { display:flex; gap:10px; align-items:flex-start; padding:14px 0; border-block:1px solid var(--halo-border); }
+.halo-explore .ex-local-scope > svg { margin-top:4px; color:var(--halo-primary); }
+.halo-explore .ex-local-scope strong { display:block; margin-bottom:5px; font-weight:650; }
+.halo-explore .ex-local-list { display:grid; }
+.halo-explore .ex-local-route { display:grid; grid-template-columns:36px minmax(0,1fr); gap:14px; padding:22px 0; border-bottom:1px solid var(--halo-border); }
+.halo-explore .ex-local-route:first-child { padding-top:2px; }
+.halo-explore .ex-local-route-icon { padding-top:4px; color:var(--ex-green); }
+.halo-explore .ex-local-route > div:last-child { display:grid; gap:6px; }
+.halo-explore .ex-local-route h4 { font:550 calc(1.2rem * var(--halo-text-scale))/1.3 var(--font-fraunces),Georgia,serif; }
+.halo-explore .ex-local-route button { justify-self:start; }
+.halo-explore .ex-local-national { display:grid; gap:16px; padding-block:12px; }
+.halo-explore .ex-local-national > div { padding-top:14px; border-top:1px solid var(--halo-border); }
+.halo-explore .ex-local-national a { justify-self:start; text-align:left; }
+.halo-explore .ex-local-back { justify-self:start; text-align:left; }
+.halo-explore .ex-local-detail h3:focus { outline:none; }
+.halo-explore .ex-local-purpose { display:flex; gap:14px; align-items:flex-start; padding:18px; background:var(--ex-sage); border-radius:8px; }
+.halo-explore .ex-local-purpose > svg { color:var(--ex-green); margin-top:3px; }
+.halo-explore .ex-local-purpose > div { display:grid; gap:8px; }
+.halo-explore .ex-local-steps { display:grid; gap:18px; }
+.halo-explore .ex-local-steps ol { display:grid; gap:0; list-style:none; margin:0; padding:0; }
+.halo-explore .ex-local-steps li { display:grid; grid-template-columns:32px minmax(0,1fr); gap:12px; border-bottom:1px solid var(--halo-border); padding:18px 0; }
+.halo-explore .ex-local-steps li > span { color:var(--halo-primary); font:600 calc(.9rem * var(--halo-text-scale))/1.5 var(--font-instrument),Arial,sans-serif; font-variant-numeric:tabular-nums; }
+.halo-explore .ex-local-steps li h4 { margin-bottom:6px; }
+.halo-explore .ex-local-steps li p { color:var(--halo-secondary); }
+.halo-explore .ex-local-practical { display:grid; gap:16px; }
+.halo-explore .ex-local-address { display:flex; gap:12px; align-items:flex-start; padding:16px 0; }
+.halo-explore .ex-local-address > svg { color:var(--halo-primary); margin-top:4px; }
+.halo-explore .ex-local-address strong { display:block; margin-bottom:6px; }
+.halo-explore .ex-local-prepare { display:grid; gap:16px; border-top:1px solid var(--halo-border); padding-top:22px; }
+.halo-explore .ex-local-prepare .ex-button { justify-self:start; }
+.halo-explore .ex-local-prepare details > label { padding-top:18px; }
+.halo-f-app[data-text-scale="150"] .ex-local-filters { grid-template-columns:minmax(0,1fr); }
+.halo-f-app[data-contrast="high"] .ex-local-purpose { border:1px solid var(--halo-ink); }
+@media(min-width:650px) {
+  .halo-explore .ex-local-hero { grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr); align-items:center; }
+  .halo-explore .ex-local-hero .ex-catalogue-photo { height:220px; }
+}
+@media(max-width:350px) {
+  .halo-explore .ex-local-filters { grid-template-columns:minmax(0,1fr); }
+  .halo-explore .ex-local-route { grid-template-columns:28px minmax(0,1fr); gap:10px; }
+  .halo-explore .ex-local-purpose { padding:14px; gap:10px; }
+}
+@media(forced-colors:active) { .halo-explore .ex-local-purpose { border:1px solid CanvasText; } }

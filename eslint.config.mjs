@@ -10,11 +10,13 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".next-stage-test/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
     // Immutable design reference contains original, vendored preview libraries.
     "docs/onboarding/approved/**",
+    "docs/foundation/approved/**",
     "playwright-report/**",
     "test-results/**",
   ]),

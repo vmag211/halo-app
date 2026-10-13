@@ -1,0 +1,15 @@
+.ex-action-art { --art-base:light-dark(#e7eee5,#183e3c); --art-accent:light-dark(#bcce8a,#698763); display:block; overflow:hidden; width:100%; min-width:0; background:var(--art-base); color:light-dark(#2f5550,#c3e1d7); border-radius:6px; }
+.ex-action-art svg { display:block; width:100%; height:100%; max-height:215px; }
+.ex-art-fill { fill:light-dark(#f8f5e9,#244a46); }
+.ex-art-accent { fill:var(--art-accent); }
+.ex-art-ink { fill:currentColor; stroke:none; }
+.ex-art-ground { stroke:currentColor; stroke-width:1.5; opacity:.3; }
+.ex-art-detail { stroke:currentColor; stroke-width:1.5; opacity:.45; }
+.ex-action-art--solar,.ex-action-art--food { --art-base:light-dark(#f1e6cb,#423d2c); --art-accent:light-dark(#e5b971,#b88f55); color:light-dark(#846344,#eacb9d); }
+.ex-action-art--water,.ex-action-art--air,.ex-action-art--home { --art-base:light-dark(#ddebf0,#193e51); --art-accent:light-dark(#a7c7d5,#598fa3); color:light-dark(#356775,#acdce9); }
+.ex-action-art--bee,.ex-action-art--compost,.ex-action-art--soil { --art-base:light-dark(#eee7dc,#3a3c32); --art-accent:light-dark(#cdbb82,#a0956b); color:light-dark(#665d42,#dad1ac); }
+.ex-action-art--small { width:82px; height:86px; flex:none; }
+.ex-action-art--small svg { height:86px; width:142px; margin-left:-30px; }
+.halo-f-app[data-contrast="high"] .ex-action-art { background:var(--halo-page); color:var(--halo-ink); border:1px solid var(--halo-border); }
+.halo-f-app[data-contrast="high"] .ex-art-fill,.halo-f-app[data-contrast="high"] .ex-art-accent { fill:none; }
+@media(forced-colors:active) { .ex-action-art { background:Canvas; color:CanvasText; border:1px solid CanvasText; } .ex-art-fill,.ex-art-accent { fill:none; } }

@@ -1,0 +1,147 @@
+/* Shared review treatment. Archived designs and live adapters remain untouched. */
+.halo-f-app[data-refined=true] {
+  --font-fraunces:var(--font-onest);
+  --halo-page:light-dark(#f4f8fa,#0b1c2a);
+  --halo-card:light-dark(#ffffff,#132d3d);
+  --halo-ink:light-dark(#173349,#e8f2f4);
+  --halo-secondary:light-dark(#526a79,#a9c0cd);
+  --halo-primary:light-dark(#126a75,#56d0c6);
+  --halo-on-primary:light-dark(#ffffff,#09272d);
+  --halo-border:light-dark(#d8e5e9,#2a4657);
+  --halo-tint:light-dark(#e0f1ef,#224953);
+  --halo-sky:light-dark(#346e96,#9bcbe9);
+  --halo-sky-wash:light-dark(#e9f2fa,#182f46);
+  --halo-sage:light-dark(#3c705e,#add6bd);
+  --halo-sage-wash:light-dark(#eaf3ec,#1b3739);
+  --halo-lilac:light-dark(#635f85,#c5c2e3);
+  --halo-lilac-wash:light-dark(#f0eff7,#2a3048);
+  --halo-soft-shadow:0 5px 18px light-dark(#23475d09,#00000015);
+  background:var(--halo-page);
+  font-variant-numeric:lining-nums;
+}
+.halo-f-app[data-refined=true][data-contrast=high] {
+  --halo-secondary:var(--halo-ink);
+  --halo-border:light-dark(#507181,#a9c9d8);
+}
+.halo-f-app[data-refined=true] :is(h1,h2,h3,h4) { font-family:var(--font-onest),Arial,sans-serif; }
+/* Small controls retain generous hit areas without expanding the mobile shell. */
+.halo-f-app[data-refined=true] .halo-ph-page-nav { gap:2px 6px; }
+.halo-f-app[data-refined=true] .halo-ph-page-nav a { min-width:44px; justify-content:center; padding-inline:4px; }
+.halo-f-app[data-refined=true] .halo-map-timeline button { min-height:44px; margin-block:0; border-radius:8px; }
+.halo-f-app[data-refined=true] :is(button,a,summary,input,select,textarea) { scroll-margin-block:100px 135px; }
+.halo-f-app[data-refined=true].halo-map-app :is(h1,h2,h3,h4) { font-family:var(--font-onest),Arial,sans-serif; }
+.halo-f-app[data-refined=true].halo-map-app { font-variant-numeric:lining-nums tabular-nums; }
+.halo-f-app[data-refined=true] .halo-f-header {
+  background:color-mix(in srgb,var(--halo-page) 94%,transparent);
+  backdrop-filter:blur(16px);
+  border-bottom-color:color-mix(in srgb,var(--halo-border) 70%,transparent);
+}
+.halo-f-app[data-refined=true] .halo-f-header .halo-f-icon:not(.mw-header-luna) {
+  color:var(--halo-primary); border-radius:12px;
+}
+.halo-f-app[data-refined=true] .halo-f-tabs {
+  background:color-mix(in srgb,var(--halo-card) 96%,transparent);
+  box-shadow:0 -3px 24px light-dark(#244b6110,#00000024);
+  backdrop-filter:blur(16px);
+}
+.halo-f-app[data-refined=true] .halo-f-tabs a[aria-current=page] { background:var(--halo-tint); }
+.halo-f-app[data-refined=true] .halo-f-tabs a[aria-current=page] svg { stroke-width:2.15; }
+/* Actions have a distinct surface; navigational prose remains an ordinary link. */
+.halo-f-app[data-refined=true] :is(.ex-button,.hg-button,.hp-primary,.mw-add,.halo-button.halo-primary) {
+  border:1px solid color-mix(in srgb,var(--halo-primary) 80%,var(--halo-ink));
+  background:var(--halo-primary); color:var(--halo-on-primary);
+  box-shadow:0 3px 10px color-mix(in srgb,var(--halo-primary) 15%,transparent),inset 0 1px 0 #ffffff18;
+  border-radius:10px; min-height:44px; font-weight:650;
+}
+.halo-f-app[data-refined=true] :is(.ex-button-secondary,.hg-button-secondary,.hp-alert-open) {
+  border:1px solid color-mix(in srgb,var(--halo-primary) 32%,var(--halo-border));
+  background:var(--halo-tint); color:var(--halo-primary);
+  border-radius:10px; min-height:44px; padding:10px 13px; text-align:center;
+}
+.halo-f-app[data-refined=true] :is(.ex-project-preview-tools,.ex-personalized-heading,.ex-workbench-section-head,.ex-map-preview-head) > .ex-text-button {
+  padding:9px 12px; border:1px solid var(--halo-border); border-radius:9px;
+  background:var(--halo-card); box-shadow:var(--halo-soft-shadow); gap:7px;
+  font-size:calc(.77rem * var(--halo-text-scale));
+}
+.halo-f-app[data-refined=true] .ex-project-preview-tools > button:first-child { background:var(--halo-tint); border-color:transparent; }
+.halo-f-app[data-refined=true] :is(.ex-notebook-entry,.ex-resources > summary) {
+  border:1px solid var(--halo-border); border-radius:10px; background:var(--halo-card);
+}
+.halo-f-app[data-refined=true] .how-add-menu > summary {
+  border:1px solid color-mix(in srgb,var(--halo-primary) 32%,var(--halo-border));
+  border-radius:9px; padding:7px 12px; background:var(--halo-tint); min-height:44px;
+}
+.halo-f-app[data-refined=true] .how-add-menu > nav a { gap:8px; }
+.halo-f-app[data-refined=true] .how-add-menu > nav a svg { color:var(--halo-primary); flex-shrink:0; }
+.halo-f-app[data-refined=true] :is(input,textarea,select) { accent-color:var(--halo-primary); }
+.halo-f-app[data-refined=true] :is(.ex-form,.hg-form,.hp-panel-content) :is(input:not([type=checkbox]):not([type=radio]),select,textarea) {
+  background:var(--halo-card); border-color:var(--halo-border); border-radius:10px;
+}
+.halo-f-app[data-refined=true] :is(.ex-form,.hg-form,.hp-panel-content) :is(input,select,textarea):focus {
+  border-color:var(--halo-primary);
+}
+/* Color has a purpose: blue for home records, sage for growing, lavender for summaries. */
+.halo-f-app[data-refined=true] .halo-home-workspace {
+  background:var(--halo-card); border-color:var(--halo-border); box-shadow:var(--halo-soft-shadow);
+}
+.halo-f-app[data-refined=true] .how-overview-row { border-radius:0; }
+.halo-f-app[data-refined=true] .how-overview-row > svg:first-child {
+  padding:7px; width:36px; height:36px; border-radius:11px;
+  background:color-mix(in srgb,var(--how-accent,var(--halo-primary)) 12%,transparent);
+}
+.halo-f-app[data-refined=true] .hg-workspace { --hg-line:var(--halo-border); }
+.halo-f-app[data-refined=true] .hg-workspace[data-home-section=maintenance] { --hg-accent:var(--halo-sky); }
+.halo-f-app[data-refined=true] .hg-workspace[data-home-section=food] { --hg-accent:var(--halo-sage); }
+.halo-f-app[data-refined=true] .hg-workspace[data-home-section=summary] { --hg-accent:var(--halo-lilac); }
+.halo-f-app[data-refined=true] .halo-explore { --ex-sage:var(--halo-sage-wash); --ex-paper:var(--halo-card); --ex-lilac:var(--halo-lilac-wash); --ex-green:var(--halo-sage); }
+.halo-f-app[data-refined=true] :is(.ex-resource-menu,.how-add-menu > nav) {
+  border:1px solid var(--halo-border); border-radius:12px; box-shadow:0 12px 32px light-dark(#153d5524,#00000044);
+}
+.halo-f-app[data-refined=true] :is(.ex-generated-lead,.ex-involvement-cover,.ex-photo) { border-radius:12px; }
+.halo-f-app[data-refined=true] .ex-community-bridge { background:var(--halo-sky-wash); border:1px solid var(--halo-border); border-radius:12px; }
+.halo-f-app[data-refined=true] .ex-community-bridge > svg { color:var(--halo-sky); }
+.halo-f-app[data-refined=true] .hp-alert-item { padding:16px 0; }
+.halo-f-app[data-refined=true] .hp-alert-type {
+  width:31px; height:35px; border-radius:10px; display:grid; place-items:center;
+  background:var(--halo-sky-wash); color:var(--halo-sky); padding:0;
+}
+.halo-f-app[data-refined=true] .hp-alert-item[data-alert-category="Your week"] .hp-alert-type { background:var(--halo-sage-wash); color:var(--halo-sage); }
+.halo-f-app[data-refined=true] .hp-alert-actions { flex-wrap:wrap; justify-content:flex-start; gap:7px 13px; }
+.halo-f-app[data-refined=true] .hp-alert-open { font-size:calc(.75rem * var(--halo-text-scale)); }
+.halo-f-app[data-refined=true] .hp-alert-actions .hp-alert-mark-read { padding:8px 0; }
+.halo-f-app[data-refined=true] .hp-alert-open svg { flex-shrink:0; }
+/* Gentle atmosphere behind the app, never over labels or recorded values. */
+.halo-f-app[data-refined=true] .halo-env--page::before,
+.halo-f-app[data-refined=true] .halo-env--page::after {
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:.65;
+  background:radial-gradient(ellipse at 12% 14%,light-dark(#70b8d31a,#4c9dbf13),transparent 43%);
+}
+.halo-f-app[data-refined=true] .halo-env--page::after {
+  background:radial-gradient(ellipse at 86% 65%,light-dark(#8bc6ad18,#86b9a012),transparent 42%);
+}
+.halo-f-app[data-refined=true] .halo-env--page[data-moving=true]::before { animation:halo-ambient-light 18s ease-in-out infinite alternate; }
+.halo-f-app[data-refined=true] .halo-env--page[data-moving=true]::after { animation:halo-ambient-light 24s ease-in-out -6s infinite alternate-reverse; }
+.halo-f-app[data-refined=true] .halo-env--page[data-moving=false]::before,
+.halo-f-app[data-refined=true] .halo-env--page[data-moving=false]::after { animation-play-state:paused; }
+@keyframes halo-ambient-light { from { transform:translate3d(-2%,-1%,0); opacity:.4; } to { transform:translate3d(3%,2%,0); opacity:.8; } }
+/* Small entrances and response motion preserve the final value and never gate input. */
+.halo-f-app[data-refined=true][data-animate=true] :is(.hp-alert-item,.ex-resource-menu,.how-add-menu[open] > nav) { animation:halo-surface-enter .28s ease-out both; }
+.halo-f-app[data-refined=true][data-animate=true] :is(.ex-button,.ex-button-secondary,.hg-button,.hg-button-secondary,.hp-primary,.hp-alert-open,.ex-project-preview-tools > button,.how-add-menu > summary,.halo-f-tabs a) {
+  transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease,border-color .18s ease;
+}
+@keyframes halo-surface-enter { from { opacity:.45; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
+@media(hover:hover) {
+  .halo-f-app[data-refined=true] :is(.ex-button,.hg-button,.hp-primary,.hp-alert-open,.ex-project-preview-tools > button):hover:not(:disabled) { box-shadow:0 5px 16px color-mix(in srgb,var(--halo-primary) 18%,transparent); }
+  .halo-f-app[data-refined=true][data-animate=true] :is(.ex-button,.hg-button,.hp-primary,.ex-generated-lead,.ex-involvement-cover):hover:not(:disabled) { transform:translateY(-2px); }
+  .halo-f-app[data-refined=true] .halo-f-header .halo-f-icon:hover { background:var(--halo-tint); }
+}
+.halo-f-app[data-refined=true][data-animate=true] :is(.ex-button,.hg-button,.hp-primary,.hp-alert-open):active:not(:disabled) { transform:translateY(1px); }
+@media(prefers-reduced-motion:reduce) {
+  .halo-f-app[data-refined=true] .halo-env--page::before,.halo-f-app[data-refined=true] .halo-env--page::after { animation:none !important; }
+  .halo-f-app[data-refined=true] :is(.hp-alert-item,.ex-resource-menu,.how-add-menu > nav) { animation:none !important; }
+  .halo-f-app[data-refined=true] :is(.ex-button,.hg-button,.hp-primary,.hp-alert-open,.ex-generated-lead,.ex-involvement-cover,.halo-f-tabs a) { transition:none !important; transform:none !important; }
+}
+@media(forced-colors:active) {
+  .halo-f-app[data-refined=true] .halo-env--page::before,.halo-f-app[data-refined=true] .halo-env--page::after { display:none; }
+  .halo-f-app[data-refined=true] :is(.ex-button,.hg-button,.hp-primary,.hp-alert-open,.how-add-menu > summary) { color:ButtonText; background:ButtonFace; border:1px solid ButtonText; box-shadow:none; }
+}

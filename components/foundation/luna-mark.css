@@ -1,0 +1,52 @@
+.halo-luna-mark { display:block; flex-shrink:0; transform-origin:50% 50%; color:inherit; }
+.halo-luna-facet { transform-box:fill-box; transform-origin:center; }
+.halo-luna-waves { opacity:0; }
+.halo-luna-wave { stroke-dasharray:1; stroke-dashoffset:1; }
+.halo-luna-loading { display:flex; align-items:center; gap:12px; min-height:54px; color:var(--halo-primary); }
+.halo-luna-loading > span { display:grid; gap:4px; min-width:0; font-size:calc(.82rem * var(--halo-text-scale,1)); line-height:1.45; }
+.halo-luna-loading small { font-size:calc(.73rem * var(--halo-text-scale,1)); color:var(--halo-secondary); }
+
+/* One gesture, not a permanent spinner. A pending request keeps its text status. */
+@media(prefers-reduced-motion:no-preference) {
+  .halo-f-app:not([data-motion="reduce"]):not([data-animate="false"]) .halo-f-assistant:is(:hover,:focus-visible) > .halo-luna-mark:not([data-loading="true"]) {
+    animation:halo-luna-greet 1.45s cubic-bezier(.25,.6,.2,1) 1;
+  }
+  .halo-f-app:not([data-motion="reduce"]):not([data-animate="false"]) .halo-luna-mark[data-loading="true"] {
+    animation:halo-luna-think-turn 1.8s cubic-bezier(.38,.08,.28,1) 1 both;
+  }
+  .halo-f-app:not([data-motion="reduce"]):not([data-animate="false"]) .halo-luna-mark[data-loading="true"] .halo-luna-facets {
+    animation:halo-luna-unfold 1.8s ease-in-out 1 both;
+  }
+  .halo-f-app:not([data-motion="reduce"]):not([data-animate="false"]) .halo-luna-mark[data-loading="true"] .halo-luna-facet {
+    animation:halo-luna-facet-release 1.8s ease-in-out 1 both;
+  }
+  .halo-luna-facet--outer { --luna-part-x:0px; --luna-part-y:-4px; --luna-part-turn:8deg; }
+  .halo-luna-facet--left { --luna-part-x:-3px; --luna-part-y:0px; --luna-part-turn:-14deg; }
+  .halo-luna-facet--right { --luna-part-x:3px; --luna-part-y:0px; --luna-part-turn:14deg; }
+  .halo-luna-facet--inner { --luna-part-x:0px; --luna-part-y:3px; --luna-part-turn:-8deg; }
+  .halo-luna-facet--mesh { --luna-part-x:0px; --luna-part-y:0px; --luna-part-turn:0deg; }
+  .halo-f-app:not([data-motion="reduce"]):not([data-animate="false"]) .halo-luna-mark[data-loading="true"] .halo-luna-waves {
+    animation:halo-luna-wave-show 1.8s ease-in-out 1 both;
+  }
+  .halo-f-app:not([data-motion="reduce"]):not([data-animate="false"]) .halo-luna-mark[data-loading="true"] .halo-luna-wave {
+    animation:halo-luna-wave-flow 1.8s ease-in-out 1 both;
+  }
+  .halo-luna-wave--top { --luna-wave-shift:-2px; opacity:.65; }
+  .halo-luna-wave--middle { --luna-wave-shift:1px; }
+  .halo-luna-wave--bottom { --luna-wave-shift:2px; opacity:.65; }
+}
+@keyframes halo-luna-greet { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+@keyframes halo-luna-think-turn { 0% { transform:rotate(0deg); } 45% { transform:rotate(135deg); } 75% { transform:rotate(260deg); } 100% { transform:rotate(360deg); } }
+@keyframes halo-luna-unfold { 0%,10%,100% { opacity:1; } 30%,64% { opacity:0; } 88% { opacity:1; } }
+@keyframes halo-luna-facet-release { 0%,10%,100% { transform:none; } 30%,64% { transform:translate(var(--luna-part-x),var(--luna-part-y)) rotate(var(--luna-part-turn)) scale(.88); } 88% { transform:none; } }
+@keyframes halo-luna-wave-show { 0%,13%,87%,100% { opacity:0; } 30%,64% { opacity:1; } }
+@keyframes halo-luna-wave-flow { 0%,13%,100% { stroke-dashoffset:1; transform:none; } 35% { stroke-dashoffset:0; transform:translateY(var(--luna-wave-shift)); } 64% { stroke-dashoffset:0; transform:translateY(calc(var(--luna-wave-shift) * -1)); } 87% { stroke-dashoffset:-1; transform:none; } }
+
+/* System reduction always wins, even when a review URL asks for full motion. */
+@media(prefers-reduced-motion:reduce), (forced-colors:active) {
+  .halo-luna-mark,.halo-luna-mark * { animation:none !important; }
+  .halo-luna-facets { opacity:1 !important; }
+  .halo-luna-waves { opacity:0 !important; }
+}
+.halo-f-app[data-motion="reduce"] .halo-luna-mark,.halo-f-app[data-motion="reduce"] .halo-luna-mark *,
+.halo-f-app[data-animate="false"] .halo-luna-mark,.halo-f-app[data-animate="false"] .halo-luna-mark * { animation:none !important; }
