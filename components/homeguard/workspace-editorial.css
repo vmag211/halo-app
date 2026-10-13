@@ -6,7 +6,7 @@
 .hg-workspace[data-home-section="food"][data-home-view^="fish"],.hg-workspace[data-home-section="food"][data-home-view="water"],.hg-workspace[data-home-section="food"][data-home-view^="usage"] { --hg-accent:light-dark(#356c84,#a6d0df); --hg-soft:light-dark(#ddeaf0,#2b4b5e); }
 .hg-workspace[data-home-section="food"][data-home-view^="evidence"] { --hg-accent:light-dark(#665c82,#c5b8dc); --hg-soft:light-dark(#e9e4ee,#45445a); }
 .hg-workspace[data-home-section="food"][data-home-view^="grower"] { --hg-accent:light-dark(#6d6746,#d0caa3); --hg-soft:light-dark(#e7e7d8,#474b36); }
-.hg-workspace-nav { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px 12px; border-bottom:1px solid var(--hg-line); padding-bottom:12px; }
+.hg-workspace-nav { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px 12px; border-bottom:1px solid var(--hg-line); padding-bottom:12px; scroll-margin-top:85px; }
 .hg-workspace-nav .hg-workspace-select { margin-left:auto; }
 .hg-workspace-nav .hg-workspace-select label { display:grid; gap:0; }
 .hg-workspace-nav .hg-workspace-select select { width:auto; max-width:180px; background:transparent; border:0; border-radius:0; padding-left:0; color:var(--hg-accent); font-weight:600; }

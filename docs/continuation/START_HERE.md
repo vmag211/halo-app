@@ -27,6 +27,8 @@ The checkpoint includes current app components, styling, public assets, tests, f
 
 ## Review and actual implementation
 
+October 12 wrap-up audit: read [the complete 45-feature crosswalk and remaining design gaps](../foundation/FRONTEND_WRAPUP_AUDIT.md) before calling the frontend finished. This pass corrects narrow-screen menus, deep workspace entry, secondary controls and pointer interaction during reveals. It preserves current visuals and all approval/backend boundaries. Publication is recorded separately in `FRONTEND_WRAPUP_RECEIPT.md` because pre-existing edits to HOSTED_REVIEW.md were retained.
+
 Latest October12 visual refinement expands My Week to five original wallpapers rotating after30 seconds of eligible visible time. Below-fold Homeguard/Explore sections and deeper workflows have independently verified entrances; category-specific household art, four community topic scenes and compact Journal/outdoor scenes extend the visual library. Read `docs/foundation/VISUAL_MOTION_REVIEW.md` and the latest hosted receipt for exact publication/verification status. Shared motion retains stationary editors, restrained interactive feedback and device accessibility preferences. No production/backend integration or new screen approval is implied.
 
 The preceding Version46 supplies compact calendar-led My Week, shared sans typography, clearer controls, refined light/dark palettes and grouped Settings with explicit appearance/ambient preferences. Read `components/expanded/SETTINGS_ALERTS_REVIEW.md` for its verified scope. Saved appearance also applies when returning to the map through browser history, and decorative map texture respects the global ambient setting. This does not approve screens or connect backend services.

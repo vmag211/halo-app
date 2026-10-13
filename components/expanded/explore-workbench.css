@@ -7,12 +7,14 @@
 .halo-f-app .ex-section-title { margin:0; text-align:left; font:600 calc(1.8rem * var(--halo-text-scale))/1.2 var(--font-fraunces),Georgia,serif; letter-spacing:-.03em; overflow-wrap:anywhere; }
 .ex-section-title:focus { outline:none; }
 .ex-workbench-bar .ex-back { width:44px; height:44px; padding:0; justify-content:center; color:var(--halo-ink); }
-.ex-header-utilities { display:flex; align-items:center; gap:2px; }
+.ex-header-utilities { display:flex; align-items:center; justify-content:flex-end; justify-self:end; gap:2px; }
 .ex-notebook-entry,.halo-explore .ex-resources > summary { display:grid; place-items:center; width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--halo-primary); }
 .ex-resources { position:relative; }
 .halo-explore .ex-resources > summary { list-style:none; }
 .ex-resources > summary::-webkit-details-marker { display:none; }
-.ex-resource-menu { position:absolute; top:49px; right:0; z-index:20; display:grid; gap:4px; width:280px; max-width:calc(100vw - 52px); max-height:65svh; overflow:auto; padding:10px 14px; border:1px solid var(--halo-border); border-radius:8px; background:var(--halo-card); box-shadow:0 12px 30px rgb(0 0 0 / .12); }
+.ex-resource-menu { position:absolute; top:49px; right:0; z-index:20; display:grid; gap:4px; width:280px; max-width:calc(100vw - 52px); max-height:65svh; overflow:auto; overscroll-behavior:contain; padding:10px 14px; border:1px solid var(--halo-border); border-radius:8px; background:var(--halo-card); box-shadow:0 12px 30px rgb(0 0 0 / .12); }
+.ex-resources:not([open]) > .ex-resource-menu { display:none; }
+.ex-resource-menu > :is(button,a) > svg { flex-shrink:0; }
 .ex-resource-menu > :is(button,a) { display:flex; align-items:center; gap:10px; min-height:48px; width:100%; border:0; padding:10px 0; background:transparent; color:var(--halo-ink); text-align:left; text-decoration:none; font-size:calc(.86rem * var(--halo-text-scale)); }
 .ex-resource-menu > :is(button,a) > :last-child:not(:first-child) { margin-left:auto; }
 .ex-resource-menu .ex-photo-credits { margin:0; }

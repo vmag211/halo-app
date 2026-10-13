@@ -41,14 +41,14 @@ function HomeFactorRecords({ factor, href }: { factor: FactorKey; href: Href }) 
   const kind = factor === 'pfas' ? 'water' : factor;
   const records = (state.collections.tests ?? []) as TestRecord[];
   const matches = records.filter(record => record.kind === kind && record.contextId === 'sample-current-home' && !record.archived);
-  return <details className="halo-expanded-change"><summary>Your records ({matches.length})</summary><p>Your tests are separate from public readings and do not change the score.</p>{matches.map(record => <p key={record.id}><Link href={`${href('home', 'tests')}&homeView=detail&record=${encodeURIComponent(record.id)}&fromFactor=${factor}`}>{record.title}</Link></p>)}<Link className="halo-text-button" href={`${href('home', 'tests')}&homeView=new&fromFactor=${factor}`}>Prepare a {kind} test record</Link></details>;
+  return <details className="halo-expanded-change"><summary>Your records ({matches.length})</summary><p>Your tests are separate from public readings and do not change the score.</p>{matches.map(record => <p key={record.id}><Link className="halo-text-button" href={`${href('home', 'tests')}&homeView=detail&record=${encodeURIComponent(record.id)}&fromFactor=${factor}`}>{record.title}</Link></p>)}<Link className="halo-text-button" href={`${href('home', 'tests')}&homeView=new&fromFactor=${factor}`}>Prepare a {kind} test record</Link></details>;
 }
 
 export function ExpandedDestinationPage({ destination, href, mapHref, environmentAvailable = true }: { destination: string; href: Href; mapHref: (layer: string) => string; environmentAvailable?: boolean }) {
   if (['journal','patterns','recap','outdoors'].includes(destination)) return <MyWeekWorkspace href={href} destination={destination} />;
   if (['community', 'organizations', 'opportunities', 'projects', 'outreach', 'observations'].includes(destination)) return <ExploreWorkspace destination={destination} href={href} mapHref={mapHref} environmentAvailable={environmentAvailable} />;
   if (destination === 'tests' || destination === 'maintenance' || destination === 'food' || destination === 'summary') return <HomeguardWorkspace section={destination} href={href} />;
-  if (!isDestination(destination)) return <section className="halo-expanded-section"><h2>This destination is unavailable</h2><Link href={href('today')}>Return to Today</Link></section>;
+  if (!isDestination(destination)) return <section className="halo-expanded-section"><h2>This destination is unavailable</h2><Link className="halo-text-button" href={href('today')}>Return to Today</Link></section>;
   const page = destinations[destination];
   return <section className="halo-expanded-section" aria-label={page.title}><Link className="halo-text-button" href={href(page.tab)}>Back to {page.tab === 'home' ? 'Homeguard' : page.tab === 'act' ? 'Explore' : 'My Week'}</Link><span className="halo-ph-kicker"></span><h2>{page.title}</h2><p>{page.description}</p><ol className="halo-expanded-outline">{page.steps.map(step => <li key={step}>{step}</li>)}</ol><aside className="halo-expanded-dependency"><strong>Still to build</strong><p>{page.dependency}</p></aside></section>;
 }

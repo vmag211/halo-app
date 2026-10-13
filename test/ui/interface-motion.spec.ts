@@ -116,12 +116,47 @@ test('primary actions get finite hover and keyboard sheen without recoloring del
   await expect(add).toBeFocused();
   await expect(add).toHaveCSS('background-position', '0px 0px');
   await page.goto(`${root}&tab=home&destination=tests`);
+  await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion', 'on');
   const remove = page.getByRole('button', { name: /^Delete / }).first();
   await remove.click();
   const confirm = page.getByRole('button', { name: 'Yes, delete', exact: true });
   await expect(confirm).toBeVisible();
   expect(await confirm.evaluate(node => getComputedStyle(node).backgroundImage)).toBe('none');
   await page.getByRole('button', { name: 'No, keep it', exact: true }).click();
+});
+
+test('pressing a revealing record keeps its delete target still until the click completes', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = Element.prototype.animate;
+    Element.prototype.animate = function (...args) {
+      const animation = original.apply(this, args);
+      if (this.matches('.hg-deletable-record')) {
+        animation.pause();
+        animation.currentTime = 1;
+      }
+      return animation;
+    };
+  });
+  await page.goto(`${root}&tab=home&destination=tests`);
+  await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion', 'on');
+  const row = page.locator('.hg-deletable-record').first();
+  await row.scrollIntoViewIfNeeded();
+  await expect(row).toHaveAttribute('data-interface-entering', 'surface');
+  const remove = row.getByRole('button', { name: /^Delete / });
+  const bounds = await remove.boundingBox();
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await page.mouse.down();
+  const pressedBounds = await remove.boundingBox();
+  // Allow subpixel compositor rounding, never the 22px entrance translation.
+  expect(Math.abs(pressedBounds!.y - bounds!.y)).toBeLessThan(1);
+  expect(pressedBounds!.x).toBe(bounds!.x);
+  expect(pressedBounds!.width).toBe(bounds!.width);
+  expect(pressedBounds!.height).toBe(bounds!.height);
+  await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Yes, delete', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'No, keep it', exact: true }).click();
+  await expect(row).not.toHaveAttribute('data-interface-entering');
+  await expect(remove).toBeVisible();
 });
 
 test('photo-led Explore buttons have matching hover and keyboard focus depth without moving controls', async ({ page }) => {

@@ -20,6 +20,7 @@ const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' 
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
   const search = useSearchParams(); const router = useRouter(); const state = useHomeWorkspace();
   const didOpen = useRef(false);
+  const previousSection = useRef(section);
   const view = /^[a-z][a-z0-9-]{0,45}$/.test(search.get('homeView') ?? '') ? search.get('homeView')! : 'list';
   const recordId = /^[a-zA-Z0-9_-]{1,100}$/.test(search.get('record') ?? '') ? search.get('record')! : undefined;
   const fromFactor = search.get('fromFactor');
@@ -33,13 +34,21 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   };
   useEffect(() => {
     const isFirstOpen = !didOpen.current;
+    const sectionChanged = previousSection.current !== section;
     didOpen.current = true;
+    previousSection.current = section;
     const frame = requestAnimationFrame(() => {
       // Do not steal an early keyboard interaction while the first page hydrates.
       const active = document.activeElement;
       if (isFirstOpen && active instanceof HTMLElement && active.matches('button, a, input, select, textarea, summary')) return;
       const heading = document.querySelector<HTMLElement>('[data-home-heading]');
-      heading?.focus({ preventScroll: true }); (heading?.closest('.hg-intro') ?? heading)?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      heading?.focus({ preventScroll: true });
+      // Keep the workspace switcher and return path in view on entry. Within a
+      // workspace, bring the requested record/editor into view instead.
+      const target = isFirstOpen || sectionChanged
+        ? document.querySelector('.hg-workspace-nav')
+        : heading?.closest('.hg-intro') ?? heading;
+      target?.scrollIntoView({ block: 'start', behavior: 'instant' });
     });
     return () => cancelAnimationFrame(frame);
   }, [section, view, recordId]);

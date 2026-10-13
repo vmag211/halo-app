@@ -85,6 +85,7 @@
 .mw-workspace.mw-dashboard .mw-calendar-options .mw-tools { border:0; border-top:1px solid var(--halo-border); margin:0 13px; padding:0 0 10px; gap:0; }
 .mw-workspace.mw-dashboard .mw-calendar-options .mw-tools > details { border:0; border-bottom:1px solid var(--halo-border); }
 .mw-workspace.mw-dashboard .mw-calendar-options .mw-tools > details:last-child { border-bottom:0; }
+.mw-workspace.mw-dashboard .mw-calendar-options .mw-tools > details > summary { min-height:44px; }
 .mw-workspace.mw-dashboard .mw-calendar-options summary span { font-size:calc(.66rem * var(--halo-text-scale)); text-align:right; }
 .mw-workspace.mw-dashboard .mw-calendar-options :is(p,label) { font-size:calc(.78rem * var(--halo-text-scale)); }
 .mw-workspace.mw-dashboard .mw-calendar-options details[open] { padding-bottom:12px; }

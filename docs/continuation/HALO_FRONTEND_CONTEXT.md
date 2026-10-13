@@ -2,6 +2,8 @@
 
 ## People, purpose, and working style
 
+October 12 wrap-up pass follows the visual iteration below. Read `../foundation/FRONTEND_WRAPUP_AUDIT.md` for the 45-feature crosswalk, concrete layout/accessibility fixes, test scope and unfinished frontend states. The main layouts are built, but populated comparison/history/forecast states, part of Luna's action vocabulary, Learn and several integration-dependent flows are not design-complete. Publication status is in `FRONTEND_WRAPUP_RECEIPT.md`; the prior HOSTED_REVIEW.md working difference was preserved rather than overwritten.
+
 Latest October12 visual iteration broadens the prior ambience pass: five My Week landscapes,30-second visible-time rotation, independently revealed below-fold Homeguard/Explore/deeper sections, contextual household imagery, four differentiated community topic scenes, compact Journal/outdoor art and restrained hover/keyboard feedback. It retains the compact homepage, both themes, typography, task/calendar semantics and all approval/backend boundaries. New household/family artwork is gated away from live StageRuntime. Read `../foundation/VISUAL_MOTION_REVIEW.md`, `../foundation/VISUAL_LIBRARY_ASSETS.md` and the current hosted receipt for exact publication and verification status before continuing.
 
 Yogi is the sole frontend person. Vibhav handles backend work and integration. Older assignment tables and parallel lanes are superseded. Naggi needs concise product information for video/slide preparation, not ownership of frontend tasks.

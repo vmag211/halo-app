@@ -47,7 +47,27 @@ test('sources open the existing full factor guide, rather than an empty learning
  await page.goto(root);await settings(page,'About & help');await page.getByRole('link',{name:'Radon',exact:true}).click();await expect(page).toHaveURL(/\/factor\/radon/);await expect(page.getByRole('heading',{name:'Radon',exact:true}).first()).toBeVisible();
 });
 test('new decorative motion is finite and stops for the app and device reduced-motion preference',async({page})=>{
- await page.emulateMedia({reducedMotion:'no-preference'});await page.goto('/foundation/preview/expanded/?motion=full');await expect(page.locator('.mw-welcome-art')).toBeVisible();const timing=await page.locator('.mw-welcome-art path').first().evaluate(e=>({name:getComputedStyle(e).animationName,count:getComputedStyle(e).animationIterationCount}));expect(timing.name).toBe('hp-line-reveal');expect(timing.count).toBe('1');await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('.mw-welcome-art path').first().evaluate(e=>getComputedStyle(e).animationName)).toBe('none');await page.goto(root);expect(await page.locator('.mw-welcome-art path').first().evaluate(e=>getComputedStyle(e).animationName)).toBe('none');
+ await page.addInitScript(()=>{
+  const state=window as unknown as {haloRevealIterations:number[]};state.haloRevealIterations=[];
+  const original=Element.prototype.animate;
+  Element.prototype.animate=function(...args){
+   if(this.hasAttribute('data-interface-entering'))state.haloRevealIterations.push(typeof args[1]==='object'?args[1]?.iterations??1:1);
+   return original.apply(this,args);
+  };
+ });
+ await page.emulateMedia({reducedMotion:'no-preference'});await page.goto('/foundation/preview/expanded/?motion=full');
+ const iterations=()=>page.evaluate(()=>(window as unknown as {haloRevealIterations:number[]}).haloRevealIterations);
+ await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion','on');
+ await expect.poll(async()=>(await iterations()).length).toBeGreaterThan(0);
+ expect((await iterations()).every(count=>count===1)).toBe(true);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await expect(page.getByTestId('foundation-product')).not.toHaveAttribute('data-interface-motion','on');
+ await expect(page.locator('[data-interface-entering]')).toHaveCount(0);
+ await expect(page.locator('.mw-ambience')).toHaveAttribute('data-moving','false');
+ await page.emulateMedia({reducedMotion:'no-preference'});await page.goto(root);
+ await expect(page.locator('.mw-ambience')).toHaveAttribute('data-moving','false');
+ await expect(page.getByRole('button',{name:'Add task',exact:true})).toBeVisible();
+ expect(await iterations()).toEqual([]);
 });
 for(const appearance of ['light','dark'])test(`polished dashboard/settings/alerts fit ${appearance} mobile and enlarged layouts`,async({page},info)=>{
  for(const [width,scale]of [[375,100],[320,150]]){await page.setViewportSize({width,height:900});await page.goto(`${root}&appearance=${appearance}&scale=${scale}`);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.screenshot({path:info.outputPath(`dashboard-${appearance}-${width}.png`),fullPage:true});await page.getByRole('button',{name:'Settings',exact:true}).click();await page.screenshot({path:info.outputPath(`settings-${appearance}-${width}.png`),fullPage:true});for(const panel of ['Home & household','Alerts & reminders','Display & accessibility','Luna & connections','Privacy & data','About & help']){await page.getByRole('button',{name:new RegExp(`^${panel}`)}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.getByRole('button',{name:'All settings',exact:true}).click();}await page.getByRole('link',{name:'My Week',exact:true}).click();await page.locator('.mw-home-alerts').click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.screenshot({path:info.outputPath(`alerts-${appearance}-${width}.png`)});await page.getByRole('button',{name:'Close sheet',exact:true}).click();}

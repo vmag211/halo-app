@@ -60,6 +60,8 @@ export default function InterfaceMotion() {
     const seen = new WeakSet<Element>();
     const waiting = new Set<HTMLElement>();
     const active = new Map<HTMLElement, Animation>();
+    const pressed = new Set<HTMLElement>();
+    let releaseTimer = 0;
     const pending = new Set<HTMLElement>();
     const canMove = () => !disposed && !document.hidden && !reduce.matches && !contrast.matches;
     const finish = (element: HTMLElement) => {
@@ -188,7 +190,25 @@ export default function InterfaceMotion() {
     };
     const interact = (event: Event) => {
       if (!(event.target instanceof Element) || !event.target.closest(interactive)) return;
-      for (const node of active.keys()) if (node.contains(event.target)) finish(node);
+      for (const node of active.keys()) if (node.contains(event.target) && !pressed.has(node)) finish(node);
+    };
+    const press = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(interactive)) return;
+      // Keep the hit target in the same place from pointerdown through click.
+      // Cancelling a translated entrance here can move a small action out from
+      // under the pointer before pointerup, losing the user's first click.
+      for (const [node, animation] of active) if (node.contains(event.target)) {
+        pressed.add(node);
+        animation.pause();
+      }
+    };
+    const release = () => {
+      window.clearTimeout(releaseTimer);
+      // The native click follows pointerup in this event turn. Settle afterwards.
+      releaseTimer = window.setTimeout(() => {
+        for (const node of pressed) finish(node);
+        pressed.clear();
+      }, 0);
     };
     const preferenceChanged = () => {
       if (!canMove()) {
@@ -208,22 +228,27 @@ export default function InterfaceMotion() {
     mutation.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
     root.addEventListener('toggle', toggle, true);
     root.addEventListener('focusin', interact);
-    root.addEventListener('pointerdown', interact, { passive: true });
+    root.addEventListener('pointerdown', press, { passive: true, capture: true });
+    document.addEventListener('pointerup', release);
+    document.addEventListener('pointercancel', release);
     document.addEventListener('visibilitychange', preferenceChanged);
     reduce.addEventListener('change', preferenceChanged);
     contrast.addEventListener('change', preferenceChanged);
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
+      window.clearTimeout(releaseTimer);
       mutation.disconnect(); intersection.disconnect();
       for (const node of active.keys()) finish(node);
-      waiting.clear(); pending.clear();
+      waiting.clear(); pending.clear(); pressed.clear();
       root.removeAttribute('data-interface-motion');
       root.querySelectorAll('[data-interface-managed]').forEach(node => node.removeAttribute('data-interface-managed'));
       root.querySelectorAll('[data-interface-pending]').forEach(node => node.removeAttribute('data-interface-pending'));
       root.removeEventListener('toggle', toggle, true);
       root.removeEventListener('focusin', interact);
-      root.removeEventListener('pointerdown', interact);
+      root.removeEventListener('pointerdown', press, true);
+      document.removeEventListener('pointerup', release);
+      document.removeEventListener('pointercancel', release);
       document.removeEventListener('visibilitychange', preferenceChanged);
       reduce.removeEventListener('change', preferenceChanged);
       contrast.removeEventListener('change', preferenceChanged);

@@ -64,6 +64,24 @@
 .mw-feedback { border-left:2px solid var(--halo-primary); padding:9px 12px; background:var(--halo-tint); }
 .mw-form { display:grid; gap:14px; min-width:0; text-align:left; font:400 calc(.9rem * var(--halo-text-scale))/1.5 var(--font-instrument),Arial,sans-serif; }
 .mw-form label { display:block; min-width:0; }
+.mw-form label:has(> input[type="checkbox"]) { display:flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; }
+.mw-form label > input[type="checkbox"] { width:20px; height:20px; flex:0 0 20px; margin:0; accent-color:var(--halo-primary); }
+.mw-form .mw-fine { display:flex; justify-content:center; align-items:center; gap:8px; }
+.mw-form .mw-fine svg { flex-shrink:0; }
+/* Secondary workflows retain the same clear action treatment as the main form. */
+.mw-journal > .mw-followup > button,
+.mw-journal > [role="status"] > button,
+.mw-workspace .mw-focus > :is(a,button),
+.mw-form .mw-followup > a {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:44px; max-width:100%; padding:9px 12px; margin:6px 6px 0 0;
+  border:1px solid var(--halo-border); border-radius:8px;
+  background:var(--halo-card); color:var(--halo-primary);
+  font:inherit; text-align:left; text-decoration:none; overflow-wrap:anywhere; cursor:pointer;
+}
+.mw-journal > .mw-followup > button:focus-visible,
+.mw-workspace summary:focus-visible { outline:2px solid var(--halo-primary); outline-offset:3px; }
+.mw-form .mw-followup > a { width:100%; justify-content:flex-start; margin-right:0; }
 .mw-form :is(button:not(.mw-text),.mw-primary) { min-height:44px; cursor:pointer; padding:9px 12px; border:1px solid var(--halo-border); background:var(--halo-card); color:var(--halo-ink); border-radius:7px; font:inherit; }
 .mw-form .mw-primary { background:var(--halo-primary) !important; color:var(--halo-on-primary,#fff) !important; font-weight:650 !important; border:0 !important; }
 .mw-form details label { margin-top:12px; }
