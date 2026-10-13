@@ -40,15 +40,17 @@ for (const mode of ['light', 'dark'] as const) {
 
 test('tabs, Back, settings return, and scroll memory', async ({ page }) => {
   await page.goto('/foundation/preview');
+  // The expanded review now opens My Week; the preserved foundation edition opens Today.
+  const startingTab = await page.locator('.halo-f-tabs a[aria-current="page"]').innerText();
   await page.evaluate(() => window.scrollTo(0, 300));
   await page.getByRole('link', { name: 'Homeguard', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Homeguard', exact: true }).first()).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('link', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: startingTab, exact: true })).toHaveAttribute('aria-current', 'page');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Back to previous page' }).click();
-  await expect(page.getByRole('link', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: startingTab, exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
 test('sheets trap focus, replace instead of stacking, Back closes, scroll and focus restore', async ({ page }) => {
@@ -62,7 +64,8 @@ test('sheets trap focus, replace instead of stacking, Back closes, scroll and fo
   await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
   expect(await page.evaluate(() => !!document.activeElement?.closest('dialog'))).toBeTruthy();
   await expect(page.locator('.halo-f-badge')).toHaveText('3');
-  await page.getByRole('button', { name: 'Read sample alert' }).click();
+  // The full inbox labels the exact message; the original component study has one Read alert control.
+  await page.getByRole('dialog').getByRole('button', { name: /^(Read alert|Mark as read: .+)$/ }).first().click();
   await expect(page.locator('.halo-f-badge')).toHaveText('2');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -164,7 +167,7 @@ for (const width of [320, 430, 900]) {
     test(`enlarged layout ${width} ${scenario}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 850 });
       await page.goto(`/foundation/preview?scenario=${scenario}`);
-      if (scenario !== 'sheet-tall') { await page.getByText('HALO design review', { exact: true }).click(); await page.getByLabel('Text size', { exact: true }).selectOption('150'); }
+      if (scenario !== 'sheet-tall') { await page.locator('.halo-f-review-tools > summary').click(); await page.getByRole('combobox', { name: 'Text size', exact: true }).selectOption('150'); }
       await page.evaluate(() => document.fonts.ready);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
       if (process.env.HALO_CAPTURE_FOUNDATION === '1') {

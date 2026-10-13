@@ -16,6 +16,10 @@ import MapRecordToExplore from '@/components/expanded/MapRecordToExplore';
 import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import MapCanvas, { type MapPoint, type MapView } from './MapCanvas';
 import MapResults from './MapResults';
+import MapComparison from './MapComparison';
+import MapSystemFollow from './MapSystemFollow';
+import { comparisonCases, comparisonRecords, type ComparisonCase } from '@/lib/frontend/map-comparison-preview';
+import { mapComparisonCopy as comparisonCopy } from '@/lib/frontend/copy/map-comparison';
 import MapSymbol from './MapSymbol';
 import { fitRecordView, type MapResult } from '@/lib/frontend/map-tools';
 import { DistrictPanel } from './DistrictPanel';
@@ -26,17 +30,20 @@ import '@/components/foundation/refinement.css';
 import './map-preview.css';
 import '@/components/expanded/interface-refinement.css';
 
-type Sheet = { kind: 'feature'; id: string } | { kind: 'district' | 'legend' | 'results' | 'assistant' | 'about' | 'brief' } | { kind: 'learn'; topic: 'pfas' | 'radon'; id: string } | null;
+type Sheet = { kind: 'feature'; id: string } | { kind: 'compare'; id: string; second?: string } | { kind: 'district' | 'legend' | 'results' | 'assistant' | 'about' | 'brief' } | { kind: 'learn'; topic: 'pfas' | 'radon'; id: string } | null;
 const defaultView: MapView = { lng:-80.40, lat:35.15, zoom:8 };
 let session: { layer: MapLayer; compound: Compound; quarter: string; view: MapView } | undefined;
 const layerIcons = { water:Droplets, radon:Mountain, facilities:Factory, air:Wind };
 
 export default function MapPreview() {
   const workspace=useHomeWorkspace();
+  const homeChanged=Boolean(workspace.collections.homeTransitions?.length);
   const ambient=workspace.drafts['halo-ambient']!==false;
   const savedAppearance=workspace.drafts['halo-appearance'];
   const appliedAppearance=useRef<unknown>(undefined);
   const [scenario,setScenario] = useState<MapScenario>('ready');
+  const [comparisonCase,setComparisonCase] = useState<ComparisonCase>('ready');
+  const [publicMode,setPublicMode] = useState(false);
   const [appearance,setAppearance] = useState('system');
   const [scale,setScale] = useState('100');
   const [motion,setMotion] = useState(false);
@@ -47,41 +54,47 @@ export default function MapPreview() {
     // Browser-only preview URL is read once after hydration; no server state is involved.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (mapScenarios.some(s=>s[0] === p.get('mapScenario'))) setScenario(p.get('mapScenario') as MapScenario);
+    if (comparisonCases.some(s=>s[0] === p.get('comparisonCase'))) setComparisonCase(p.get('comparisonCase') as ComparisonCase);
+    setPublicMode(p.get('access')==='public');
     if (['system','light','dark'].includes(p.get('appearance') ?? '')) setAppearance(p.get('appearance')!);
     if (['100','115','130','150'].includes(p.get('scale') ?? '')) setScale(p.get('scale')!);
     setMotion(p.get('motion') === 'reduce'); setContrast(p.get('contrast') === 'true'); setInitialized(true);
   },[]);
   useEffect(()=>{
     if(!initialized)return;
+    // Synchronize the shared, explicitly saved display preference with this specialist preview.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if(savedAppearance==='system'||savedAppearance==='light'||savedAppearance==='dark')setAppearance(savedAppearance);
     else if(appliedAppearance.current!==undefined)setAppearance('system');
     appliedAppearance.current=savedAppearance;
   },[savedAppearance,initialized]);
   useEffect(()=>{if (!initialized) return; const url=new URL(location.href); url.searchParams.set('appearance',appearance); url.searchParams.set('scale',scale); url.searchParams.set('motion',motion?'reduce':'system'); url.searchParams.set('contrast',String(contrast)); url.searchParams.set('mapScenario',scenario); history.replaceState(history.state,'',url);},[appearance,scale,motion,contrast,scenario,initialized]);
-  function changeScenario(next:MapScenario) { const url=new URL(location.href); ['system','panel','learn','mapSheet'].forEach(k=>url.searchParams.delete(k)); history.replaceState({...history.state,_haloMapSheet:false},'',url); setScenario(next); }
+  useEffect(()=>{if(!initialized)return;const url=new URL(location.href);if(comparisonCase==='ready')url.searchParams.delete('comparisonCase');else url.searchParams.set('comparisonCase',comparisonCase);history.replaceState(history.state,'',url);},[comparisonCase,initialized]);
+  function changeScenario(next:MapScenario) { const url=new URL(location.href); ['system','panel','learn','mapSheet','compare'].forEach(k=>url.searchParams.delete(k)); history.replaceState({...history.state,_haloMapSheet:false},'',url); setScenario(next); }
   return <div className="halo-f-review halo-map-review" data-mode={appearance}>
     <details className="halo-f-review-tools halo-map-review-tools"><summary>Map design review · Not approved</summary>
       <p>Interactive wireframe with sample observations and a fictional household. No live API, location permission, or account writes. Census boundaries are real. This design remains editable and is not frozen.</p>
       <label>Review state<select aria-label="Review state" value={scenario} onChange={e=>changeScenario(e.target.value as MapScenario)}>{mapScenarios.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+      <label>Comparison evidence<select value={comparisonCase} onChange={e=>setComparisonCase(e.target.value as ComparisonCase)}>{comparisonCases.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
       <div className="halo-f-tool-grid"><label>Appearance<select value={appearance} onChange={e=>setAppearance(e.target.value)}><option value="system">Follow device</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Text size<select value={scale} onChange={e=>setScale(e.target.value)}>{['100','115','130','150'].map(n=><option key={n} value={n}>{n}%</option>)}</select></label></div>
       <div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={motion} onChange={e=>setMotion(e.target.checked)}/>Reduce motion</label><label className="halo-f-tool-check"><input type="checkbox" checked={contrast} onChange={e=>setContrast(e.target.checked)}/>Higher contrast</label></div>
       <p>The atlas previews map behavior without paid tiles or a token. The production Mapbox renderer and offline storage will be connected only after design approval. Sample values do not describe these communities.</p>
     </details>
-    <SceneProvider mode={motion?'reduce':'system'} time="live" ambient={ambient}>{initialized&&<MapExperience key={scenario} scenario={scenario} appearance={appearance} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
+    <SceneProvider mode={motion?'reduce':'system'} time="live" ambient={ambient}>{initialized&&<MapExperience key={`${scenario}:${homeChanged}`} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
   </div>;
 }
 
-function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:MapScenario;appearance:string;scale:number;motion:boolean;contrast:boolean}) {
+function MapExperience({scenario,comparisonCase,resetComparisonCase,publicMode,homeChanged,appearance,scale,motion,contrast}:{scenario:MapScenario;comparisonCase:ComparisonCase;resetComparisonCase:()=>void;publicMode:boolean;homeChanged:boolean;appearance:string;scale:number;motion:boolean;contrast:boolean}) {
   const experience=useSceneExperience();
   const router = useRouter();
-  const restoredSession=useRef(session);
+  const restoredSession=useRef(publicMode||homeChanged?undefined:session);
   const [previewLayer,setPreviewLayer]=useHomeDraft<MapLayer>('explore:map-layer','water');
   const [layer,setLayer]=useState<MapLayer>('water'); const [compound,setCompound]=useState<Compound>('overall');
   const [quarter,setQuarter]=useState('latest'); const [draftQuarter,setDraftQuarter]=useState('latest');
   const [pendingQuarter,setPendingQuarter]=useState<string|null>(null); const [view,setView]=useState<MapView>(defaultView);
   const [sheet,setSheet]=useState<Sheet>(null); const [ready,setReady]=useState(false); const [resolved,setResolved]=useState(false);
   const [filtersInitialized,setFiltersInitialized]=useState(false);
-  useEffect(()=>{if(filtersInitialized&&previewLayer!==layer)setPreviewLayer(layer);},[layer,filtersInitialized,previewLayer,setPreviewLayer]);
+  useEffect(()=>{if(!publicMode&&filtersInitialized&&previewLayer!==layer)setPreviewLayer(layer);},[publicMode,layer,filtersInitialized,previewLayer,setPreviewLayer]);
   const [rendererFailed,setRendererFailed]=useState(false); const [visibleCount,setVisibleCount]=useState<number|null>(null);
   const [visibleIds,setVisibleIds]=useState<string[]>([]); const [patterns,setPatterns]=useState(true);
   const [patternMotion,setPatternMotion]=useState(true);
@@ -93,7 +106,7 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
   const ownsSheet=useRef(false); const sheetRef=useRef<Sheet>(null); const mapFocus=useRef<HTMLDivElement>(null);
   const focusMapOnClose=useRef(false);
   const liveRef=useRef({layer,compound,quarter,view});
-  useEffect(()=>{liveRef.current={layer,compound,quarter,view}; session=liveRef.current;},[layer,compound,quarter,view]);
+  useEffect(()=>{liveRef.current={layer,compound,quarter,view}; if(!publicMode&&!homeChanged)session=liveRef.current;},[layer,compound,quarter,view,publicMode,homeChanged]);
   useEffect(()=>{sheetRef.current=sheet;},[sheet]);
   useEffect(()=>{
     if(sheet||!focusMapOnClose.current)return;
@@ -106,7 +119,7 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
   },[sheet]);
   const current=resolved?'ready':scenario;
   const offline=current==='offline'||current==='offline-empty';
-  const hasHome=!['no-location','outside-nc'].includes(current);
+  const hasHome=!publicMode&&!homeChanged&&!['no-location','outside-nc'].includes(current);
   const noSaved=offline&&(current==='offline-empty'||layer!=='water');
   const layerFailed=(current==='layer-error' && layer==='water')||noSaved;
   const blocked=layerFailed||current==='session-required';
@@ -122,13 +135,14 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
     const p=new URLSearchParams(location.search); const next=readMapQuery(p);
     setLayer(next.layer); setCompound(next.compound); setQuarter(next.quarter); setDraftQuarter(next.quarter);
     setPatterns(p.get('presentation')!=='locations');
-    if(p.get('panel')==='district') setSheet({kind:'district'});
+    if(p.get('mapSheet')==='compare') setSheet({kind:'compare',id:p.get('system')??'',second:p.get('compare')??undefined});
+    else if(p.get('panel')==='district') setSheet({kind:'district'});
     else if(p.get('learn')==='pfas'||p.get('learn')==='radon') setSheet({kind:'learn',topic:p.get('learn') as 'pfas'|'radon',id:p.get('system')??''});
     else if(p.has('system')) setSheet({kind:'feature',id:p.get('system')!});
-    else if(['legend','results','assistant','about','brief'].includes(p.get('mapSheet')??'')) setSheet({kind:p.get('mapSheet') as 'legend'|'results'|'assistant'|'about'|'brief'});
+    else if(['legend','results','assistant','about','brief'].includes(p.get('mapSheet')??'')) setSheet({kind:publicMode&&p.get('mapSheet')==='assistant'?'about':p.get('mapSheet') as 'legend'|'results'|'assistant'|'about'|'brief'});
     else setSheet(null);
     ownsSheet.current=!!history.state?._haloMapSheet;
-  },[]);
+  },[publicMode]);
   useEffect(()=>{
     const p=new URLSearchParams(location.search);
     const pendingTimers=timers.current;
@@ -155,16 +169,17 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
     if(nextLayer==='water'){if(nextCompound!=='overall')url.searchParams.set('contaminant',nextCompound);if(nextQuarter!=='latest')url.searchParams.set('quarter',nextQuarter);}return url;
   }
   function openSheet(next:NonNullable<Sheet>) {
-    const url=urlForFilters();['system','panel','learn','mapSheet'].forEach(k=>url.searchParams.delete(k));
+    const url=urlForFilters();['system','panel','learn','mapSheet','compare'].forEach(k=>url.searchParams.delete(k));
     if(next.kind==='feature')url.searchParams.set('system',next.id);
     else if(next.kind==='district')url.searchParams.set('panel','district');
     else if(next.kind==='learn'){url.searchParams.set('learn',next.topic);url.searchParams.set('system',next.id);}
+    else if(next.kind==='compare'){url.searchParams.set('mapSheet','compare');url.searchParams.set('system',next.id);if(next.second)url.searchParams.set('compare',next.second);}
     else url.searchParams.set('mapSheet',next.kind);
     if(sheetRef.current)history.replaceState({...history.state,_haloMapSheet:ownsSheet.current},'',url);
     else{history.pushState({...history.state,_haloMapSheet:true},'',url);ownsSheet.current=true;}
     setSheet(next);setFilter('');
   }
-  function closeSheet(){ if(ownsSheet.current)history.back();else{const url=new URL(location.href);['system','panel','learn','mapSheet'].forEach(k=>url.searchParams.delete(k));history.replaceState(history.state,'',url);setSheet(null);} }
+  function closeSheet(){ if(ownsSheet.current)history.back();else{const url=new URL(location.href);['system','panel','learn','mapSheet','compare'].forEach(k=>url.searchParams.delete(k));history.replaceState(history.state,'',url);setSheet(null);} }
   function setMapLayer(next:MapLayer){if(quarterTimer.current)clearTimeout(quarterTimer.current);if(keyTimer.current)clearTimeout(keyTimer.current);setPendingQuarter(null);setDraftQuarter('latest');setFocusedId(null);setLayer(next);setCompound('overall');setQuarter('latest');setNotice('');history.replaceState(history.state,'',urlForFilters(next,'overall','latest'));setLayerLoading(true);timers.current.push(setTimeout(()=>setLayerLoading(false),300));}
   function setMapCompound(next:Compound){setCompound(next);history.replaceState(history.state,'',urlForFilters(layer,next));}
   function loadQuarter(next:string){if(next===quarter&&!pendingQuarter)return;if(quarterTimer.current)clearTimeout(quarterTimer.current);if(keyTimer.current)clearTimeout(keyTimer.current);if(offline && next!=='latest' && next!=='2025Q4'){setDraftQuarter(quarter);setNotice('This quarter is not saved. Reconnect to load it.');return;}
@@ -192,21 +207,21 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
     setNotice(`Focused on ${id==='home'?'your approximate home':points.find(p=>p.id===id)?.name}. Use Previous view to return.`);
   }
   const factorHref=(factor:string)=>`/foundation/preview/factor/${factor}?edition=expanded&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}`;
-  const foundationHref=(tab:string)=>`/foundation/preview?edition=expanded&tab=${tab}&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}`;
+  const foundationHref=(tab:string)=>`/foundation/preview${publicMode?'/expanded/':''}?edition=expanded&tab=${tab}&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}${publicMode?'&access=public':''}`;
   const counts=compound==='overall'?`${water.filter(w=>Object.values(w.contaminants).some(c=>(c.ratio??0)>1)).length} of ${water.length} systems exceed a supplied limit` : compound==='hazard'?`${water.filter(w=>w.hazard_index?.exceeds).length} systems exceed the supplied hazard index` : `${water.filter(w=>(w.contaminants[compoundKey[compound]]?.ratio??0)>1).length} of ${water.filter(w=>w.contaminants[compoundKey[compound]]?.value_ppt!==undefined).length} recorded systems exceed the ${compounds.find(c=>c[0]===compound)?.[1]} limit`;
   const districtVariant= offline||current==='district-error'?'error':current==='district-geography'?'geography-error':current==='district-zero'?'zero':current==='population-missing'?'population-missing':current==='population-partial'?'population-partial':current==='comparison-missing'?'comparison-missing':'full';
   const activeWater=sheet && 'id' in sheet ? visibleWater.find(w=>w.pwsid===sheet.id):undefined;
-  const selectedTitle=sheet?.kind==='feature' ? sheet.id==='home'?'Your home':activeWater?.name??points.find(p=>p.id===sheet.id)?.name??'Location details' : sheet?.kind==='district'?'The NC-08 picture':sheet?.kind==='legend'?'Understanding the map':sheet?.kind==='results'?'Locations and readings':sheet?.kind==='learn'?(sheet.topic==='pfas'?'Understanding water results':'Understanding radon zones'):'About this map';
+  const selectedTitle=sheet?.kind==='compare'?comparisonCopy.title:sheet?.kind==='feature' ? sheet.id==='home'?'Your home':activeWater?.name??points.find(p=>p.id===sheet.id)?.name??'Location details' : sheet?.kind==='district'?'The NC-08 picture':sheet?.kind==='legend'?'Understanding the map':sheet?.kind==='results'?'Locations and readings':sheet?.kind==='learn'?(sheet.topic==='pfas'?'Understanding water results':'Understanding radon zones'):'About this map';
   const banner=hasHome&&current!=='unranked'&&current!=='district-error' ? layer==='water'?'Union County ranks 34th of 96 ranked counties':layer==='radon'?`Union County is Zone ${radonPoints.find(p=>p.id==='Union County')?.zone??3}`:layer==='air'?`Nearest monitor: ${Math.min(...airStations.map(a=>Number(milesFromHome(a.lat,a.lng)))).toFixed(1)} miles`:`${facilities.filter(f=>Number(milesFromHome(f.lat,f.lng))<=10&&f.open_violations>0).length} facilities within 10 miles report open programs in violation`:null;
   const countN=layer==='water'?water.length:points.length;
   const inView=blocked||loading||current==='empty'?[]:points.filter(p=>visibleIds.includes(p.id));
   const results:MapResult[]=layer==='water'?visibleWater.map(w=>({id:w.pwsid,name:w.name,severity:waterSeverity(w,compound),reading:`${waterMapReading(w,compound)} · ${readingDate(waterSampleDate(w,compound))}`,sub:w.lat===null||w.lng===null?'No mapped location':w.pwsid===sampleHome.pwsid&&hasHome?'Your water system':'Service-area center',lat:w.lat,lng:w.lng})):points.map(p=>({id:p.id,name:p.name,severity:p.severity,reading:layer==='air'?`${airStations.find(a=>a.id===p.id)?.aqi ?? 'Unknown'} AQI · ${observationTime(airStations.find(a=>a.id===p.id)?.last_reading_at)}`:layer==='facilities'?`Last inspection: ${readingDate(facilities.find(f=>f.id===p.id)?.last_inspection)}`:'Regional potential, not a home reading',sub:layer==='radon'?`Zone ${p.zone}`:layer==='air'?'Monitoring station':'Selected facility',lat:p.lat,lng:p.lng}));
   return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-refined="true" data-wide="true" data-motion={motion?'reduce':'system'} data-animate={experience.enabled} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
     <InterfaceMotion />
-    <header className="halo-map-header"><div className="halo-map-header-left"><Link className="halo-f-icon" aria-label="Back to Explore" href={foundationHref('act')} prefetch={false}><ArrowLeft size={21}/></Link>{!sheet&&<button className="halo-map-luna" aria-label="Open Luna" onClick={()=>openSheet({kind:'assistant'})}><LunaMark size={25}/></button>}</div><div><h1>Map</h1><p>Within Explore</p></div><div className="halo-map-header-tools"><button className="halo-f-icon" aria-label="About this map" onClick={()=>openSheet({kind:'about'})}><Info size={21}/></button><Link href={foundationHref('settings')} className="halo-f-icon" aria-label="Settings" prefetch={false}><Settings size={21}/></Link></div></header>
+    <header className="halo-map-header"><div className="halo-map-header-left"><Link className="halo-f-icon" aria-label={publicMode?comparisonCopy.publicBack:'Back to Explore'} href={foundationHref(publicMode?'plan':'act')} prefetch={false}><ArrowLeft size={21}/></Link>{!sheet&&!publicMode&&<button className="halo-map-luna" aria-label="Open Luna" onClick={()=>openSheet({kind:'assistant'})}><LunaMark size={25}/></button>}</div><div><h1>Map</h1><p>{publicMode?comparisonCopy.publicMap:'Within Explore'}</p></div><div className="halo-map-header-tools"><button className="halo-f-icon" aria-label="About this map" onClick={()=>openSheet({kind:'about'})}><Info size={21}/></button><Link href={foundationHref('settings')} className="halo-f-icon" aria-label="Settings" prefetch={false}><Settings size={21}/></Link></div></header>
     {offline&&<div className="halo-map-offline" role="status"><WifiOff size={16}/><span>{noSaved?'This layer is not saved on this device.':'Showing saved map data from Oct 1, 2026.'}</span>{<button onClick={retry}>Try again</button>}</div>}
     <main aria-label="Environmental map" className="halo-map-main">
-      {mapFailed?<div className="halo-map-fallback"><Callout tone="notice"><p>The map couldn’t load on this device. The district summary is still available.</p></Callout><DistrictPanel variant={districtVariant} onRetry={retry}/><Button variant="secondary" onClick={retry}>Try the map again</Button></div>:
+      {mapFailed?<div className="halo-map-fallback"><Callout tone="notice"><p>The map couldn’t load on this device. The district summary is still available.</p></Callout><Button variant="secondary" onClick={()=>openSheet({kind:'results'})}>{comparisonCopy.browse}</Button><DistrictPanel variant={districtVariant} onRetry={retry}/><Button variant="secondary" onClick={retry}>Try the map again</Button></div>:
       <div className="halo-map-stage" data-layer={layer} data-timeline={layer==='water'&&current!=='single-quarter'}>
         <div className="halo-map-top">
           <div className="halo-map-layers" role="radiogroup" aria-label="Map layer">{mapLayers.map((key,index)=>{const Icon=layerIcons[key];return <button key={key} role="radio" aria-checked={layer===key} tabIndex={layer===key?0:-1} onClick={()=>setMapLayer(key)} onKeyDown={e=>{const direction=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(direction){e.preventDefault();const n=(index+direction+4)%4;setMapLayer(mapLayers[n]);e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button')[n].focus();}}}><Icon size={18}/><span>{key[0].toUpperCase()+key.slice(1)}</span></button>;})}</div>
@@ -238,28 +253,31 @@ function MapExperience({scenario,appearance,scale,motion,contrast}:{scenario:Map
     </main>
     <AppNavigation active="act" href={foundationHref} />
     {sheet?.kind==='assistant'?<ExpandedLunaPreview context={`${layer[0].toUpperCase()+layer.slice(1)} map`} onClose={closeSheet} offline={offline} environmentAvailable={!blocked&&hasHome} go={(tab,destination,view='list',id)=>{
-      const url=new URL(location.href); ['mapSheet','learn','system','panel'].forEach(key=>url.searchParams.delete(key)); history.replaceState({...history.state,_haloMapSheet:false},'',url); ownsSheet.current=false; setSheet(null);
+      const url=new URL(location.href); ['mapSheet','learn','system','panel','compare'].forEach(key=>url.searchParams.delete(key)); history.replaceState({...history.state,_haloMapSheet:false},'',url); ownsSheet.current=false; setSheet(null);
       if(tab==='map'){if(destination&&['water','air','radon','facilities'].includes(destination))setMapLayer(destination as MapLayer);return;}
       if(!['today','home','act','plan','settings'].includes(tab))return;
       const next=new URL(foundationHref(tab),location.origin);if(destination)next.searchParams.set('destination',destination);if(view!=='list')next.searchParams.set(tab==='home'?'homeView':'exploreView',view);if(id)next.searchParams.set(tab==='home'?'record':'exploreRecord',id);router.push(next.pathname+next.search);
     }}/>:sheet&&<BottomSheet id="halo-map-sheet" title={sheet.kind==='brief'?'Your area at a glance':selectedTitle} height={sheet.kind==='feature'?'content':'standard'} onClose={closeSheet}>
       {sheet.kind==='brief'&&(blocked||loading?<p>{loading?'Loading this layer’s area brief.':'Load this layer to see its area brief.'}</p>:<AreaBrief points={inView} allPoints={points} layer={layer} compound={compound} quarter={quarter} water={water} hasHome={hasHome} banner={banner} onSelect={id=>openSheet({kind:'feature',id})}/>)}
       {sheet.kind==='district'&&<>{offline&&<Callout tone="notice"><p>No district summary is saved. Reconnect to load it.</p></Callout>}<DistrictPanel variant={districtVariant} onRetry={offline?undefined:retry} onCountySelect={name=>{const point=radonPoints.find(p=>p.id===name);if(!point)return;setLayer('radon');setCompound('overall');setQuarter('latest');changeView({lat:point.lat,lng:point.lng,zoom:8});const url=urlForFilters('radon','overall','latest');url.searchParams.delete('panel');url.searchParams.set('system',name);history.replaceState(history.state,'',url);setSheet({kind:'feature',id:name});}}/></>}
-      {sheet.kind==='legend'&&<><div className="halo-map-legend-intro"><h3>{patterns?'Patterns with context':'Every record has a place'}</h3><p>{layer==='air'?'Contours show monitor density, not AQI between stations. Monitors count equally; their symbols retain actual station readings.':layer==='radon'?'Shaded counties use the source radon zones. No household measurements are inferred.':'Soft contours count over-limit water systems or facilities with reported violations. They are not contamination spreading, service areas or exposure. Symbols retain their individual reported categories.'}</p><p>Texture motion is decorative, not wind, pollution movement or a changing reading. Pause it or switch to Locations for a static view.</p></div><Legend layer={layer} compound={compound} assembled={assembledAt}/></>}
-      {sheet.kind==='about'&&<div className="halo-map-detail"><h3>One place, four kinds of evidence.</h3><p>Water shows system-level samples. Radon shows county potential. Facilities show selected compliance records. Air shows monitoring stations, not a reading at every address.</p><p>Your home pin is approximate. Layer changes keep the same map position. Use the list for a keyboard-accessible alternative.</p><p>Quarter views contain only systems with a sample in that quarter. A missing marker does not mean there was no testing or no concern. Patterns do not show contamination spreading.</p><p>District lines use the 119th Congress, 2023 map. The view does not claim to use the 2026 election boundaries.</p><a href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html" target="_blank" rel="noreferrer">U.S. Census boundary source</a><button onClick={()=>openSheet({kind:'results'})}>Browse locations as a list</button></div>}
+      {sheet.kind==='legend'&&<><div className="halo-map-legend-intro"><h3>{patterns?'Patterns with context':'Every record has a place'}</h3><p>{layer==='air'?'Contours show monitor density, not AQI between stations. Monitors count equally; their symbols retain actual station readings.':layer==='radon'?'Shaded counties use the source radon zones. No household measurements are inferred.':'Soft contours count over-limit water systems or facilities with reported violations. They are not contamination spreading, service areas or exposure. Symbols retain their individual reported categories.'}</p><p>Texture motion is decorative, not wind, pollution movement or a changing reading. Pause it or switch to Locations for a static view.</p></div><Legend layer={layer} compound={compound} assembled={assembledAt} hasHome={hasHome}/></>}
+      {sheet.kind==='about'&&<div className="halo-map-detail"><h3>One place, four kinds of evidence.</h3><p>Water shows system-level samples. Radon shows county potential. Facilities show selected compliance records. Air shows monitoring stations, not a reading at every address.</p><p>{hasHome?'Your home pin is approximate. ':''}Layer changes keep the same map position. Use the list for a keyboard-accessible alternative.</p><p>Quarter views contain only systems with a sample in that quarter. A missing marker does not mean there was no testing or no concern. Patterns do not show contamination spreading.</p><p>District lines use the 119th Congress, 2023 map. The view does not claim to use the 2026 election boundaries.</p><a href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html" target="_blank" rel="noreferrer">U.S. Census boundary source</a><button onClick={()=>openSheet({kind:'results'})}>Browse locations as a list</button></div>}
       {sheet.kind==='results'&&<MapResults records={results} layer={layer} visibleIds={current==='empty'?[]:visibleIds} home={hasHome?sampleHome:null} query={filter} onQuery={setFilter} onSelect={id=>openSheet({kind:'feature',id})} blocked={blocked} loading={loading}/>}
+      {sheet.kind==='compare'&&<MapComparison records={comparisonRecords(layer,visibleWater)} firstId={sheet.id} secondId={sheet.second} compound={compound} latest={quarter==='latest'} scenario={current==='comparison-missing'?'error':comparisonCase} blocked={blocked} offline={offline} loading={loading} onSelect={(id,second)=>openSheet({kind:'compare',id,second})} onCompound={setMapCompound} onBack={()=>openSheet({kind:'feature',id:sheet.id})} onClear={closeSheet} onRetry={()=>{resetComparisonCase();retry();}}/>}
+      {sheet.kind==='feature'&&!publicMode&&!blocked&&!loading&&layer==='water'&&activeWater&&<MapSystemFollow id={activeWater.pwsid} name={activeWater.name} offline={offline}/>}
       {sheet.kind==='feature'&&(blocked?<Callout tone="notice"><p>No readings are available for this location in the current state.</p><p>{offline?'Reconnect to load this layer.':'Load the layer before opening its readings.'}</p>{!offline&&<Button variant="secondary" onClick={retry}>Try again</Button>}</Callout>:loading?<p role="status">Loading location details.</p>:<FeatureDetails id={sheet.id} layer={layer} compound={compound} water={activeWater} hasHome={hasHome} onLearn={topic=>openSheet({kind:'learn',topic,id:sheet.id})} todayHref={foundationHref('today')}/>)}
+      {sheet.kind==='feature'&&!blocked&&!loading&&sheet.id!=='home'&&<div className="halo-map-focus-record">{layer==='water'||layer==='air'?<button onClick={()=>openSheet({kind:'compare',id:sheet.id})}>{comparisonCopy.entry}</button>:<p>{comparisonCopy.unsupported}</p>}</div>}
       {sheet.kind==='feature'&&!blocked&&!loading&&<div className="halo-map-focus-record"><button disabled={mapFailed||!ready||!(points.some(p=>p.id===sheet.id)||sheet.id==='home'&&hasHome)} onClick={()=>focusRecord(sheet.id)}><LocateFixed size={18}/>Focus on map</button>{!points.some(p=>p.id===sheet.id)&&sheet.id!=='home'&&<p>No mapped location is available for this record. You can still read its evidence and prepare a question.</p>}</div>}
-      {sheet.kind==='feature'&&!blocked&&!loading&&sheet.id!=='home'&&<MapRecordToExplore href={foundationHref('act')+'&destination=observations&exploreView=new'} evidence={{recordId:sheet.id,title:selectedTitle,layer,observedAt:layer==='water'?activeWater?.latest_sample_iso??null:layer==='air'?airStations.find(item=>item.id===sheet.id)?.last_reading_at??null:layer==='facilities'?facilities.find(item=>item.id===sheet.id)?.last_inspection??null:null,scope:layer==='water'?'Public-system sample context, not a tap test.':layer==='radon'?'County potential, not a home measurement.':layer==='air'?'Monitor observation, not personal exposure.':'Public facility record, not a household exposure finding.'}}/>}
-      {sheet.kind==='learn'&&<MapLearn topic={sheet.topic} water={blocked||loading?undefined:activeWater} compound={compound} county={sheet.id} onBack={()=>openSheet({kind:'feature',id:sheet.id})} href={factorHref(sheet.topic)}/>}
+      {sheet.kind==='feature'&&!publicMode&&!blocked&&!loading&&sheet.id!=='home'&&<MapRecordToExplore href={foundationHref('act')+'&destination=observations&exploreView=new'} evidence={{recordId:sheet.id,title:selectedTitle,layer,observedAt:layer==='water'?activeWater?.latest_sample_iso??null:layer==='air'?airStations.find(item=>item.id===sheet.id)?.last_reading_at??null:layer==='facilities'?facilities.find(item=>item.id===sheet.id)?.last_inspection??null:null,scope:layer==='water'?'Public-system sample context, not a tap test.':layer==='radon'?'County potential, not a home measurement.':layer==='air'?'Monitor observation, not personal exposure.':'Public facility record, not a household exposure finding.'}}/>}
+      {sheet.kind==='learn'&&<MapLearn topic={sheet.topic} water={blocked||loading?undefined:activeWater} compound={compound} county={sheet.id} onBack={()=>openSheet({kind:'feature',id:sheet.id})} href={publicMode?undefined:factorHref(sheet.topic)}/>}
     </BottomSheet>}
   </div>;
 }
 
-function Legend({layer,compound,assembled}:{layer:MapLayer;compound:Compound;assembled:string}) {
+function Legend({layer,compound,assembled,hasHome}:{layer:MapLayer;compound:Compound;assembled:string;hasHome:boolean}) {
   const levels=layer==='radon'?[['high','Zone 1 · Highest potential'],['elevated','Zone 2 · Moderate potential'],['good','Zone 3 · Lowest potential']]:layer==='facilities'?[['good','No violation reported'],['elevated','Violation'],['high','Significant violation'],['no_data','Unknown']]:[['good','Good'],['moderate','Moderate'],['elevated','Elevated'],['high','High'],['severe','Severe'],['no_data',layer==='water'?'No detection reported':'No data']];
   return <div className="halo-map-detail"><ul className="halo-map-legend-list">{levels.map(([level,label])=><li key={level}><MapSymbol layer={layer} severity={level}/><span>{label}</span></li>)}</ul>
-    {layer==='water'&&<><p>Water-symbol size represents people served, not the amount of contamination. Unknown population uses a small marker. The outlined water symbol is your water system. Its location is the service-area center, not your tap. An exclamation marks an over-limit result; a slash marks an unavailable comparison.</p><p>No detection reported does not establish whether a system was tested. The supplied dataset retains detections, so comparison counts are not complete testing coverage.</p><p>Detected, no comparison limit: a neutral marker can also mean a reported compound cannot be scored against the supplied limits.</p>{compound!=='overall'&&compound!=='hazard'&&<p>Supplied comparison limit: {['pfoa','pfos'].includes(compound)?4:10} ppt.</p>}{['pfhxs','pfna','genx','hazard'].includes(compound)&&<Callout tone="caution"><p>Supplied comparisons are not a determination of current regulation.</p></Callout>}<p>The count line describes the whole returned statewide dataset, not only the map viewport or NC-08.</p></>}
+    {layer==='water'&&<><p>Water-symbol size represents people served, not the amount of contamination. Unknown population uses a small marker. {hasHome?'The outlined water symbol is your water system. ':''} Its location is the service-area center, not your tap. An exclamation marks an over-limit result; a slash marks an unavailable comparison.</p><p>No detection reported does not establish whether a system was tested. The supplied dataset retains detections, so comparison counts are not complete testing coverage.</p><p>Detected, no comparison limit: a neutral marker can also mean a reported compound cannot be scored against the supplied limits.</p>{compound!=='overall'&&compound!=='hazard'&&<p>Supplied comparison limit: {['pfoa','pfos'].includes(compound)?4:10} ppt.</p>}{['pfhxs','pfna','genx','hazard'].includes(compound)&&<Callout tone="caution"><p>Supplied comparisons are not a determination of current regulation.</p></Callout>}<p>The count line describes the whole returned statewide dataset, not only the map viewport or NC-08.</p></>}
     {layer==='facilities'&&<><p>Shows major facilities and repeat violators in NC-08, not every regulated site.</p><p>Numbered groups expand as you zoom in. A compliance record is not a measurement of exposure at your home.</p></>}
     {layer==='air'&&<p>Wind symbols mark monitoring stations, not wind speed or direction. Latest hourly readings are observations at those stations, not a continuous air-quality surface.</p>}
     {layer==='radon'&&<p>County zones describe regional potential, not a test of your home. County fills remain translucent so boundaries stay readable.</p>}
@@ -278,8 +296,8 @@ function FeatureDetails({id,layer,compound,water,hasHome,onLearn,todayHref}:{id:
   const station=airStations.find(a=>a.id===id);if(!station)return null;return <div className="halo-map-detail"><SeverityPill severity={station.severity}/><div className="halo-map-reading"><strong>{station.aqi}</strong><span>Air Quality Index</span></div><dl><div><dt>Dominant pollutant</dt><dd>{station.dominant_pollutant}</dd></div>{hasHome&&<div><dt>Distance from my home</dt><dd>{milesFromHome(station.lat,station.lng)} miles</dd></div>}<div><dt>Observation time</dt><dd>{observationTime(station.last_reading_at)}</dd></div><div><dt>Agency</dt><dd>{station.agency.startsWith('Sample ') ? 'Not verified' : station.agency}</dd></div></dl><p>This reading describes the monitor, not a personal exposure measurement.</p><a href="https://www.airnow.gov/" target="_blank" rel="noreferrer">About AirNow observations</a></div>;
 }
 
-function MapLearn({topic,water,compound,county,onBack,href}:{topic:'pfas'|'radon';water?:WaterFeature;compound:Compound;county:string;onBack:()=>void;href:string}) {
+function MapLearn({topic,water,compound,county,onBack,href}:{topic:'pfas'|'radon';water?:WaterFeature;compound:Compound;county:string;onBack:()=>void;href?:string}) {
   const preferred=compound!=='overall'&&compound!=='hazard'?compoundKey[compound]:null;
   const reading=water?Object.entries(water.contaminants).filter(([,r])=>r.value_ppt!==undefined).sort((a,b)=>((b[0]===preferred?1000:0)+(b[1].ratio??0))-((a[0]===preferred?1000:0)+(a[1].ratio??0)))[0]:undefined;
-  return <div className="halo-map-detail"><button className="halo-map-back" onClick={onBack}><ArrowLeft size={17}/>Back to location</button><p className="halo-map-learning-context">{topic==='pfas'?reading?`${water?.name}: ${reading[0]} ${reading[1].value_ppt} ppt, sampled ${readingDate(reading[1].date_iso)}`:'General explanation. No reading is available for this system.':`${county} · County potential, not a home measurement`}</p><h3>{topic==='pfas'?'Start with the sample, not the marker.':'Regional context is only a starting point.'}</h3><p>{topic==='pfas'?'The location represents a water system’s service-area center. Compare each reported compound with its supplied limit and sample date. Different dates and incomplete reporting can limit comparisons between systems.':'A county zone is a broad estimate. Homes in the same county can have different indoor conditions, so the county color cannot replace testing.'}</p><details><summary>What this information cannot tell you</summary><p>{topic==='pfas'?'It cannot confirm the concentration at your tap, prove personal exposure, or establish that a missing result means no contamination.':'It cannot tell you the radon level in a specific room or building, or show whether a previous mitigation system is working.'}</p></details><h3>A useful next step</h3><p>{topic==='pfas'?'Review the source dates and utility information. For an untested private supply, use the testing guidance in Homeguard rather than a nearby utility’s result.':'Use Homeguard to understand the difference between regional potential and household testing.'}</p><Link href={href} prefetch={false}>Explore the {topic==='pfas'?'water':'radon'} guide</Link><a href={topic==='pfas'?'https://www.epa.gov/pfas':'https://www.epa.gov/radon'} target="_blank" rel="noreferrer">EPA background information</a></div>;
+  return <div className="halo-map-detail"><button className="halo-map-back" onClick={onBack}><ArrowLeft size={17}/>Back to location</button><p className="halo-map-learning-context">{topic==='pfas'?reading?`${water?.name}: ${reading[0]} ${reading[1].value_ppt} ppt, sampled ${readingDate(reading[1].date_iso)}`:'General explanation. No reading is available for this system.':`${county} · County potential, not a home measurement`}</p><h3>{topic==='pfas'?'Start with the sample, not the marker.':'Regional context is only a starting point.'}</h3><p>{topic==='pfas'?'The location represents a water system’s service-area center. Compare each reported compound with its supplied limit and sample date. Different dates and incomplete reporting can limit comparisons between systems.':'A county zone is a broad estimate. Homes in the same county can have different indoor conditions, so the county color cannot replace testing.'}</p><details><summary>What this information cannot tell you</summary><p>{topic==='pfas'?'It cannot confirm the concentration at your tap, prove personal exposure, or establish that a missing result means no contamination.':'It cannot tell you the radon level in a specific room or building, or show whether a previous mitigation system is working.'}</p></details><h3>A useful next step</h3><p>{topic==='pfas'?'Review the source dates and utility information. For an untested private supply, use the testing guidance in Homeguard rather than a nearby utility’s result.':'Use Homeguard to understand the difference between regional potential and household testing.'}</p>{href&&<Link href={href} prefetch={false}>Explore the {topic==='pfas'?'water':'radon'} guide</Link>}<a href={topic==='pfas'?'https://www.epa.gov/pfas':'https://www.epa.gov/radon'} target="_blank" rel="noreferrer">EPA background information</a></div>;
 }

@@ -12,13 +12,13 @@ test('house residents follow selections, navigate separately, and retain review 
   await page.goto('/foundation/preview/?tab=home&appearance=dark&motion=reduce');
   await expect(page.locator('.halo-home-person')).toHaveCount(4);
   await expect(page.locator('.halo-home-household')).toBeVisible();
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   const picker = page.getByRole('group', { name: 'Homeguard sample household' });
   await picker.getByRole('checkbox', { name: 'Adults', exact: true }).check();
   await picker.getByRole('checkbox', { name: 'Older adults', exact: true }).uncheck();
   await expect(page.locator('.halo-home-person[data-member="adult"]')).toBeVisible();
   await expect(page.locator('.halo-home-person[data-member="senior"]')).toHaveCount(0);
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   await page.getByRole('link', { name: 'Home guidance for pregnancy', exact: true }).click();
   await expect(page).toHaveURL(/household\/pregnant/);
   await expect(page.locator('.halo-home-member')).toHaveAttribute('data-member', 'pregnant');
@@ -54,7 +54,7 @@ for (const appearance of ['light', 'dark']) test(`house and compact cards fit ${
   await page.goto(`/foundation/preview/?tab=home&appearance=${appearance}&motion=reduce&scale=150`);
   await expect(page.locator('.halo-home-person')).toHaveCount(4);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   const picker = page.getByRole('group', { name: 'Homeguard sample household' });
   for (const input of await picker.getByRole('checkbox').all()) await input.check();
   await expect(page.locator('.halo-home-person')).toHaveCount(7);
@@ -75,11 +75,13 @@ for (const appearance of ['light', 'dark']) test(`house and compact cards fit ${
 });
 
 test('settings selections update the house without changing environmental scores', async ({ page }) => {
-  await page.goto('/foundation/preview/?tab=home&appearance=dark&motion=reduce');
+  await page.goto('/foundation/preview/?edition=expanded&tab=home&appearance=dark&motion=reduce');
   await expect(page.locator('.halo-home-person')).toHaveCount(4);
   const before = await page.locator('.halo-ph-ring-center').innerText();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Teens', exact: true }).click();
+  await page.getByRole('button', { name: /^Home & household/ }).click();
+  await page.locator('.halo-settings').getByRole('checkbox', { name: 'Teens', exact: true }).check();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await page.getByRole('link', { name: 'Homeguard', exact: true }).click();
   await expect(page.locator('.halo-home-person[data-member="teen"]')).toBeVisible();
   await expect(page.locator('.halo-ph-ring-center')).toHaveText(before, { useInnerText: true });

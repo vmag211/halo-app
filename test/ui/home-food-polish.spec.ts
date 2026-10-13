@@ -54,7 +54,7 @@ test('changing a waterbody search cannot leave stale advisory matches', async ({
   await page.goto(root + '&homeView=fish');
   await page.getByLabel('Lake or river').selectOption('demo-willow-lake');
   await page.getByRole('combobox', { name: 'Species', exact: true }).selectOption('Largemouth bass');
-  await expect(page.getByRole('heading', { name: 'More than one advisory applies' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Related advisory references' })).toBeVisible();
   await page.getByLabel('Search a waterbody', { exact: false }).fill('not-a-waterbody');
   await expect(page.getByLabel('Lake or river')).toHaveValue('');
   await expect(page.getByRole('heading', { name: 'Choose a waterbody and species.' })).toBeVisible();
@@ -74,7 +74,7 @@ test('sharing a public food reference copies and downloads the same scoped paylo
   const downloaded = await readFile((await download.path())!, 'utf8');
   // Windows normalizes clipboard line endings; the exported content must otherwise match.
   expect(downloaded.replace(/\r\n/g, '\n')).toBe(copied.replace(/\r\n/g, '\n'));
-  expect(JSON.parse(downloaded)).toMatchObject({ title: 'Willow Lake, north basin', version: 2, record: { id: 'demo-local-fish' } });
+  expect(JSON.parse(downloaded)).toEqual({ sourceStatus: 'unverified', title: 'Willow Lake, north basin', version: 2, record: { sourceAvailable: false } });
 });
 
 test('moving a food opens its new kitchen section and keeps delete near the record heading', async ({ page }) => {
@@ -99,7 +99,7 @@ test('usage deletion is confirmed and failed deletes remain visible inside the d
   await deleteButton.click();
   const dialog = page.getByRole('dialog', { name: 'Delete this usage record?' });
   await dialog.getByRole('button', { name: 'Yes, delete', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toContainText('failed');
+  await expect(dialog.getByRole('alert')).toContainText('Could not save. Your draft is kept.');
   await dialog.getByRole('button', { name: 'No, keep it', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'August water bill', exact: true })).toBeVisible();
   await page.getByLabel('Homeguard workspace state').selectOption('ready');
@@ -123,13 +123,13 @@ test('deleting a private food question keeps the source and clears only the save
   await page.goto(root + '&homeView=evidence-detail&record=demo-notice');
   await page.getByLabel('Question for the issuer or producer').fill('Does this example cover the lot on my label?');
   await page.getByRole('button', { name: 'Save private question', exact: true }).click();
-  await expect(page.getByText('Question saved in this review session.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Question saved.', { exact: true })).toBeVisible();
   const remove = page.getByRole('button', { name: 'Delete private question', exact: true });
   await expect(remove.locator('svg.lucide-trash-2')).toHaveCount(1);
   await remove.click();
   await page.getByRole('dialog', { name: 'Delete this question?' }).getByRole('button', { name: 'Yes, delete', exact: true }).click();
   await expect(page.getByLabel('Question for the issuer or producer')).toHaveValue('');
-  await expect(page.getByRole('heading', { name: 'Example packaged-food notice', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Packaged-food notice reference', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save reference', exact: true })).toBeEnabled();
 });
 

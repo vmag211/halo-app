@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 
 test('live lighting crosses dawn in dark appearance without reloading', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-09-30T07:59:40-04:00') });
-  await page.goto('/foundation/preview?appearance=dark&time=live');
+  await page.goto('/foundation/preview?tab=today&appearance=dark&time=live');
   const scene = page.locator('.halo-ph-landscape .halo-env');
   await expect(scene).toHaveAttribute('data-phase', 'dawn');
   await page.clock.fastForward(31_000);
@@ -20,19 +20,20 @@ test('live lighting crosses dawn in dark appearance without reloading', async ({
 });
 
 test('day and night override stays independent of appearance and persists through routes', async ({ page }) => {
-  await page.goto('/foundation/preview?appearance=light&time=night');
+  await page.goto('/foundation/preview?tab=today&appearance=light&time=night');
   await expect(page.locator('.halo-ph-landscape .halo-env')).toHaveAttribute('data-phase', 'night');
   await expect(page.locator('.halo-env__moon')).toHaveCSS('opacity', '1');
   await page.getByTestId('factor-scorecard').filter({ hasText: 'Mold' }).click();
   await expect(page).toHaveURL(/time=night/);
   await expect(page.locator('.halo-ph-factor-hero .halo-env')).toHaveAttribute('data-phase', 'night');
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   await page.getByLabel('Scene lighting', { exact: true }).selectOption('day');
   await expect(page.locator('.halo-ph-factor-hero .halo-env')).toHaveAttribute('data-phase', 'day');
   await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode', 'light');
 });
 
-test('full motion overrides device reduction, camera and spores move, pause freezes them', async ({ page }) => {
+test('full motion moves camera and spores when the device allows it, and pause freezes them', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/foundation/preview/factor/mold?motion=full&time=day');
   const scene = page.locator('.halo-ph-factor-hero .halo-env');
   const photo = scene.locator('.halo-env__photo');
@@ -52,12 +53,12 @@ test('full motion overrides device reduction, camera and spores move, pause free
 });
 
 test('device reduction shows final values and removes animation; explicit play draws ring and charts', async ({ page }) => {
-  await page.goto('/foundation/preview?motion=system');
+  await page.goto('/foundation/preview?tab=today&motion=system');
   await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('74');
   await expect(page.locator('.halo-ph-landscape .halo-env__photo')).toHaveCSS('animation-name', 'none');
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   await page.getByLabel('Animation', { exact: true }).selectOption('full');
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   await expect(page.locator('.halo-ph-ring-reveal')).toHaveCSS('animation-name', 'halo-ring-draw');
   await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('74');
   await page.getByTestId('factor-scorecard').first().click();
@@ -69,7 +70,7 @@ test('device reduction shows final values and removes animation; explicit play d
 });
 
 test('staggered cards reveal their final scores and a factor-colored hover', async ({ page }) => {
-  await page.goto('/foundation/preview?motion=full');
+  await page.goto('/foundation/preview?tab=today&motion=full');
   const card = page.getByTestId('factor-scorecard').first();
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator('.halo-number')).toHaveText('88');

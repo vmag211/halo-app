@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { ArrowUpRight, CalendarPlus, Check, FolderOpen, Trash2 } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/Foundation';
 import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
@@ -21,14 +21,13 @@ export function WorkspaceLink({ onClick, title, detail, icon, deletion, artwork 
 export function DeletableRecord({ title, deletion, children }: { title: string; deletion: RecordDeletion; children: ReactNode }) {
   const [confirming, setConfirming] = useState(false);
   const row = useRef<HTMLDivElement>(null);
-  return <><div className="hg-deletable-record" ref={row}>{children}<DeleteButton compact label={`Delete ${title}`} onClick={() => setConfirming(true)} /></div>{confirming && <Confirm title="Are you sure?" danger confirmLabel="Yes, delete" cancelLabel="No, keep it" onCancel={() => setConfirming(false)} onConfirm={async () => {
-    // Capture a surviving focus target before successful removal unmounts this row.
-    const next = row.current?.nextElementSibling?.querySelector<HTMLElement>('button');
-    const previous = row.current?.previousElementSibling?.querySelector<HTMLElement>('button');
-    const heading = row.current?.closest('.hg-workspace, .halo-explore')?.querySelector<HTMLElement>('[data-home-heading], h2[tabindex]');
+  const deletionFocus = useRef<HTMLElement | null>(null);
+  return <><div className="hg-deletable-record" ref={row}>{children}<DeleteButton compact label={`Delete ${title}`} onClick={() => setConfirming(true)} /></div>{confirming && <Confirm title="Are you sure?" danger fallbackFocus={deletionFocus} confirmLabel="Yes, delete" cancelLabel="No, keep it" onCancel={() => setConfirming(false)} onConfirm={async () => {
+    // The row and its opener disappear together. Let modal cleanup focus the
+    // surviving heading, rather than racing cleanup with an animation frame.
+    deletionFocus.current = row.current?.closest('.hg-workspace, .halo-explore')?.querySelector<HTMLElement>('[data-home-heading], h2[tabindex]') ?? null;
     if (await deletion.remove()) {
       setConfirming(false);
-      requestAnimationFrame(() => (next?.isConnected ? next : previous?.isConnected ? previous : heading)?.focus({ preventScroll: true }));
     }
   }}><p>Delete <strong>{title}</strong>?</p><p>{deletion.description}</p><p className="hg-meta">This cannot be undone.</p></Confirm>}</>;
 }
@@ -51,11 +50,11 @@ export function DeleteButton({ label, onClick, disabled, compact = false }: { la
   const { pending, scenario } = useHomeWorkspace();
   return <button type="button" className={`hg-delete-button${compact ? ' hg-delete-compact' : ''}`} aria-label={label} title={label} onClick={onClick} disabled={disabled || pending || scenario === 'offline'}><Trash2 size={18} aria-hidden="true" />{!compact && <span>Delete</span>}</button>;
 }
-export function Confirm({ title, children, onConfirm, onCancel, danger = false, confirmLabel, cancelLabel }: { title: string; children: ReactNode; onConfirm: () => void | Promise<unknown>; onCancel: () => void; danger?: boolean; confirmLabel?: string; cancelLabel?: string }) {
+export function Confirm({ title, children, onConfirm, onCancel, danger = false, confirmLabel, cancelLabel, fallbackFocus }: { title: string; children: ReactNode; onConfirm: () => void | Promise<unknown>; onCancel: () => void; danger?: boolean; confirmLabel?: string; cancelLabel?: string; fallbackFocus?: RefObject<HTMLElement | null> }) {
   const id = useId(); const [busy, setBusy] = useState(false);
   const workspace = useHomeWorkspace(); const [attempted, setAttempted] = useState(false); const [error, setError] = useState('');
   const feedback = error || (danger && attempted && !busy ? workspace.message : '');
-  return <BottomSheet id={`home-confirm-${id}`} title={title} height="content" onClose={() => { if (!busy) onCancel(); }}><div className="hg-stack">{children}{feedback && <p role="alert" className="hg-error">{feedback}</p>}<div className="hg-actions"><button type="button" className={danger ? 'hg-button hg-danger' : 'hg-button'} disabled={busy || workspace.pending || (danger && workspace.scenario === 'offline')} onClick={async () => { if (busy) return; setBusy(true); setAttempted(true); setError(''); workspace.clearMessage(); try { await onConfirm(); } catch { setError('This change could not be completed. Your record is still here. Please try again.'); } finally { setBusy(false); } }}>{busy ? 'Working...' : confirmLabel ?? (danger ? 'Yes, delete' : 'Confirm')}</button><button type="button" className="hg-button-secondary" disabled={busy} onClick={onCancel}>{cancelLabel ?? (danger ? 'No, keep it' : 'Keep editing')}</button></div></div></BottomSheet>;
+  return <BottomSheet id={`home-confirm-${id}`} title={title} height="content" fallbackFocus={fallbackFocus} onClose={() => { if (!busy) onCancel(); }}><div className="hg-stack">{children}{feedback && <p role="alert" className="hg-error">{feedback}</p>}<div className="hg-actions"><button type="button" className={danger ? 'hg-button hg-danger' : 'hg-button'} disabled={busy || workspace.pending || (danger && workspace.scenario === 'offline')} onClick={async () => { if (busy) return; setBusy(true); setAttempted(true); setError(''); workspace.clearMessage(); try { await onConfirm(); } catch { setError('This change could not be completed. Your record is still here. Please try again.'); } finally { setBusy(false); } }}>{busy ? 'Working...' : confirmLabel ?? (danger ? 'Yes, delete' : 'Confirm')}</button><button type="button" className="hg-button-secondary" disabled={busy} onClick={onCancel}>{cancelLabel ?? (danger ? 'No, keep it' : 'Keep editing')}</button></div></div></BottomSheet>;
 }
 export function ActionButton({ title, reason, factor, originId, date, buttonLabel }: { title: string; reason: string; factor: string; originId: string; date?: string; buttonLabel?: string }) {
   const state = useExpandedPreview(); const workspace = useHomeWorkspace();

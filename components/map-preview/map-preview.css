@@ -325,3 +325,63 @@
 .halo-map-contour-note { display:flex; align-items:center; gap:12px; justify-content:space-between; padding:0 14px; font-size:calc(.72rem * var(--halo-text-scale)); color:var(--halo-secondary); }
 .halo-map-contour-note button { flex-shrink:0; min-height:44px; border:0; background:transparent; color:var(--halo-primary); font:inherit; cursor:pointer; }
 @media (max-width:360px) { .halo-map-contour-note { flex-wrap:wrap; gap:0; } }
+
+/* Public evidence comparison is an aligned list, never two crowded maps. */
+.halo-map-record-compare { min-width:0; font-size:calc(.86rem * var(--halo-text-scale)); line-height:1.6; }
+.halo-map-record-compare button,.halo-map-record-compare a,.halo-map-record-compare summary { min-height:44px; }
+.halo-map-record-compare button { display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:8px 10px; border:1px solid var(--halo-border); border-radius:7px; background:var(--halo-card); color:var(--halo-primary); font:inherit; cursor:pointer; }
+.halo-map-record-compare button:hover { background:var(--halo-tint); }
+.halo-map-record-compare :is(button,a,input,select,summary):focus-visible { outline:2px solid var(--halo-primary); outline-offset:3px; }
+.halo-map-comparison-actions { display:flex; flex-wrap:wrap; gap:7px; justify-content:space-between; }
+.halo-map-comparison-change { margin-top:12px; border-bottom:1px solid var(--halo-border); }
+.halo-map-comparison-change > summary { min-height:44px; padding-block:10px; color:var(--halo-primary); cursor:pointer; }
+.halo-map-comparison-selection { margin:20px 0; display:grid; gap:12px; border-block:1px solid var(--halo-border); }
+.halo-map-comparison-selection > div { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px 10px; padding:13px 0; min-width:0; }
+.halo-map-comparison-selection > div+div { border-top:1px solid var(--halo-border); }
+.halo-map-comparison-selection > div > span { grid-column:1/-1; color:var(--halo-secondary); font-size:.85em; }
+.halo-map-comparison-selection strong { overflow-wrap:anywhere; align-self:center; }
+.halo-map-comparison-picker label { display:flex; align-items:center; gap:8px; border:1px solid var(--halo-border); border-radius:7px; padding:0 10px; background:var(--halo-card); }
+.halo-map-comparison-picker input { width:100%; min-width:0; min-height:48px; font:inherit; border:0; color:var(--halo-ink); background:transparent; }
+.halo-map-comparison-picker ul { list-style:none; padding:0; }
+.halo-map-comparison-picker li+li { border-top:1px solid var(--halo-border); }
+.halo-map-comparison-picker li button { width:100%; justify-content:space-between; text-align:left; border:0; border-radius:0; padding:12px 5px; background:transparent; }
+.halo-map-comparison-picker li small { display:block; color:var(--halo-secondary); font-weight:400; }
+.halo-map-record-compare .halo-map-comparison-cancel { margin-top:10px; }
+.halo-map-comparison-compound { display:grid; gap:7px; margin-block:12px; }
+.halo-map-comparison-compound select { width:100%; min-width:0; min-height:44px; padding:9px; font:inherit; background:var(--halo-card); color:var(--halo-ink); border:1px solid var(--halo-border); border-radius:7px; }
+.halo-map-comparison-note { color:var(--halo-secondary); font-size:.88em; margin-block:14px; }
+.halo-map-comparison-row { border-top:1px solid var(--halo-border); padding:17px 0; }
+.halo-map-comparison-row h4 { display:flex; justify-content:space-between; flex-wrap:wrap; gap:7px; margin:0 0 12px; }
+.halo-map-comparison-row h4 > span { display:flex; align-items:center; gap:5px; font-size:.8em; font-weight:500; color:var(--halo-secondary); }
+.halo-map-comparison-row[data-compatible="true"] h4 > span { color:var(--halo-primary); }
+.halo-map-comparison-row dl { margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.halo-map-comparison-row dl > div { min-width:0; }
+.halo-map-comparison-row dt { overflow-wrap:anywhere; font-size:.85em; color:var(--halo-secondary); }
+.halo-map-comparison-row dd { display:grid; gap:3px; margin:7px 0 0; overflow-wrap:anywhere; }
+.halo-map-comparison-row dd strong { color:var(--halo-ink); font-size:1.25em; letter-spacing:-.02em; font-weight:650; }
+.halo-map-comparison-row dd small { font-size:.82em; color:var(--halo-secondary); }
+.halo-map-comparison-letter { display:inline-block; margin-right:6px; color:var(--halo-primary); font-weight:650; }
+.halo-map-comparison-reasons { padding-left:19px; margin:14px 0 0; color:var(--halo-secondary); font-size:.88em; }
+.halo-map-record-compare summary { padding-block:10px; color:var(--halo-primary); cursor:pointer; }
+.halo-map-record-compare details p { color:var(--halo-secondary); font-size:.9em; }
+.halo-map-comparison-sources { border-top:1px solid var(--halo-border); }
+.halo-map-comparison-sources section+section { border-top:1px solid var(--halo-border); margin-top:20px; padding-top:10px; }
+.halo-map-comparison-sources dl > div { display:grid; grid-template-columns:90px minmax(0,1fr); gap:12px; padding-block:6px; }
+.halo-map-comparison-sources dt { color:var(--halo-secondary); }
+.halo-map-comparison-sources dd { margin:0; overflow-wrap:anywhere; }
+.halo-map-comparison-sources a { display:inline-flex; align-items:center; }
+.halo-map-comparison-state { padding:24px 0; }
+.halo-map-public-brief,.halo-map-system-follow { border-block:1px solid var(--halo-border); padding:12px 0; margin-block:15px; font-size:calc(.85rem * var(--halo-text-scale)); }
+.halo-map-public-brief summary { min-height:44px; padding-block:10px; color:var(--halo-primary); cursor:pointer; font-weight:600; }
+.halo-map-public-brief p,.halo-map-system-follow p { font-size:.88em; color:var(--halo-secondary); line-height:1.6; }
+.halo-map-public-brief label { display:grid; gap:8px; }
+.halo-map-public-brief textarea { width:100%; min-width:0; padding:12px; color:var(--halo-ink); background:var(--halo-card); border:1px solid var(--halo-border); border-radius:7px; font:inherit; line-height:1.6; resize:vertical; }
+.halo-map-public-brief > div { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.halo-map-public-brief button,.halo-map-system-follow button { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; padding:8px 12px; border:1px solid var(--halo-border); border-radius:7px; background:var(--halo-card); color:var(--halo-primary); font:inherit; cursor:pointer; }
+.halo-map-public-brief :is(button,textarea,summary):focus-visible,.halo-map-system-follow button:focus-visible { outline:2px solid var(--halo-primary); outline-offset:3px; }
+@media(max-width:360px) {
+  .halo-map-comparison-selection > div { grid-template-columns:1fr; }
+  .halo-map-comparison-selection button,.halo-map-comparison-selection .halo-map-comparison-actions { justify-self:start; }
+  .halo-map-app[data-text-scale="150"] .halo-map-comparison-row dl { grid-template-columns:1fr; gap:13px; }
+  .halo-map-app[data-text-scale="150"] .halo-map-comparison-sources dl > div { grid-template-columns:1fr; gap:2px; }
+}

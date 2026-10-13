@@ -11,6 +11,7 @@ import {
   type DistrictWaterSeverity,
 } from "@/lib/frontend/map-district-preview";
 import "./district-panel.css";
+import MapPublicBrief from './MapPublicBrief';
 
 export { districtFixture } from "@/lib/frontend/map-district-preview";
 
@@ -152,6 +153,7 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: Dis
         </>
       )}
 
+      {variant !== 'error' && !geographyUnavailable && <MapPublicBrief data={data}/>}
       <footer className="halo-map-district-sources">
         <strong>Sources &amp; boundaries</strong>
         <p>Source basis: EPA UCMR 5, with EPA population and service-area boundaries.</p>

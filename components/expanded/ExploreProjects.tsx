@@ -157,10 +157,9 @@ function useProjectGeneration(environmentAvailable = true) {
   }
   function cancel() { if (timer.current) clearTimeout(timer.current); timer.current = null; setBusy(false); setMessage('Generation cancelled. Your current ideas and input are kept.'); }
   function retry() { const input = pending.current; if (input) regenerate(input.constraints, input.request, input.interpret, input.done); }
-  // An unavailable environmental review state must not keep rendering personal
-  // fixture reasons from a previous public-context generation. Preserve the draft
-  // but derive a general/explicit-private-only view until context is available.
-  const activeBatch = !environmentAvailable && batch.items.some(item => item.evidenceIds.some(evidenceId => /^preview:(today|home):/.test(evidenceId))) ? createProjectGeneration(context, batch.constraints, batch.request, batch.generation, false) : batch;
+  // Keep the request and preferences, not stale reasons from a different home or
+  // record revision. This changes unsaved suggestions, never owned project plans.
+  const activeBatch = batch.contextKey !== context.key ? createProjectGeneration(context, batch.constraints, batch.request, batch.generation, false) : batch;
   return { context, batch: activeBatch, fitOpen, setFitOpen, regenerate, busy, message, cancel, retry, serviceState, setServiceState };
 }
 type Generation = ReturnType<typeof useProjectGeneration>;

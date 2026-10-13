@@ -7,13 +7,13 @@ import { initialGardens, initialUsage } from '@/lib/frontend/home-food-preview';
 import {recordFingerprint} from '@/lib/frontend/settings-preview';
 
 export type HomeScenario = 'ready' | 'empty' | 'loading' | 'error' | 'offline' | 'stale' | 'conflict' | 'save-error';
-export type HomeRecord = { id: string; title: string; revision: number };
+export type HomeRecord = { id: string; title: string; revision: number; homeContextId?:string };
 type Collections = Record<string, HomeRecord[]>;
 type State = {
   collections: Collections; drafts: Record<string, unknown>; scenario: HomeScenario; message: string; pending: boolean;
   setScenario: (next: HomeScenario) => void; clearMessage: () => void;
   seed: (key: string, initial: HomeRecord[]) => void;
-  write: (key: string, record: HomeRecord) => Promise<boolean>;
+  write: (key: string, record: HomeRecord, checkCurrent?:()=>boolean) => Promise<boolean>;
   remove: (key: string, id: string) => Promise<boolean>;
   removeNotes: (selection: { id: string; revision: number }[]) => Promise<boolean>;
   clearPrivate: (scope:'journal'|'all', expected:string, checkOther?:()=>boolean) => Promise<boolean>;
@@ -23,7 +23,9 @@ type State = {
 const Context = createContext<State | null>(null);
 function initialCollections(): Collections {
   // Every entry point sees the same sample records, even before its editor is visited.
-  return structuredClone({ tests: sampleTests, assets: sampleAssets, observations: sampleObservations, gardens: initialGardens, usage: initialUsage });
+  const result:Collections=structuredClone({ tests: sampleTests, assets: sampleAssets, observations: sampleObservations, gardens: initialGardens, usage: initialUsage });
+  for(const key of ['assets','observations','gardens','usage'])result[key]=result[key].map(record=>({...record,homeContextId:'sample-current-home'}));
+  return result;
 }
 
 /** Isolated, in-memory wireframe records. No transport, authentication or storage. */
@@ -83,12 +85,14 @@ export function HomeWorkspaceProvider({ children }: { children: ReactNode }) {
     if (result) setMessage('Saved.');
     return result;
   }
-  async function write(key: string, record: HomeRecord) {
+  async function write(key: string, record: HomeRecord, checkCurrent?:()=>boolean) {
     return mutate(key, record.id, () => {
+      if(checkCurrent&&!checkCurrent()){setMessage('The reviewed information changed. Nothing was saved. Reopen the review.');return false;}
       const records = recordsRef.current[key] ?? [];
       const existing = records.find(item => item.id === record.id);
       if (existing && existing.revision !== record.revision) { setMessage('This record changed since you opened it. Your draft is retained; review the latest version before saving.'); return false; }
-      const next = { ...record, revision: (existing?.revision ?? 0) + 1 };
+      const homeContextId=['assets','observations','gardens','usage','pantryItems'].includes(key)?existing?.homeContextId??record.homeContextId??recordsRef.current.homeTransitions?.at(-1)?.id??'sample-current-home':undefined;
+      const next = { ...record, ...(homeContextId?{homeContextId}:{}), revision: (existing?.revision ?? 0) + 1 };
       commit({ ...recordsRef.current, [key]: existing ? records.map(item => item.id === next.id ? next : item) : [...records, next] });
       return true;
     });

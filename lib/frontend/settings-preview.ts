@@ -34,7 +34,7 @@ export function actionFingerprint(actions:{id:string;revision?:number}[]) {
 export const exportGroups=['tasks','home','explore','journal','conversation','preferences'] as const;
 export type ExportGroup=typeof exportGroups[number];
 const privateKeys=/^(note|notes|privateNote|preparation|body|messages|draft|symptoms|severity|illness|band|bands|household|has_\w+|description|goal|ownResult|email|recipient|sender|contact|observation|concern|message|outcome|followUp|reference)$/i;
-const locationKeys=/^(address|street|lat|lng|latitude|longitude|coordinates|exactLocation|geometry|attachments|files|fileUrl|downloadUrl|location|locationLabel|place|area)$/i;
+const locationKeys=/^(address|street|lat|lng|latitude|longitude|coordinates|exactLocation|geometry|attachments|files|fileUrl|downloadUrl|location|locationLabel|place|area|photo|photoData|photoName)$/i;
 function redact(value:unknown,privateText:boolean):unknown {
   if(Array.isArray(value))return value.map(item=>redact(item,privateText));
   if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([key])=>!locationKeys.test(key)&&(privateText||!privateKeys.test(key))).map(([key,v])=>[key,redact(v,privateText)]));
@@ -43,12 +43,17 @@ function redact(value:unknown,privateText:boolean):unknown {
 export function selectedPrivateExport({collections,actions,drafts,groups,privateText}:{collections:PrivateCollections;actions:unknown[];drafts:Record<string,unknown>;groups:ExportGroup[];privateText:boolean}) {
   const output:Record<string,unknown>={format:'halo-private-export-v1',origin:'isolated-wireframe',authoritative:false,exactLocation:'excluded',privateText};
   for(const group of [...new Set(groups)]) {
-    if(group==='tasks')output.tasks=redact(actions,privateText);
+    if(group==='tasks'){
+      output.tasks=redact(actions,privateText);
+      const keys=new Set(actions.filter((a):a is {key:string}=>Boolean(a&&typeof a==='object'&&'key' in a&&typeof a.key==='string')).map(a=>a.key));
+      const metas=(drafts['week:metas']??{}) as Record<string,unknown>;
+      output.taskDetails=redact(Object.fromEntries(Object.entries(metas).filter(([key])=>keys.has(key))),privateText);
+    }
     if(group==='home'||group==='explore')output[group]=redact(Object.fromEntries(Object.entries(collections).filter(([key])=>group==='explore'?key.startsWith('explore'):!key.startsWith('explore')&&key!=='weekJournal')),privateText);
     if(group==='journal')output.journal=redact(collections.weekJournal??[],privateText);
     // A conversation has no meaningful non-private transcript. Export only on explicit opt-in.
     if(group==='conversation')output.conversation=privateText?redact(drafts['luna:conversation']??{},true):{excluded:'Private text was not selected.'};
-    if(group==='preferences')output.preferences={...(redact(drafts['settings:values']??initialSettings,false)as Record<string,unknown>),appearance:appearancePreference(drafts[appearancePreferenceKey]),ambientAnimation:drafts['halo-ambient']!==false};
+    if(group==='preferences')output.preferences={...(redact(drafts['settings:values']??initialSettings,false)as Record<string,unknown>),appearance:appearancePreference(drafts[appearancePreferenceKey]),ambientAnimation:drafts['halo-ambient']!==false,recovery:redact(drafts['settings:recovery']??{},privateText),connections:{email:drafts['settings:connection:email']===true,calendar:drafts['settings:connection:calendar']===true},deviceDelivery:drafts['settings:device-connection']??'off'};
   }
   return output;
 }

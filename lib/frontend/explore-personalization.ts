@@ -71,10 +71,16 @@ function records(collections: Partial<Record<string, unknown[]>> | undefined, ke
 /** Only supplied preview collections are inspected. Notes and Journal are not silently included. */
 export function getPreviewProjectContext(collections?: Partial<Record<string, unknown[]>>, householdFlags?: unknown, environmentAvailable = true): ProjectEnvironmentContext {
   const flags = object(householdFlags);
-  const gardens = records(collections, 'gardens');
-  const observations = records(collections, 'observations');
-  const assets = records(collections, 'assets').filter(item => item.status !== 'replaced' && item.factor === 'pfas');
-  const tests = records(collections, 'tests').filter(item => item.archived !== true);
+  const homeId = records(collections, 'homeTransitions').at(-1)?.id ?? 'sample-current-home';
+  // Untagged legacy records belong to the initial home, never the newly selected home.
+  const belongsToHome = (item: Record<string, unknown>) => (item.homeContextId ?? 'sample-current-home') === homeId;
+  const gardens = records(collections, 'gardens').filter(belongsToHome);
+  const observations = records(collections, 'observations').filter(belongsToHome);
+  const assets = records(collections, 'assets').filter(item => belongsToHome(item) && item.status !== 'replaced' && item.factor === 'pfas');
+  const contexts = new Set([homeId, ...gardens.map(item => item.id)]);
+  const tests = records(collections, 'tests').filter(item => item.archived !== true && contexts.has(item.contextId ?? 'sample-current-home'));
+  // A newly selected home has no matching public evidence contract in this preview.
+  environmentAvailable = environmentAvailable && homeId === 'sample-current-home';
   const evidence: ProjectEvidence[] = environmentAvailable ? [
     { id: 'preview:today:air:2026-09-30', topic: 'air', label: 'Outdoor air', value: `${factorReadings.air.reading} AQI`, numericValue: factorReadings.air.details.air?.aqi, unit: 'AQI', pollutant: factorReadings.air.details.air?.pollutant, scope: 'Nearby outdoor monitor, not indoor air or smoke detection', asOf: factorReadings.air.asOf, provenance: factorReadings.air.provenance ?? 'Unspecified', stale: true, status: 'available' },
     { id: 'preview:today:uv:2026-09-30', topic: 'uv', label: 'Sunlight forecast', value: `${factorReadings.uv.reading} UV index`, scope: 'September 30 forecast and local 11am to 3pm UV 3+ window, not a current work-time recommendation', asOf: factorReadings.uv.asOf, provenance: 'Forecast', stale: true, status: 'available' },
@@ -90,7 +96,7 @@ export function getPreviewProjectContext(collections?: Partial<Record<string, un
   for (const item of assets) evidence.push({ id: `preview:asset:${item.id}:${item.revision}`, topic: 'filter', label: String(item.title ?? 'Home care'), value: item.model ? String(item.model) : 'Exact product model not supplied', scope: 'User care record, not certification or a tap-water result', asOf: String(item.serviced ?? 'Date not supplied'), provenance: 'User-entered', stale: false, status: item.model ? 'available' : 'unknown' });
   for (const item of tests.filter(item => item.review === 'needs_clarification')) evidence.push({ id: `preview:test:${item.id}:${item.revision}`, topic: 'test', label: String(item.title ?? 'Test report'), value: String(item.reviewReason ?? 'Report needs clarification'), scope: 'Unclear user transcription, not interpreted environmental evidence', asOf: String(item.collectionStart ?? 'Date not supplied'), provenance: 'User-entered report', stale: false, status: 'unknown' });
   const key = evidence.map(item => `${item.id}:${item.status}`).join('|');
-  return { key: `${environmentAvailable ? 'sample-environment' : 'environment-unavailable'}|${key}`, isSample: true, state: environmentAvailable ? 'North Carolina' : '', county: environmentAvailable ? 'Iredell' : '', renter: typeof flags.renter_mode === 'boolean' ? flags.renter_mode : null, evidence, hasGarden: gardens.length > 0, gardenWaterKnown, hasMoistureObservation: observations.length > 0, filterModelKnown: assets.some(item => typeof item.model === 'string' && item.model.trim()), sourceStatus: 'reviewed-drafts' };
+  return { key: `${homeId}|${environmentAvailable ? 'sample-environment' : 'environment-unavailable'}|${key}`, isSample: true, state: environmentAvailable ? 'North Carolina' : '', county: environmentAvailable ? 'Iredell' : '', renter: typeof flags.renter_mode === 'boolean' ? flags.renter_mode : null, evidence, hasGarden: gardens.length > 0, gardenWaterKnown, hasMoistureObservation: observations.length > 0, filterModelKnown: assets.some(item => typeof item.model === 'string' && item.model.trim()), sourceStatus: 'reviewed-drafts' };
 }
 type FamilyFit = { spaces: ProjectConstraints['space'][]; mode: 'solo' | 'group' | 'either'; start: 'quick' | 'half-day'; budget: 'reuse' | 'low' | 'quote'; topic: string[]; group: string; requires?: string };
 const familyFit: Record<string, FamilyFit> = {

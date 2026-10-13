@@ -9,6 +9,9 @@ import type { HouseholdBands } from '@/lib/frontend/home-household';
 import { HomeWorkspaceReviewControls } from '@/components/homeguard/HomeWorkspaceState';
 import { ExploreReviewControls } from './ExploreWorkspace';
 import { WeekReviewControls } from './MyWeekWorkspace';
+import {CompletionReviewControls} from './AccountWorkflows';
+import {WeekEvidenceReviewControls} from './WeekEvidence';
+import SourceOperationsReview from './SourceOperationsReview';
 import {actionFingerprint} from '@/lib/frontend/settings-preview';
 
 type Draft = { seed: ActionSeed; title: string; date: string };
@@ -99,7 +102,7 @@ export function ExpandedPreviewProvider({ children }: { children: ReactNode }) {
 export function ExpandedReviewControls() {
   const state = useExpandedPreview();
   if (!state) return null;
-  return <><div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={state.fail} onChange={e => state.setFail(e.target.checked)} />Simulate failed action save</label><button type="button" onClick={state.reset}>Reset sample actions</button><WeekReviewControls /></div><HomeWorkspaceReviewControls /><ExploreReviewControls /></>;
+  return <><div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={state.fail} onChange={e => state.setFail(e.target.checked)} />Simulate failed action save</label><button type="button" onClick={state.reset}>Reset sample actions</button><WeekReviewControls /><WeekEvidenceReviewControls /><CompletionReviewControls /></div><HomeWorkspaceReviewControls /><ExploreReviewControls /><SourceOperationsReview /></>;
 }
 
 export function ExpandedActionDialog({ offline }: { offline: boolean }) {

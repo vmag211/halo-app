@@ -9,11 +9,11 @@ const target = resolve(process.argv[2] ?? '');
 if (!process.argv[2] || target === source || target.startsWith(source + sep)) throw new Error('Supply a separate existing Sites checkout.');
 const manifest = JSON.parse(readFileSync(resolve(target, '.openai/hosting.json'), 'utf8'));
 if (manifest.project_id !== 'appgprj_6abd679629688191ae2eea6173fb2b49' || manifest.static?.directory !== 'out') throw new Error('Unexpected review Site.');
-const pending = ['components/foundation/FoundationPreview.tsx', 'components/map-preview/MapPreview.tsx'];
+const pending = ['components/foundation/FoundationPreview.tsx', 'components/map-preview/MapPreview.tsx', 'components/onboarding/Preview.tsx'];
 const copied = new Set();
 function allowed(path) {
   // assistant.js is the reviewed, pure diagnostic guard, not the assistant API.
-  return /^(components\/(foundation|expanded|homeguard|map-preview|ui)\/|lib\/frontend\/)/.test(path) || ['lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js', 'public/explore/photo-sources.json'].includes(path);
+  return /^(components\/(foundation|expanded|homeguard|map-preview|onboarding|ui)\/|lib\/frontend\/)/.test(path) || ['app/OnboardingScreen.tsx','lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js', 'public/explore/photo-sources.json'].includes(path);
 }
 function copy(path) {
   mkdirSync(dirname(resolve(target, path)), { recursive: true });

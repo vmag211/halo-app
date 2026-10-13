@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Today has four factors, no PFAS contribution, and Homeguard owns PFAS', async ({ page }) => {
-  await page.goto('/foundation/preview');
+  await page.goto('/foundation/preview?tab=today');
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(page.getByTestId('factor-scorecard')).toHaveCount(4);
   await expect(page.locator('.halo-ph-overview')).not.toContainText('PFAS');
@@ -44,13 +44,13 @@ for (const appearance of ['light', 'dark']) {
       await expect(page.getByRole('heading', { name: 'Small steps that help' })).toBeVisible();
       await expect(page.locator('body')).not.toContainText('\u2014');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-      await page.getByText('HALO design review', { exact: true }).click();
+      await page.locator('.halo-f-review-tools > summary').click();
       await page.getByLabel('Text size', { exact: true }).selectOption('150');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
       expect(errors).toEqual([]);
       if (process.env.HALO_REVIEW_SCREENSHOT === '1' && ['air', 'uv', 'pfas'].includes(factor)) {
         await page.getByLabel('Text size', { exact: true }).selectOption('100');
-        await page.getByText('HALO design review', { exact: true }).click();
+        await page.locator('.halo-f-review-tools > summary').click();
         await page.setViewportSize({ width: 390, height: 844 });
         await page.screenshot({ path: info.outputPath(`${factor}-${appearance}.png`), fullPage: true, animations: 'disabled' });
       }
@@ -77,7 +77,7 @@ test('no data, zero, partial and zero-risk have distinct semantics', async ({ pa
 
 test('theme persists through factor links, motion pauses, and reduced motion removes animation', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('/foundation/preview?appearance=dark&motion=system');
+  await page.goto('/foundation/preview?tab=today&appearance=dark&motion=system');
   await page.getByRole('button', { name: 'Pause ambient animation' }).click();
   expect(await page.locator('.halo-env__cloud--near').evaluate(n => getComputedStyle(n).animationPlayState)).toBe('paused');
   await page.getByTestId('factor-scorecard').first().click();
@@ -105,12 +105,12 @@ test('chart inspection, missing history, offline Learn and unscored lead', async
 
 test('overview visual review', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/foundation/preview');
+  await page.goto('/foundation/preview?tab=today');
   await expect(page.locator('.halo-ph-scene-top')).not.toContainText('Local time');
   if (process.env.HALO_REVIEW_SCREENSHOT === '1') {
     await page.screenshot({ path: info.outputPath('overview-light.png'), fullPage: true, animations: 'disabled' });
     await page.screenshot({ path: info.outputPath('overview-viewport.png'), animations: 'disabled' });
   }
-  await page.goto('/foundation/preview?appearance=dark');
+  await page.goto('/foundation/preview?tab=today&appearance=dark');
   if (process.env.HALO_REVIEW_SCREENSHOT === '1') await page.screenshot({ path: info.outputPath('overview-dark.png'), fullPage: true, animations: 'disabled' });
 });

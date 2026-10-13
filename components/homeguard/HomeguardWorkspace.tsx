@@ -38,9 +38,10 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     didOpen.current = true;
     previousSection.current = section;
     const frame = requestAnimationFrame(() => {
-      // Do not steal an early keyboard interaction while the first page hydrates.
+      // Preserve early keyboard/pointer focus, including a scrollable table. A
+      // new route's heading must not interrupt an already focused control.
       const active = document.activeElement;
-      if (isFirstOpen && active instanceof HTMLElement && active.matches('button, a, input, select, textarea, summary')) return;
+      if (active instanceof HTMLElement && active.matches('button, a, input, select, textarea, summary, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]') && (isFirstOpen || active.closest('.hg-content'))) return;
       const heading = document.querySelector<HTMLElement>('[data-home-heading]');
       heading?.focus({ preventScroll: true });
       // Keep the workspace switcher and return path in view on entry. Within a

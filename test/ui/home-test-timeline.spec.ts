@@ -90,7 +90,7 @@ test('follow-up is recorded only after saving the same shared My Week action, no
   const dialog = page.getByRole('dialog', { name: 'Save a practical step' });
   await expect(followup).not.toHaveClass(/is-complete/);
   await dialog.getByLabel('Action title').fill('Ask about the original report');
-  await dialog.getByRole('button', { name: 'Save sample action', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Save action', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(followup).toHaveClass(/is-complete/);
   await expect(followup).toContainText('Saved in My Week for later');

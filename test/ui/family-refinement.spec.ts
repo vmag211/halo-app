@@ -9,7 +9,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('household is a dedicated route with working filters and visit-only checks', async ({ page }) => {
-  await page.goto('/foundation/preview?appearance=dark&motion=reduce&time=day');
+  // The expanded wireframe now opens My Week by default. Household guidance
+  // belongs to Today, independently of the selected export edition.
+  await page.goto('/foundation/preview?tab=today&appearance=dark&motion=reduce&time=day');
   await page.locator('.halo-ph-family-link').click();
   await expect(page).toHaveURL(/\/preview\/family/);
   await expect(page.getByRole('heading', { name: 'Your household', exact: true })).toBeVisible();
@@ -35,7 +37,7 @@ for (const appearance of ['light', 'dark']) test(`family ${appearance} supports 
   await page.goto(`/foundation/preview/family?appearance=${appearance}&time=day&motion=reduce`);
   await expect(page.locator('.halo-family')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   await page.getByLabel('Text size', { exact: true }).selectOption('150');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.goto(`/foundation/preview/family?appearance=${appearance}&scenario=no-data&motion=reduce`);

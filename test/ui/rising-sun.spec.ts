@@ -27,7 +27,7 @@ test('sun rises with full motion, rays pause, and reduction is static', async ({
   await expect(sun.locator('.halo-rising-sun-rays')).toHaveCSS('animation-name', 'halo-sun-ray-light');
   await page.getByRole('button', { name: 'Pause ambient animation' }).click();
   await expect(sun.locator('.halo-rising-sun-rays')).toHaveCSS('animation-play-state', 'paused');
-  await page.getByText('HALO design review', { exact: true }).click();
+  await page.locator('.halo-f-review-tools > summary').click();
   await page.getByLabel('Animation', { exact: true }).selectOption('reduce');
   await expect(sun.locator('.halo-rising-sun-rays')).toHaveCSS('animation-name', 'none');
 });

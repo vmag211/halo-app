@@ -94,7 +94,7 @@ test('offline and failed food saves retain the draft without fabricating persist
   await expect(page.getByLabel('Food note name')).toHaveValue('Example saved catch');
   await reviewState(page, 'save-error');
   await page.getByRole('button', { name: 'Save food note', exact: true }).click();
-  await expect(page.getByText(/The sample save failed/)).toBeVisible();
+  await expect(page.getByText(/Could not save/)).toBeVisible();
   await expect(page.getByLabel('Food note name')).toHaveValue('Example saved catch');
   await reviewState(page, 'ready');
   await page.getByRole('button', { name: 'Save food note', exact: true }).click();
@@ -106,7 +106,7 @@ test('food note My Week action has one stable identity through opening and editi
   await page.getByLabel('Food note name').fill('Example catch question');
   await page.getByRole('button', { name: 'Save food note', exact: true }).click();
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Save sample action', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Save action', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open saved action', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit note', exact: true }).click();
   await page.getByLabel('Food note name').fill('Example renamed question');
@@ -115,8 +115,8 @@ test('food note My Week action has one stable identity through opening and editi
   await expect(page.getByRole('button', { name: 'Save to My Week', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open saved action', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('dialog').getByRole('button', { name: 'Update sample action', exact: true })).toBeVisible();
-  await expect(page.getByRole('dialog').getByRole('button', { name: 'Save sample action', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Update action', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Save action', exact: true })).toHaveCount(0);
 });
 
 for (const appearance of ['light', 'dark']) test(`food catalogue and details fit 320px with large text in ${appearance}`, async ({ page }, testInfo) => {
@@ -176,7 +176,7 @@ test('food add errors keep draft and never create a false kitchen item', async (
   await page.getByLabel('Keep in', { exact: true }).selectOption('pantry');
   await reviewState(page, 'save-error');
   await page.getByRole('button', { name: 'Add to my kitchen', exact: true }).click();
-  await expect(page.getByText(/The sample save failed/)).toBeVisible();
+  await expect(page.getByText(/Could not save/)).toBeVisible();
   await expect(page.getByLabel('Food name', { exact: true })).toHaveValue('Example oats');
   await reviewState(page, 'offline');
   await expect(page.getByRole('button', { name: 'Add to my kitchen', exact: true })).toBeDisabled();
@@ -200,6 +200,6 @@ test('inventory needs no question and still offers an editable useful My Week fo
   await expect(page.getByText('A POSSIBLE NEXT STEP', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('Check whether a current PFAS or lead notice applies to Milk.');
-  await page.getByRole('dialog').getByRole('button', { name: 'Save sample action', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Save action', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open saved action', exact: true })).toBeVisible();
 });

@@ -30,7 +30,7 @@ test('deleting a routine is deliberate and leaves the linked observation and sav
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   const action = page.getByRole('dialog', { name: 'Save a practical step' });
   await expect(action.getByLabel('Action title')).toHaveValue('Follow up on Kitchen filter upkeep');
-  await action.getByRole('button', { name: 'Save sample action' }).click();
+  await action.getByRole('button', { name: 'Save action' }).click();
   await expect(page.getByRole('button', { name: 'Open saved action' })).toBeVisible();
   await page.getByRole('button', { name: 'Delete routine', exact: true }).click();
   const deletion = page.getByRole('dialog', { name: 'Delete this routine?' });
@@ -56,7 +56,7 @@ for (const failure of ['save-error', 'conflict']) test(`${failure} does not dele
   await page.getByRole('button', { name: 'Delete routine', exact: true }).click();
   const deletion = page.getByRole('dialog', { name: 'Delete this routine?' });
   await deletion.getByRole('button', { name: 'Yes, delete', exact: true }).click();
-  await expect(deletion.getByRole('alert')).toContainText(failure === 'save-error' ? 'sample save failed' : 'Revision conflict');
+  await expect(deletion.getByRole('alert')).toContainText(failure === 'save-error' ? 'Could not save' : 'This record changed');
   await expect(deletion).toBeVisible();
   await deletion.getByRole('button', { name: 'No, keep it', exact: true }).click();
   await scenario(page, 'ready');
@@ -79,7 +79,7 @@ test('moisture deletion can be cancelled and failed deletion retains the record'
   await page.getByRole('button', { name: 'Delete observation', exact: true }).click();
   const deletion = page.getByRole('dialog', { name: 'Delete this observation?' });
   await deletion.getByRole('button', { name: 'Yes, delete', exact: true }).click();
-  await expect(deletion.getByRole('alert')).toContainText('sample save failed');
+  await expect(deletion.getByRole('alert')).toContainText('Could not save');
   await deletion.getByRole('button', { name: 'No, keep it', exact: true }).click();
   await scenario(page, 'ready');
   await page.getByRole('button', { name: 'Delete observation', exact: true }).click();

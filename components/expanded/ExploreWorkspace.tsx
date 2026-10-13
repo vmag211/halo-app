@@ -16,6 +16,7 @@ import ExploreContinuations from './ExploreContinuations';
 import VolunteerCommitments from './ExploreVolunteer';
 import ExploreProjects, { PersonalizedProjectsPreview } from './ExploreProjects';
 import WorkspaceFeedback from './WorkspaceFeedback';
+import LunaActionReviewControls from './LunaActionReviewControls';
 import { exploreSections, type ExploreSection } from '@/lib/frontend/explore-preview';
 import './explore.css';
 import './explore-workbench.css';
@@ -85,6 +86,7 @@ export function ExploreReviewControls() {
   const [generationState, setGenerationState] = useHomeDraft('explore:generation-review-state', 'ready');
   return <>
     <label>Assistant service review state<select value={lunaState} onChange={event => setLunaState(event.target.value)}>{['ready','no-source','unavailable','unconfigured','rate-limit','slow'].map(value => <option key={value}>{value}</option>)}</select></label>
+    <LunaActionReviewControls />
     <label><input type="checkbox" checked={failPreparation} onChange={event => setFailPreparation(event.target.checked)} />Simulate project preparation save failure</label>
     <label>Project generation review state<select value={generationState} onChange={event => setGenerationState(event.target.value)}>{['ready','failed','slow'].map(value => <option key={value}>{value}</option>)}</select></label>
     <label>Explore workspace state<select value={workspace.scenario} onChange={event => workspace.setScenario(event.target.value as typeof workspace.scenario)}>{['ready', 'empty', 'loading', 'error', 'offline', 'stale', 'conflict', 'save-error'].map(value => <option key={value} value={value}>{value.replace('-', ' ')}</option>)}</select></label>

@@ -40,11 +40,13 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const tests = ((workspace.collections.tests ?? []) as TestRecord[]).filter(record => !record.archived);
   const active = tests.filter(record => ['draft', 'arranged', 'sampled', 'awaiting'].includes(record.status));
   const reports = tests.filter(record => record.rows.length > 0);
-  const currentTest = active.find(record => record.contextId === 'sample-current-home') ?? active[0];
+  const currentContext=workspace.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
+  const currentTest = active.find(record => record.contextId === currentContext) ?? (currentContext==='sample-current-home'?active[0]:undefined);
   const routines = ((workspace.collections.assets ?? []) as HomeAsset[]).filter(record => record.status !== 'replaced');
-  const nextRoutine = routines.filter(record => record.status === 'active' && (record.snoozedUntil || record.nextDue)).sort((a, b) => (a.snoozedUntil || a.nextDue).localeCompare(b.snoozedUntil || b.nextDue))[0];
+  const currentRecordIds=new Set(Object.values(workspace.collections).flat().filter(record=>!record.homeContextId||record.homeContextId===currentContext).map(record=>record.id));
+  const nextRoutine = routines.filter(record => currentRecordIds.has(record.id) && record.status === 'active' && (record.snoozedUntil || record.nextDue)).sort((a, b) => (a.snoozedUntil || a.nextDue).localeCompare(b.snoozedUntil || b.nextDue))[0];
   const observations = (workspace.collections.observations ?? []) as MoistureObservation[];
-  const recentObservation = [...observations].sort((a, b) => b.observedAt.localeCompare(a.observedAt))[0];
+  const recentObservation = observations.filter(record=>currentRecordIds.has(record.id)).sort((a, b) => b.observedAt.localeCompare(a.observedAt))[0];
   const gardens = (workspace.collections.gardens ?? []) as GardenSite[];
   const foods = workspace.collections.pantryItems ?? [];
   const lastSummary = workspace.drafts['summary-last-created'] as { at: string; pages: number } | undefined;
@@ -54,6 +56,7 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
     {unavailable ? <div className="how-notice" role="status"><p>{workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p><button className="how-action" onClick={() => workspace.setScenario('ready')}>Try again</button></div> : <>
       {workspace.scenario === 'offline' && <p className="how-notice">Offline. Reconnect to save changes.</p>}
       {workspace.scenario === 'stale' && <p className="how-notice">Older records: check their source dates.</p>}
+      {currentContext!=='sample-current-home'&&<p className="how-notice">Your record library includes previous homes.</p>}
     </>}
     <nav className="how-overview" aria-label="Home workspace features">
       <Link className="how-overview-row how-tests" aria-label="Open test records" href={link('tests')} prefetch={false}><ClipboardList size={22} aria-hidden="true" /><span><strong>Tests</strong><small>{unavailable ? 'Tests and reports' : `${active.length} active · ${plural(reports.length, 'report')}`}</small></span><ChevronRight size={17} aria-hidden="true" /></Link>

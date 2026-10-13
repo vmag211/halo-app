@@ -51,7 +51,7 @@ for (const failure of ['save-error', 'conflict']) test(`list deletion preserves 
   await page.locator('.hg-delete-compact').first().click();
   const dialog = page.getByRole('dialog', { name: 'Are you sure?' });
   await dialog.getByRole('button', { name: 'Yes, delete' }).click();
-  await expect(dialog.getByRole('alert')).toContainText(failure === 'save-error' ? 'sample save failed' : 'Revision conflict');
+  await expect(dialog.getByRole('alert')).toContainText(failure === 'save-error' ? 'Could not save' : 'This record changed');
   await dialog.getByRole('button', { name: 'No, keep it' }).click();
   await expect(page.locator('.hg-deletable-record')).toHaveCount(count);
   await page.getByLabel('Homeguard workspace state').selectOption('offline');

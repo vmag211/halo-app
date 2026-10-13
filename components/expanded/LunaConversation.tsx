@@ -1,7 +1,7 @@
 'use client';
 import DateInput from '@/components/ui/DateInput';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUp, Check, RotateCcw } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/Foundation';
 import LunaMark from '@/components/foundation/LunaMark';
@@ -16,7 +16,10 @@ import { isDiagnosticRequest, DIAGNOSTIC_REFUSAL } from '@/lib/assistant';
 import { useExpandedPreview } from './ExpandedPreviewState';
 import LunaLoading from './LunaLoading';
 import {isLunaWeekRequest,prepareLunaWeekPlan,lunaWeekChanges,weekMetaSignature,type LunaWeekPlan} from '@/lib/frontend/luna-week-plan';
-import {type WeekMeta} from '@/lib/frontend/week-preview';
+import { emptyWeekMeta, type WeekMeta } from '@/lib/frontend/week-preview';
+import { lunaTaskChangeError, lunaTaskNextMetadata, lunaTaskPatch, matchingLunaTasks, snapshotLunaTask, type LunaTaskChange, type LunaTaskOperation, type LunaTaskSnapshot } from '@/lib/frontend/luna-task-actions';
+import { lunaCompletionCopy as lunaCopy } from '@/lib/frontend/copy/luna-completion';
+import { revisedActionBatch } from '@/lib/frontend/expanded-preview';
 import {homepageAttention,weeklyHomepageRecap} from '@/lib/frontend/homepage-preview';
 import {initialSettings,type SettingsValues} from '@/lib/frontend/settings-preview';
 import {polishCopy} from '@/lib/frontend/copy/app-polish';
@@ -25,16 +28,18 @@ import './luna-conversation.css';
 type Guide = { id: string; title: string; stepTitle: string; instructions: string[]; source: string };
 type Go = (tab: string, destination?: string, view?: string, id?: string) => void;
 type Link = { label: string; tab: string; destination?: string; view?: string; record?: string };
-type BaseProposal = { id: string; status: 'review' | 'applied' | 'cancelled'; error?: string; dateExplanation?: string };
+type BaseProposal = { id: string; status: 'review' | 'applied' | 'cancelled'; error?: string; dateExplanation?: string; outcomeUnknown?: boolean; writeApplied?: boolean };
 type Proposal = BaseProposal & (
   | { kind: 'create-task'; title: string; date: string; requiresDate: boolean; key: string }
   | { kind: 'move-task'; title: string; date: string; requiresDate: true; record: string; revision: number; previousDate: string }
-  | { kind: 'save-note'; record: FieldNote }
+  | { kind: 'save-note'; record: FieldNote; editing?: boolean }
   | { kind: 'delete-note'; records: { id: string; revision: number; title: string }[] }
   | { kind: 'start-project'; record: ProjectRecord; guide: ProjectGuide; date: string; requiresDate: boolean; savePreparation: boolean; projectSaved?: boolean }
   | { kind:'week-plan'; plan:LunaWeekPlan }
+  | { kind: 'task-change'; change: LunaTaskChange }
 );
-type Message = { id: string; role: 'user' | 'assistant'; text: string; links?: Link[]; projects?: ProjectSuggestion[]; proposal?: Proposal; guide?: Guide; sources?: { title: string; url: string }[]; local?: LocalParticipationResource[]; retry?: string };
+type TaskChoices = { records: LunaTaskSnapshot[]; operation: LunaTaskOperation; request: string; title?: string };
+type Message = { id: string; role: 'user' | 'assistant'; text: string; links?: Link[]; projects?: ProjectSuggestion[]; proposal?: Proposal; guide?: Guide; sources?: { title: string; url: string }[]; local?: LocalParticipationResource[]; retry?: string; taskChoices?: TaskChoices };
 type Conversation = { draft: string; messages: Message[]; lastTaskKey?: string; projectRequest?: string };
 const initialConversation: Conversation = { draft: '', messages: [] };
 
@@ -65,25 +70,43 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   const [generation, setGeneration] = useHomeDraft<ProjectGenerationState | null>('explore:generated-projects', null);
   const [, setGenerationIntent] = useHomeDraft('explore:project-generation-intent', '');
   const [area] = useHomeDraft('explore:area', { place: '', state: '' });
-  const [serviceState, setServiceState] = useHomeDraft('luna:review-state', 'ready');
-  const [failPreparation, setFailPreparation] = useHomeDraft('luna:preparation-failure', false);
-  const [weekMetas]=useHomeDraft<Record<string,WeekMeta>>('week:metas',{});
+  const [serviceState] = useHomeDraft('luna:review-state', 'ready');
+  const [failPreparation] = useHomeDraft('luna:preparation-failure', false);
+  const [actionOutcome] = useHomeDraft('luna:action-outcome', 'saved');
+  const [actionCheck] = useHomeDraft('luna:action-check', 'unknown');
+  const [weekMetas,setWeekMetas]=useHomeDraft<Record<string,WeekMeta>>('week:metas',{});
   const [weekZone]=useHomeDraft('week:zone','America/New_York');
   const [weekDay]=useHomeDraft('week:date',lunaCalendarAnchor(new Date(),weekZone));
   const [pendingRequest, setPendingRequest] = useState(''); const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRequestRef = useRef('');
+  const retainConversation = useRef(setConversation);
+  useLayoutEffect(() => { pendingRequestRef.current = pendingRequest; retainConversation.current = setConversation; }, [pendingRequest, setConversation]);
   const [busy, setBusy] = useState(false); const [info, setInfo] = useState(false);
+  const executing = useRef(false); const applied = useRef(new Set<string>());
+  const [clearConversation, setClearConversation] = useState(false);
+  const [deviceOffline, setDeviceOffline] = useState(false);
   const [notice, setNotice] = useState(''); const log = useRef<HTMLDivElement>(null); const uid = useId();
-  const offline = offlineProp || workspace.scenario === 'offline';
+  const offline = offlineProp || deviceOffline || workspace.scenario === 'offline';
   const timezone = weekZone;
-  const blocked = busy || workspace.pending || offline || Boolean(pendingRequest) || ['loading', 'error'].includes(workspace.scenario);
+  const blocked = busy || workspace.pending || offline || Boolean(pendingRequest) || clearConversation || ['loading', 'error'].includes(workspace.scenario);
+  const contextPermissions = (workspace.drafts['settings:values'] as SettingsValues | undefined)?.luna ?? initialSettings.luna;
+  const hasUnknownAction = conversation.messages.some(message => message.proposal?.outcomeUnknown);
   const go: Go = (tab, destination, view, id) => {
     if (busy || workspace.pending) return;
     if (pendingRequest) { if (replyTimer.current) clearTimeout(replyTimer.current); replyTimer.current = null; setConversation(previous => ({ ...previous, draft: previous.draft || pendingRequest })); setPendingRequest(''); }
     if (destination === 'opportunities' && id) workspace.setDraft('explore:local-selected', () => id);
-    navigate(tab, destination, view, id);
+    if (tab === 'plan' && id) workspace.setDraft('week:open-task', () => id);
+    navigate(tab, destination, view, tab === 'plan' ? undefined : id);
   };
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'instant' }); }, [conversation.messages.length]);
-  useEffect(() => () => { if (replyTimer.current) clearTimeout(replyTimer.current); }, []);
+  useEffect(() => () => { if (replyTimer.current) clearTimeout(replyTimer.current); const unfinished = pendingRequestRef.current; if (unfinished) retainConversation.current(previous => ({ ...previous, draft: previous.draft || unfinished })); }, []);
+  useEffect(() => { const update = () => setDeviceOffline(!navigator.onLine); update(); window.addEventListener('online', update); window.addEventListener('offline', update); return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); }; }, []);
+  useEffect(() => {
+    if (!offline || !pendingRequest) return;
+    if (replyTimer.current) clearTimeout(replyTimer.current);
+    replyTimer.current = null;
+    queueMicrotask(() => { if (pendingRequestRef.current !== pendingRequest) return; setConversation(previous => ({ ...previous, draft: previous.draft || pendingRequest })); setPendingRequest(''); setNotice('Connection lost. Your question is kept; reconnect before trying again.'); });
+  }, [offline, pendingRequest, setConversation]);
   useEffect(() => {
     const viewport = window.visualViewport; const panel = document.getElementById(`luna-conversation-${uid}`);
     if (!viewport || !panel) return;
@@ -94,6 +117,19 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   const append = (text: string, extras: Partial<Omit<Message, 'id' | 'role' | 'text'>> = {}) => setConversation(previous => ({ ...previous, messages: [...previous.messages, { id: crypto.randomUUID(), role: 'assistant', text, ...extras }] }));
   const changeProposal = (messageId: string, change: (proposal: Proposal) => Proposal) => setConversation(previous => ({ ...previous, messages: previous.messages.map(message => message.id === messageId && message.proposal ? { ...message, proposal: change(message.proposal) } : message) }));
 
+  function prepareTaskChange(task: LunaTaskSnapshot, operation: LunaTaskOperation, request: string, title?: string) {
+    if (blocked) return;
+    if (!contextPermissions.tasks) { append(polishCopy.contextOff, { links: [{ label: polishCopy.settings, tab: 'settings' }] }); return; }
+    const current = preview?.actions.find(action => action.id === task.id);
+    const details = current ? weekMetas[current.key] : undefined;
+    const calendar = operation === 'move' ? resolveLunaCalendarDate(request, { anchor: lunaCalendarAnchor(new Date(), timezone), timezone, referenceDate: task.date || undefined }) : undefined;
+    const change: LunaTaskChange = { operation, task, title: title ?? task.title, date: calendar?.date ?? task.date };
+    const error = lunaTaskChangeError(change, current, details);
+    if (error === 'changed' || error === 'paused') { append(error === 'changed' ? lunaCopy.taskChanged : lunaCopy.taskPaused, { links: [{ label: 'Open My Week', tab: 'plan' }] }); return; }
+    if (error && !['rename', 'move'].includes(operation)) { append(error); return; }
+    append(calendar?.ambiguous ?? 'Review the exact task and change below. Nothing changes until you confirm.', { proposal: { id: crypto.randomUUID(), kind: 'task-change', change, status: 'review', dateExplanation: calendar?.explanation } });
+  }
+
   function send(value = conversation.draft, retry = false) {
     const request = value.trim().replace(/\u2014/g, ',').slice(0, 1000); if (!request || blocked) return;
     setNotice('');
@@ -102,7 +138,7 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
     if (serviceState !== 'ready') {
       if (serviceState === 'slow') { setPendingRequest(request); replyTimer.current = setTimeout(() => { replyTimer.current = null; setPendingRequest(''); append('Luna did not return a reply. Try again.', { retry: request }); }, 6500); return; }
       const responses: Record<string, string> = { 'no-source': 'I do not have a reliable source for that. No changes were made.', unavailable: 'Luna is unavailable. No changes were made. Try again.', unconfigured: 'Luna is unavailable. You can still use the app directly.', 'rate-limit': 'Too many requests. Try again shortly. No changes were made.' };
-      append(responses[serviceState] ?? responses.unavailable, serviceState === 'unavailable' ? { retry: request } : {}); return;
+      append(responses[serviceState] ?? responses.unavailable, ['unavailable', 'rate-limit', 'no-source'].includes(serviceState) ? { retry: request } : {}); return;
     }
     if(isLunaWeekRequest(request)||lunaIntent(request).kind==='projects'){
       setPendingRequest(request);replyTimer.current=setTimeout(()=>{replyTimer.current=null;setPendingRequest('');respond(request);},1900);return;
@@ -112,8 +148,8 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   function respond(request:string){
     const permissions=(workspace.drafts['settings:values'] as SettingsValues|undefined)?.luna??initialSettings.luna;
     const requestedIntent=lunaIntent(request);
-    if(!permissions.tasks&&(isLunaWeekRequest(request)||requestedIntent.kind==='move-task'||/\b(?:attention|weekly recap|how did (?:my|this) week go)\b/i.test(request))){append(polishCopy.contextOff,{links:[{label:polishCopy.settings,tab:'settings'}]});return;}
-    if(!permissions.projects&&requestedIntent.kind==='projects'){append(polishCopy.contextOff,{links:[{label:polishCopy.settings,tab:'settings'}]});return;}
+    if(!permissions.tasks&&(isLunaWeekRequest(request)||['move-task','change-task','find-task'].includes(requestedIntent.kind)||/\b(?:attention|weekly recap|how did (?:my|this) week go)\b/i.test(request))){append(polishCopy.contextOff,{links:[{label:polishCopy.settings,tab:'settings'}]});return;}
+    if(!permissions.projects&&['projects','start-project','guide'].includes(requestedIntent.kind)){append(polishCopy.contextOff,{links:[{label:polishCopy.settings,tab:'settings'}]});return;}
     if(/\bwhat (?:needs|requires) (?:my )?attention\b/i.test(request)){
       const anchor=lunaCalendarAnchor(new Date(),weekZone);
       const items=homepageAttention(preview?.actions??[],weekMetas,[],{},anchor,weekZone);
@@ -127,13 +163,17 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
       const plan=prepareLunaWeekPlan(request,preview?.actions??[],weekMetas,weekDay);
       append(plan.items.length?`I found ${plan.items.length} saved task${plan.items.length===1?'':'s'} that fit${plan.items.length===1?'s':''}${plan.budget!==null?` within ${plan.budget} minutes`:''}. Review the dates before applying. Existing commitments stay as they are.`:plan.explanation,{proposal:plan.items.length?{id:crypto.randomUUID(),kind:'week-plan',plan,status:'review'}:undefined,links:[{label:'Open My Week',tab:'plan'}]});return;
     }
-    const waiting = [...conversation.messages].reverse().find(message => message.proposal?.status === 'review' && ['create-task', 'move-task'].includes(message.proposal.kind));
+    const waiting = [...conversation.messages].reverse().find(message => message.proposal?.status === 'review' && (['create-task', 'move-task'].includes(message.proposal.kind) || message.proposal.kind === 'task-change' && message.proposal.change.operation === 'move'));
     const date = explicitLunaDate(request);
     if (/^\d{4}-\d{2}-\d{2}$/.test(request) && waiting?.proposal && !date.invalid) {
       const proposal = waiting.proposal;
       if (proposal.kind === 'create-task' || proposal.kind === 'move-task') {
         changeProposal(waiting.id, current => ({ ...current, status: 'cancelled' }));
         append('Here is the updated all-day schedule. Review it before I save.', { proposal: { ...proposal, id: crypto.randomUUID(), date: request, status: 'review', error: undefined } }); return;
+      }
+      if (proposal.kind === 'task-change' && proposal.change.operation === 'move') {
+        changeProposal(waiting.id, current => ({ ...current, status: 'cancelled' }));
+        append('Review the revised date before saving.', { proposal: { ...proposal, id: crypto.randomUUID(), change: { ...proposal.change, date: request }, status: 'review', error: undefined } }); return;
       }
     }
     const intent = lunaIntent(request);
@@ -191,23 +231,35 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
       if (matches.length !== 1) { append('Which project should I start? Tell me its full title or open the guide first so I can review its materials and safety checks.', { links: [{ label: 'Choose a project', tab: 'act', destination: 'projects' }] }); return; }
       const guide = matches[0]; const existing = projects.records.find(record => record.id === guide.id);
       if (existing?.status === 'Completed') { append('That project is recorded as completed. Open its workspace to review the outcome or choose another project; I will not silently reset it.', { links: [{ label: 'Open the project', tab: 'act', destination: 'projects', view: 'detail', record: guide.id }] }); return; }
-      const record: ProjectRecord = existing ? { ...existing, status: 'Active' } : { id: guide.id, title: guide.title, revision: 0, status: 'Active', goal: guide.purpose, stepNotes: {}, outcome: '', reviewDate: '', history: [] };
-      const calendar = resolveLunaCalendarDate(request, { anchor: lunaCalendarAnchor(), timezone });
+      const record: ProjectRecord = { id: guide.id, title: guide.title, revision: existing?.revision ?? 0, status: 'Active', goal: guide.purpose, stepNotes: {}, outcome: '', reviewDate: '', history: [] };
+      const calendar = resolveLunaCalendarDate(request, { anchor: lunaCalendarAnchor(new Date(), timezone), timezone });
       append(calendar.ambiguous ?? 'Review this project and its preparation. Starting a workspace does not mean the work is done, purchase materials or register anyone.', { proposal: { id, kind: 'start-project', record, guide, date: calendar.date, requiresDate: calendar.requiresDate, savePreparation: true, status: 'review', dateExplanation: calendar.explanation } }); return;
     }
     if (intent.kind === 'create-task') {
-      const calendar = resolveLunaCalendarDate(request, { anchor: lunaCalendarAnchor(), timezone });
+      const calendar = resolveLunaCalendarDate(request, { anchor: lunaCalendarAnchor(new Date(), timezone), timezone });
       append(calendar.ambiguous ?? 'Review this My Week task. I will save only the concrete title and date shown.', { proposal: { id, kind: 'create-task', title: intent.title, date: calendar.date, requiresDate: calendar.requiresDate, key: `luna:task:${id}`, status: 'review', dateExplanation: calendar.explanation } }); return;
     }
-    if (intent.kind === 'move-task') {
-      const action = preview?.actions.find(action => action.key === conversation.lastTaskKey);
-      if (!action) { append('Which task do you mean? There is no task created or edited in this conversation yet. Open My Week to choose one, or ask me to create a task.', { links: [{ label: 'Open My Week', tab: 'plan' }] }); return; }
-      const calendar = resolveLunaCalendarDate(request, { anchor: lunaCalendarAnchor(), timezone, referenceDate: action.date || undefined });
-      append(calendar.ambiguous ?? 'Review the change to the last task from this conversation. The existing task stays unchanged until you confirm.', { proposal: { id, kind: 'move-task', title: action.title, date: calendar.date, requiresDate: true, record: action.id, revision: action.revision ?? 1, previousDate: action.date, status: 'review', dateExplanation: calendar.explanation } }); return;
+    if (intent.kind === 'move-task' || intent.kind === 'change-task' || intent.kind === 'find-task') {
+      const matches = matchingLunaTasks(preview?.actions ?? [], intent.name, conversation.lastTaskKey);
+      if (!matches.length) { append(lunaCopy.noTask, { links: [{ label: 'Open My Week', tab: 'plan' }] }); return; }
+      if (intent.kind === 'find-task') { append(matches.map(task => `${task.title}: ${task.state}, ${task.date || 'saved for later'}, ${task.origin}.`).join('\n'), { links: matches.map(task => ({ label: `Open ${task.title}`, tab: 'plan', record: task.id })) }); return; }
+      const operation = intent.kind === 'move-task' ? 'move' : intent.operation;
+      const title = intent.kind === 'change-task' ? intent.title : undefined;
+      const records = matches.map(task => snapshotLunaTask(task, weekMetas[task.key]));
+      if (records.length !== 1) { append(lunaCopy.chooseTask, { taskChoices: { records, operation, request, title } }); return; }
+      prepareTaskChange(records[0], operation, request, title); return;
     }
     if (intent.kind === 'save-note') {
       const record = { ...blankFieldNote(), id: crypto.randomUUID(), noteType: 'Idea' as const, title: intent.title, description: intent.description };
       append('Review this private note. It goes into your existing notebook, not a separate Luna notebook.', { proposal: { id, kind: 'save-note', record, status: 'review' } }); return;
+    }
+    if (intent.kind === 'edit-note') {
+      const matches = matchingLunaNotes(notes.records, intent.name);
+      if (matches.length !== 1) { append(matches.length ? 'More than one note matches. Use its full title so I review only the note you mean.' : 'I could not find that note. Check its full title in your notebook.', { links: [{ label: 'Open my notebook', tab: 'act', destination: 'observations' }] }); return; }
+      const selected = matches[0];
+      // Do not copy location, attachments, evidence or case history into conversation data.
+      const record = { ...blankFieldNote(), id: selected.id, revision: selected.revision, title: selected.title, noteType: 'Idea' as const, description: intent.description };
+      append('Review the replacement text for this exact note. Its date, location, attachments, evidence references and case history stay unchanged.', { proposal: { id, kind: 'save-note', record, editing: true, status: 'review' } }); return;
     }
     const matches = matchingLunaNotes(notes.records, intent.name);
     if (matches.length !== 1) { append(matches.length ? 'More than one note matches. Tell me the full title so I do not remove the wrong one.' : 'Which note should I remove? Give me its exact title, or open your notebook to check. Nothing has been deleted.', { links: [{ label: 'Open my notebook', tab: 'act', destination: 'observations' }] }); return; }
@@ -215,14 +267,51 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   }
 
   async function execute(messageId: string, proposal: Proposal) {
-    if (blocked || proposal.status !== 'review') return;
+    if (blocked || executing.current || applied.current.has(proposal.id) || proposal.status !== 'review') return;
     const fail = (message: string) => changeProposal(messageId, current => ({ ...current, error: message }));
+    if (proposal.outcomeUnknown || hasUnknownAction) { fail(lunaCopy.pendingCheck); return; }
     const permissions=(workspace.drafts['settings:values'] as SettingsValues|undefined)?.luna??initialSettings.luna;
-    if(!permissions.tasks&&['move-task','week-plan'].includes(proposal.kind)||!permissions.projects&&proposal.kind==='start-project'){fail(polishCopy.contextOff);return;}
+    if(!permissions.tasks&&['move-task','task-change','week-plan'].includes(proposal.kind)||!permissions.projects&&proposal.kind==='start-project'){fail(polishCopy.contextOff);return;}
     if (!navigator.onLine||['save-error', 'conflict'].includes(workspace.scenario) || preview?.fail) { const scope = proposal.kind === 'start-project' && proposal.projectSaved ? 'The project was already started. No additional change was made; its preparation is still unsaved.' : 'Nothing changed.'; fail(workspace.scenario === 'conflict' ? `Revision conflict. ${scope} Keep this review and resolve the record before retrying.` : `Could not save. Your choices are kept. ${scope}`); return; }
-    setBusy(true); setNotice('');
+    if (actionOutcome === 'unknown-not-applied') {
+      // An uncertain transport result is possible only after a valid, owned review.
+      let error: string | null = null;
+      if (proposal.kind === 'task-change') error = lunaTaskChangeError(proposal.change, preview?.actions.find(action => action.id === proposal.change.task.id), weekMetas[proposal.change.task.key]);
+      else if (proposal.kind === 'create-task' || proposal.kind === 'move-task') {
+        error = lunaTaskReviewError(proposal.title, proposal.date, proposal.requiresDate);
+        if (!preview || proposal.kind === 'move-task' && !lunaTaskRevisionMatches(preview.actions.find(action => action.id === proposal.record), proposal.revision)) error = 'changed';
+      } else if (proposal.kind === 'save-note') {
+        error = fieldNoteError(proposal.record);
+        if (proposal.editing && !notes.records.some(record => record.id === proposal.record.id && record.revision === proposal.record.revision)) error = 'This note changed or was deleted. Review its current record.';
+      } else if (proposal.kind === 'delete-note') {
+        if (!proposal.records.length || !proposal.records.every(selected => notes.records.some(record => record.id === selected.id && record.revision === selected.revision))) error = 'A selected note changed or was deleted. Review it again.';
+      } else if (proposal.kind === 'week-plan') {
+        const changes = lunaWeekChanges(proposal.plan);
+        if (!changes || weekMetaSignature(proposal.plan.items, weekMetas) !== proposal.plan.metadataSignature || !revisedActionBatch(preview?.actions ?? [], changes)) error = 'A task or its schedule changed. Ask for a fresh plan.';
+      } else {
+        const current = projects.records.find(record => record.id === proposal.record.id);
+        if (proposal.projectSaved ? !current || current.status !== 'Active' : current ? current.revision !== proposal.record.revision : proposal.record.revision !== 0) error = 'The project changed. Open its current workspace.';
+        if (proposal.savePreparation) error ??= lunaTaskReviewError(proposal.guide.steps[0]?.title ?? '', proposal.date, proposal.requiresDate);
+      }
+      if (error) { fail(error === 'changed' ? lunaCopy.taskChanged : error === 'paused' ? lunaCopy.taskPaused : error); return; }
+      changeProposal(messageId, current => ({ ...current, outcomeUnknown: true, writeApplied: false, error: undefined })); return;
+    }
+    executing.current = true; setBusy(true); setNotice('');
     try {
-      if(proposal.kind==='week-plan'){
+      if (proposal.kind === 'task-change') {
+        const { change } = proposal;
+        const current = preview?.actions.find(action => action.id === change.task.id);
+        const error = lunaTaskChangeError(change, current, weekMetas[change.task.key]);
+        if (error) { fail(error === 'changed' ? lunaCopy.taskChanged : error === 'paused' ? lunaCopy.taskPaused : error); return; }
+        if (!current || !preview) { fail(lunaCopy.taskChanged); return; }
+        const saved = change.operation === 'delete' ? preview.deleteAction(current.id, change.task.revision) : preview.reviseAction(current.id, change.task.revision, lunaTaskPatch(change, current));
+        if (!saved) { fail(lunaCopy.taskChanged); return; }
+        setWeekMetas(previous => {
+          if (change.operation === 'delete') { const next = { ...previous }; delete next[current.key]; return next; }
+          return { ...previous, [current.key]: lunaTaskNextMetadata(change.operation, previous[current.key], lunaCalendarAnchor(new Date(), timezone)) };
+        });
+        setConversation(previous => ({ ...previous, lastTaskKey: change.operation === 'delete' ? previous.lastTaskKey === current.key ? undefined : previous.lastTaskKey : current.key }));
+      } else if(proposal.kind==='week-plan'){
         const changes=lunaWeekChanges(proposal.plan);
         if(!changes){fail('Choose a valid date for every selected task.');return;}
         if(weekMetaSignature(proposal.plan.items,weekMetas)!==proposal.plan.metadataSignature||!preview?.reviseActions(changes)){fail('A task or its schedule changed. Nothing was moved. Ask for a fresh plan.');return;}
@@ -232,8 +321,9 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
         if (!proposal.projectSaved && (current ? current.revision !== proposal.record.revision : proposal.record.revision !== 0)) { fail('This project changed after the review. Open it and prepare a new review; nothing was overwritten.'); return; }
         if (proposal.savePreparation) { const error = lunaTaskReviewError(proposal.guide.steps[0]?.title ?? '', proposal.date, proposal.requiresDate); if (error) { fail(error); return; } }
         if (!proposal.projectSaved) {
-          const history = [...proposal.record.history, { status: 'Active', note: `I confirmed starting or continuing guide ${proposal.guide.version} with Luna.` }];
-          if (!await projects.save({ ...proposal.record, history })) { fail('The project was not started. Your review stays here; check the record before retrying.'); return; }
+          const base = current ?? proposal.record;
+          const history = [...base.history, { status: 'Active', note: `I confirmed starting or continuing guide ${proposal.guide.version} with Luna.` }];
+          if (!await projects.save({ ...base, status: 'Active', history })) { fail('The project was not started. Your review stays here; check the record before retrying.'); return; }
           changeProposal(messageId, current => current.kind === 'start-project' ? { ...current, projectSaved: true } : current);
         }
         if (proposal.savePreparation) {
@@ -253,19 +343,50 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
         setConversation(previous => ({ ...previous, lastTaskKey: key }));
       } else if (proposal.kind === 'save-note') {
         const error = fieldNoteError(proposal.record); if (error) { fail(error); return; }
-        if (!await notes.save(proposal.record)) { fail('The note was not saved. Your review is retained. Check the workspace state and retry.'); return; }
+        const current = notes.records.find(record => record.id === proposal.record.id);
+        if (proposal.editing && (!current || current.revision !== proposal.record.revision)) { fail('This note changed or was deleted after the review. Nothing was overwritten or restored. Open its current record before trying again.'); return; }
+        const record = proposal.editing && current ? { ...current, title: proposal.record.title, description: proposal.record.description } : proposal.record;
+        const fullError = fieldNoteError(record); if (fullError) { fail(fullError); return; }
+        if (!await notes.save(record)) { fail('The note was not saved. Your review is retained. Check the workspace state and retry.'); return; }
       } else if (!await workspace.removeNotes(proposal.records)) { fail('The note was not removed. It may have changed, or saving failed. Review it again before retrying.'); return; }
-      changeProposal(messageId, current => ({ ...current, status: 'applied', error: undefined }));
-    } finally { setBusy(false); }
+      applied.current.add(proposal.id); changeProposal(messageId, current => ({ ...current, status: actionOutcome === 'unknown-applied' ? 'review' : 'applied', outcomeUnknown: actionOutcome === 'unknown-applied', writeApplied: true, error: undefined }));
+    } finally { executing.current = false; setBusy(false); }
   }
 
   const review = (message: Message, proposal: Proposal) => {
+    if (proposal.outcomeUnknown) {
+      const title = proposal.kind === 'task-change' ? proposal.change.task.title : proposal.kind === 'week-plan' ? `${proposal.plan.items.length} selected tasks` : proposal.kind === 'delete-note' ? proposal.records.map(record => record.title).join(', ') : proposal.kind === 'create-task' || proposal.kind === 'move-task' ? proposal.title : proposal.record.title;
+      return <section className="lc-proposal" aria-label="Action status review"><strong>{lunaCopy.unknownTitle}</strong><div className="lc-task-scope"><b>{title}</b><small>{lunaCopy.unknownScope}</small><small>Operation {proposal.id.slice(-8)}</small></div>{proposal.error && <p role="status">{proposal.error}</p>}<div className="lc-review-actions"><button className="lc-primary" disabled={blocked} onClick={() => { if (actionCheck !== 'resolved') changeProposal(message.id, current => ({ ...current, error: lunaCopy.unknownRetained })); else changeProposal(message.id, current => ({ ...current, outcomeUnknown: false, status: current.writeApplied ? 'applied' : 'review', error: current.writeApplied ? undefined : lunaCopy.noWrite })); }}>Check status</button></div></section>;
+    }
     if (proposal.status === 'cancelled') return <p className="lc-receipt">{proposal.kind === 'start-project' && proposal.projectSaved ? 'The project workspace was already started. The unsaved preparation review was cancelled; the project remains.' : 'Review cancelled. No change was made from this review.'}</p>;
+    if (proposal.kind === 'task-change') {
+      const { change } = proposal; const { operation, task } = change;
+      const labels: Record<LunaTaskOperation, string> = { delete: 'Delete this task?', complete: 'Mark this task complete?', reopen: 'Reopen this task?', waiting: 'Mark this task waiting?', unschedule: 'Save this task for later?', rename: 'Rename this task', move: 'Change this task' };
+      const confirms: Record<LunaTaskOperation, string> = { delete: 'Yes, delete', complete: 'Mark complete', reopen: 'Reopen task', waiting: 'Mark waiting', unschedule: 'Save for later', rename: 'Save change', move: 'Save change' };
+      const receipts: Record<LunaTaskOperation, string> = { delete: lunaCopy.deletedReceipt, complete: lunaCopy.completedReceipt, reopen: lunaCopy.reopenedReceipt, waiting: lunaCopy.waitingReceipt, unschedule: lunaCopy.unscheduledReceipt, rename: lunaCopy.changedReceipt, move: 'Saved in My Week.' };
+      if (proposal.status === 'applied') return <div className="lc-receipt" data-record-id={task.id}><Check size={17} aria-hidden="true" /><span>{receipts[operation]}</span><button onClick={() => go('plan', undefined, undefined, operation === 'delete' ? undefined : task.id)}>{operation === 'delete' ? 'Open My Week' : 'Open task'} <ArrowRight size={16} aria-hidden="true" /></button></div>;
+      const meta = weekMetas[task.key] ?? emptyWeekMeta;
+      return <section className="lc-proposal" aria-label={operation === 'delete' ? 'Task deletion review' : 'Task change review'}>
+        <strong>{labels[operation]}</strong>
+        <fieldset disabled={busy || workspace.pending}>
+          <div className="lc-task-scope"><b>{task.title}</b><small>{task.origin} · {task.state} · {task.date || 'Saved for later'}</small><small>Task revision {task.revision}</small></div>
+          {operation === 'rename' && <label>Task title<input value={change.title} maxLength={160} onChange={event => changeProposal(message.id, current => current.kind === 'task-change' ? { ...current, change: { ...current.change, title: event.target.value }, error: undefined } : current)} /></label>}
+          {operation === 'move' && <><label>All-day date<DateInput todayDate={lunaCalendarAnchor(new Date(), timezone)} value={change.date} onChange={event => changeProposal(message.id, current => current.kind === 'task-change' ? { ...current, change: { ...current.change, date: event.target.value }, dateExplanation: 'Date you selected.', error: undefined } : current)} /></label><small>{proposal.dateExplanation} {meta.time ? `Existing time ${meta.time} in ${meta.zone} stays attached.` : `All-day plan in ${timezone}.`} Reminder and repeat preferences are unchanged.</small></>}
+          {operation === 'delete' && <small>{lunaCopy.deleteScope}</small>}
+          {operation === 'complete' && <small>{lunaCopy.completionScope} Completion is recorded for {lunaCalendarAnchor(new Date(), timezone)} in {timezone}, not the scheduled day.</small>}
+          {operation === 'reopen' && <small>{lunaCopy.reopenScope}</small>}
+          {operation === 'waiting' && <small>{lunaCopy.waitingScope}</small>}
+          {operation === 'unschedule' && <small>{lunaCopy.unscheduleScope}</small>}
+          {proposal.error && <p role="alert">{proposal.error}</p>}
+          <div className="lc-review-actions"><button className={operation === 'delete' ? 'lc-danger' : 'lc-primary'} disabled={blocked} onClick={() => { void execute(message.id, proposal); }}>{busy ? 'Saving...' : confirms[operation]}</button><button onClick={() => changeProposal(message.id, current => ({ ...current, status: 'cancelled' }))}>{operation === 'delete' ? 'No, keep it' : 'Cancel review'}</button></div>
+        </fieldset>
+      </section>;
+    }
     if (proposal.status === 'applied') {
       if(proposal.kind==='week-plan')return <div className="lc-receipt"><Check size={17}/><span>{proposal.plan.items.length} existing tasks scheduled.</span><button onClick={()=>go('plan')}>Open My Week <ArrowRight size={16}/></button></div>;
       const action = proposal.kind === 'create-task' ? preview?.actions.find(action => action.key === proposal.key) : proposal.kind === 'move-task' ? preview?.actions.find(action => action.id === proposal.record) : undefined;
       const recordId = action?.id ?? (proposal.kind === 'save-note' || proposal.kind === 'start-project' ? proposal.record.id : proposal.kind === 'delete-note' ? proposal.records[0]?.id : '');
-      return <div className="lc-receipt" data-record-id={recordId}><Check size={17} aria-hidden="true" /><span>{proposal.kind === 'delete-note' ? 'Selected note removed.' : proposal.kind === 'save-note' ? 'Note saved.' : proposal.kind === 'start-project' ? `Project workspace started${proposal.savePreparation ? ' with its preparation in My Week' : ''}. No step was completed.` : action ? 'Saved in My Week.' : 'Saving...'}</span>{proposal.kind !== 'delete-note' && recordId && <button onClick={() => proposal.kind === 'start-project' ? go('act', 'projects', 'detail', proposal.guide.id) : go(proposal.kind === 'save-note' ? 'act' : 'plan', proposal.kind === 'save-note' ? 'observations' : undefined, proposal.kind === 'save-note' ? 'detail' : undefined, proposal.kind === 'save-note' ? recordId : undefined)}>Open <ArrowRight size={16} aria-hidden="true" /></button>}</div>;
+      return <div className="lc-receipt" data-record-id={recordId}><Check size={17} aria-hidden="true" /><span>{proposal.kind === 'delete-note' ? 'Selected note removed.' : proposal.kind === 'save-note' ? 'Note saved.' : proposal.kind === 'start-project' ? `Project workspace started${proposal.savePreparation ? ' with its preparation in My Week' : ''}. No step was completed.` : action ? 'Saved in My Week.' : 'This saved task is no longer available.'}</span>{proposal.kind !== 'delete-note' && recordId && <button onClick={() => proposal.kind === 'start-project' ? go('act', 'projects', 'detail', proposal.guide.id) : go(proposal.kind === 'save-note' ? 'act' : 'plan', proposal.kind === 'save-note' ? 'observations' : undefined, proposal.kind === 'save-note' ? 'detail' : undefined, recordId)}>Open <ArrowRight size={16} aria-hidden="true" /></button>}</div>;
     }
     return <section className="lc-proposal" aria-label={proposal.kind === 'delete-note' ? 'Note deletion review' : 'Luna action review'}>
       <strong>{proposal.kind==='week-plan'?'Your week, ready to review':proposal.kind === 'delete-note' ? 'Delete this note?' : proposal.kind === 'save-note' ? 'Your private note' : proposal.kind === 'start-project' ? 'Start this project' : proposal.kind === 'move-task' ? 'Change this task' : 'Add to My Week'}</strong>
@@ -284,12 +405,28 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   function cancelPending() { if (replyTimer.current) clearTimeout(replyTimer.current); replyTimer.current = null; setConversation(previous => ({ ...previous, draft: previous.draft || pendingRequest })); setPendingRequest(''); setNotice('Request cancelled. Edit your question or retry.'); }
   return <BottomSheet id={`luna-conversation-${uid}`} title="Luna" height="tall" onClose={() => { if (!busy && !workspace.pending) { if (pendingRequest) cancelPending(); onClose(); } }}><div className="lc-shell">
     <header className="lc-context"><LunaMark size={26} /><span>{currentGuide?.title ?? context}</span><button aria-expanded={info} onClick={() => setInfo(value => !value)}>Context &amp; privacy</button></header>
-    {info && <aside className="lc-info"><p>Luna uses this page and selected records. Notes are included only when you choose them. Journal text stays private.</p><p>Review proposed changes before confirming them.</p></aside>}
+    {info && <aside className="lc-info"><p>Context: this page. Tasks {contextPermissions.tasks ? 'on' : 'off'}, home records {contextPermissions.home ? 'on' : 'off'}, projects {contextPermissions.projects ? 'on' : 'off'}.</p><p>Notes are included only when you choose them. Journal text and private task preparation stay excluded. Review every proposed change.</p><details><summary>What Luna can do</summary><p>{lunaCopy.capabilities}</p><p>Project ideas and step guidance, local participation routes, source explanations, notes and navigation are also available. External registration, messages and test results never change from a chat request.</p></details><button className="lc-link" onClick={() => go('settings')}>Manage context in Settings <ArrowRight size={16} aria-hidden="true" /></button></aside>}
     <div className="lc-log" ref={log} role="log" aria-label="Conversation with Luna" aria-live="polite" aria-relevant="additions">
       {!conversation.messages.length && <section className="lc-welcome"><LunaMark size={40} /><h3>What would you like to do?</h3><p>Find a project, make a plan, or get help with what is in front of you.</p><div className="lc-starts">{['Find projects that fit my home', 'Find local ways to volunteer', currentGuide ? 'Guide me through this step' : 'Open my tests'].map(prompt => <button key={prompt} onClick={() => send(prompt)} disabled={blocked}>{prompt}<ArrowRight size={16} aria-hidden="true" /></button>)}</div></section>}
-      {conversation.messages.map(message => <article className={`lc-message lc-message--${message.role}`} key={message.id}><span className="lc-role">{message.role === 'user' ? 'You' : 'Luna'}</span><p>{message.text}</p>{message.projects && <div className="lc-projects">{message.projects.map(project => <button key={project.id} onClick={() => go('act', 'projects', 'detail', project.id)}><strong>{project.title}</strong><small>{project.reason}</small><ArrowRight size={16} aria-hidden="true" /></button>)}</div>}{message.local && <div className="lc-local">{message.local.map(resource => <article key={resource.id}><strong>{resource.organizer}</strong><small>{resource.area}</small><p>{resource.work}</p>{resource.address && <small>{resource.address}<br />{resource.addressRole}</small>}<a href={resource.url} target="_blank" rel="noreferrer">Official programme information</a><button className="lc-link" onClick={() => go('act', 'opportunities', 'list', resource.id)}>Plan how to take part<ArrowRight size={16} aria-hidden="true" /></button></article>)}</div>}{message.guide && <div className="lc-guide"><strong>{message.guide.stepTitle}</strong><ol>{message.guide.instructions.map(line => <li key={line}>{line}</li>)}</ol><a href={message.guide.source} target="_blank" rel="noreferrer">Source instructions</a><small>You decide when the step is complete.</small></div>}{message.sources && <details className="lc-sources"><summary>Sources and scope</summary>{message.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>)}<small>Official guidance supports these explanations.</small></details>}{message.links?.map(link => <button className="lc-link" key={link.label} onClick={() => go(link.tab, link.destination, link.view, link.record)}>{link.label}<ArrowRight size={16} aria-hidden="true" /></button>)}{message.retry && <button className="lc-link" disabled={blocked} onClick={() => send(message.retry!, true)}>Retry request</button>}{message.proposal && review(message, message.proposal)}</article>)}
+      {conversation.messages.map(message => <article className={`lc-message lc-message--${message.role}`} key={message.id}>
+        <span className="lc-role">{message.role === 'user' ? 'You' : 'Luna'}</span><p>{message.text}</p>
+        {message.projects && <div className="lc-projects">{message.projects.map(project => <button key={project.id} onClick={() => go('act', 'projects', 'detail', project.id)}><strong>{project.title}</strong><small>{project.reason}</small><ArrowRight size={16} aria-hidden="true" /></button>)}</div>}
+        {message.local && <div className="lc-local">{message.local.map(resource => <article key={resource.id}><strong>{resource.organizer}</strong><small>{resource.area}</small><p>{resource.work}</p>{resource.address && <small>{resource.address}<br />{resource.addressRole}</small>}<a href={resource.url} target="_blank" rel="noreferrer">Official programme information</a><button className="lc-link" onClick={() => go('act', 'opportunities', 'list', resource.id)}>Plan how to take part<ArrowRight size={16} aria-hidden="true" /></button></article>)}</div>}
+        {message.guide && <div className="lc-guide"><strong>{message.guide.stepTitle}</strong><ol>{message.guide.instructions.map(line => <li key={line}>{line}</li>)}</ol><a href={message.guide.source} target="_blank" rel="noreferrer">Source instructions</a><small>You decide when the step is complete.</small></div>}
+        {message.sources && <details className="lc-sources"><summary>Sources and scope</summary>{message.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>)}<small>Official guidance supports these explanations.</small></details>}
+        {message.links?.map(link => <button className="lc-link" key={link.label} onClick={() => go(link.tab, link.destination, link.view, link.record)}>{link.label}<ArrowRight size={16} aria-hidden="true" /></button>)}
+        {message.taskChoices && <div className="lc-task-choices" role="group" aria-label="Choose a task">{message.taskChoices.records.map(task => <button key={task.id} disabled={blocked} onClick={() => { const choices = message.taskChoices!; prepareTaskChange(task, choices.operation, choices.request, choices.title); }}><strong>{task.title}</strong><small>{task.origin} · {task.date || 'Saved for later'} · {task.state}</small><span>Review this task <ArrowRight size={16} aria-hidden="true" /></span></button>)}</div>}
+        {message.retry && <button className="lc-link" disabled={blocked} onClick={() => send(message.retry!, true)}>Retry request</button>}
+        {message.proposal && review(message, message.proposal)}
+      </article>)}
       {(pendingRequest||busy)&&<aside className="lc-pending"><LunaLoading label={busy?'Saving your confirmed changes':'Thinking it through'} />{pendingRequest&&<button onClick={cancelPending}>Cancel request</button>}</aside>}
     </div>
-    <footer className="lc-footer">{offline && <p role="status">Offline. Your conversation and reviews stay here; changes are not queued.</p>}{notice && <p role="status">{notice}</p>}<form className="lc-composer" onSubmit={event => { event.preventDefault(); send(); }}><label className="halo-sr-only" htmlFor={`luna-input-${uid}`}>Message Luna</label><textarea id={`luna-input-${uid}`} rows={2} maxLength={1000} placeholder="Ask Luna to help or do something..." value={conversation.draft} disabled={busy} onChange={event => setConversation(previous => ({ ...previous, draft: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} /><button type="submit" className="lc-send" aria-label="Send message" disabled={!conversation.draft.trim() || blocked}><ArrowUp size={20} aria-hidden="true" /></button></form><div className="lc-footer-meta"><button disabled={busy || workspace.pending || Boolean(pendingRequest)} onClick={() => { if (pendingRequest) return; setConversation(initialConversation); setNotice('New conversation started. Saved records and tasks were kept.'); }}><RotateCcw size={13} aria-hidden="true" />New conversation</button></div></footer>
+    <footer className="lc-footer">
+      {offline && <p role="status">Offline. Your conversation and reviews stay here; changes are not queued.</p>}{notice && <p role="status">{notice}</p>}
+      {clearConversation ? <section className="lc-clear" aria-label="Clear conversation review"><strong>{lunaCopy.clearTitle}</strong><p>{lunaCopy.clearScope}</p><div className="lc-review-actions"><button className="lc-danger" onClick={() => { setConversation(initialConversation); setClearConversation(false); setNotice(lunaCopy.newConversation); }}>{lunaCopy.clearConfirm}</button><button onClick={() => setClearConversation(false)}>{lunaCopy.clearCancel}</button></div></section> : <>
+        <form className="lc-composer" onSubmit={event => { event.preventDefault(); send(); }}><label className="halo-sr-only" htmlFor={`luna-input-${uid}`}>Message Luna</label><textarea id={`luna-input-${uid}`} rows={2} maxLength={1000} placeholder="Ask Luna to help or do something..." value={conversation.draft} disabled={busy} onChange={event => setConversation(previous => ({ ...previous, draft: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} /><button type="submit" className="lc-send" aria-label="Send message" disabled={!conversation.draft.trim() || blocked}><ArrowUp size={20} aria-hidden="true" /></button></form>
+        <div className="lc-footer-meta"><button disabled={busy || workspace.pending || Boolean(pendingRequest) || hasUnknownAction} title={hasUnknownAction ? 'Check the pending change before clearing this conversation.' : undefined} onClick={() => { if (pendingRequest || hasUnknownAction) return; if (conversation.messages.length || conversation.draft) setClearConversation(true); else setNotice(lunaCopy.newConversation); }}><RotateCcw size={13} aria-hidden="true" />New conversation</button>{hasUnknownAction && <small>A change needs checking.</small>}</div>
+      </>}
+    </footer>
   </div></BottomSheet>;
 }

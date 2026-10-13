@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-for (const appearance of ['light', 'dark']) test(`Homeguard scorecards precede the household in ${appearance}`, async ({ page }, testInfo) => {
+for (const appearance of ['light', 'dark']) test(`Homeguard scorecards and compact workspace precede the household in ${appearance}`, async ({ page }, testInfo) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   for (const [width, scale] of [[375, 100], [320, 150]]) {
     await page.setViewportSize({ width, height: 850 });
@@ -19,11 +19,12 @@ for (const appearance of ['light', 'dark']) test(`Homeguard scorecards precede t
     await expect(cards).toContainText('Lead in plumbing');
     const hero = await page.locator('.halo-ph-landscape').boundingBox();
     const grid = await cards.boundingBox();
-    const people = await page.locator('.halo-ph-household').boundingBox();
+    const workspace = await page.locator('#home-workspace').boundingBox();
     const house = await page.locator('.halo-home-household').boundingBox();
     expect(grid!.y).toBeGreaterThan(hero!.y + hero!.height);
-    expect(grid!.y + grid!.height).toBeLessThan(people!.y);
-    expect(people!.y).toBeLessThan(house!.y);
+    expect(grid!.y + grid!.height).toBeLessThanOrEqual(workspace!.y);
+    expect(workspace!.y + workspace!.height).toBeLessThanOrEqual(house!.y);
+    await expect(page.locator('.halo-ph-household')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`homeguard-${appearance}-${width}.png`), fullPage: true });
     await cards.getByRole('link').first().click();
@@ -37,6 +38,7 @@ test('general household guidance has no save-step controls or leftover save-only
   for (const path of paths) {
     await page.goto(`/foundation/preview${path}/?edition=expanded&appearance=dark&motion=reduce&time=day`);
     await expect(page.locator('.halo-family, .halo-home-member')).toBeVisible();
+    await expect(page.getByRole('navigation', {name:'Main navigation'}).getByRole('link', {name:path==='/family'?'Today':'Homeguard',exact:true})).toHaveAttribute('aria-current','page');
     await expect(page.getByRole('button', { name: 'Save this step', exact: true })).toHaveCount(0);
     await expect(page.getByText('Keep a useful household step', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Open My Week' })).toBeVisible();

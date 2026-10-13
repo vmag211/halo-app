@@ -112,7 +112,7 @@ test('focused garden link editor retains a failed draft and supports retry witho
   for (const scenario of ['save-error', 'conflict']) {
     await state.selectOption(scenario);
     await page.getByRole('button', { name: 'Save test links', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: scenario === 'save-error' ? 'The sample save failed' : 'Revision conflict' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: scenario === 'save-error' ? 'Could not save' : 'This record changed' })).toBeVisible();
     await expect(choice).toBeChecked();
   }
   await state.selectOption('ready');

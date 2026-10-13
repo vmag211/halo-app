@@ -8,7 +8,8 @@
   content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
   background:linear-gradient(90deg,light-dark(#ecf5f5eb,#082030ee),light-dark(#ecf5f5a8,#08203099) 53%,transparent);
 }
-.halo-f-app .mw-editorial-intro h2 { max-width:100%; margin-bottom:0; }
+.halo-f-app .mw-editorial-intro > div:not(.halo-editorial-scene) { width:100%; min-width:0; }
+.halo-f-app .mw-intro.mw-editorial-intro h2 { max-width:100%; margin-bottom:0; }
 .mw-editorial-intro .mw-eyebrow { color:light-dark(#116567,#8ddacf); }
 .mw-outdoor-periods [data-period] {
   --period-tint:light-dark(#37727f,#88cfdf);

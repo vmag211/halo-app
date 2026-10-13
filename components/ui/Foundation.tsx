@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent, type RefObject } from 'react';
 import { Check, ChevronDown, CircleHelp, Info, TriangleAlert, X } from 'lucide-react';
 import SeverityPill from './SeverityPill';
 import { foundationCopy as c } from '@/lib/frontend/copy/foundation-preview';
@@ -95,7 +95,7 @@ export function RiskBar({ risk, severity, notScored = false }: { risk: number | 
   </div>;
 }
 
-export function BottomSheet({ id, title, height, onClose, children }: { id: string; title: string; height: 'standard' | 'tall' | 'content'; onClose: () => void; children: ReactNode }) {
+export function BottomSheet({ id, title, height, onClose, children, fallbackFocus }: { id: string; title: string; height: 'standard' | 'tall' | 'content'; onClose: () => void; children: ReactNode; fallbackFocus?: RefObject<HTMLElement | null> }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const dragStart = useRef<number | null>(null);
   useEffect(() => {
@@ -105,8 +105,16 @@ export function BottomSheet({ id, title, height, onClose, children }: { id: stri
     const saved = { position: document.body.style.position, top: document.body.style.top, width: document.body.style.width };
     document.body.style.position = 'fixed'; document.body.style.top = `${-y}px`; document.body.style.width = '100%';
     element?.showModal();
-    return () => { element?.close(); Object.assign(document.body.style, saved); window.scrollTo(0, y); opener?.focus({ preventScroll: true }); };
-  }, []);
+    return () => {
+      element?.close(); Object.assign(document.body.style, saved); window.scrollTo(0, y);
+      // A deleted opener cannot receive focus. Restore a surviving target only
+      // after the modal has closed and the rest of the page is no longer inert.
+      // This mutable fallback is selected at confirmation, after the sheet opens.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const target = opener?.isConnected ? opener : fallbackFocus?.current;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    };
+  }, [fallbackFocus]);
   return <dialog ref={dialog} id={id} className="halo-f-sheet" data-height={height} aria-labelledby={`${id}-title`} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => {
     if (e.target !== e.currentTarget) return;
     const rect = e.currentTarget.getBoundingClientRect();

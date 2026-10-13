@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {ArrowLeft,Bell,BookOpen,ChevronRight,House,Search,ShieldCheck,SlidersHorizontal,X} from 'lucide-react';
 import {useHomeDraft,useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
 import {usePreviewHousehold} from '@/components/foundation/PreviewHousehold';
@@ -45,7 +45,8 @@ export default function SettingsWorkspace(props:SettingsProps){
  const dirty=JSON.stringify(slice(current))!==JSON.stringify(slice(values))||panel==='home'&&JSON.stringify(householdDraft)!==JSON.stringify(bands)||panel==='display'&&(JSON.stringify(displayDraft)!==JSON.stringify(currentDisplay)||JSON.stringify(calendarDraft)!==JSON.stringify({zone,streak,linked})||appearanceDraft!==appearancePreference(appearance)||ambientDraft!==ambient);
  const unavailable=['loading','error'].includes(workspace.scenario);
  const blocked=props.offline||workspace.pending||pending||['offline','loading','error','save-error','conflict'].includes(workspace.scenario)||preview.fail;
- const panelRef=useRef(panel);panelRef.current=panel;
+ const panelRef=useRef(panel);
+ useLayoutEffect(()=>{panelRef.current=panel;},[panel]);
  const root=useRef<HTMLElement|null>(null);
  const opener=useRef<SettingPanel|null>(null);
  const snapshot=()=>JSON.stringify({values,bands,display:currentDisplay,calendar:{zone,streak,linked},appearance:appearancePreference(appearance),ambient});
@@ -79,7 +80,7 @@ export default function SettingsWorkspace(props:SettingsProps){
    {panel==='home'&&<SettingsHome draft={current} change={setDraft} blocked={pending}/>}
    {panel==='notifications'&&<SettingsNotifications draft={current} change={setDraft} blocked={pending} href={props.href} onAlerts={props.onAlerts}/>}
    {panel==='display'&&<SettingsDisplay draft={current} change={setDraft} blocked={pending} display={displayDraft} onDisplay={display=>updateEdit({display})} calendar={calendarDraft} onCalendar={calendar=>updateEdit({calendar})} appearance={appearanceDraft} onAppearance={appearance=>updateEdit({appearance})} ambient={ambientDraft} onAmbient={ambient=>updateEdit({ambient})}/>}
-   {panel==='luna'&&<SettingsLuna draft={current} change={setDraft} blocked={pending}/>}
+   {panel==='luna'&&<SettingsLuna draft={current} change={setDraft} blocked={pending} writeBlocked={blocked}/>}
    {panel==='privacy'&&<SettingsPrivacy href={props.href} blocked={blocked}/>}
    {panel==='about'&&<SettingsAbout factorHref={props.factorHref}/>}
    {!['privacy','about'].includes(panel)&&<footer className="hp-save-bar"><div><p role="status">{message||(dirty?c.dirty:'')}</p>{message===c.conflict&&<button className="hp-text" onClick={rebase}>{c.reload}</button>}</div><button className="hp-primary" disabled={pending||!dirty} onClick={()=>void save()}>{c.save}</button><button className="hp-text" disabled={pending||!dirty} onClick={()=>{clearDraft();if(panel==='home')preview.setHouseholdDraft(null);setBaseline(snapshot());setMessage('');}}>{c.cancel}</button></footer>}

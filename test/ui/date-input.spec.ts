@@ -14,6 +14,8 @@ async function taskDate(page: Page) {
 }
 
 test('HALO date picker preserves ISO manual entry and selected day events inside a task sheet', async ({ page }) => {
+  // Keep the fixture's exact accessible day labels independent of the real date.
+  await page.clock.install({ time: new Date('2026-10-12T16:00:00Z') });
   await page.goto(root);
   const { sheet, field } = await taskDate(page);
   await field.fill('2026-10-12');

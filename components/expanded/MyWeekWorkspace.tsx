@@ -3,7 +3,7 @@ import DateInput from '@/components/ui/DateInput';
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, Leaf, MoveRight, NotebookPen, Plus, Search, SlidersHorizontal, Sprout, Trash2 } from 'lucide-react';
+import { ArrowRight, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, Leaf, NotebookPen, Plus, Search, SlidersHorizontal, Sprout, Trash2 } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/Foundation';
 import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { useExpandedPreview } from './ExpandedPreviewState';
@@ -43,6 +43,7 @@ export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}
   const [focus,setFocus]=useHomeDraft('week:focus','');const [filter,setFilter]=useState('Everything');const [search,setSearch]=useState('');
   const [includeRecords,setIncludeRecords]=useHomeDraft('week:include-record-dates',true);
   const [edit,setEdit]=useState<Edit|null>(null);const [error,setError]=useState('');const [notice,setNotice]=useState('');const [deleting,setDeleting]=useState(false);const [exporting,setExporting]=useState(false);
+  const [requestedTask,,clearRequestedTask]=useHomeDraft('week:open-task','');const handledTask=useRef('');
   const [moving,setMoving]=useState<{action:PreviewAction;date:string;time:string;duration:number;zone:string;signature:string}|null>(null);const [moveError,setMoveError]=useState('');
   const touch=useRef<{x:number;y:number}|null>(null);
   const [showFinished,setShowFinished]=useState(false);const meta=(a:PreviewAction)=>({...emptyWeekMeta,...metas[a.key]});
@@ -52,15 +53,16 @@ export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}
   const selectedRecords=recordDates.filter(r=>(filter==='Everything'||r.category===filter)&&r.title.toLowerCase().includes(search.toLowerCase())&&(search.trim()||view==='Agenda'||r.date===date));
   const unavailable=['loading','error'].includes(workspace.scenario);
   const displayDays=useMemo(()=>new Map(state.actions.map(a=>[a.id,actionDisplayDay(a,{...emptyWeekMeta,...metas[a.key]},zone)])),[state.actions,metas,zone]);
-  const start=weekStart(date);const displayDay=(a:PreviewAction)=>displayDays.get(a.id)??a.date;const finished=active.filter(a=>a.state==='completed'&&meta(a).completedOn>=start&&meta(a).completedOn<=dayAdd(start,6));
+  const start=weekStart(date);const displayDay=(a:PreviewAction)=>displayDays.get(a.id)??a.date;
   const days=calendarDays(date,view==='Month');const scheduled=search.trim()?matched:matched.filter(a=>displayDay(a)===date);const later=matched.filter(a=>!a.date);const overdue=matched.filter(a=>a.date&&displayDay(a)<today&&a.state==='saved'&&!meta(a).paused);const waiting=matched.filter(a=>a.state==='waiting');
   const timed=dayTimeline(matched,metas,date,zone);
-  const dashboard=useMemo(()=>weekDashboard(state.actions,metas,recordDates,start,zone),[state.actions,metas,recordDates,start,zone]);
+  const dashboard=weekDashboard(state.actions,metas,recordDates,start,zone);
   const agendaCount=search.trim()?scheduled.length:view==='Agenda'?matched.filter(a=>a.date).length:scheduled.length;
   const close=()=>{setEdit(null);setError('');setDeleting(false);setExporting(false);};
-  useEffect(()=>{if(!edit)return;window.history.pushState({...window.history.state,haloWeekSheet:true},'',location.href);const pop=()=>close();window.addEventListener('popstate',pop);return()=>window.removeEventListener('popstate',pop);},[Boolean(edit)]);
+  const editOpen=edit!==null,moveOpen=moving!==null;
+  useEffect(()=>{if(!editOpen)return;window.history.pushState({...window.history.state,haloWeekSheet:true},'',location.href);const pop=()=>{setEdit(null);setError('');setDeleting(false);setExporting(false);};window.addEventListener('popstate',pop);return()=>window.removeEventListener('popstate',pop);},[editOpen]);
   const closeSheet=()=>{if(window.history.state?.haloWeekSheet)window.history.back();else close();};
-  useEffect(()=>{if(!moving)return;window.history.pushState({...window.history.state,haloWeekMoveSheet:true},'',location.href);const back=()=>{setMoving(null);setMoveError('');};window.addEventListener('popstate',back);return()=>window.removeEventListener('popstate',back);},[Boolean(moving)]);
+  useEffect(()=>{if(!moveOpen)return;window.history.pushState({...window.history.state,haloWeekMoveSheet:true},'',location.href);const back=()=>{setMoving(null);setMoveError('');};window.addEventListener('popstate',back);return()=>window.removeEventListener('popstate',back);},[moveOpen]);
   const closeMove=()=>{if(window.history.state?.haloWeekMoveSheet)window.history.back();else setMoving(null);};
   function openMove(a:PreviewAction,newDate=a.date){setMoveError('');setMoving({action:structuredClone(a),date:newDate,time:meta(a).time,duration:meta(a).duration,zone:meta(a).zone,signature:JSON.stringify(metas[a.key]??null)});}
   function saveMove(){if(!moving)return;const a=moving.action;if(blocked||!navigator.onLine){setMoveError('Your changes are retained. Saving is unavailable.');return;}if(meta(a).recurrence!=='none'&&moving.time){setMoveError('Repeating tasks need an all-day date. Clear the time or change Repeat.');return;}if(!moving.date||actionDraftError(a.title,moving.date)||moving.time&&!eventInstant(moving.date,moving.time,moving.zone)||!Number.isInteger(moving.duration)||moving.duration<15||moving.duration>1440){setMoveError('Choose a valid date, time and duration. Clock-change gaps or ambiguous times need another time.');return;}if(JSON.stringify(metas[a.key]??null)!==moving.signature||!state.reviseAction(a.id,a.revision??1,{title:a.title,date:moving.date,state:a.state})){setMoveError('This task or schedule changed. Nothing was overwritten. Reopen its current schedule.');return;}setMetas(old=>({...old,[a.key]:{...meta(a),time:moving.time,duration:moving.duration,zone:moving.zone,estimateSet:meta(a).estimateSet||Boolean(moving.time),history:[...meta(a).history,`${dayLabel(today)}: Rescheduled by you.`]}}));setNotice('Schedule updated.');closeMove();}
@@ -73,6 +75,20 @@ export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}
     return href(actionCategory(action)==='Home'?'home':actionCategory(action)==='Personal'||actionCategory(action)==='Outdoors'?'plan':'act',actionCategory(action)==='Projects'?'projects':undefined);
   }
   function open(a?:PreviewAction){setError('');setNotice('');setDeleting(false);setExporting(false);setEdit({action:a??null,title:a?.title??'',date:a?.date??date,state:a?.state??'saved',meta:a?structuredClone(meta(a)):{...emptyWeekMeta,zone},key:a?.key??`personal:${crypto.randomUUID()}`});}
+  useEffect(()=>{
+    if(destination||unavailable){handledTask.current='';return;}
+    const query=new URLSearchParams(window.location.search).get('weekTask')??'';const id=requestedTask||query;
+    if(!id){handledTask.current='';return;}if(handledTask.current===id&&!requestedTask)return;
+    if(editOpen)return; // A Luna receipt never replaces an active task editor or its draft.
+    let active=true;const action=state.actions.find(item=>item.id===id);
+    queueMicrotask(()=>{
+      if(!active)return;handledTask.current=id;
+      if(requestedTask)clearRequestedTask();
+      if(action){setError('');setNotice('');setDeleting(false);setExporting(false);setEdit({action,title:action.title,date:action.date,state:action.state,meta:structuredClone({...emptyWeekMeta,...metas[action.key]}),key:action.key});}
+      else setNotice('This saved task is no longer available. Your other tasks are unchanged.');
+    });
+    return()=>{active=false;};
+  },[destination,unavailable,requestedTask,state.actions,metas,editOpen,clearRequestedTask]);
   function save(remove=false){if(!edit)return;setError('');if(blocked||!navigator.onLine){setError('Could not save. Your edits are kept. Check your connection and try again.');return;}
     if(remove){if(!edit.action||!state.deleteAction(edit.action.id,edit.action.revision??1)){setError('This task changed. Reopen it before deleting.');return;}setMetas(old=>{const n={...old};delete n[edit.key];return n;});setNotice('Task removed. Its original record and other tasks were kept.');closeSheet();return;}
     const invalid=actionDraftError(edit.title,edit.date);if(invalid){setError(invalid);return;}

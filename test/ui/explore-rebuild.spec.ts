@@ -52,7 +52,7 @@ test('save feedback is brief while failed writing stays visible and editable', a
   await page.getByLabel('Home or site context (required)').selectOption('sample-current-home');
   await page.getByLabel('Purpose (required)').fill('Verify feedback continuity');
   await page.getByRole('button', { name: 'Save test plan' }).click();
-  await expect(page.locator('.halo-workspace-toast')).toContainText('Saved for this visit');
+  await expect(page.locator('.halo-workspace-toast')).toHaveText('Saved');
   await expect(page.locator('.halo-workspace-toast')).toHaveCount(0, { timeout: 7000 });
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Homeguard workspace state').selectOption('save-error');

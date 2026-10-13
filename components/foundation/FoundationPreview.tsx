@@ -32,6 +32,7 @@ import type {SettingsProps} from '@/components/expanded/SettingsWorkspace';
 import {useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
 import '@/components/expanded/interface-refinement.css';
 import InterfaceMotion from '@/components/expanded/InterfaceMotion';
+import PublicBrowse from '@/components/expanded/PublicBrowse';
 
 const tabIcons = { today: Sunrise, home: House, map: MapIcon, journal: Notebook, act: Hand };
 const topics = ['pfas', 'radon', 'lead', 'air', 'pollen', 'uv', 'mold'];
@@ -44,19 +45,19 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
   const workspace = useHomeWorkspace();
   const savedAppearance = workspace.drafts['halo-appearance'];
   const ambient = workspace.drafts['halo-ambient'] !== false;
-  const appliedAppearance = useRef<unknown>(undefined);
+  const [appliedAppearance, setAppliedAppearance] = useState<unknown>(savedAppearance);
   const [scenario, setScenario] = useState(initialScenario);
-  const [mode, setMode] = useState(preferences.appearance ?? 'system');
+  const [mode, setMode] = useState(expanded && (savedAppearance === 'system' || savedAppearance === 'light' || savedAppearance === 'dark') ? savedAppearance : preferences.appearance ?? 'system');
   const [scale, setScale] = useState(preferences.scale ?? '100');
   const [contrast, setContrast] = useState(preferences.contrast ?? false);
   const [motion, setMotion] = useState<MotionMode>(preferences.motion ?? 'system');
   const [time, setTime] = useState<SceneTime>(preferences.time ?? 'live');
-  useEffect(() => {
-    if (!expanded) return;
-    if (savedAppearance === 'system' || savedAppearance === 'light' || savedAppearance === 'dark') setMode(savedAppearance);
-    else if (appliedAppearance.current !== undefined) setMode('system');
-    appliedAppearance.current = savedAppearance;
-  }, [savedAppearance, expanded]);
+  // Reconcile a saved preference before children paint, without an effect that
+  // first displays the previous theme. Review overrides remain independent.
+  if (expanded && savedAppearance !== appliedAppearance) {
+    setAppliedAppearance(savedAppearance);
+    setMode(savedAppearance === 'system' || savedAppearance === 'light' || savedAppearance === 'dark' ? savedAppearance : 'system');
+  }
   useEffect(() => {
     const url = new URL(window.location.href);
     // Only review settings live in the URL. No household information is persisted.
@@ -103,6 +104,8 @@ function startingSheet(scenario: FoundationScenario): SheetState | null {
 }
 
 function Product({ expanded, scenario, initialFactor, initialFamily, initialMember, appearance, scale, contrast, motion, time,onDisplay }: { expanded: boolean; scenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; appearance: string; scale: number; contrast: boolean; motion: MotionMode; time: SceneTime;onDisplay:SettingsProps['onDisplay'] }) {
+  const homeWorkspace=useHomeWorkspace();
+  const homeChanged=expanded&&Boolean(homeWorkspace.collections.homeTransitions?.length);
   const router = useRouter();
   const search = useSearchParams();
   const queryTab = search.get('tab');
@@ -110,7 +113,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const experience = useSceneExperience();
   const factorTab = initialFactor ? (['pfas', 'radon', 'lead'].includes(initialFactor) ? 'home' : 'today') : undefined;
   const initialRoute = expanded && scenario === 'shell' ? 'plan' : startingRoute(scenario);
-  const [route, setRoute] = useState<PreviewRoute>(initialMember ? 'home' : factorTab ?? initialRoute);
+  const [route, setRoute] = useState<PreviewRoute>(initialFamily ? 'today' : initialMember ? 'home' : factorTab ?? initialRoute);
   const [destination, setDestination] = useState<string | null>(null);
   useEffect(() => {
     if (!factorTab || queryTab === factorTab) return;
@@ -228,8 +231,9 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     }
   }
   function removeEntry() { setDeleted(true); showToast(c.deleteConfirm, () => setDeleted(false)); }
-  const current = resolved ? 'shell' : scenario;
-  const offline = current === 'offline' || current === 'offline-empty';
+  // Never attach old-home fixture readings to a newly selected home.
+  const current = homeChanged && !scenario.startsWith('gate-') && !['loading','error','offline-empty'].includes(scenario) ? 'no-data' : resolved ? 'shell' : scenario;
+  const offline = scenario === 'offline' || current === 'offline' || current === 'offline-empty';
   const isGate = (current.startsWith('gate-') && current !== 'gate-error') || current === 'not-found';
   const ariaTitle = foundationScenarios.find(s => s[0] === scenario)?.[2] ?? c.pageLabel;
   const toastElement = toast && <div className="halo-f-toast" role="status"><span>{toast.message}</span>{toast.action && <button onClick={() => { toast.action?.(); setToast(null); }}>{c.undo}</button>}</div>;
@@ -238,7 +242,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   if (current === 'loading' || current === 'gate-loading') content = <Loading gate={current === 'gate-loading'} />;
   else if (current === 'error' || current === 'gate-error') content = <><Callout tone="error"><p>{current === 'gate-error' ? c.gateError : c.error}</p><Button variant="secondary" aria-label={c.retry} busy={busy} onClick={() => mockRequest(() => setResolved(true))}>{c.retry}</Button></Callout>{current === 'gate-error' && readingView}</>;
   else if (['empty', 'empty-no-action', 'offline-empty'].includes(current)) content = <EmptyState icon={<BookOpen size={32} />} heading={c.emptyHeading} body={current === 'offline-empty' ? c.offlineEmpty : c.emptyBody} action={current === 'empty' ? <Button onClick={() => navigate('journal')}>{c.continue}</Button> : undefined} />;
-  else if (current === 'gate-incomplete' || current === 'gate-location') content = <EmptyState icon={<House size={32} />} heading={current === 'gate-location' ? c.gateLocation : c.gateIncomplete} body={current === 'gate-location' ? c.gateLocationBody : c.gateIncompleteBody} action={<Button onClick={() => mockRequest(() => setResolved(true))} busy={busy}>{c.setup}</Button>} />;
+  else if (current === 'gate-incomplete' || current === 'gate-location') content = <EmptyState icon={<House size={32} />} heading={current === 'gate-location' ? c.gateLocation : c.gateIncomplete} body={current === 'gate-location' ? c.gateLocationBody : c.gateIncompleteBody} action={expanded?<div className="hc-flow"><Link className="hp-primary" href="/onboarding/preview/?design=mobile">{c.setup}</Link><Link href="/foundation/preview/expanded/?access=public">Browse without a home</Link></div>:<Button onClick={() => mockRequest(() => setResolved(true))} busy={busy}>{c.setup}</Button>} />;
   else if (current === 'not-found') content = <EmptyState icon={<CircleHelp size={32} />} heading={c.unknownHeading} body={c.unknownBody} action={<Button onClick={() => setResolved(true)}>{c.goToday}</Button>} />;
   else if (current === 'pills') content = <><Intro title={c.pills} /><Card title={c.labels.severity}><div className="halo-f-pills">{['good', 'moderate', 'elevated', 'high', 'severe', 'no_data'].map(s => <SeverityPill key={s} severity={s} />)}</div></Card><Card title={c.provenance}><div className="halo-f-pills">{(['measured', 'modeled', 'estimate'] as const).map(s => <ProvenancePill key={s} provenance={s} />)}</div></Card><Card title={c.confidence}><div className="halo-f-pills">{(['full', 'limited', 'stale', 'none'] as const).map(s => <ConfidencePill key={s} confidence={s} />)}</div><p>{c.confidenceNote}</p></Card></>;
   else if (current === 'callouts') content = <><Intro title={c.labels.inline} />{(['info', 'caution', 'notice', 'error'] as const).map(tone => <Callout key={tone} tone={tone} title={tone === 'error' ? c.errorTitle : c[tone]}><p>{tone === 'error' ? c.saveError : c[`${tone}Body`]}</p></Callout>)}</>;
@@ -261,6 +265,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   } else if (showExpanded && (route === 'today' || route === 'home')) {
     content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
   }
+  if(expanded && search.get('access')==='public') return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined="true" style={{'--halo-text-scale':scale} as CSSProperties}><PublicBrowse mapHref={mapHref('water')+'&access=public'}/></div>;
   const activeTab = route === 'settings' ? null : destination && isDestination(destination) ? destinations[destination].tab : route === 'map' ? 'act' : route === 'journal' ? 'plan' : route as AppTab;
   const dashboardHeader=showExpanded && route==="plan" && !destination && !inDetail;
   return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined={expanded} data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>

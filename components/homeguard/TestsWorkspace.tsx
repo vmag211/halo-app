@@ -8,7 +8,7 @@ import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import { initialGardens, type GardenSite } from '@/lib/frontend/home-food-preview';
 import { comparisonIssues, correctResults, duplicateAnalytes, emptyResult, emptyTest, resultIssues, resultQualifiers, sampleTests, testContexts, testDraftErrors, testExport, testKinds, testStatuses, testStatusLabels, type TestRecord, type TestResultRow } from '@/lib/frontend/home-test-preview';
-import { useHomeCollection, useHomeDraft } from './HomeWorkspaceState';
+import { useHomeCollection, useHomeDraft, useHomeWorkspace } from './HomeWorkspaceState';
 import { ActionButton, Confirm, DeleteButton, Empty, Field, PageIntro, RecordForm, SourceNote, WorkspaceLink, type WorkspaceProps } from './HomeWorkspaceUI';
 import TestProgress, { type TestProgressStep } from './TestProgress';
 import './records-polish.css';
@@ -21,7 +21,9 @@ const contextLabel = (id: string, contexts: readonly TestContext[] = testContext
 const factorFor = (record: TestRecord): FactorKey => record.kind === 'radon' ? 'radon' : record.kind === 'lead' ? 'lead' : 'pfas';
 function useTestContexts(): TestContext[] {
   const gardens = useHomeCollection<GardenSite>('gardens', initialGardens);
-  return [...testContexts.filter(context => context.state !== 'Garden site'), ...gardens.records.map(site => ({ id: site.id, label: site.title, state: 'Garden site', revision: site.revision, irrigation: site.irrigation }))];
+  const workspace=useHomeWorkspace();
+  const homes=(workspace.collections.homeTransitions??[]) as {id:string;title:string;area?:string;revision:number}[];
+  return [...testContexts.filter(context => context.state !== 'Garden site').map(context=>homes.length&&context.state==='Current home'?{...context,state:'Archived home'}:context),...homes.map((home,i)=>({id:home.id,label:home.area??home.title,state:i===homes.length-1?'Current home':'Archived home',revision:home.revision})), ...gardens.records.map(site => ({ id: site.id, label: site.title, state: 'Garden site', revision: site.revision, irrigation: site.irrigation }))];
 }
 const snapshotContext = (context?: TestContext) => context ? { label: context.label, ...(context.revision ? { revision: context.revision } : {}), ...(context.irrigation ? { irrigation: context.irrigation } : {}) } : undefined;
 

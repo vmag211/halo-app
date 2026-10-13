@@ -11,7 +11,7 @@ export type HomeAsset = {
 export type MoistureObservation = {
   id: string; title: string; revision: number; kind: 'dampness' | 'leak' | 'condensation' | 'humidity' | 'other';
   observedAt: string; timezone: string; room: string; reading: string; unit: string; source: string; note: string;
-  photoName: string; photoData: string; assetId: string; testId: string;
+  photoName: string; photoData: string; photoMetadataRemoved?:boolean; assetId: string; testId: string;
 };
 export const sampleAssets: HomeAsset[] = [{
   id: 'sample-filter', title: 'Kitchen filter upkeep', revision: 1, model: '', installed: '2026-07-01', serviced: '2026-09-01', factor: 'pfas',

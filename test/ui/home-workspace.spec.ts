@@ -55,10 +55,10 @@ test('global review states distinguish loading, failure, empty and offline', asy
   const control = page.getByLabel('Homeguard workspace state');
   await control.selectOption('loading');
   await expect(page.getByRole('heading', { name: 'Opening your home workspace' })).toBeVisible();
-  await page.getByRole('button', { name: 'Finish loading sample' }).click();
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await control.selectOption('error');
   await expect(page.getByRole('heading', { name: 'This section could not load' })).toBeVisible();
-  await page.getByRole('button', { name: 'Retry sample section' }).click();
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await control.selectOption('empty');
   await expect(page.getByRole('heading', { name: 'Start your home record' })).toBeVisible();
   await page.getByRole('button', { name: 'Reset Homeguard sample records' }).click();
@@ -66,7 +66,7 @@ test('global review states distinguish loading, failure, empty and offline', asy
   await control.selectOption('offline');
   await page.getByRole('button', { name: /^Plan a test/ }).click();
   await expect(page.getByRole('button', { name: 'Save test plan' })).toBeDisabled();
-  await expect(page.locator('.hg-form')).toContainText('Nothing is queued.');
+  await expect(page.locator('.hg-form')).toContainText('changes are not queued.');
 });
 
 test('desktop Homeguard uses the existing centered shell and keyboard workspace selector', async ({ page }, testInfo) => {

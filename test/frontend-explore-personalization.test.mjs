@@ -74,6 +74,40 @@ test('explicit owned records may contribute when public context is missing, with
   const changed = getPreviewProjectContext({ gardens: [{ ...collections.gardens[0], revision: 3 }] }, undefined, false);
   assert.notEqual(context.key, changed.key);
 });
+
+test('changing homes excludes historical records and public fixtures from project context', () => {
+  const home = { id: 'new-home', revision: 1, title: 'New home' };
+  const previous = structuredClone(collections);
+  const input = { ...collections, homeTransitions: [home] };
+  // Even an accidentally permissive caller cannot attach the initial home's readings.
+  const context = getPreviewProjectContext(input, undefined, true);
+  assert.equal(context.evidence.length, 0);
+  assert.equal(context.hasGarden, false);
+  assert.equal(context.hasMoistureObservation, false);
+  assert.equal(context.filterModelKnown, false);
+  assert.equal(context.state, '');
+  assert.equal(context.county, '');
+  assert.deepEqual(collections, previous);
+  assert.notEqual(context.key, getPreviewProjectContext({ ...input, homeTransitions: [home, { ...home, id: 'next-home' }] }, undefined, false).key);
+  assert.ok(generateProjectSuggestions(context).every(idea => idea.evidenceIds.length === 0));
+});
+
+test('current home and its current garden tests can tailor projects without historical crossovers', () => {
+  const input = {
+    homeTransitions: [{ id: 'new-home', revision: 1, title: 'New home' }],
+    gardens: [...collections.gardens, { ...collections.gardens[0], id: 'new-garden', homeContextId: 'new-home' }],
+    observations: [...collections.observations, { ...collections.observations[0], id: 'new-moisture', homeContextId: 'new-home' }],
+    assets: [...collections.assets, { ...collections.assets[0], id: 'new-filter', model: 'Entered model', homeContextId: 'new-home' }],
+    tests: [...collections.tests, { ...collections.tests[0], id: 'current-test', contextId: 'new-home' }, { ...collections.tests[0], id: 'garden-test', contextId: 'new-garden' }, { ...collections.tests[0], id: 'past-site-test', contextId: 'garden-a' }],
+  };
+  const context = getPreviewProjectContext(input, undefined, false);
+  assert.equal(context.hasGarden, true);
+  assert.equal(context.hasMoistureObservation, true);
+  assert.equal(context.filterModelKnown, true);
+  assert.equal(context.evidence.length, 5);
+  assert.deepEqual(context.evidence.filter(item => item.topic === 'test').map(item => item.id), ['preview:test:current-test:1', 'preview:test:garden-test:1']);
+  assert.ok(context.evidence.every(item => !/garden-a|damp-a|filter-a|soil-a|past-site-test|preview:home:|preview:today:/.test(item.id)));
+});
 test('stale daily examples and public versus home scopes are explicit and never produce invented diagnoses', () => {
   const context = getPreviewProjectContext(collections);
   assert.ok(context.evidence.filter(item => ['air', 'uv', 'pollen', 'weather'].includes(item.topic)).every(item => item.stale));
