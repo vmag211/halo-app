@@ -1,16 +1,17 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useImageReadiness } from '@/components/foundation/useImageReadiness';
 import { explorePhotos, photoForScene, type ExplorePhotoScene } from '@/lib/frontend/explore-photos';
 
 // Context photography, not a picture of a fictional listing or a household's location.
 // Prepared locally with recorded public-domain provenance. No remote image requests.
 export function ExplorePhoto({ scene, className = '', eager = false }: { scene: ExplorePhotoScene; className?: string; eager?: boolean }) {
-  const [failedScene, setFailedScene] = useState<ExplorePhotoScene | null>(null); const failed = failedScene === scene;
   const photo = photoForScene(scene);
+  const source=`/explore/${photo.file}`;
+  const {ref,failed}=useImageReadiness(source);
   return <span className={`ex-photo ex-photo-${scene} ${className}`} data-photo-scene={scene} data-photo-state={failed ? 'unavailable' : 'available'} aria-hidden="true">
-    {!failed && <Image key={scene} src={`/explore/${photo.file}`} width={photo.width} height={photo.height} alt="" unoptimized loading={eager ? 'eager' : 'lazy'} onError={() => setFailedScene(scene)} />}
+    {!failed && <Image ref={ref} key={scene} src={source} width={photo.width} height={photo.height} alt="" unoptimized loading={eager ? 'eager' : 'lazy'} />}
     {failed && <span className="ex-photo-fallback">A moment to explore</span>}
   </span>;
 }

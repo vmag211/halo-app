@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, Pause, Play } from 'lucide-react';
 import { useSceneExperience } from '@/components/foundation/SceneExperience';
+import { useImageReadiness } from '@/components/foundation/useImageReadiness';
 import { landscapeCrop, landscapeWave, WEEK_SCENE_DISSOLVE_MS, WEEK_SCENE_DWELL_MS, weekAmbienceCopy as copy, weekLandscapes, type WeekLandscape } from '@/lib/frontend/week-ambience';
 import './week-ambience.css';
 
@@ -87,16 +88,16 @@ function LandscapeLayer({ scene, pending, moving, dissolve, revealing, onReady, 
   scene: WeekLandscape; pending: boolean; moving: boolean; dissolve: boolean; revealing: boolean;
   onReady: (id: string) => void; onError: (id: string) => void;
 }) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [failed, setFailed] = useState(false);
+  const {ref,image,failed}=useImageReadiness(scene.src);
   useEffect(() => {
     // A very quick next action can revisit the still-mounted outgoing layer.
     if (pending && image && !failed) onReady(scene.id);
   }, [pending, image, failed, onReady, scene.id]);
+  useEffect(()=>{if(failed)onError(scene.id);},[failed,onError,scene.id]);
   return <div className="mw-ambience-layer" data-landscape={scene.id} data-pending={pending} data-dissolve={dissolve} data-revealing={revealing} data-failed={failed} aria-hidden="true">
     {/* Decorative art is kept separate from the assistant, data and task models. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={scene.src} alt="" decoding="async" draggable={false} onLoad={event => { setImage(event.currentTarget); onReady(scene.id); }} onError={() => { setFailed(true); onError(scene.id); }} />
+    <img ref={ref} src={scene.src} alt="" decoding="async" draggable={false} />
     {!failed && <WaterSurface image={image} scene={scene} moving={moving && !pending} />}
     <span className="mw-ambience-haze mw-ambience-haze-back" />
     <span className="mw-ambience-haze mw-ambience-haze-front" />

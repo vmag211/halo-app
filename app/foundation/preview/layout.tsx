@@ -10,5 +10,5 @@ const onest = localFont({ src: '../../../public/fonts/onest-variable.ttf', varia
 
 export default function PreviewLayout({ children }: { children: React.ReactNode }) {
   if (process.env.NODE_ENV === 'production' && process.env.HALO_ENABLE_FRONTEND_PREVIEW !== '1') notFound();
-  return <div className={`${plex.variable} ${onest.variable}`}><PreviewHouseholdProvider><ExpandedPreviewProvider><HomeWorkspaceProvider>{children}</HomeWorkspaceProvider></ExpandedPreviewProvider></PreviewHouseholdProvider></div>;
+  return <div className={`${plex.variable} ${onest.variable}`}><PreviewHouseholdProvider><HomeWorkspaceProvider><ExpandedPreviewProvider>{children}</ExpandedPreviewProvider></HomeWorkspaceProvider></PreviewHouseholdProvider></div>;
 }

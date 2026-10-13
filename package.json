@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:frontend": "node --test test/frontend-*.test.mjs",
     "test:ui": "playwright test",
+    "test:production": "playwright test --config playwright.production.config.ts",
     "test:stage": "playwright test --config playwright.stage.config.ts",
     "preservation:verify": "node docs/onboarding/approved/check-integrity.cjs && node docs/foundation/approved/2026-10-01/verify.cjs"
   },

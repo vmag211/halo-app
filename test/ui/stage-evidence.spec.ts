@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { jsonRoute, mockStage, stageProfile } from './stage-fixtures';
+import { jsonRoute, stageProfile } from './stage-fixtures';
+import {mockProductionStage as mockStage} from './production-fixtures';
 
 const retrieved = '2026-10-01T14:00:00Z';
 const emptyHome = { water: null, radon: null, lead: null, score: null, action_plan: [], assembled_at: retrieved };
@@ -36,7 +37,7 @@ test('private water shows the returned testing plan without a measured score or 
   await expect(plan).toContainText('Local conditions matter for this test.');
   await expect(plan).not.toContainText('estimated total');
   await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('No data');
-  await expect(page.getByTestId('stage-product')).not.toContainText('\u2014');
+  await expect(page.getByTestId('production-product')).not.toContainText('\u2014');
   expect(network.blocked).toEqual([]);
 });
 
@@ -90,71 +91,70 @@ test('utility-wide lead and ordered action items keep their limits; absent evide
 });
 
 const alertId = '00000000-0000-4000-8000-000000000101';
-const alert = { id: alertId, type: 'new_water_results', severity: 'moderate', title: 'Updated water records', message: 'Review the latest utility results.', fired_at: retrieved, read: false, dismissed: false };
+const alert = { id: alertId, revision:1,kind: 'new_water_results',category:'Home', title: 'Updated water records', body: 'Review the latest utility results.',date:'2026-10-01', read: false, dismissed: false,target:{tab:'home',destination:'tests'} };
 
 test('alerts retry failed reads and failed mutations, keep pending rows, and dismiss only confirmed changes', async ({ page }) => {
-  let failReads = true; let failedMutation = false; let mutations = 0; let release!: () => void;
+  let failReads = true; let failedMutation = false; let mutations = 0; let release!: () => void;let operationId='';
   const current = { ...alert };
   const network = await mockStage(page, { overrides: { '/api/alerts': async route => {
-    if (route.request().method() === 'GET') { await jsonRoute(route, failReads ? { error: 'private diagnostic' } : { count: 1, unread: current.read ? 0 : 1, alerts: [current] }, failReads ? 503 : 200); return; }
+    await jsonRoute(route, failReads ? { error: 'private diagnostic' } : { count:1,unread:current.read?0:1,alerts:[],items:[current],unresolvedOperations:[]}, failReads ? 503 : 200);
+  },'/api/alerts/state':async route=>{
     mutations++;
-    const change = route.request().postDataJSON();
+    const change = route.request().postDataJSON();operationId=change.operationId;
+    expect(change.selection).toEqual([{id:alertId,revision:current.revision}]);
     if (!failedMutation) { await new Promise<void>(resolve => { release = resolve; }); failedMutation = true; await jsonRoute(route, { error: 'private mutation diagnostic' }, 503); return; }
-    if (change.dismissed) { await new Promise<void>(resolve => { release = resolve; }); current.dismissed = true; }
+    if (change.patch.dismissed) { await new Promise<void>(resolve => { release = resolve; }); current.dismissed = true; }
     else current.read = true;
-    await jsonRoute(route, { ok: true, updated: 1 });
-  } } });
+    current.revision++;
+    await jsonRoute(route, { operationId,status:'succeeded',items:[current],unresolvedOperations:[] });
+  },'/api/operations':async(route,url)=>{expect(url.searchParams.get('operationId')).toBe(operationId);await jsonRoute(route,{operationId,status:'failed'});} } });
   await page.goto('/today');
   await page.getByRole('button', { name: /^Alerts/ }).click();
   const panel = page.getByRole('dialog', { name: 'Alerts', exact: true });
-  await expect(panel.getByRole('button', { name: 'Retry alerts', exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Retry or check status', exact: true })).toBeVisible();
   await expect(panel).not.toContainText('private diagnostic');
   failReads = false;
-  await panel.getByRole('button', { name: 'Retry alerts', exact: true }).click();
+  await panel.getByRole('button', { name: 'Retry or check status', exact: true }).click();
   const row = panel.getByRole('article').filter({ hasText: 'Updated water records' });
   await expect(row).toBeVisible();
-  await row.getByRole('button', { name: 'Mark as read', exact: true }).click();
+  await row.getByRole('button', { name: `Mark as read: ${alert.title}`, exact: true }).click();
   await expect.poll(() => mutations).toBe(1);
-  await expect(row.getByRole('button', { name: 'Dismiss', exact: true })).toBeDisabled();
+  await expect(row.getByRole('button', { name: `Dismiss alert: ${alert.title}`, exact: true })).toBeDisabled();
   await expect(panel).not.toContainText('Alerts updated.');
   release();
-  await expect(row.getByRole('button', { name: 'Mark as read', exact: true })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Retry or check status', exact:true})).toBeEnabled();
   await expect(panel).not.toContainText(/Alerts updated\.|private mutation diagnostic/);
-  await row.getByRole('button', { name: 'Mark as read', exact: true }).click();
-  await expect(row.getByRole('button', { name: 'Mark as read', exact: true })).toHaveCount(0);
-  await expect(panel.getByText('Alerts updated.', { exact: true })).toBeVisible();
-  await row.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await panel.getByRole('button',{name:'Retry or check status',exact:true}).click();
+  await expect(panel).toContainText('The update was not applied.');
+  await row.getByRole('button', { name: `Mark as read: ${alert.title}`, exact: true }).click();
+  await expect(row.getByRole('button', { name: `Mark as read: ${alert.title}`, exact: true })).toHaveCount(0);
+  await expect(row).toHaveAttribute('data-unread','false');
+  await row.getByRole('button', { name: `Dismiss alert: ${alert.title}`, exact: true }).click();
   await expect.poll(() => mutations).toBe(3);
   await expect(row).toBeVisible();
-  await expect(row.getByRole('button', { name: 'Dismiss', exact: true })).toBeDisabled();
+  await expect(row.getByRole('button', { name: `Dismiss alert: ${alert.title}`, exact: true })).toBeDisabled();
   await expect(panel).not.toContainText('Alerts updated.');
   release();
   await expect(row).toHaveCount(0);
-  await expect(panel).toContainText('No alerts right now.');
-  expect(network.requests.filter(request => request.path === '/api/alerts' && request.method === 'POST').map(request => request.body)).toEqual([{ id: alertId }, { id: alertId }, { id: alertId, dismissed: true }]);
+  await expect(panel).toContainText('Alert dismissed.');expect(mutations).toBe(3);
   expect(network.blocked).toEqual([]);
 });
 
 test('mark all reports zero changes honestly and browser Back closes the alert panel', async ({ page }) => {
-  let reads = 0;
-  const network = await mockStage(page, { overrides: { '/api/alerts': async route => {
-    if (route.request().method() === 'GET') { reads++; await jsonRoute(route, { count: 1, unread: 1, alerts: [alert] }); }
-    else await jsonRoute(route, { ok: true, updated: 0 });
-  } } });
+  let writes = 0;
+  const network = await mockStage(page, { overrides: { '/api/alerts': route=>jsonRoute(route,{count:1,unread:1,alerts:[],items:[alert],unresolvedOperations:[]}),'/api/alerts/state':async route=>{writes++;const body=route.request().postDataJSON();expect(body.selection).toEqual([{id:alertId,revision:1}]);await jsonRoute(route,{operationId:body.operationId,status:'succeeded',items:[alert],unresolvedOperations:[]});} } });
   await page.goto('/today');
   const opener = page.getByRole('button', { name: 'Alerts, 1 unread', exact: true });
   await opener.click();
   const panel = page.getByRole('dialog', { name: 'Alerts', exact: true });
   await expect(page).toHaveURL(/\/today\?sheet=alerts$/);
   await panel.getByRole('button', { name: 'Mark all as read', exact: true }).click();
-  await expect(panel).toContainText('No alerts changed. The list has been refreshed.');
   await expect(panel).not.toContainText('Alerts updated.');
-  await expect(panel.getByRole('button', { name: 'Mark as read', exact: true })).toBeVisible();
-  expect(reads).toBeGreaterThanOrEqual(3);
+  await expect(panel.getByRole('button', { name: `Mark as read: ${alert.title}`, exact: true })).toBeVisible();
+  expect(writes).toBe(1);
   await page.goBack();
   await expect(panel).toHaveCount(0);
   await expect(page).toHaveURL(/\/today$/);
   await expect(opener).toBeFocused();
-  expect(network.requests.filter(request => request.path === '/api/alerts' && request.method === 'POST').map(request => request.body)).toEqual([{ all: true }]);
   expect(network.blocked).toEqual([]);
 });

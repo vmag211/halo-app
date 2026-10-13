@@ -9,6 +9,7 @@ import {
   type DistrictCompound,
   type DistrictPreviewVariant,
   type DistrictWaterSeverity,
+  type DistrictPreviewData,
 } from "@/lib/frontend/map-district-preview";
 import "./district-panel.css";
 import MapPublicBrief from './MapPublicBrief';
@@ -19,6 +20,8 @@ type DistrictPanelProps = {
   variant?: DistrictPreviewVariant;
   onRetry?: () => void;
   onCountySelect?: (county: string) => void;
+  source?: DistrictPreviewData | null;
+  loading?: boolean;
 };
 
 const formatNumber = new Intl.NumberFormat("en-US");
@@ -28,9 +31,10 @@ const waterLabels: Record<DistrictWaterSeverity, string> = {
 };
 const compoundNames: DistrictCompound[] = ["PFOA", "PFOS", "PFHxS", "PFNA", "HFPO-DA"];
 
-export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: DistrictPanelProps) {
-  const data = districtPreviewData(variant);
-  const geographyUnavailable = districtGeographyUnavailable(data.total_systems,
+export function DistrictPanel({ variant = "full", onRetry, onCountySelect, source, loading = false }: DistrictPanelProps) {
+  if(source===null)return <section className="halo-map-district halo-map-district-error" aria-label="District information unavailable"><MapPinned size={30}/><h3>{loading?'Loading district information':'District information could not load'}</h3><p role="status">{loading?'Preparing the source summary.':'The map remains available. No district totals are substituted.'}</p>{!loading&&onRetry&&<button className="halo-map-district-retry" onClick={onRetry}>Try district again</button>}</section>;
+  const data = source??districtPreviewData(variant);
+  const geographyUnavailable = !source&&districtGeographyUnavailable(data.total_systems,
     variant === "geography-error" ? { count: 15, located: 1 } : districtWaterCoverageFixture);
   const comparison = data.state_comparison;
   const hasComparison = comparison.district_share_over !== null && comparison.state_share_over !== null;
@@ -147,18 +151,18 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect }: Dis
             <MapPinned size={21} aria-hidden="true" />
             <div><h3>{data.unlocated_systems} statewide systems could not be placed</h3>
               <p>These North Carolina records have no mapped service-area location. Their district membership is unknown, so they are not included in the district figures.</p>
-              <details><summary>See unmapped systems <ChevronDown size={15} aria-hidden="true" /></summary><ul>{unlocatedDistrictPreviewSystems.map((name) => <li key={name}>{name}</li>)}</ul><p className="halo-map-district-note">Statewide list. These systems are not confirmed within NC-08.</p></details>
+              {!source&&<details><summary>See unmapped systems <ChevronDown size={15} aria-hidden="true" /></summary><ul>{unlocatedDistrictPreviewSystems.map((name) => <li key={name}>{name}</li>)}</ul><p className="halo-map-district-note">Statewide list. These systems are not confirmed within NC-08.</p></details>}
             </div>
           </aside>
         </>
       )}
 
-      {variant !== 'error' && !geographyUnavailable && <MapPublicBrief data={data}/>}
+      {variant !== 'error' && !geographyUnavailable && <MapPublicBrief data={data} production={Boolean(source)}/>}
       <footer className="halo-map-district-sources">
         <strong>Sources &amp; boundaries</strong>
         <p>Source basis: EPA UCMR 5, with EPA population and service-area boundaries.</p>
         <p>Boundaries: U.S. Census Bureau TIGERweb, 119th Congressional Districts and counties. NC-08 uses the 2023 district map, not the 2026 election map. District membership uses system service-area centroids.</p>
-        <p>Boundary source retrieved September 27, 2026. Records assembled <time dateTime={data.assembled_at}>October 1, 2026 at 11:00 UTC</time>. Assembly time is not a water-sample date.</p>
+        <p>Boundary source retrieved September 27, 2026. Records assembled <time dateTime={data.assembled_at}>{source?new Date(data.assembled_at).toLocaleString():'October 1, 2026 at 11:00 UTC'}</time>. Assembly time is not a water-sample date.</p>
       </footer>
     </div>
   );

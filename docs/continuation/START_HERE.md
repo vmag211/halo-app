@@ -1,5 +1,16 @@
 # HALO frontend continuation
 
+## Current implementation checkpoint: October 13, 2026
+
+The current frontend branch is `codex/frontend-integration-ready-2026-10-13`. Yogi explicitly requested full production frontend implementation with the reviewed visuals preserved and a GitHub handoff for Vibhav. Start with [the integration guide](FRONTEND_INTEGRATION_READY.md), [verification receipt](FRONTEND_INTEGRATION_VERIFICATION.md), and the linked domain contracts. The older transfer instructions below are historical and do not mean this work is still unstarted.
+
+The main application now mounts `components/production/ProductionApp.tsx`, reusing the reviewed screens through authenticated, home-scoped adapters. The old `StageApp.tsx` is a retained legacy reference, not the active shared shell. `/plan` is the main homepage; `/today`, `/home`, `/act`, `/settings`, factors, family and household routes remain. Public `/learn` and `/map` do not create accounts. `/operations` is an existing-session, role-gated operator surface, not a consumer feature.
+
+The user reports having given Vibhav `docs/product/HALO_COMPLETE_BACKEND_HANDOFF.md`. This implementation adds actual frontend service contracts; do not assume that older packet already contains their exact response shapes. No backend branch was merged, no backend endpoint was implemented in this pass, and no hosted review or production deployment was published. Provider delivery, real AI, source freshness and end-to-end backend operation remain integration acceptance gates.
+
+Preserve approved archives and unrelated local changes. Inspect `git status` before continuing. Do not use fixture responses as production fallback or deploy the fake-auth test build. See the verification receipt for tested behavior and remaining real-device/real-service checks.
+
+
 Prepared October 8, 2026 at Yogi's request to continue in a fresh chat without losing the current frontend work.
 
 ## First read

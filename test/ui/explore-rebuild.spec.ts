@@ -33,7 +33,7 @@ test('one Luna conversation crosses the full map and Today without creating a se
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await page.getByRole('textbox', { name: 'Message Luna', exact: true }).fill('Open the map');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
-  await expect(page).toHaveURL(/\/foundation\/preview\/map\//);
+  await expect(page).toHaveURL(/\/foundation\/preview\/map\/?(?:\?|$)/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Open Luna', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Luna', exact: true });

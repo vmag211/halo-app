@@ -6,12 +6,21 @@ import { finite, isoDate, nonnegative, record, rows, safeText, safeUrl, scoreNum
 export interface HistoryEntry {
   date: string; score: number | null; air: string; uv: string; pollen: string; mold: string;
   values: { aqi: number | null; uv_index: number | null; pollen: { tree: number | null; grass: number | null; weed: number | null }; mold_risk: string | null };
+  home_context_id?: string | null;
+  comparability?: 'current_context' | 'legacy_assumed' | 'earlier_home' | 'unknown';
+  source_revision?: string | null; method_version?: string | null;
+  observed_at?: string | null;
 }
-export interface HistoryResponse { from: string; to: string; count: number; history: HistoryEntry[] }
+export interface HistoryResponse {
+  from: string; to: string; count: number; history: HistoryEntry[];
+  truncated?: boolean; context?: { current_id: string | null; includes_earlier_homes: boolean };
+}
 export interface SourceLink { label: string; url: string; retrieved: string | null }
 export interface LearnContent {
   topic: FactorKey; locale: string; title: string; what_it_is: string;
   why_yours: string | null; household_note: string | null; protect: string[]; sources: SourceLink[];
+  unavailable?: boolean; reason?: 'learn_content_unavailable' | 'household_unavailable' | 'unavailable';
+  requested_locale?: string; served_locale?: string; content_version?: string | null;
 }
 export type LearnResponse = LearnContent;
 export interface AssistantSuggestions { suggestions: string[]; disclaimer: string; sends_household_context?: boolean }
@@ -60,14 +69,29 @@ export function parseHistory(value: unknown): HistoryResponse {
       aqi: nonnegative(values.aqi), uv_index: nonnegative(values.uv_index),
       pollen: { tree: nonnegative(pollen.tree), grass: nonnegative(pollen.grass), weed: nonnegative(pollen.weed) },
       mold_risk: ['low', 'moderate', 'high'].includes(String(values.mold_risk)) ? String(values.mold_risk) : null,
-    } }];
+    }, ...(Object.hasOwn(row, 'home_context_id') ? { home_context_id: typeof row.home_context_id === 'string' && UUID.test(row.home_context_id) ? row.home_context_id : null } : {}),
+    ...(Object.hasOwn(row, 'comparability') ? { comparability: ['current_context', 'legacy_assumed', 'earlier_home'].includes(String(row.comparability)) ? row.comparability as HistoryEntry['comparability'] : 'unknown' as const } : {}),
+    ...(Object.hasOwn(row, 'source_revision') ? { source_revision: nullableText(row.source_revision) } : {}),
+    ...(Object.hasOwn(row, 'method_version') ? { method_version: nullableText(row.method_version) } : {}),
+    ...(Object.hasOwn(row, 'observed_at') ? { observed_at: timestamp(row.observed_at) } : {}),
+    }];
   });
-  return { from, to, count: history.length, history };
+  const homeContext = record(body.context);
+  return { from, to, count: history.length, history,
+    ...(typeof body.truncated === 'boolean' ? { truncated: body.truncated } : {}),
+    ...(Object.hasOwn(body, 'context') ? { context: { current_id: typeof homeContext.current_id === 'string' && UUID.test(homeContext.current_id) ? homeContext.current_id : null, includes_earlier_homes: homeContext.includes_earlier_homes === true } } : {}),
+  };
 }
 export function parseLearn(value: unknown, topic: FactorKey): LearnContent {
   const body = record(value);
   if (body.topic !== topic || typeof body.what_it_is !== 'string' || !Array.isArray(body.protect) || !Array.isArray(body.sources)) return invalid();
-  return { topic, locale: safeText(body.locale, 'en'), title: safeText(body.title), what_it_is: safeText(body.what_it_is), why_yours: nullableText(body.why_yours), household_note: nullableText(body.household_note), protect: textList(body.protect), sources: rows(body.sources).map(source).filter((item): item is SourceLink => item !== null) };
+  return { topic, locale: safeText(body.locale, 'en'), title: safeText(body.title), what_it_is: safeText(body.what_it_is), why_yours: nullableText(body.why_yours), household_note: body.unavailable === true && body.reason === 'household_unavailable' ? null : nullableText(body.household_note), protect: textList(body.protect), sources: rows(body.sources).map(source).filter((item): item is SourceLink => item !== null),
+    ...(typeof body.unavailable === 'boolean' ? { unavailable: body.unavailable } : {}),
+    ...(body.unavailable === true ? { reason: body.reason === 'learn_content_unavailable' || body.reason === 'household_unavailable' ? body.reason : 'unavailable' } : {}),
+    ...(typeof body.requested_locale === 'string' ? { requested_locale: safeText(body.requested_locale) } : {}),
+    ...(typeof body.served_locale === 'string' ? { served_locale: safeText(body.served_locale) } : {}),
+    ...(Object.hasOwn(body, 'content_version') ? { content_version: nullableText(body.content_version) } : {}),
+  };
 }
 export function parseAssistant(value: unknown): AssistantResponse {
   const body = record(value);

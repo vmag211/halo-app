@@ -30,8 +30,7 @@ test('Luna opens and closes without losing the page across the shared app and su
     const launcher = page.getByRole('button', { name: /^(Ask|Open) Luna$/ });
     await expect(launcher).toBeVisible();
     await expect(launcher).toHaveCount(1);
-    const box = await launcher.boundingBox();
-    expect(box && box.x >= 0 && box.x + box.width <= 375).toBeTruthy();
+    await expect.poll(async()=>{const box=await launcher.boundingBox();return !!box&&box.x>=0&&box.x+box.width<=375;}).toBe(true);
     const original = new URL(page.url());
     await launcher.click();
     await expect(page.getByRole('dialog', { name: 'Luna', exact: true })).toBeVisible();

@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 const faults = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []; faults.set(page, errors);
-  page.on('pageerror', error => errors.push(error.message));
+  page.on('pageerror', error => errors.push(`${page.url()}: ${error.message}`));
   await page.route('**/*', route => {
     const url = new URL(route.request().url());
     if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname.startsWith('/api/')) {

@@ -1,128 +1,46 @@
-import { test, expect } from '@playwright/test';
-import { jsonRoute, mockStage, stageProfile, stageUserId } from './stage-fixtures';
+import {test,expect} from '@playwright/test';
+import {jsonRoute,stageProfile} from './stage-fixtures';
+import {mockProduction,settingsSnapshot,homeId} from './production-fixtures';
 
-test('Settings section links honor valid intent without hydration errors or writes', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error' && /hydrat|server rendered/i.test(message.text())) errors.push(message.text()); });
-  const network = await mockStage(page);
-  for (const intent of ['home', 'household', 'unrecognized']) {
-    await page.goto(`/settings?open=${intent}`);
-    const home = page.getByRole('button', { name: /^Home details/ });
-    const household = page.getByRole('button', { name: /^Household/ });
-    await expect(home).toHaveAttribute('aria-expanded', String(intent === 'home'));
-    await expect(household).toHaveAttribute('aria-expanded', String(intent !== 'home'));
-    if (intent === 'home') await expect(page.getByRole('combobox', { name: 'Water source', exact: true })).toBeVisible();
-    else await expect(page.getByRole('button', { name: 'Toddlers', exact: true })).toBeVisible();
-  }
-  expect(errors).toEqual([]);
-  expect(network.requests.filter(request => ['PUT', 'PATCH', 'POST', 'DELETE'].includes(request.method))).toEqual([]);
-  expect(network.blocked).toEqual([]);
+const unavailableHome={feature:'home',revision:1,enabled:false,reason:'Location search is unavailable.',unresolvedOperations:[],home:{current:null,candidates:[],portableTasks:[],history:[],review:null}};
+test('Settings section links honor valid intent without hydration errors or writes',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error'&&/hydrat|server rendered/i.test(message.text()))errors.push(message.text());});
+ const network=await mockProduction(page,{'/api/account':route=>jsonRoute(route,unavailableHome)});
+ for(const intent of ['home','household','unrecognized']){
+  await page.goto(`/settings?open=${intent}`);
+  if(intent==='unrecognized')await expect(page.locator('[data-setting-panel="home"]')).toBeVisible();
+  else {await expect(page.getByRole('combobox',{name:'Water source',exact:true})).toBeVisible();await expect(page.getByRole('checkbox',{name:'Toddlers',exact:true})).toBeVisible();}
+ }
+ expect(errors).toEqual([]);expect(network.requests.filter(request=>['PUT','PATCH','POST','DELETE'].includes(request.method))).toEqual([]);expect(network.blocked).toEqual([]);
 });
-
-test('household save sends seven flags, preserves newly fetched untouched answers, and prevents overlap', async ({ page }) => {
-  const profile = structuredClone(stageProfile);
-  let profileReads = 0; let writes = 0; let release!: () => void;
-  const bodies: unknown[] = [];
-  const network = await mockStage(page, { overrides: {
-    '/api/profile': async route => {
-      profileReads++;
-      if (profileReads >= 2) profile.household.has_senior = true;
-      await jsonRoute(route, profile);
-    },
-    '/api/household': async route => {
-      writes++; const body = route.request().postDataJSON(); bodies.push(body);
-      await new Promise<void>(resolve => { release = resolve; });
-      profile.household = body;
-      await jsonRoute(route, { saved: true });
-    },
-  } });
-  await page.goto('/settings');
-  const toddler = page.getByRole('button', { name: 'Toddlers', exact: true });
-  await expect(toddler).toHaveAttribute('aria-pressed', 'false');
-  await toddler.click();
-  await page.getByRole('button', { name: 'Save household', exact: true }).click();
-  await expect.poll(() => writes).toBe(1);
-  await expect(toddler).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Save household', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Save household', exact: true }).dispatchEvent('click');
-  expect(writes).toBe(1);
-  expect(bodies).toEqual([{ has_toddler: true, has_child: true, has_teen: false, has_adult: true, has_senior: true, has_pregnant: false, has_respiratory: false }]);
-  release();
-  await expect(page.getByText('Household saved.', { exact: true }).last()).toBeVisible();
-  await expect(toddler).toBeEnabled();
-  await expect(toddler).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Seniors', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  expect(profileReads).toBeGreaterThanOrEqual(2);
-  expect(network.blocked).toEqual([]);
+test('household saves all seven flags, preserves an explicitly rebased untouched answer and blocks overlap',async({page})=>{
+ const profile=structuredClone(stageProfile);let settings=structuredClone(settingsSnapshot),writes=0,profileReads=0;let release:()=>void=()=>{};let body:Record<string,unknown>|null=null;
+ const network=await mockProduction(page,{
+  '/api/profile':route=>{profileReads++;return jsonRoute(route,{...profile,home_context:{id:homeId,revision:1},profile:{...profile.profile,home_context_id:homeId}});},
+  '/api/account':route=>jsonRoute(route,unavailableHome),
+  '/api/settings':async route=>{if(route.request().method()==='GET'){await jsonRoute(route,settings);return;}writes++;body=route.request().postDataJSON();await new Promise<void>(resolve=>{release=resolve;});const input=body!;profile.household=input.household as typeof profile.household;settings={...settings,revision:settings.revision+1,values:input.values as typeof settings.values};await jsonRoute(route,{operationId:input.operationId,status:'succeeded',snapshot:settings});},
+ });
+ await page.goto('/settings?open=home');const toddler=page.getByRole('checkbox',{name:'Toddlers',exact:true});await expect(toddler).not.toBeChecked();await toddler.check();
+ profile.household.has_senior=true;await page.evaluate(()=>window.dispatchEvent(new Event('halo:settings-changed')));await expect.poll(()=>profileReads).toBeGreaterThan(1);await expect(page.getByRole('checkbox',{name:'Older adults',exact:true})).not.toBeChecked();
+ await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByRole('button',{name:'Review latest values',exact:true})).toBeVisible();expect(writes).toBe(0);await page.getByRole('button',{name:'Review latest values',exact:true}).click();await expect(page.getByRole('checkbox',{name:'Older adults',exact:true})).toBeChecked();
+ await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect.poll(()=>writes).toBe(1);await expect(toddler).toBeDisabled();await expect(page.getByRole('button',{name:'Save changes',exact:true})).toBeDisabled();
+ expect(body!.household).toEqual({has_toddler:true,has_child:true,has_teen:false,has_adult:true,has_senior:true,has_pregnant:false,has_respiratory:false});release();await expect(page.getByText('Changes saved.',{exact:true})).toBeVisible();await expect(toddler).toBeChecked();expect(network.blocked).toEqual([]);
 });
-
-test('home validation and failed saves retain answers; retry saves canonical fields', async ({ page }) => {
-  const profile = structuredClone(stageProfile) as { profile: { home_year: number | null; water_source: string }; [key: string]: unknown };
-  let patches = 0; const bodies: unknown[] = [];
-  const network = await mockStage(page, { overrides: { '/api/profile': async route => {
-    if (route.request().method() !== 'PATCH') { await jsonRoute(route, profile); return; }
-    patches++; const body = route.request().postDataJSON(); bodies.push(body);
-    if (patches === 1) { await jsonRoute(route, { error: 'private save details' }, 503); return; }
-    profile.profile = { ...profile.profile, ...body }; await jsonRoute(route, profile);
-  } } });
-  await page.goto('/settings');
-  await page.getByRole('button', { name: /^Home details/ }).click();
-  const year = page.getByLabel(/Year your home was built/);
-  await year.fill('1699');
-  await page.getByRole('button', { name: 'Save home details', exact: true }).click();
-  await expect(year).toHaveAttribute('aria-invalid', 'true');
-  expect(patches).toBe(0);
-  await year.fill('');
-  await page.getByRole('combobox', { name: 'Water source', exact: true }).selectOption('well');
-  await page.getByRole('button', { name: 'Save home details', exact: true }).click();
-  await expect(page.getByTestId('stage-product').getByRole('alert')).toContainText('Your changes have not been confirmed.');
-  await expect(page.getByTestId('stage-product').getByRole('alert')).not.toContainText('private save details');
-  await expect(page.getByText('Home details saved.', { exact: true })).toHaveCount(0);
-  await expect(year).toHaveValue('');
-  await expect(page.getByRole('combobox', { name: 'Water source', exact: true })).toHaveValue('well');
-  await page.getByRole('button', { name: 'Save home details', exact: true }).click();
-  await expect(page.getByText('Home details saved.', { exact: true }).last()).toBeVisible();
-  expect(bodies).toEqual([{ water_source: 'well', home_year: null }, { water_source: 'well', home_year: null }]);
-  expect(network.blocked).toEqual([]);
+test('invalid home input and failed saves retain the draft; retry sends canonical fields',async({page})=>{
+ let saves=0,current=structuredClone(settingsSnapshot);const bodies:unknown[]=[];
+ const network=await mockProduction(page,{'/api/account':route=>jsonRoute(route,unavailableHome),'/api/settings':async route=>{
+  if(route.request().method()==='GET'){await jsonRoute(route,current);return;}saves++;const input=route.request().postDataJSON();bodies.push(input.values.home);if(saves===1){await jsonRoute(route,{operationId:input.operationId,status:'failed',message:'private server diagnostic'});return;}current={...current,revision:current.revision+1,values:input.values};await jsonRoute(route,{operationId:input.operationId,status:'succeeded',snapshot:current});
+ }});
+ await page.goto('/settings?open=home');const year=page.getByLabel('Building year (optional)',{exact:true});await year.fill('999');await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByText('Enter a four-digit past or current year, or leave it blank.',{exact:true})).toBeVisible();expect(saves).toBe(0);
+ await year.fill('');await page.getByRole('combobox',{name:'Water source',exact:true}).selectOption('well');await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByText('The save was not applied. Your draft is still here.',{exact:true})).toBeVisible();await expect(year).toHaveValue('');await expect(page.getByRole('combobox',{name:'Water source',exact:true})).toHaveValue('well');await expect(page.locator('body')).not.toContainText('private server diagnostic');
+ await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByText('Changes saved.',{exact:true})).toBeVisible();expect(bodies).toEqual([{year:'',water:'well',tenure:'renter'},{year:'',water:'well',tenure:'renter'}]);expect(network.blocked).toEqual([]);
 });
-
-test('change address confirms leaving unsaved settings and never writes on its own', async ({ page }) => {
-  const network = await mockStage(page);
-  await page.goto('/settings');
-  await page.getByRole('button', { name: 'Toddlers', exact: true }).click();
-  page.once('dialog', async dialog => { expect(dialog.message()).toContain('Unsaved changes'); await dialog.dismiss(); });
-  await page.getByRole('button', { name: 'Change address', exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
-  page.once('dialog', async dialog => { await dialog.accept(); });
-  await page.getByRole('button', { name: 'Change address', exact: true }).click();
-  await expect(page).toHaveURL(/\/onboarding\?change=1$/);
-  expect(network.requests.filter(request => ['PUT', 'PATCH', 'POST', 'DELETE'].includes(request.method))).toEqual([]);
-  expect(network.blocked).toEqual([]);
+test('opening home-location review preserves unsaved answers and never changes a home by itself',async({page})=>{
+ const network=await mockProduction(page,{'/api/account':route=>jsonRoute(route,unavailableHome)});await page.goto('/settings?open=home');const toddler=page.getByRole('checkbox',{name:'Toddlers',exact:true});await toddler.check();await page.getByText('Home location',{exact:true}).click();await expect(page.getByLabel('City or ZIP code',{exact:true})).toBeVisible();await expect(toddler).toBeChecked();await expect(page).toHaveURL(/\/settings\?open=home$/);
+ await page.getByRole('button',{name:'All settings',exact:true}).click();await page.locator('[data-setting-panel="home"]').click();await expect(toddler).toBeChecked();expect(network.requests.filter(request=>['PUT','PATCH','POST','DELETE'].includes(request.method))).toEqual([]);expect(network.blocked).toEqual([]);
 });
-
-test('unknown profiles disable editing and an identity change cancels a pending save', async ({ page }) => {
-  await page.addInitScript(({ id }) => localStorage.setItem('halo.onboarded', JSON.stringify({ version: 1, identity: id, complete: true })), { id: stageUserId });
-  let available = false; let holdNext = false; let held = false; let release!: () => void; let writes = 0;
-  const network = await mockStage(page, { overrides: {
-    '/api/profile': async route => {
-      if (!available) { await jsonRoute(route, { error: 'Unavailable' }, 503); return; }
-      if (holdNext) { holdNext = false; held = true; await new Promise<void>(resolve => { release = resolve; }); }
-      await jsonRoute(route, stageProfile).catch(() => {});
-    },
-    '/api/household': async route => { writes++; await jsonRoute(route, { saved: true }); },
-  } });
-  await page.goto('/settings');
-  await expect(page.getByRole('button', { name: 'Toddlers', exact: true })).toBeDisabled();
-  available = true;
-  await page.getByRole('button', { name: 'Reload profile', exact: true }).click();
-  await page.getByRole('button', { name: 'Toddlers', exact: true }).click();
-  holdNext = true;
-  await page.getByRole('button', { name: 'Save household', exact: true }).click();
-  await expect.poll(() => held).toBe(true);
-  await page.evaluate(() => window.dispatchEvent(new Event('halo:identity-changed')));
-  release();
-  await expect(page.getByRole('button', { name: 'Toddlers', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  expect(writes).toBe(0);
-  expect(network.blocked).toEqual([]);
+test('unavailable settings cannot save and disconnect keeps a pending save unresolved until a status check',async({page})=>{
+ let available=false,writes=0,operationId='';const network=await mockProduction(page,{'/api/account':route=>jsonRoute(route,unavailableHome),'/api/settings':async route=>{if(route.request().method()==='GET'){await jsonRoute(route,available?settingsSnapshot:{error:'private unavailable details'},available?200:503);return;}writes++;operationId=route.request().postDataJSON().operationId;await route.abort('failed');},'/api/operations':(route,url)=>{expect(url.searchParams.get('operationId')).toBe(operationId);return jsonRoute(route,{operationId,status:'failed'});}});
+ await page.goto('/settings?open=home');await page.locator('[data-setting-panel="home"]').click();await expect(page.getByText('Settings could not load. Editing is unavailable.',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Save changes',exact:true})).toHaveCount(0);available=true;await page.getByRole('button',{name:'Try again',exact:true}).last().click();const toddler=page.getByRole('checkbox',{name:'Toddlers',exact:true});await toddler.check();await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByRole('button',{name:'Check save status',exact:true})).toBeVisible();await expect(toddler).toBeChecked();expect(writes).toBe(1);
+ await page.getByRole('button',{name:'Save changes',exact:true}).click();expect(writes).toBe(1);await page.getByRole('button',{name:'Check save status',exact:true}).click();await expect(toddler).toBeChecked();expect(writes).toBe(1);expect(network.blocked).toEqual([]);
 });

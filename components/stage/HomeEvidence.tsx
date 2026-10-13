@@ -15,7 +15,9 @@ const money = (value: unknown) => {
 /** Conditional backend evidence uses the existing detail panels. No tests,
  * household predictions, priorities, or action costs are invented client-side. */
 export function HomeEvidence({ factor }: { factor: FactorKey }) {
-  const { home, profile, refresh, offline } = useStageSession();
+  const { home, profile, refresh, offline,profilePending,profileWarning } = useStageSession();
+  const context=profile?.home_context?.id??profile?.profile?.home_context_id;
+  if(profilePending||profileWarning||context&&home.data?.home_context_id&&home.data.home_context_id!==context)return null;
   const water = record(home.data?.water); const lead = record(home.data?.lead);
   const privateWater = water.status === 'private_well' || ['well', 'spring'].includes(profile?.profile?.water_source ?? '');
   if (factor === 'pfas') {
@@ -62,7 +64,9 @@ function TestingPlan() {
 }
 
 export function HomeActionPlan() {
-  const { home, profile } = useStageSession();
+  const { home, profile,profilePending,profileWarning } = useStageSession();
+  const context=profile?.home_context?.id??profile?.profile?.home_context_id;
+  if(profilePending||profileWarning||context&&home.data?.home_context_id&&home.data.home_context_id!==context)return null;
   const water = record(home.data?.water);
   const privateWater = water.status === 'private_well' || ['well', 'spring'].includes(profile?.profile?.water_source ?? '');
   const actions = rows(home.data?.action_plan).sort((a, b) => (finite(a.rank) ?? Infinity) - (finite(b.rank) ?? Infinity));

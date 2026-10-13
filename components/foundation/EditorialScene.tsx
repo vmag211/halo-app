@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSceneExperience } from './SceneExperience';
+import { useImageReadiness } from './useImageReadiness';
 import './editorial-scene.css';
 
 const scenes = {
@@ -30,9 +31,9 @@ export default function EditorialScene({ scene, className = '', eager = false }:
   const [visible, setVisible] = useState(false);
   const [documentVisible, setDocumentVisible] = useState(true);
   const [restricted, setRestricted] = useState(false);
-  const [loaded, setLoaded] = useState('');
-  const [failed, setFailed] = useState('');
   const artwork = scenes[scene];
+  const source = `/preview-scenes/${artwork.file}.webp`;
+  const {ref:imageRef,loaded,failed} = useImageReadiness(source);
 
   useEffect(() => {
     const element = root.current;
@@ -56,11 +57,11 @@ export default function EditorialScene({ scene, className = '', eager = false }:
     };
   }, []);
 
-  const moving = experience.motion && !experience.deviceReduced && visible && documentVisible && !restricted && loaded === scene && failed !== scene;
-  return <div ref={root} className={`halo-editorial-scene ${className}`} data-editorial-scene={scene} data-atmosphere={artwork.atmosphere} data-moving={moving} data-failed={failed === scene} aria-hidden="true">
+  const moving = experience.motion && !experience.deviceReduced && visible && documentVisible && !restricted && loaded;
+  return <div ref={root} className={`halo-editorial-scene ${className}`} data-editorial-scene={scene} data-atmosphere={artwork.atmosphere} data-moving={moving} data-failed={failed} aria-hidden="true">
     {/* Local, generated artwork needs no remote optimizer and reserves its space before loading. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img key={scene} src={`/preview-scenes/${artwork.file}.webp`} alt="" width={1536} height={1024} loading={eager ? 'eager' : 'lazy'} decoding="async" draggable={false} onLoad={() => { setLoaded(scene); setFailed(current => current === scene ? '' : current); }} onError={() => setFailed(scene)} />
+    <img ref={imageRef} key={scene} src={source} alt="" width={1536} height={1024} loading={eager ? 'eager' : 'lazy'} decoding="async" draggable={false} />
     <span className="halo-editorial-scene-light" />
     <span className="halo-editorial-scene-haze" />
     <span className="halo-editorial-scene-reflection"><i /><i /><i /></span>

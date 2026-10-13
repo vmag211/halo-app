@@ -45,7 +45,8 @@ test('five destinations and a kitchen entry stay available and fish matching ret
   await page.getByRole('button', { name: 'Change your selection' }).click();
   await expect(page.getByLabel('Lake or river')).toHaveValue('demo-willow-lake');
   await page.getByLabel('Lake or river').selectOption('demo-uncovered');
-  await expect(page.getByRole('heading', { name: 'No verified advisory' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Statewide species reference Statewide · Source unavailable/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Willow Lake, north basin/ })).toHaveCount(0);
   await page.getByLabel('Lake or river').selectOption('demo-willow-river');
   await page.getByRole('combobox', { name: 'Species', exact: true }).selectOption('Catfish (unresolved group)');
   await page.getByRole('button', { name: /Willow River, unresolved source text/ }).click();

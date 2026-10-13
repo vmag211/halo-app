@@ -17,7 +17,7 @@ export const mapScenarios = [
   ['map-unavailable', 'Map unavailable, text fallback'], ['long-text', 'Long labels'], ['session-required', 'Session needs verification'],
 ] as const;
 export type MapScenario = typeof mapScenarios[number][0];
-export type Reading = { value_ppt?: number; limit_ppt: number; ratio?: number; severity: MapSeverity; date_iso?: string; proposed_for_rescission: boolean };
+export type Reading = { value_ppt?: number; limit_ppt: number | null; ratio?: number; severity: MapSeverity; date_iso?: string; proposed_for_rescission: boolean };
 export type WaterFeature = { pwsid: string; name: string; lat: number | null; lng: number | null; population: number | null; overall_severity: MapSeverity; coverage: string; latest_sample_iso: string | null; contaminants: Record<string, Reading>; hazard_index: null | { value: number; severity: MapSeverity; exceeds: boolean; proposed_for_rescission: boolean; components: string[] }; detected_unregulated: string[] };
 export const sampleHome = { lat: 35.04, lng: -80.52, county: 'Union County', pwsid: 'SAMPLE-01', score: 78 };
 export const assembledAt = '2026-10-01T11:00:00Z';

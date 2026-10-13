@@ -2,10 +2,10 @@ import type { DistrictPreviewData } from './map-district-preview';
 import { mapComparisonCopy as c } from './copy/map-comparison';
 
 /** Explicit public allowlist, independent of profiles, viewports, drafts and private records. */
-export function publicDistrictExport(data: DistrictPreviewData) {
+export function publicDistrictExport(data: DistrictPreviewData, production = false) {
   return {
-    review_only: true,
-    description: c.briefReview,
+    review_only: !production,
+    description: production ? 'Public environmental evidence summary.' : c.briefReview,
     district: data.scope,
     assembled_at: data.assembled_at,
     boundary: { source: 'U.S. Census TIGERweb', vintage: '119th Congress, 2023 district map', retrieved: '2026-09-27',
@@ -23,8 +23,8 @@ export function publicDistrictExport(data: DistrictPreviewData) {
     limitations: c.briefLimits,
   };
 }
-export function publicDistrictBrief(data: DistrictPreviewData) {
-  const source = publicDistrictExport(data);
+export function publicDistrictBrief(data: DistrictPreviewData, production = false) {
+  const source = publicDistrictExport(data, production);
   return [
     source.description,
     c.briefTitle(source.district),

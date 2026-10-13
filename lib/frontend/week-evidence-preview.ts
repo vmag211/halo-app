@@ -5,7 +5,7 @@ export type EvidenceScenario = 'unavailable' | 'populated' | 'sparse' | 'no-patt
 export type ForecastScenario = 'unavailable' | 'current' | 'partial' | 'changed' | 'expired' | 'loading' | 'error';
 export type HistoryFactor = 'Air' | 'UV' | 'Pollen' | 'Outdoor mold';
 export type HistoryReading = { date:string; factor:HistoryFactor; value:number|null; unit:string; source:string; issued:string; basis:'daily maximum'|'app-time observation'; context:string; version:string; missing?:string };
-export type AnalysisEntry = { date:string; band:string; fine:boolean; recalled:boolean; illness:boolean; symptoms:string[] };
+export type AnalysisEntry = { date:string; band:string; fine:boolean; recalled:boolean; illness:boolean; symptoms:string[];homeContextId?:string };
 export const weekEvidenceCopy = {
   fixtureSource:'HALO illustrative dataset, not provider observations',
   historyUnavailable:'Environmental history is unavailable. Your check-ins remain available.',
@@ -37,10 +37,10 @@ export function historyFixture(today:string,scenario:EvidenceScenario):HistoryRe
   }));
 }
 export function readingLabel(reading:HistoryReading|undefined){if(!reading||reading.value===null)return 'Unavailable';return reading.factor==='Pollen'?['','Low','Moderate','High'][reading.value]??'Unknown category':`${reading.value} ${reading.unit}`;}
-export function analyzeHistory(entries:AnalysisEntry[],readings:HistoryReading[],from:string,to:string,group:string,factor:HistoryFactor){
-  const days=entries.filter(e=>e.band===group&&e.date>=from&&e.date<=to);
+export function analyzeHistory(entries:AnalysisEntry[],readings:HistoryReading[],from:string,to:string,group:string,factor:HistoryFactor,comparison?:{context:string;basis:'daily maximum'|'app-time observation';version:string}){
+  const days=entries.filter(e=>e.band===group&&e.date>=from&&e.date<=to&&(!comparison||e.homeContextId===comparison.context));
   const rows=readings.filter(r=>r.factor===factor&&r.date>=from&&r.date<=to);
-  const compatible=rows.filter(r=>r.value!==null&&r.basis==='daily maximum'&&r.context==='review-home'&&r.version==='history-v1');
+  const compatible=rows.filter(r=>r.value!==null&&r.basis===(comparison?.basis??'daily maximum')&&r.context===(comparison?.context??'review-home')&&r.version===(comparison?.version??'history-v1'));
   const joined=days.flatMap(entry=>{const reading=compatible.find(r=>r.date===entry.date);return !entry.recalled&&!entry.illness&&reading?[{entry,reading}]:[];});
   const symptom=joined.filter(x=>!x.entry.fine&&x.entry.symptoms.length>0);const fine=joined.filter(x=>x.entry.fine);
   const mean=(items:typeof joined)=>items.length?items.reduce((sum,item)=>sum+item.reading.value!,0)/items.length:null;

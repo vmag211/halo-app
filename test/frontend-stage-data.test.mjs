@@ -27,6 +27,23 @@ const home = {
   score: { display_score: 30, severity: 'severe', included_inputs: ['water', 'radon'], missing_inputs: [], is_partial: false }, assembled_at: '2026-09-30T14:00:00Z',
 };
 
+test('current-home views reject other-home readings and do not mix earlier-home trend rows', () => {
+  const current = { ...profile, home_context: { id: 'new-home' } };
+  const data = buildStageData({ ...daily, home_context_id: 'old-home' }, { ...home, home_context_id: 'old-home' }, current, {
+    from: '2026-10-01', to: '2026-10-03', count: 3, truncated: true,
+    context: { current_id: 'new-home', includes_earlier_homes: true },
+    history: [
+      { date: '2026-10-01', home_context_id: 'old-home', comparability: 'earlier_home', values: { aqi: 95 } },
+      { date: '2026-10-02', home_context_id: 'new-home', comparability: 'current_context', values: { aqi: 0 } },
+      { date: '2026-10-03', home_context_id: null, comparability: 'unknown', values: { aqi: 15 } },
+    ],
+  });
+  assert.equal(data.today.score, null);
+  assert.equal(data.home.score, null);
+  assert.deepEqual(data.readings.air.trend.map(point => point.value), [null, 0, null]);
+  assert.match(data.readings.air.trendCaption, /incomplete/);
+});
+
 test('uses backend scores and severities; ring geometry contains only returned risk inputs', () => {
   const data = buildStageData(daily, home, profile);
   assert.equal(data.today.score, 77); assert.equal(data.home.score, 30);

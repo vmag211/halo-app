@@ -27,7 +27,7 @@ function mergeDraft(current: Draft, fresh: Draft, edited: ReadonlySet<EditedFiel
  * so unedited fields cannot overwrite a change made in another tab. */
 export default function StageSettings() {
   const router = useRouter();
-  const { api, profile, offline, restart } = useStageSession();
+  const { api, profile, profilePending, profileWarning, offline, restart } = useStageSession();
   const [draft, setDraft] = useState<Draft>(() => fromProfile(profile));
   const [baseline, setBaseline] = useState<Draft>(() => fromProfile(profile));
   const [open, setOpen] = useState<SaveKind | null>('household');
@@ -41,7 +41,7 @@ export default function StageSettings() {
   const [identityChanged, setIdentityChanged] = useState(false);
   const yearInput = useRef<HTMLInputElement>(null);
   const waterInput = useRef<HTMLSelectElement>(null);
-  const ready = !!profile && isProfileComplete(profile) && !identityChanged;
+  const ready = !!profile && isProfileComplete(profile) && !profilePending && !profileWarning && !identityChanged;
   const disabled = !ready || !!busy || offline;
   const householdDirty = householdKeys.some(key => draft.household[key] !== baseline.household[key]);
   const homeDirty = draft.year !== baseline.year || draft.water !== baseline.water;

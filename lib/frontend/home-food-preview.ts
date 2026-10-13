@@ -111,7 +111,7 @@ export function compareUsage(a: UsageRecord, b: UsageRecord): UsageComparison {
   return { compatible: true, kind: 'interval', difference: Number(later.quantity) - Number(earlier.quantity), unit: a.unit, days, gapDays: periodDays(earlier.end, later.start), description: 'Measured usage difference only. Weather, occupancy and other conditions may differ; this is not savings attributed to HALO.' };
 }
 export function downloadFoodRecord(filename: string, value: unknown) {
-  const blob = new Blob([JSON.stringify({ notice: 'SYNTHETIC WIREFRAME EXPORT. Private review data, not verified environmental evidence.', exportedAt: new Date().toISOString(), record: value }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ notice: 'Private HALO export. User-entered records and source references are not verification of environmental safety.', exportedAt: new Date().toISOString(), record: value }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob); const link = document.createElement('a');
   link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

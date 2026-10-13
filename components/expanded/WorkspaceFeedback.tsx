@@ -5,9 +5,9 @@ import { Check, X } from 'lucide-react';
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import './workspace-feedback.css';
 
-/** Quiet success feedback, with retained actionable errors. Preview transport only. */
+/** Quiet success feedback, with retained actionable errors and acknowledged save reconciliation. */
 export default function WorkspaceFeedback() {
-  const { message, pending, clearMessage } = useHomeWorkspace();
+  const { message, pending, clearMessage, unknownOperations, reconcile } = useHomeWorkspace();
   const dismiss = useRef(clearMessage);
   useEffect(() => { dismiss.current = clearMessage; }, [clearMessage]);
   const succeeded = /^Saved\.|Workspace reset\./.test(message);
@@ -22,5 +22,5 @@ export default function WorkspaceFeedback() {
     <span>{pending ? 'Saving' : message.startsWith('Workspace reset') ? 'Workspace reset' : 'Saved'}</span>
     {!pending && <button type="button" aria-label="Dismiss workspace message" onClick={clearMessage}><X size={17} aria-hidden="true" /></button>}
   </div>;
-  return <div className="halo-workspace-error" role="alert"><p>{message}</p><button type="button" aria-label="Dismiss workspace message" onClick={clearMessage}><X size={18} aria-hidden="true" /></button></div>;
+  return <div className="halo-workspace-error" role="alert"><p>{message}</p>{unknownOperations.map(operation => <button type="button" key={operation.operationId} disabled={pending} onClick={() => void reconcile(operation.operationId)}>Check save status</button>)}{!unknownOperations.length && <button type="button" aria-label="Dismiss workspace message" onClick={clearMessage}><X size={18} aria-hidden="true" /></button>}</div>;
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFrontend, memoryStorage } from './frontend-test-loader.mjs';
-const { createLiveStageApi, parseAssistant, parseLearn } = await loadFrontend('stage-api');
+const { createLiveStageApi, parseAssistant, parseLearn, parseHistory } = await loadFrontend('stage-api');
 const { setCacheIdentity } = await loadFrontend('storage');
 const response = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const validId = '12345678-1234-1234-1234-123456789012';
@@ -65,6 +65,31 @@ test('Learn preserves missing context and actual content locale with safe source
   const learned = parseLearn({ topic: 'pfas', locale: 'en', title: 'PFAS', what_it_is: 'Utility\u2014sample data.', why_yours: null, household_note: null, protect: ['Read the result.'], sources: [{ label: 'EPA', url: 'https://www.epa.gov/' }, { label: 'bad', url: 'data:text/html,hello' }] }, 'pfas');
   assert.equal(learned.why_yours, null); assert.equal(learned.household_note, null); assert.equal(learned.locale, 'en'); assert.equal(learned.sources.length, 1);
   assert.throws(() => parseLearn({ topic: 'air' }, 'pfas'), { code: 'invalid_response' });
+});
+
+test('B01 history preserves home context, truncation and future source basis without fabricating values', () => {
+  const history = parseHistory({ from: '2026-10-01', to: '2026-10-02', truncated: true, context: { current_id: validId, includes_earlier_homes: true }, history: [
+    { date: '2026-10-01', home_context_id: validId, comparability: 'current_context', source_revision: 'air-v2', method_version: 'aqi-v1', observed_at: '2026-10-01T12:00:00Z', values: { aqi: 0 } },
+    { date: '2026-10-02', home_context_id: 'invalid', comparability: 'untrusted', values: {} },
+  ] });
+  assert.equal(history.truncated, true);
+  assert.deepEqual(history.context, { current_id: validId, includes_earlier_homes: true });
+  assert.equal(history.history[0].values.aqi, 0);
+  assert.equal(history.history[0].source_revision, 'air-v2');
+  assert.equal(history.history[0].observed_at, '2026-10-01T12:00:00.000Z');
+  assert.equal(history.history[1].home_context_id, null);
+  assert.equal(history.history[1].comparability, 'unknown');
+  assert.equal(history.history[1].values.aqi, null);
+});
+
+test('Learn unavailable remains distinguishable from empty and household outage cannot publish a note', () => {
+  const result = parseLearn({ topic: 'air', locale: 'en', requested_locale: 'es', served_locale: 'en', content_version: 'v3', what_it_is: 'General air information.', protect: [], sources: [], unavailable: true, reason: 'household_unavailable', household_note: 'Must not be used.' }, 'air');
+  assert.equal(result.unavailable, true);
+  assert.equal(result.reason, 'household_unavailable');
+  assert.equal(result.household_note, null);
+  assert.equal(result.requested_locale, 'es');
+  assert.equal(result.served_locale, 'en');
+  assert.equal(result.content_version, 'v3');
 });
 
 test('malformed data and mutation inputs never masquerade as successful payloads', async () => {

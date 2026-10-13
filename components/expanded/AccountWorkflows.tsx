@@ -9,11 +9,15 @@ import {completionCopy as c} from '@/lib/frontend/copy/completion';
 import './completion-workflows.css';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
+import {useProductionRuntime} from '@/components/production/ProductionContext';
+import {ProductionHomeTransitionFlow,ProductionRecoveryFlow,ProductionDeviceSetupFlow,ProductionConnectionsFlow} from '@/components/production/ProductionAccountFlows';
+import ProductionRestoreAccessFlow from '@/components/production/ProductionRestoreAccessFlow';
 
 const labels={home:'Home lookup',recovery:'Recovery service',device:'Device delivery',email:'Email authorization',calendar:'Calendar authorization'} as const;
 type Service=keyof typeof labels;
 export function CompletionReviewControls(){
  const workspace=useHomeWorkspace();
+ if(workspace.mode==='production')return null;
  return <fieldset className="halo-f-tool-grid"><legend>Account and service scenarios (isolated examples)</legend>{Object.entries(labels).map(([key,label])=><label key={key}>{label}<select value={String(workspace.drafts[`review:capability:${key}`]??'unavailable')} onChange={e=>workspace.setDraft(`review:capability:${key}`,()=>e.target.value)}>{capabilityStates.map(s=><option key={s}>{s}</option>)}</select></label>)}<label>Learning catalogue<select value={String(workspace.drafts['review:learn']??'ready')} onChange={e=>workspace.setDraft('review:learn',()=>e.target.value)}>{['ready','loading','error','empty'].map(s=><option key={s}>{s}</option>)}</select></label><p>No emails, browser permission requests, OAuth requests or account writes occur. Choose verified only to inspect a confirmed service response.</p></fieldset>;
 }
 function useService(key:Service){
@@ -41,7 +45,8 @@ function useService(key:Service){
 }
 function Feedback({service}:{service:ReturnType<typeof useService>}){return <>{service.pending&&<div className="hc-state" role="status">{c.pending}<button className="hp-text" onClick={service.cancel}>{c.cancel}</button></div>}{service.message&&<p className="hc-state" role="status">{service.message}</p>}</>;}
 
-export function HomeTransitionFlow(){
+export function HomeTransitionFlow(){const runtime=useProductionRuntime();return runtime?<ProductionHomeTransitionFlow/>:<PreviewHomeTransitionFlow/>;}
+function PreviewHomeTransitionFlow(){
  const workspace=useHomeWorkspace(),preview=useExpandedPreview()!,service=useService('home');
  const homes=useHomeCollection<HomeTransition>('homeTransitions',[]);
  const [area,setArea]=useHomeDraft('settings:home-search','');
@@ -63,7 +68,8 @@ export function HomeTransitionFlow(){
  </div></details>;
 }
 
-export function RecoveryFlow(){
+export function RecoveryFlow(){const runtime=useProductionRuntime();return runtime?<ProductionRecoveryFlow/>:<PreviewRecoveryFlow/>;}
+function PreviewRecoveryFlow(){
  const service=useService('recovery');
  const [record,setRecord]=useHomeDraft<{email:string;revision:number;verified:boolean;otherDevice:boolean}>('settings:recovery',{email:'',revision:0,verified:false,otherDevice:false});
  const [email,setEmail]=useHomeDraft('settings:recovery-email','');
@@ -77,7 +83,8 @@ export function RecoveryFlow(){
  <Feedback service={service}/></div></details>;
 }
 
-export function DeviceSetupFlow(){
+export function DeviceSetupFlow(){const runtime=useProductionRuntime();return runtime?<ProductionDeviceSetupFlow/>:<PreviewDeviceSetupFlow/>;}
+function PreviewDeviceSetupFlow(){
  const service=useService('device');
  const [status,setStatus]=useHomeDraft('settings:device-connection','off');
  const [stage,setStage]=useState<'entry'|'permission'|'confirm'|'remove'>('entry');
@@ -92,9 +99,10 @@ function ConnectionFlow({kind}:{kind:'email'|'calendar'}){
  {stage==='entry'?<button className="hp-text" onClick={()=>{service.setMessage('');setStage(connected?'remove':'review');}}>{connected?c.disconnect:c.connect}</button>:stage==='review'?<div className="hc-review"><p>{kind==='email'?c.scopeEmail:c.scopeCalendar}</p><div className="hc-actions"><button className="hp-primary" disabled={service.pending} onClick={()=>service.run(()=>setStage('pending'))}>{c.authorize}</button><button className="hp-text" onClick={()=>{service.cancel();setStage('entry');}}>{c.cancel}</button></div></div>:stage==='pending'?<><p>{c.authorizationPending}</p><button className="hp-primary" disabled={service.pending} onClick={()=>service.run(()=>{setConnected(true);setStage('entry');service.setMessage(c.connected);},true)}>{c.checkConnection}</button><button className="hp-text" onClick={()=>{service.cancel();setStage('entry');}}>{c.cancel}</button></>:<div className="hc-review"><p>{c.disconnectHint}</p><button className="hp-danger-button" disabled={service.pending} onClick={()=>service.run(()=>{setConnected(false);setStage('entry');service.setMessage(c.disconnected);})}>{c.disconnect}</button><button className="hp-text" onClick={()=>{service.cancel();setStage('entry');}}>{c.keep}</button></div>}
  <Feedback service={service}/></section>;
 }
-export function ConnectionsFlow(){return <details className="hp-disclosure"><summary>{c.connections}<ChevronRight size={16}/></summary><div className="hc-flow"><ConnectionFlow kind="email"/><ConnectionFlow kind="calendar"/></div></details>;}
+export function ConnectionsFlow(){const runtime=useProductionRuntime();return runtime?<ProductionConnectionsFlow/>:<details className="hp-disclosure"><summary>{c.connections}<ChevronRight size={16}/></summary><div className="hc-flow"><ConnectionFlow kind="email"/><ConnectionFlow kind="calendar"/></div></details>;}
 
-export function RestoreAccessFlow(){
+export function RestoreAccessFlow(){const runtime=useProductionRuntime();return runtime?<ProductionRestoreAccessFlow/>:<PreviewRestoreAccessFlow/>;}
+function PreviewRestoreAccessFlow(){
  const service=useService('recovery');
  const [email,setEmail]=useState(''),[stage,setStage]=useState<'entry'|'pending'|'verified'>('entry');
  return <details className="hp-disclosure"><summary>Restore access<ChevronRight size={16}/></summary><div className="hc-flow"><p>Use the recovery address you previously verified. An email match alone cannot restore access.</p>{stage==='entry'?<><label>{c.email}<input type="email" value={email} disabled={service.pending} autoComplete="email" maxLength={254} onChange={e=>setEmail(e.target.value)}/></label><button className="hp-primary" disabled={service.pending} onClick={()=>{if(!validRecoveryEmail(email.trim())){service.setMessage(c.invalidEmail);return;}service.run(()=>{setStage('pending');service.setMessage('If this address has recovery set up, check its inbox.');});}}>Request recovery link</button></>:stage==='pending'?<><p>{maskedEmail(email)}</p><button className="hp-primary" disabled={service.pending} onClick={()=>service.run(()=>{setStage('verified');setEmail('');service.setMessage('Access verified. Your existing records are kept.');},true)}>Check recovery status</button><button className="hp-text" onClick={()=>{service.cancel();setStage('entry');}}>Cancel recovery</button></>:<Link className="hp-primary" href="/foundation/preview/expanded/?tab=plan">Continue to My Week</Link>}<Feedback service={service}/></div></details>;

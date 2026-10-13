@@ -8,12 +8,17 @@ import { initialFieldNotes, outreachTemplate, recipients, type FieldNote, type R
 import ExploreOutcome from './ExploreOutcome';
 import { ExploreAreaChooser } from './ExploreDiscovery';
 import { areaLabel, blankArea, SaveExplore, ShareTools } from './ExploreShared';
+import {useProductionRuntime} from '@/components/production/ProductionContext';
+import ProductionOutreach from './ProductionOutreach';
 
 type NoteSnapshot = Pick<FieldNote, 'id' | 'revision' | 'title' | 'description'>;
 type Contact = { email: string; name: string; reviewed: boolean; reviewedFor?: string };
 const blankContact: Contact = { email: '', name: '', reviewed: false };
 
 export default function ExploreOutreach() {
+ const runtime=useProductionRuntime();return runtime?<ProductionOutreach/>:<ReviewOutreach/>;
+}
+function ReviewOutreach() {
   const workspace = useHomeWorkspace();
   const notes = useHomeCollection<FieldNote>('exploreNotes', initialFieldNotes);
   const [recipient, setRecipient] = useHomeDraft<Recipient>('explore:recipient', 'Utility');

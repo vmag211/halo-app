@@ -13,7 +13,7 @@ for (const appearance of ['light', 'dark']) test(`refined forms, icons and typog
   await page.goto(url('tests', 'list', appearance));
   await expect(page.getByRole('heading', { name: 'Home tests & reports' })).toBeVisible();
   const headingFont = await page.locator('[data-home-heading]').evaluate(el => getComputedStyle(el).fontFamily);
-  expect(headingFont.toLowerCase()).toContain('instrument');
+  expect(headingFont.toLowerCase()).toContain('onest');
   const searchPadding = await page.getByRole('searchbox', { name: 'Search records' }).evaluate(el => parseFloat(getComputedStyle(el).paddingLeft));
   expect(searchPadding).toBeGreaterThanOrEqual(40);
   await page.getByRole('button', { name: /^Plan a test/ }).click();

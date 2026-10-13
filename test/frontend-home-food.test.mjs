@@ -10,14 +10,16 @@ test('unverified public fixtures never become food limits or utility instruction
   const water = readFileSync(new URL('../components/homeguard/FoodWater.tsx', import.meta.url), 'utf8');
   const evidence = readFileSync(new URL('../components/homeguard/FoodEvidence.tsx', import.meta.url), 'utf8');
   const share = readFileSync(new URL('../components/homeguard/FoodShared.tsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(fish, /\{rule\.wording\}|\{rule\.condition\}/, 'invented servings and time windows cannot be displayed as advice');
+  assert.match(fish, /mode === 'production' \? rule\.wording : 'No verified recommendation/, 'only verified production sources may provide recommendation text');
+  assert.match(fish, /mode === 'production' && <>.*\{rule\.condition\}/, 'source conditions remain gated to production evidence');
   assert.match(fish, /No verified recommendation is available/);
   assert.doesNotMatch(water, /\{release\[item\.key\]\}|Synthetic notice instructions/);
   assert.match(water, /No verified instructions are available/);
-  assert.doesNotMatch(evidence, /\{evidence\.finding\}|\{evidence\.instruction\}/);
+  assert.match(evidence, /mode === 'production' \? evidence\.finding : 'Not available'/);
+  assert.match(evidence, /mode === 'production' && <FoodDetails[^\n]+\{evidence\.instruction\}/);
   assert.match(evidence, /No verified notice or study is available/);
-  assert.match(share, /sourceStatus: 'unverified'/);
-  assert.match(share, /record: kind === 'resource' \? record : \{ sourceAvailable: false \}/, 'unverified advice must not escape through reference exports');
+  assert.match(share, /sourceStatus: mode === 'production' \? 'source-linked' : 'unverified'/);
+  assert.match(share, /record: mode === 'production' \? publicRecord : kind === 'resource' \? record : \{ sourceAvailable: false \}/, 'unverified advice must not escape through reference exports');
 });
 
 test('fish matching keeps statewide and local records separate and unresolved labels unresolved', () => {

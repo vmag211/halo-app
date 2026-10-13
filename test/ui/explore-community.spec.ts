@@ -94,6 +94,37 @@ test('volunteer guide is filtered by interest, uses official handoff and saves a
   await expect(page.locator('.mw-agenda .mw-task, .mw-shelf .mw-task')).toContainText('Review participation with TreesCharlotte');
 });
 
+test('server-rendered opportunity filters wait for hydration and retain the first selection', async ({ page }) => {
+  let release!: () => void;
+  const hydration = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/_next/static/**/*.js', async route => {
+    await hydration;
+    await route.continue().catch(() => {});
+  });
+  try {
+    await page.goto(`${root}&destination=opportunities`, { waitUntil: 'commit' });
+    const interest = page.getByLabel('What interests you?');
+    const search = page.getByLabel('Find a program or organization');
+    const timing = page.getByRole('combobox', { name: 'When?', exact: true });
+    const scope = page.getByLabel('Browse reviewed areas');
+    for (const control of [interest, search, timing, scope]) await expect(control).toBeDisabled();
+    await expect(interest).toHaveValue('All interests');
+    release();
+    for (const control of [interest, search, timing, scope]) await expect(control).toBeEnabled();
+    await interest.selectOption('Trees & habitat');
+    await expect(interest).toHaveValue('Trees & habitat');
+    await expect(page.locator('.ex-local-route')).toHaveCount(1);
+    await timing.selectOption('rolling');
+    await search.fill('trees');
+    await expect(interest).toHaveValue('Trees & habitat');
+    await expect(timing).toHaveValue('rolling');
+    await expect(search).toHaveValue('trees');
+    await expect(page.locator('.ex-local-route')).toHaveCount(1);
+  } finally {
+    release();
+  }
+});
+
 test('community topics open the matching map layer and can start an undated question note', async ({ page }) => {
   await page.goto(`${root}&destination=community`);
   await page.getByRole('button', { name: 'Air', exact: true }).click();

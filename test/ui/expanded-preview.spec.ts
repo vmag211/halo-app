@@ -92,7 +92,7 @@ test('failure retains edits; Back cancels pending save and retains draft', async
   await page.getByRole('button', { name: 'Save to My Week', exact: true }).click();
   await page.getByLabel('Action title').fill('Review filter instructions');
   await page.getByRole('button', { name: 'Save action' }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Could not save');
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Could not confirm this save');
   await expect(page.getByLabel('Action title')).toHaveValue('Review filter instructions');
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);

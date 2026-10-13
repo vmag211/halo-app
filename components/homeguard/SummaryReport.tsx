@@ -6,15 +6,15 @@ import LunaMark from '@/components/foundation/LunaMark';
 import type { HouseholdReport, ReportProgress } from '@/lib/frontend/household-pdf';
 import './summary-report.css';
 
-export default function SummaryReport({ report, onReady }: { report: HouseholdReport; onReady?: (pages: number) => void }) {
+export default function SummaryReport({ report, onReady, production = false }: { report: HouseholdReport; onReady?: (pages: number) => void; production?: boolean }) {
   const snapshot = JSON.stringify(report);
   const [attempt, setAttempt] = useState(0);
   // Each report or retry owns its resources and initial state. This also prevents
   // an old PDF link from appearing while a new selection starts generating.
-  return <ReportAttempt key={`${attempt}:${snapshot}`} snapshot={snapshot} onReady={onReady} onRetry={() => setAttempt(value => value + 1)} />;
+  return <ReportAttempt key={`${attempt}:${snapshot}`} snapshot={snapshot} onReady={onReady} production={production} onRetry={() => setAttempt(value => value + 1)} />;
 }
 
-function ReportAttempt({ snapshot, onRetry, onReady }: { snapshot: string; onRetry: () => void; onReady?: (pages: number) => void }) {
+function ReportAttempt({ snapshot, onRetry, onReady, production }: { snapshot: string; onRetry: () => void; onReady?: (pages: number) => void; production: boolean }) {
   const [progress, setProgress] = useState<ReportProgress>({ value: 4, label: 'Loading the local report tools' });
   const [ready, setReady] = useState<{ url: string; blob: Blob; pages: number }>();
   const [failure, setFailure] = useState(''); const [cancelled, setCancelled] = useState(false); const [status, setStatus] = useState('');
@@ -46,9 +46,9 @@ function ReportAttempt({ snapshot, onRetry, onReady }: { snapshot: string; onRet
   }
   return <section className="hg-report-builder" aria-label="Household PDF" aria-busy={!ready && !failure && !cancelled}>
     <div className="hg-report-art" aria-hidden="true"><div className="hg-report-paper"><FileCheck2 size={34} /><i /><i /><i /></div><span className="hg-report-luna"><LunaMark size={34} /></span></div>
-    <p className="hg-eyebrow">Prepared with Luna</p>
-    <h2>{ready ? 'Your household report is ready' : cancelled ? 'Your selections are saved' : failure ? 'Let’s try that again' : 'Luna is creating your report'}</h2>
-    <p className="hg-meta">Created on this device from the sections you chose. Nothing is sent to AI or uploaded.</p>
+    <p className="hg-eyebrow">{production ? 'Your saved summary' : 'Prepared with Luna'}</p>
+    <h2>{ready ? 'Your household report is ready' : cancelled ? 'Your selections are saved' : failure ? 'Let’s try that again' : production ? 'Creating your report' : 'Luna is creating your report'}</h2>
+    <p className="hg-meta">{production ? 'Created on this device from your private, saved summary. This export does not send your information to AI.' : 'Created on this device from the sections you chose. Nothing is sent to AI or uploaded.'}</p>
     {!ready && !failure && !cancelled && <><progress aria-label="PDF creation progress" max={100} value={progress.value} /><p className="hg-meta" role="status">{progress.label}</p><button className="hg-text-button" onClick={() => { controller.current?.abort(); setCancelled(true); }}>Cancel PDF creation</button></>}
     {failure && <p role="alert">{failure}</p>}
     {(failure || cancelled) && <button className="hg-button" onClick={onRetry}>Try creating PDF again</button>}

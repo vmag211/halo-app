@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Route } from '@playwright/test';
-import { jsonRoute, mockStage, stageProfile, stageUserId } from './stage-fixtures';
+import { jsonRoute, stageProfile, stageUserId } from './stage-fixtures';
+import {mockProductionStage as mockStage} from './production-fixtures';
 
 const reading = (aqi = 73) => ({
   air: { aqi, severity: 'moderate', source: 'open-meteo', is_measured: false, dominant_pollutant: 'PM2.5', sentence: 'Current outdoor reading.' },
@@ -59,7 +60,7 @@ test('verified device can read its cached evidence during profile outage without
   }, { id: stageUserId, data: reading(61) });
   await page.goto('/today');
   await expect(page.getByRole('link', { name: /Air quality\. Not scored\. 61 AQI/ })).toBeVisible();
-  await expect(page.getByText(/Your profile could not be checked/)).toBeVisible();
+  await expect(page.getByText(/Reconnect your profile to make changes/)).toBeVisible();
   await expect(page.getByText(/General household guidance/)).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Young children and adults');
   await expect(page).toHaveURL(/\/today$/);
@@ -105,7 +106,7 @@ test('identity notification synchronously hides household explanation while the 
     return document.body.textContent?.includes('PRIVATE_HOUSEHOLD_EXPLANATION');
   });
   expect(visibleAfterEvent).toBe(false);
-  await expect(page.getByRole('status', { name: 'Checking your profile' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Opening HALO');
   await expect.poll(() => !!pendingProfile).toBe(true);
   await jsonRoute(pendingProfile!, { onboarded: false, onboarding_complete: false, profile: null, household: {}, household_set: false });
   await expect(page).toHaveURL(/\/onboarding\?entry=1/);
@@ -115,9 +116,12 @@ test('unknown factor and household routes render only a 404 without loading hous
   const { requests, blocked } = await mockStage(page);
   for (const path of ['/factors/not-a-factor', '/household/not-a-member']) {
     const response = await page.goto(path);
-    expect(response?.status()).toBe(404);
-    await expect(page.getByRole('heading', { name: '404', exact: true })).toBeVisible();
-    await expect(page.getByTestId('stage-product')).toHaveCount(0);
+    // Next16 sends200 when a loading boundary has already started streaming.
+    // Both forms must render its non-indexable not-found boundary, never HALO.
+    expect([200,404]).toContain(response?.status());
+    await expect.poll(() => page.locator('meta[name="robots"][content="noindex"]').count()).toBeGreaterThan(0);
+    await expect(page.getByRole('heading', { name: 'This page isn’t here', exact: true })).toBeVisible();
+    await expect(page.getByTestId('production-product')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Today', exact: true })).toHaveCount(0);
   }
   expect(requests).toEqual([]);

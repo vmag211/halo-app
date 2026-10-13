@@ -13,8 +13,14 @@ import type {SettingsProps} from './SettingsWorkspace';
 import {RecoveryFlow} from './AccountWorkflows';
 import {hasUnresolvedLunaAction} from '@/lib/frontend/luna-task-actions';
 import {lunaCompletionCopy} from '@/lib/frontend/copy/luna-completion';
+import {useProductionRuntime} from '@/components/production/ProductionContext';
+import ProductionPrivacy from '@/components/production/ProductionPrivacy';
 
 export default function SettingsPrivacy({blocked}:{href:SettingsProps['href'];blocked:boolean}){
+ const runtime=useProductionRuntime();
+ return runtime?<ProductionPrivacy blocked={blocked}/>:<ReviewPrivacy blocked={blocked}/>;
+}
+function ReviewPrivacy({blocked}:{blocked:boolean}){
  const workspace=useHomeWorkspace(),state=useExpandedPreview()!,{setBand}=usePreviewHousehold();
  const [inspect,setInspect]=useState<ExportGroup>('tasks'),[showPrivate,setShowPrivate]=useState(false);
  const [groups,setGroups]=useState<ExportGroup[]>(['tasks']),[privateText,setPrivateText]=useState(false),[review,setReview]=useState<{data:Record<string,unknown>;signature:string}|null>(null);

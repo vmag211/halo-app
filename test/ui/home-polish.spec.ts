@@ -32,8 +32,11 @@ for (const appearance of ['dark', 'light']) test(`finishing details remain reada
       expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
     for (const pair of await page.locator('.hg-facts > div').all()) {
-      const term = await pair.locator('dt').boundingBox(); const value = await pair.locator('dd').boundingBox();
-      expect(value!.y).toBeGreaterThanOrEqual(term!.y + term!.height);
+      await expect.poll(() => pair.evaluate(element => {
+        const term = element.querySelector('dt')!.getBoundingClientRect();
+        const value = element.querySelector('dd')!.getBoundingClientRect();
+        return value.top >= term.bottom;
+      })).toBe(true);
     }
     if (view === 'fish-detail') {
       const toggle = page.getByRole('button', { name: 'View extent diagram' });

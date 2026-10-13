@@ -178,14 +178,14 @@ export default function MapCanvas({ layer, points, selectedId, home, view, onVie
     countyPaths.current = [];
     geography.counties.forEach(county => {
       const { path, bounds } = trace(county.geometry, project);
-      countyPaths.current.push({ id: county.name, path });
       statePath.addPath(path);
       ctx.fillStyle = land; ctx.fill(path, 'evenodd');
       const reading = !forceEmpty && layer === 'radon' ? radonByCounty.get(county.name) ?? points.find(point => point.name === county.name) : undefined;
-      if (reading && bounds.right >= 0 && bounds.left <= width && bounds.bottom >= 0 && bounds.top <= height) { visibleCountyCount += 1; visibleCountyIds.push(county.name); }
+      if(reading)countyPaths.current.push({ id: reading.id, path });
+      if (reading && bounds.right >= 0 && bounds.left <= width && bounds.bottom >= 0 && bounds.top <= height) { visibleCountyCount += 1; visibleCountyIds.push(reading.id); }
       if (reading) { ctx.globalAlpha = patterns ? .46 : .13; ctx.fillStyle = severityColors[reading.severity] || severityColors.no_data; ctx.fill(path, 'evenodd'); ctx.globalAlpha = 1; }
       ctx.strokeStyle = line; ctx.lineWidth = .65; ctx.stroke(path);
-      if (selectedId === county.name) { ctx.fillStyle = '#79d5c92b'; ctx.fill(path, 'evenodd'); ctx.strokeStyle = '#a1eee0'; ctx.lineWidth = 2.5; ctx.stroke(path); }
+      if (selectedId === reading?.id) { ctx.fillStyle = '#79d5c92b'; ctx.fill(path, 'evenodd'); ctx.strokeStyle = '#a1eee0'; ctx.lineWidth = 2.5; ctx.stroke(path); }
     });
     const { path: district } = trace(geography.district.geometry, project);
     ctx.strokeStyle = color('--map-atlas-district', '#4e8b90'); ctx.globalAlpha = .7; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.stroke(district); ctx.setLineDash([]); ctx.globalAlpha = 1;

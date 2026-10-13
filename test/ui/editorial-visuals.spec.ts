@@ -1,7 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const community = '/foundation/preview/expanded/?tab=act&destination=community&motion=full';
 const household = (member: string, extra = '') => `/foundation/preview/household/${member}/?edition=expanded&motion=full${extra}`;
+
+async function holdHydration(page:Page){
+ let release!:()=>void;const ready=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/_next/static/**/*.js',async route=>{await ready;await route.continue().catch(()=>{});});
+ return release;
+}
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/*', route => {
@@ -114,4 +120,32 @@ test('daily household guidance keeps all topics and source meaning with lazy top
   await page.getByRole('button', { name: 'All guidance', exact: true }).click();
   await expect(page.locator('.halo-family-guidance-item')).toHaveCount(4);
   await expect(page.locator('.halo-family-limits')).toContainText('associations, not proof of a cause');
+});
+
+for(const broken of [false,true])test(`editorial images settled before hydration restore ${broken?'failure fallback':'ambient readiness'}`,async({page})=>{
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const release=await holdHydration(page);
+ if(broken)await page.route('**/preview-scenes/care-study.webp',route=>route.abort());
+ try{
+  await page.goto(household('adult'),{waitUntil:'commit'});
+  const art=page.locator('.halo-household-editorial .halo-editorial-scene');
+  await expect.poll(()=>art.locator('img').evaluate(node=>(node as HTMLImageElement).complete)).toBe(true);
+  await expect.poll(()=>art.locator('img').evaluate(node=>(node as HTMLImageElement).naturalWidth)).toBe(broken?0:1536);
+  release();await art.scrollIntoViewIfNeeded();
+  await expect(art).toHaveAttribute('data-failed',String(broken));await expect(art).toHaveAttribute('data-moving',String(!broken));
+  await page.emulateMedia({reducedMotion:'reduce'});await expect(art).toHaveAttribute('data-moving','false');
+ }finally{release();}
+});
+
+for(const broken of [false,true])test(`week wallpaper settled before hydration restores ${broken?'failure fallback':'water renderer'}`,async({page})=>{
+ await page.emulateMedia({reducedMotion:'no-preference'});const release=await holdHydration(page);
+ if(broken)await page.route('**/preview-scenes/week-lake.webp',route=>route.abort());
+ try{
+  await page.goto('/foundation/preview/expanded/?tab=plan&motion=full',{waitUntil:'commit'});
+  const layer=page.locator('.mw-ambience-layer[data-landscape="lake"]');
+  await expect.poll(()=>layer.locator('img').evaluate(node=>(node as HTMLImageElement).complete)).toBe(true);
+  release();await layer.scrollIntoViewIfNeeded();await expect(layer).toHaveAttribute('data-failed',String(broken));
+  if(!broken)await expect(layer.locator('canvas')).toHaveAttribute('data-running','true');
+  await expect(page.getByRole('button',{name:'Next landscape',exact:true})).toBeEnabled();
+ }finally{release();}
 });

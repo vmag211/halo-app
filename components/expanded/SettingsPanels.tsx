@@ -15,6 +15,9 @@ import LearnLibrary from './LearnLibrary';
 import {HomeTransitionFlow,DeviceSetupFlow,ConnectionsFlow} from './AccountWorkflows';
 import {hasUnresolvedLunaAction} from '@/lib/frontend/luna-task-actions';
 import {lunaCompletionCopy} from '@/lib/frontend/copy/luna-completion';
+import {useProductionResource,useProductionRuntime} from '@/components/production/ProductionContext';
+import {validLunaCapabilities,validLunaConversation} from '@/lib/frontend/production/luna-service';
+import {useProductionLunaClear} from './ProductionLunaClear';
 import type {PanelProps,SettingsProps,CalendarSettings} from './SettingsWorkspace';
 
 export function SettingToggle({title,hint,checked,onChange,disabled=false}:{title:string;hint?:string;checked:boolean;onChange:(v:boolean)=>void;disabled?:boolean}){
@@ -52,14 +55,18 @@ export function SettingsDisplay({draft,change,blocked,display,onDisplay,calendar
 
 export function SettingsLuna({draft,change,blocked,writeBlocked}:PanelProps&{writeBlocked:boolean}){
  const workspace=useHomeWorkspace();const [clearing,setClearing]=useState<string|null>(null),[message,setMessage]=useState('');
- const conversation=workspace.drafts['luna:conversation'];
- const startClear=()=>{if(hasUnresolvedLunaAction(conversation)){setClearing(null);setMessage(lunaCompletionCopy.pendingClear);return;}setClearing(JSON.stringify(conversation));setMessage('');};
- const confirmClear=()=>{if(writeBlocked||blocked||!navigator.onLine){setMessage(c.failed);return;}if(hasUnresolvedLunaAction(workspace.drafts['luna:conversation'])){setMessage(lunaCompletionCopy.pendingClear);return;}if(JSON.stringify(workspace.drafts['luna:conversation'])!==clearing){setMessage(c.conversationChanged);return;}workspace.clearDraft('luna:conversation');setClearing(null);setMessage(c.conversationCleared);};
+ const runtime=useProductionRuntime(),serverClear=useProductionLunaClear();
+ const lunaState=useProductionResource<unknown>('luna.capabilities',{},Boolean(runtime));
+ const conversationState=useProductionResource<unknown>('luna.conversations',{current:true},Boolean(runtime));
+ const conversation=runtime?workspace.drafts['luna:production-conversation']??conversationState.data:workspace.drafts['luna:conversation'];
+ const lunaCapabilities=validLunaCapabilities(lunaState.data)?lunaState.data:null;
+ const startClear=()=>{if(!runtime&&hasUnresolvedLunaAction(conversation)){setClearing(null);setMessage(lunaCompletionCopy.pendingClear);return;}setClearing(JSON.stringify(conversation));setMessage('');};
+ const confirmClear=async()=>{if(writeBlocked||blocked||!navigator.onLine){setMessage(c.failed);return;}if(runtime){if(!validLunaConversation(conversation)||JSON.stringify(conversation)!==clearing){setMessage(c.conversationChanged);return;}if(await serverClear.clear(conversation))setClearing(null);return;}if(hasUnresolvedLunaAction(workspace.drafts['luna:conversation'])){setMessage(lunaCompletionCopy.pendingClear);return;}if(JSON.stringify(workspace.drafts['luna:conversation'])!==clearing){setMessage(c.conversationChanged);return;}workspace.clearDraft('luna:conversation');setClearing(null);setMessage(c.conversationCleared);};
  return <div className="hp-panel-content">
   <p className="hp-note">{c.lunaHint}</p>{(['tasks','home','projects']as const).map((key,i)=><SettingToggle key={key} title={[c.lunaTasks,c.lunaHome,c.lunaProjects][i]} checked={draft.luna[key]} disabled={blocked} onChange={v=>change({...draft,luna:{...draft.luna,[key]:v}})}/>) }
-  <p className="hp-note">{c.lunaExcluded}</p><small className="hp-service-state">{c.lunaStatus}</small>
-  <details className="hp-disclosure"><summary>{c.conversation}<ChevronRight size={16}/></summary><p>{c.clearConversationHint}</p>{conversation?<button className="hp-text hp-danger" onClick={startClear}>{c.clearConversation}</button>:<p>{c.conversationEmpty}</p>}{clearing&&<div className="hp-confirm"><strong>{c.clearConversation}?</strong><button className="hp-danger-button" onClick={confirmClear}>{c.confirmClear}</button><button className="hp-text" onClick={()=>setClearing(null)}>{c.keep}</button></div>}</details>
-  <ConnectionsFlow/><details className="hp-disclosure"><summary>{c.permissions}<ChevronRight size={16}/></summary><p>{c.permissionsHint}</p></details>{message&&<p role="status">{message}</p>}
+  <p className="hp-note">{c.lunaExcluded}</p><small className="hp-service-state">{runtime?lunaState.loading?'Checking Luna...':lunaCapabilities?.available?'Luna is available. Proposed changes still need your confirmation.':'Luna is unavailable right now.':c.lunaStatus}</small>{runtime&&conversationState.error&&<p role="status">Conversation history could not load.<button className="hp-text" onClick={conversationState.retry}>Try again</button></p>}
+  <details className="hp-disclosure"><summary>{c.conversation}<ChevronRight size={16}/></summary><p>{c.clearConversationHint}</p>{conversation?<button className="hp-text hp-danger" onClick={startClear}>{c.clearConversation}</button>:<p>{c.conversationEmpty}</p>}{clearing&&<div className="hp-confirm"><strong>{c.clearConversation}?</strong><button className="hp-danger-button" disabled={serverClear.busy} onClick={confirmClear}>{c.confirmClear}</button><button className="hp-text" onClick={()=>setClearing(null)}>{c.keep}</button></div>}</details>
+  {serverClear.message&&<p role="status">{serverClear.message}</p>}{serverClear.message&&<p role="status">{serverClear.message}</p>}{serverClear.message&&<p role="status">{serverClear.message}</p>}{serverClear.message&&<p role="status">{serverClear.message}</p>}<ConnectionsFlow/><details className="hp-disclosure"><summary>{c.permissions}<ChevronRight size={16}/></summary><p>{c.permissionsHint}</p></details>{message&&<p role="status">{message}</p>}
  </div>;
 }
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockStage } from './stage-fixtures';
+import {mockProductionStage as mockStage} from './production-fixtures';
 
 test('live navigation has four tabs without exposing review actions or missing routes', async ({ page }) => {
   const { requests, blocked } = await mockStage(page);
@@ -7,9 +7,8 @@ test('live navigation has four tabs without exposing review actions or missing r
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(nav.locator('span')).toHaveText(['My Week', 'Today', 'Homeguard', 'Explore']);
   await expect(page.getByRole('button', { name: 'Save this step', exact: true })).toHaveCount(0);
-  await expect(nav.getByRole('button', { name: 'My Week, coming in a later stage' })).toBeDisabled();
-  await expect(nav.getByRole('button', { name: 'Explore, coming in a later stage' })).toBeDisabled();
-  await expect(nav.getByRole('link', { name: 'My Week', exact: true })).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'My Week', exact: true })).toHaveAttribute('href','/plan?view=main');
+  await expect(nav.getByRole('link', { name: 'Explore', exact: true })).toHaveAttribute('href','/act?view=main');
   await expect(page).toHaveURL(/\/today$/);
   await nav.getByRole('link', { name: 'Homeguard' }).click();
   await expect(nav.getByRole('link', { name: 'Homeguard' })).toHaveAttribute('aria-current', 'page');

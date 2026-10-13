@@ -1,5 +1,6 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
-import { jsonRoute, mockStage, stageProfile } from './stage-fixtures';
+import { jsonRoute, stageProfile } from './stage-fixtures';
+import {mockProductionStage as mockStage,settingsSnapshot} from './production-fixtures';
 
 const factors = ['air', 'uv', 'pollen', 'mold', 'pfas', 'radon', 'lead'] as const;
 const members = ['toddler', 'child', 'teen', 'adult', 'senior', 'pregnant', 'respiratory'] as const;
@@ -30,6 +31,7 @@ async function filledStage(page: Page, allMembers = false) {
   profile.profile.home_year = 2001;
   if (allMembers) for (const member of members) profile.household[`has_${member}`] = true;
   return mockStage(page, { overrides: {
+    '/api/settings':route=>jsonRoute(route,{...settingsSnapshot,display:{...settingsSnapshot.display,appearance:'system',scale:allMembers?'150':'100'}}),
     '/api/profile': async route => jsonRoute(route, profile),
     '/api/daily-score': async route => jsonRoute(route, daily),
     '/api/home-guard': async route => jsonRoute(route, home),
@@ -43,7 +45,7 @@ async function filledStage(page: Page, allMembers = false) {
 
 async function ready(page: Page, route: string) {
   await page.goto(route);
-  await expect(page.getByTestId('stage-product')).toBeVisible();
+  await expect(page.getByTestId('production-product')).toBeVisible();
   await expect(page.getByRole('status', { name: /Checking your profile|Loading readings/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Refresh readings', exact: true })).toBeVisible();
   await expect(page.getByText('Updating the explanation for your reading.', { exact: true })).toHaveCount(0);
@@ -51,7 +53,7 @@ async function ready(page: Page, route: string) {
 }
 
 async function cleanSurface(page: Page) {
-  const surface = page.getByTestId('stage-product');
+  const surface = page.getByTestId('production-product');
   await expect(surface).not.toContainText(/Sample preview|Sample household|Sample profile|sample AQI|sample forecast|sample values|Example reply|September 30, 2026|Iredell/);
   const text = await surface.evaluate(node => node.textContent + [...node.querySelectorAll('[aria-label],[alt],[title]')].map(element => ['aria-label', 'alt', 'title'].map(key => element.getAttribute(key) || '').join(' ')).join(' '));
   expect(text).not.toContain('\u2014');
@@ -105,7 +107,7 @@ for (const appearance of ['light', 'dark'] as const) for (const width of [320, 3
     const network = await filledStage(page, true);
     for (const route of ['/today', '/home', '/family', ...factors.map(factor => `/factors/${factor}`), ...members.map(member => `/household/${member}`)]) {
       await ready(page, route);
-      await expect(page.getByTestId('stage-product')).toHaveAttribute('data-text-scale', '150');
+      await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-text-scale', '150');
       await cleanSurface(page);
       if (route === '/home') { await expect(page.locator('.halo-home-person')).toHaveCount(7); await screenshot(page, info, 'home-all-members-150'); }
       if (route.startsWith('/household/')) await expect(page.locator('.halo-home-member-tag')).toHaveText('Selected household category');
@@ -128,7 +130,7 @@ test('missing readings never render fixture scores, dates, households, or Luna e
   await expect(page.locator('.halo-home-person')).toHaveCount(2);
   await expect(page.locator('.halo-home-person[data-member="child"]')).toBeVisible();
   await expect(page.locator('.halo-home-person[data-member="adult"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Open Luna', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Luna' })).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Luna' })).not.toContainText(/Example reply|Interactive design preview|Nothing is sent|Preview/);
   await screenshot(page, info, 'luna-live-missing');

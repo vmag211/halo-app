@@ -25,6 +25,10 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   const recordId = /^[a-zA-Z0-9_-]{1,100}$/.test(search.get('record') ?? '') ? search.get('record')! : undefined;
   const fromFactor = search.get('fromFactor');
   const factor = fromFactor && ['air', 'uv', 'pollen', 'mold', 'pfas', 'radon', 'lead'].includes(fromFactor) ? fromFactor as FactorKey : undefined;
+  const requiredCollections = section === 'tests' ? ['tests', 'gardens'] : section === 'maintenance' ? ['assets', 'observations', 'tests'] : section === 'summary' ? ['tests', 'assets', 'observations', 'gardens'] : ['gardens', 'pantryItems', 'foodQuestions', 'fishNotes', 'foodFollows', 'growerInquiries', 'usage', 'tests'];
+  const productionLoading = state.mode === 'production' && requiredCollections.some(key => !state.collectionStates[key] || state.collectionStates[key].status === 'loading') && requiredCollections.every(key => !state.collections[key]);
+  const productionFailure = state.mode === 'production' && requiredCollections.find(key => state.collectionStates[key]?.status === 'error');
+  const incomplete = state.mode === 'production' && requiredCollections.some(key => state.collectionStates[key]?.status === 'ready' && !state.collectionStates[key].complete);
   const go: WorkspaceProps['go'] = (destination, nextView = 'list', id) => {
     const url = new URL(href('home', destination), window.location.origin);
     if (nextView !== 'list') url.searchParams.set('homeView', nextView);
@@ -60,8 +64,10 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     <div className="hg-workspace-select"><label><span>Home workspace</span><select value={section} onChange={event => go(event.target.value as HomeSection)}>{(Object.keys(sections) as HomeSection[]).map(key => <option value={key} key={key}>{sections[key].name}</option>)}</select></label></div>
     </div>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}
     <WorkspaceFeedback />
+    {productionFailure && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
+    {incomplete && <p className="hg-notice">Some records are not included in this view. Reload the complete collection before exporting or clearing it.</p>}
     {state.scenario === 'stale' && <p className="hg-notice">Some sources are out of date. Check their original dates.</p>}
     {state.scenario === 'offline' && <p className="hg-notice">Offline. Saved records are available to read. Changes are not queued.</p>}
-    {state.scenario === 'loading' ? <div className="hg-empty" role="status"><span className="halo-spinner" /><h2>Opening your home workspace</h2><button className="hg-button-secondary" onClick={() => state.setScenario('ready')}>Try again</button></div> : state.scenario === 'error' ? <Empty title="This section could not load"><p>Your other home information is unchanged.</p><button className="hg-button" onClick={() => state.setScenario('ready')}>Try again</button></Empty> : <div className="hg-content" key={`${section}:${view}:${recordId ?? ''}`}>{section === 'tests' ? <TestsWorkspace {...props} /> : section === 'maintenance' ? <MaintenanceWorkspace {...props} /> : section === 'food' ? <FoodGardenWorkspace {...props} /> : <SummaryWorkspace {...props} />}</div>}
+    {state.scenario === 'loading' || productionLoading ? <div className="hg-empty" role="status"><span className="halo-spinner" /><h2>Opening your home workspace</h2>{state.mode === 'preview' && <button className="hg-button-secondary" onClick={() => state.setScenario('ready')}>Try again</button>}</div> : state.scenario === 'error' ? <Empty title="This section could not load"><p>Your other home information is unchanged.</p><button className="hg-button" onClick={() => state.setScenario('ready')}>Try again</button></Empty> : <div className="hg-content" key={`${section}:${view}:${recordId ?? ''}`}>{section === 'tests' ? <TestsWorkspace {...props} /> : section === 'maintenance' ? <MaintenanceWorkspace {...props} /> : section === 'food' ? <FoodGardenWorkspace {...props} /> : <SummaryWorkspace {...props} />}</div>}
   </div></WorkspaceArtworkProvider>;
 }

@@ -79,7 +79,23 @@ export function createLiveOnboardingApi(options: LiveApiOptions = {}): Protected
   // Never import the configured Supabase client while rendering or in a mock preview.
   const loadAuth = options.loadAuth ?? (async () => {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new FrontendError("configuration");
-    return await import("../auth") as AuthModule;
+    const auth = await import("../auth");
+    const {supabase} = await import("../supabase");
+    return {
+      ensureAnonSession: auth.ensureAnonSession,
+      getUserId: auth.getUserId,
+      // The frontend must never replace an account and replay a protected write
+      // because an API returns 401. Initial session creation is explicit above.
+      async authedFetch(url: string, init: RequestInit = {}) {
+        if(!url.startsWith('/api/') || url.startsWith('//')) throw new FrontendError('configuration');
+        if(init.signal?.aborted) throw new FrontendError('aborted');
+        const {data,error} = await supabase.auth.getSession();
+        if(init.signal?.aborted) throw new FrontendError('aborted');
+        if(error || !data.session) throw new FrontendError('signin_failed');
+        const headers=new Headers(init.headers);headers.set('Authorization',`Bearer ${data.session.access_token}`);
+        return fetch(url,{...init,headers,cache:'no-store',credentials:'same-origin',redirect:'error'});
+      }
+    } satisfies AuthModule;
   });
   const normal = options.normalTimeoutMs ?? 8000;
   const slow = options.slowTimeoutMs ?? 15000;

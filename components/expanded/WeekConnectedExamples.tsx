@@ -1,20 +1,20 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { findProjectGuide, projectActionKey } from '@/lib/frontend/explore-project-guides';
 import { validDay, type Engagement, type ProjectRecord } from '@/lib/frontend/explore-workspace';
 import { lunaCalendarAnchor } from '@/lib/frontend/luna-tools-preview';
-import { dayAdd, emptyWeekMeta, type WeekMeta } from '@/lib/frontend/week-preview';
+import { dayAdd, emptyWeekMeta } from '@/lib/frontend/week-preview';
 import { useExpandedPreview } from './ExpandedPreviewState';
 
 /** Explicit review-control fixture loader. Never rendered in the application surface. */
 export default function WeekConnectedExamples() {
   const workspace = useHomeWorkspace(); const state = useExpandedPreview();
-  const latestWorkspace = useRef(workspace); latestWorkspace.current = workspace;
-  const latestState = useRef(state); latestState.current = state;
+  const latestWorkspace = useRef(workspace);
+  const latestState = useRef(state);
+  useEffect(() => { latestWorkspace.current = workspace; latestState.current = state; }, [workspace, state]);
   const [zone] = useHomeDraft('week:zone', 'America/New_York');
-  const [, setMetas] = useHomeDraft<Record<string, WeekMeta>>('week:metas', {});
   const [, setDate] = useHomeDraft('week:date', lunaCalendarAnchor(new Date(), zone));
   const [busy, setBusy] = useState(false); const busyRef = useRef(false);
   const [feedback, setFeedback] = useState(''); const [failed, setFailed] = useState(false);
@@ -47,9 +47,9 @@ export default function WeekConnectedExamples() {
       ];
       for (const entry of entries) {
         if (latestState.current?.actions.some(action => action.key === entry.key)) continue;
-        if (unavailable() || !latestState.current?.addActions([{ key: entry.key, title: entry.title, origin: 'Explore', reason: entry.reason }], entry.date)) throw new Error('task');
+        const metadata = { [entry.key]: { ...emptyWeekMeta, time: entry.time, duration: entry.duration, estimateSet: true, zone, history: ['Explicitly loaded connected activity example.'] } };
+        if (unavailable() || !await latestState.current?.addActions([{ key: entry.key, title: entry.title, origin: 'Explore', reason: entry.reason }], entry.date, {metadata})) throw new Error('task');
         addedTasks++;
-        setMetas(previous => Object.hasOwn(previous, entry.key) ? previous : { ...previous, [entry.key]: { ...emptyWeekMeta, time: entry.time, duration: entry.duration, estimateSet: true, zone, history: ['Explicitly loaded connected activity example.'] } });
       }
       setDate(today); setFailed(false); setFeedback('Connected activity examples loaded for this visit. Existing records, tasks, schedules and edits were kept. The community date and place are illustrative, not a verified event.');
     } catch {

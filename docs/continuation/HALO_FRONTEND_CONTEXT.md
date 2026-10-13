@@ -1,5 +1,12 @@
 # HALO decisions and continuation context
 
+## Current checkpoint: October 13 production frontend
+
+Yogi authorized full frontend implementation, tests and a dedicated GitHub branch, while preserving all reviewed visuals. That implementation is on `codex/frontend-integration-ready-2026-10-13`; read [the integration guide](FRONTEND_INTEGRATION_READY.md) and [verification receipt](FRONTEND_INTEGRATION_VERIFICATION.md) before the historical entries below. Production now reuses the full reviewed application via explicit service adapters. Examples remain isolated to review routes. No backend API implementations, migrations, real provider sends or deployment were added.
+
+The user reports that the complete backend packet has already been given to Vibhav. Earlier statements that the packet is deferred/unsent are superseded by that user report, not by a message sent through this task. The new domain integration notes describe the executable frontend contract and must accompany the earlier product/backend packet. Production implementation authorization does not waive backend ownership, source/consent gates, real-service acceptance, or immutable archive protections.
+
+
 ## People, purpose, and working style
 
 Latest October 12 completion pass supersedes the missing-workflow status immediately below. The named wireframe paths now include public Learn/Map and setup return, reviewed home changes with historical isolation, recovery/device/provider capability states, populated map comparison and public briefs, forecast/Patterns/season evidence, canonical Luna task tools with unknown-outcome reconciliation, private sanitized note photos and prepared-copy/submission history, plus a separate role-gated operator review. Read `../foundation/WIREFRAME_COMPLETION_MATRIX.md` and `WIREFRAME_COMPLETION_RECEIPT.md` for exact verification and publication. These are frontend state machines and controlled review responses, not real AI, provider delivery, authentication, account persistence or production approval. The final whole-app Vibhav packet remains deferred and unsent.

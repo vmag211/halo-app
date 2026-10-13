@@ -40,7 +40,7 @@ function HomeFactorRecords({ factor, href }: { factor: FactorKey; href: Href }) 
   if (!['pfas', 'radon', 'lead'].includes(factor)) return null;
   const kind = factor === 'pfas' ? 'water' : factor;
   const records = (state.collections.tests ?? []) as TestRecord[];
-  const currentContext=state.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
+  const currentContext=state.service?.context?.currentHomeId??state.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
   const matches = records.filter(record => record.kind === kind && record.contextId === currentContext && !record.archived);
   return <details className="halo-expanded-change"><summary>Your records ({matches.length})</summary><p>Your tests are separate from public readings and do not change the score.</p>{matches.map(record => <p key={record.id}><Link className="halo-text-button" href={`${href('home', 'tests')}&homeView=detail&record=${encodeURIComponent(record.id)}&fromFactor=${factor}`}>{record.title}</Link></p>)}<Link className="halo-text-button" href={`${href('home', 'tests')}&homeView=new&fromFactor=${factor}`}>Prepare a {kind} test record</Link></details>;
 }

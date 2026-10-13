@@ -1,9 +1,9 @@
 /** Product ownership is separate from delivery. Planned routes are not live links. */
 export const appTabs = [
-  { key: 'plan', label: 'My Week', href: '/plan', delivered: false },
+  { key: 'plan', label: 'My Week', href: '/plan', delivered: true },
   { key: 'today', label: 'Today', href: '/today', delivered: true },
   { key: 'home', label: 'Homeguard', href: '/home', delivered: true },
-  { key: 'act', label: 'Explore', href: '/act', delivered: false },
+  { key: 'act', label: 'Explore', href: '/act', delivered: true },
 ] as const;
 export type AppTab = typeof appTabs[number]['key'];
 
@@ -17,5 +17,5 @@ export function routeOwner(path: string): AppTab | null {
 }
 
 export function deliveredStagePath(path: string): boolean {
-  return /^\/(today|home|family|settings|factors\/(air|uv|pollen|mold|pfas|radon|lead)|household\/(toddler|child|teen|adult|senior|pregnant|respiratory))$/.test(path);
+  return /^\/(plan|act|today|home|family|settings|learn|map|factors\/(air|uv|pollen|mold|pfas|radon|lead)|household\/(toddler|child|teen|adult|senior|pregnant|respiratory))$/.test(path);
 }

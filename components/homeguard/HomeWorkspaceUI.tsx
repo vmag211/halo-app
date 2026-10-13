@@ -19,17 +19,17 @@ export function WorkspaceLink({ onClick, title, detail, icon, deletion, artwork 
   return deletion ? <DeletableRecord title={title} deletion={deletion}>{link}</DeletableRecord> : link;
 }
 export function DeletableRecord({ title, deletion, children }: { title: string; deletion: RecordDeletion; children: ReactNode }) {
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<{ title: string; deletion: RecordDeletion } | null>(null);
   const row = useRef<HTMLDivElement>(null);
   const deletionFocus = useRef<HTMLElement | null>(null);
-  return <><div className="hg-deletable-record" ref={row}>{children}<DeleteButton compact label={`Delete ${title}`} onClick={() => setConfirming(true)} /></div>{confirming && <Confirm title="Are you sure?" danger fallbackFocus={deletionFocus} confirmLabel="Yes, delete" cancelLabel="No, keep it" onCancel={() => setConfirming(false)} onConfirm={async () => {
+  return <><div className="hg-deletable-record" ref={row}>{children}<DeleteButton compact label={`Delete ${title}`} onClick={() => setConfirming({ title, deletion })} /></div>{confirming && <Confirm title="Are you sure?" danger fallbackFocus={deletionFocus} confirmLabel="Yes, delete" cancelLabel="No, keep it" onCancel={() => setConfirming(null)} onConfirm={async () => {
     // The row and its opener disappear together. Let modal cleanup focus the
     // surviving heading, rather than racing cleanup with an animation frame.
     deletionFocus.current = row.current?.closest('.hg-workspace, .halo-explore')?.querySelector<HTMLElement>('[data-home-heading], h2[tabindex]') ?? null;
-    if (await deletion.remove()) {
-      setConfirming(false);
+    if (await confirming.deletion.remove()) {
+      setConfirming(null);
     }
-  }}><p>Delete <strong>{title}</strong>?</p><p>{deletion.description}</p><p className="hg-meta">This cannot be undone.</p></Confirm>}</>;
+  }}><p>Delete <strong>{confirming.title}</strong>?</p><p>{confirming.deletion.description}</p><p className="hg-meta">This cannot be undone.</p></Confirm>}</>;
 }
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return <section className="hg-empty"><span aria-hidden="true"><FolderOpen size={30} /></span><h3>{title}</h3>{children}{action}</section>;
@@ -42,19 +42,20 @@ export function RecordForm({ onSubmit, children, submitLabel = 'Save record', on
   const [saving, setSaving] = useState(false);
   const [cancel, setCancel] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const { scenario, pending } = useHomeWorkspace();
+  const { scenario, pending, unknownOperations } = useHomeWorkspace();
   const disabled = saving || !!busy || pending;
-  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" disabled={disabled || scenario === 'offline'}>{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
+  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled || unknownOperations.length) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" disabled={disabled || unknownOperations.length > 0 || scenario === 'offline'}>{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
 }
 export function DeleteButton({ label, onClick, disabled, compact = false }: { label: string; onClick: () => void; disabled?: boolean; compact?: boolean }) {
   const { pending, scenario } = useHomeWorkspace();
   return <button type="button" className={`hg-delete-button${compact ? ' hg-delete-compact' : ''}`} aria-label={label} title={label} onClick={onClick} disabled={disabled || pending || scenario === 'offline'}><Trash2 size={18} aria-hidden="true" />{!compact && <span>Delete</span>}</button>;
 }
-export function Confirm({ title, children, onConfirm, onCancel, danger = false, confirmLabel, cancelLabel, fallbackFocus }: { title: string; children: ReactNode; onConfirm: () => void | Promise<unknown>; onCancel: () => void; danger?: boolean; confirmLabel?: string; cancelLabel?: string; fallbackFocus?: RefObject<HTMLElement | null> }) {
-  const id = useId(); const [busy, setBusy] = useState(false);
+export function Confirm({ title, children, onConfirm, onCancel, danger = false, confirmLabel, cancelLabel, fallbackFocus, revisionKey, unknownRecovery }: { title: string; children: ReactNode; onConfirm: () => void | Promise<unknown>; onCancel: () => void; danger?: boolean; confirmLabel?: string; cancelLabel?: string; fallbackFocus?: RefObject<HTMLElement | null>; revisionKey?: string; unknownRecovery?: { label: string; check: () => void | Promise<unknown> } }) {
+  const id = useId(); const [busy, setBusy] = useState(false), [capturedRevision] = useState(revisionKey);
+  const changed = capturedRevision !== revisionKey;
   const workspace = useHomeWorkspace(); const [attempted, setAttempted] = useState(false); const [error, setError] = useState('');
   const feedback = error || (danger && attempted && !busy ? workspace.message : '');
-  return <BottomSheet id={`home-confirm-${id}`} title={title} height="content" fallbackFocus={fallbackFocus} onClose={() => { if (!busy) onCancel(); }}><div className="hg-stack">{children}{feedback && <p role="alert" className="hg-error">{feedback}</p>}<div className="hg-actions"><button type="button" className={danger ? 'hg-button hg-danger' : 'hg-button'} disabled={busy || workspace.pending || (danger && workspace.scenario === 'offline')} onClick={async () => { if (busy) return; setBusy(true); setAttempted(true); setError(''); workspace.clearMessage(); try { await onConfirm(); } catch { setError('This change could not be completed. Your record is still here. Please try again.'); } finally { setBusy(false); } }}>{busy ? 'Working...' : confirmLabel ?? (danger ? 'Yes, delete' : 'Confirm')}</button><button type="button" className="hg-button-secondary" disabled={busy} onClick={onCancel}>{cancelLabel ?? (danger ? 'No, keep it' : 'Keep editing')}</button></div></div></BottomSheet>;
+  return <BottomSheet id={`home-confirm-${id}`} title={title} height="content" fallbackFocus={fallbackFocus} onClose={() => { if (!busy) onCancel(); }}><div className="hg-stack">{children}{changed && <p role="alert">This record changed. Close this review and open the current record.</p>}{workspace.unknownOperations.length > 0 && <div role="status"><p>A change is not yet confirmed. Check its status before continuing.</p>{unknownRecovery ? <button type="button" className="hg-button-secondary" disabled={busy || workspace.pending} onClick={() => void unknownRecovery.check()}>{unknownRecovery.label}</button> : workspace.unknownOperations.map(item => <button key={item.operationId} type="button" className="hg-button-secondary" disabled={busy || workspace.pending} onClick={() => void workspace.reconcile(item.operationId)}>Check save status</button>)}</div>}{feedback && <p role="alert" className="hg-error">{feedback}</p>}<div className="hg-actions"><button type="button" className={danger ? 'hg-button hg-danger' : 'hg-button'} disabled={busy || changed || workspace.pending || workspace.unknownOperations.length > 0 || (danger && workspace.scenario === 'offline')} onClick={async () => { if (busy || changed || workspace.unknownOperations.length) return; setBusy(true); setAttempted(true); setError(''); workspace.clearMessage(); try { await onConfirm(); } catch { setError('This change could not be completed. Your record is still here. Please try again.'); } finally { setBusy(false); } }}>{busy ? 'Working...' : confirmLabel ?? (danger ? 'Yes, delete' : 'Confirm')}</button><button type="button" className="hg-button-secondary" disabled={busy} onClick={onCancel}>{cancelLabel ?? (danger ? 'No, keep it' : 'Keep editing')}</button></div></div></BottomSheet>;
 }
 export function ActionButton({ title, reason, factor, originId, date, buttonLabel }: { title: string; reason: string; factor: string; originId: string; date?: string; buttonLabel?: string }) {
   const state = useExpandedPreview(); const workspace = useHomeWorkspace();

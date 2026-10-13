@@ -6,10 +6,14 @@ import { evidenceForFood, type FoodContaminant, type FoodEvidenceQuery } from '@
 import { foodGuide, foodGuideEssentials, foodGuideSources } from '@/lib/frontend/food-pfas-guide';
 import { FoodDetails, FoodSourceLink } from './FoodShared';
 import './food-evidence.css';
+import { HomeResourceFeedback, useHomeResource } from './HomeResource';
+import { validPublishedFoodEvidence } from '@/lib/frontend/production/home-resources';
 
 export function PublishedFoodEvidence({ foodId, name, guideId }: FoodEvidenceQuery) {
-  const bundle = evidenceForFood({ foodId, name, guideId });
-  const [factor, setFactor] = useState<FoodContaminant>(bundle.studies[0]?.contaminant ?? 'PFAS');
+  const result = useHomeResource('published-food-evidence', { ...(foodId ? { foodId } : {}), ...(guideId ? { guideId } : {}) }, evidenceForFood({ foodId, name, guideId }), validPublishedFoodEvidence);
+  const bundle = result.data;
+  const [factor, setFactor] = useState<FoodContaminant>(bundle?.studies[0]?.contaminant ?? 'PFAS');
+  if (!bundle) return <section className="hg-food-evidence" aria-label="Published food evidence"><header><BookOpen size={21} aria-hidden="true" /><div><span className="hg-kicker">PUBLISHED FINDINGS</span><h3>What testing can tell us</h3></div></header><HomeResourceFeedback {...result} /><p className="hg-meta">No item measurement is inferred while source information is unavailable.</p></section>;
   const studies = bundle.studies.filter(study => study.contaminant === factor);
   const guide = foodGuide(guideId);
   const source = factor === 'Lead' ? foodGuideSources.fdaLead : foodGuideSources[guide?.findingSource ?? 'fdaTesting'];

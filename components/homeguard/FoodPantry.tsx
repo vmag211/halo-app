@@ -162,6 +162,6 @@ function SavedFoodNote(props: WorkspaceProps) {
     <WorkspaceLink title={context.nextTitle} detail={context.nextDetail} onClick={() => props.navigate(context.nextView)} />
     <WorkspaceLink title={`Read the ${guide.title.toLowerCase()} guide`} detail="Return to the source and its limits." onClick={() => props.navigate('pantry-detail', guide.id)} />
     <button type="button" className="hg-button-secondary" onClick={() => props.navigate('pantry-saved')}>{note.storage ? 'Back to my kitchen' : 'All food notes'}</button>
-    {deleting && <Confirm title={note.storage ? 'Remove this food?' : 'Delete this food note?'} danger onCancel={() => setDeleting(false)} onConfirm={async () => { if (await notes.remove(note.id)) { setDeleting(false); props.navigate('pantry-saved'); } }}><p>This removes this food record. Source guides and My Week tasks are kept.</p></Confirm>}
+    {deleting && <Confirm revisionKey={`${note.id}:${note.revision}`} title={note.storage ? 'Remove this food?' : 'Delete this food note?'} danger onCancel={() => setDeleting(false)} onConfirm={async () => { if (await notes.remove(note.id)) { setDeleting(false); props.navigate('pantry-saved'); } }}><p>This removes this food record. Source guides and My Week tasks are kept.</p></Confirm>}
   </div>;
 }

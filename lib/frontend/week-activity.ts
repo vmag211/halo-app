@@ -5,6 +5,7 @@ import type { ExplorePhotoScene } from './explore-photos';
 import type { HomeAsset } from './home-maintenance-preview';
 import type { TestRecord } from './home-test-preview';
 import type { WeekMeta } from './week-preview';
+import {validProjectGuide} from './production/explore-service';
 
 export type WeekActivityCollections = Record<string, readonly unknown[]>;
 export type WeekActivityRoute = { tab: string; destination: string; view: string; id: string };
@@ -26,29 +27,31 @@ const route = (tab: string, destination: string, id: string, view = 'detail'): W
 const missing = (label: string): WeekActivity => ({ kind: 'generic', label, subtitle: 'Original record is not available', fields: [], missingRecord: true });
 
 /** Progress is derived exclusively from the existing canonical step actions. */
-export function projectStepProgress(guide: ProjectGuide, actions: PreviewAction[]) {
-  const completed = guide.steps.filter((_, index) => actions.some(action => action.key === projectActionKey(guide.id, index) && action.state === 'completed')).length;
-  const nextStep = guide.steps.findIndex((_, index) => !actions.some(action => action.key === projectActionKey(guide.id, index) && action.state === 'completed'));
+export function canonicalProjectKey(guide:ProjectGuide,index:number,project?:ProjectRecord){return project?.guideId&&validProjectGuide(guide)?`explore:project:${project.id}:step:${guide.steps[index]?.id??''}`:projectActionKey(guide.id,index);}
+export function ownedProjectGuide(project:ProjectRecord|undefined){return project?.guideId?validProjectGuide(project.guide)&&project.guide.id===project.guideId&&project.guide.version===project.guideVersion?project.guide:undefined:project?findProjectGuide(project.id):undefined;}
+export function projectStepProgress(guide: ProjectGuide, actions: PreviewAction[],project?:ProjectRecord) {
+  const completed = guide.steps.filter((_, index) => actions.some(action => action.key === canonicalProjectKey(guide,index,project) && action.state === 'completed')).length;
+  const nextStep = guide.steps.findIndex((_, index) => !actions.some(action => action.key === canonicalProjectKey(guide,index,project) && action.state === 'completed'));
   const index = nextStep < 0 ? guide.steps.length - 1 : nextStep;
-  return { completed, nextStep: index, allStepsComplete: nextStep < 0, currentAction: nextStep < 0 ? undefined : actions.find(action => action.key === projectActionKey(guide.id, index)) };
+  return { completed, nextStep: index, allStepsComplete: nextStep < 0, currentAction: nextStep < 0 ? undefined : actions.find(action => action.key === canonicalProjectKey(guide,index,project)) };
 }
 
 /** Resolve by exact origin ID, never by a similar title or a sample fallback. */
 export function resolveWeekActivity(action: PreviewAction, collections: WeekActivityCollections, actions: PreviewAction[] = []): WeekActivity {
-  const projectMatch = action.key.match(/^(?:explore:)?project:([^:]+)(?::step:(\d+))?$/);
+  const projectMatch = action.key.match(/^(?:explore:)?project:([^:]+)(?::step:([^:]+))?$/);
   if (projectMatch) {
-    const guide = findProjectGuide(projectMatch[1]);
+    const project = records<ProjectRecord>(collections, 'exploreProjects').find(item => item.id === projectMatch[1]);
+    const guide = project?ownedProjectGuide(project):findProjectGuide(projectMatch[1]);
     if (!guide) return missing('Project');
-    const explicit = projectMatch[2] === undefined ? undefined : Number(projectMatch[2]);
-    if (explicit !== undefined && !projectActionKey(guide.id, explicit)) return missing('Project step');
-    const project = records<ProjectRecord>(collections, 'exploreProjects').find(item => item.id === guide.id);
-    const progress = projectStepProgress(guide, actions);
+    const explicit = projectMatch[2] === undefined ? undefined : project?.guideId&&validProjectGuide(guide)?guide.steps.findIndex(step=>step.id===projectMatch[2]):Number(projectMatch[2]);
+    if (explicit !== undefined && (!Number.isInteger(explicit)||explicit<0||explicit>=guide.steps.length)) return missing('Project step');
+    const progress = projectStepProgress(guide, actions,project);
     const stepIndex = explicit ?? progress.nextStep;
     const step = guide.steps[stepIndex];
     return {
       kind: 'project', label: 'Project', subtitle: explicit !== undefined ? `Step ${stepIndex + 1} · ${guide.title}` : project?.status ?? 'Workspace not started',
-      image: guide.scene, recordHref: route('act', 'projects', guide.id), guide, project, stepIndex, completed: progress.completed,
-      currentAction: actions.find(item => item.key === projectActionKey(guide.id, stepIndex)),
+      image: guide.scene, recordHref: route('act', 'projects', project?.id??guide.id), guide, project, stepIndex, completed: progress.completed,
+      currentAction: actions.find(item => item.key === canonicalProjectKey(guide,stepIndex,project)),
       fields: [{ label: 'Workspace', value: project?.status ?? 'Not started' }, { label: 'Recorded steps', value: `${progress.completed} of ${guide.steps.length}` }],
       preparation: guide.constraints[0], instructions: step.instructions,
       sourceLinks: guide.sources.filter(source => step.sourceIds.includes(source.id)).map(source => ({ title: source.publisher, url: source.url })),
@@ -115,9 +118,9 @@ export function weekActivityHref(activity: Pick<WeekActivity, 'recordHref'>, hre
 export function weekProgressEntries(collections: WeekActivityCollections, actions: PreviewAction[], metas: Record<string, WeekMeta> = {}): WeekProgressEntry[] {
   const entries: WeekProgressEntry[] = [];
   for (const project of records<ProjectRecord>(collections, 'exploreProjects').filter(item => item.status !== 'Completed')) {
-    const guide = findProjectGuide(project.id);
+    const guide = ownedProjectGuide(project);
     if (!guide) { entries.push({ id: `project:${project.id}`, title: project.title, status: project.status, kind: 'project', label: 'Project', subtitle: 'Guide unavailable', fields: [], recordHref: route('act', 'projects', project.id) }); continue; }
-    const progress = projectStepProgress(guide, actions);
+    const progress = projectStepProgress(guide, actions,project);
     const task = progress.currentAction;
     const status = project.status === 'Paused' ? 'Paused' : task && metas[task.key]?.archived ? 'Step archived' : task && metas[task.key]?.paused ? 'Step paused' : progress.allStepsComplete ? 'Ready for your result' : 'Active';
     entries.push({ id: `project:${project.id}`, title: project.title, status, kind: 'project', label: 'Project', subtitle: progress.allStepsComplete ? 'Record what you achieved' : guide.steps[progress.nextStep].title, image: guide.scene, recordHref: route('act', 'projects', project.id), fields: [], guide, project, stepIndex: progress.nextStep, completed: progress.completed, currentAction: task });

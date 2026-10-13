@@ -16,7 +16,7 @@ export type OutcomeRecord = {
 };
 export const noOutcomes: OutcomeRecord[] = [];
 export const blankOutcome = (id: string, title: string, goal: string): OutcomeRecord => ({ id, revision: 0, title, goal, status: 'Open', date: '', result: '', reference: '', nextStep: '', followupDate: '', history: [] });
-export type ProjectRecord = { id: string; revision: number; title: string; status: 'Active' | 'Paused' | 'Completed'; goal: string; stepNotes: Record<string, string>; outcome: string; reviewDate: string; history: { status: string; note: string }[] };
+export type ProjectRecord = { id: string; revision: number; title: string; status: 'Active' | 'Paused' | 'Completed'; goal: string; stepNotes: Record<string, string>; outcome: string; reviewDate: string; history: { status: string; note: string }[]; guideId?:string;guideVersion?:string;guide?:import('./production/explore-service').ProductionProjectGuide };
 export const noProjects: ProjectRecord[] = [];
 
 export function validDay(value: string): boolean {

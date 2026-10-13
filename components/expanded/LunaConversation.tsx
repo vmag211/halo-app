@@ -24,8 +24,10 @@ import {homepageAttention,weeklyHomepageRecap} from '@/lib/frontend/homepage-pre
 import {initialSettings,type SettingsValues} from '@/lib/frontend/settings-preview';
 import {polishCopy} from '@/lib/frontend/copy/app-polish';
 import './luna-conversation.css';
+import {useProductionRuntime} from '@/components/production/ProductionContext';
+import ProductionLunaConversation from './ProductionLunaConversation';
 
-type Guide = { id: string; title: string; stepTitle: string; instructions: string[]; source: string };
+type Guide = { id: string; title: string; stepTitle: string; instructions: string[]; source: string;guideId?:string;version?:string;stepId?:string };
 type Go = (tab: string, destination?: string, view?: string, id?: string) => void;
 type Link = { label: string; tab: string; destination?: string; view?: string; record?: string };
 type BaseProposal = { id: string; status: 'review' | 'applied' | 'cancelled'; error?: string; dateExplanation?: string; outcomeUnknown?: boolean; writeApplied?: boolean };
@@ -62,7 +64,9 @@ function constraintsForRequest(request: string, current: ProjectConstraints): Pr
 }
 
 /** A visit-local conversation/tool study. No provider calls, account writes or external effects. */
-export default function LunaConversation({ context, onClose, go: navigate, currentGuide, offline: offlineProp = false, environmentAvailable = true }: { context: string; onClose: () => void; go: Go; currentGuide?: Guide; offline?: boolean; environmentAvailable?: boolean }) {
+type LunaProps={context:string;onClose:()=>void;go:Go;currentGuide?:Guide;offline?:boolean;environmentAvailable?:boolean};
+export default function LunaConversation(props:LunaProps){const runtime=useProductionRuntime();return runtime?<ProductionLunaConversation {...props}/>:<ReviewLunaConversation {...props}/>;}
+function ReviewLunaConversation({ context, onClose, go: navigate, currentGuide, offline: offlineProp = false, environmentAvailable = true }: LunaProps) {
   const workspace = useHomeWorkspace(); const preview = useExpandedPreview();
   const notes = useHomeCollection<FieldNote>('exploreNotes', initialFieldNotes);
   const projects = useHomeCollection<ProjectRecord>('exploreProjects', noProjects);
@@ -74,7 +78,7 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
   const [failPreparation] = useHomeDraft('luna:preparation-failure', false);
   const [actionOutcome] = useHomeDraft('luna:action-outcome', 'saved');
   const [actionCheck] = useHomeDraft('luna:action-check', 'unknown');
-  const [weekMetas,setWeekMetas]=useHomeDraft<Record<string,WeekMeta>>('week:metas',{});
+  const [weekMetas]=useHomeDraft<Record<string,WeekMeta>>('week:metas',{});
   const [weekZone]=useHomeDraft('week:zone','America/New_York');
   const [weekDay]=useHomeDraft('week:date',lunaCalendarAnchor(new Date(),weekZone));
   const [pendingRequest, setPendingRequest] = useState(''); const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -304,17 +308,13 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
         const error = lunaTaskChangeError(change, current, weekMetas[change.task.key]);
         if (error) { fail(error === 'changed' ? lunaCopy.taskChanged : error === 'paused' ? lunaCopy.taskPaused : error); return; }
         if (!current || !preview) { fail(lunaCopy.taskChanged); return; }
-        const saved = change.operation === 'delete' ? preview.deleteAction(current.id, change.task.revision) : preview.reviseAction(current.id, change.task.revision, lunaTaskPatch(change, current));
+        const saved = change.operation === 'delete' ? await preview.deleteAction(current.id, change.task.revision) : await preview.reviseAction(current.id, change.task.revision, lunaTaskPatch(change, current), { expectedMetadata: { [current.key]: JSON.stringify(weekMetas[current.key] ?? null) }, metadata: { [current.key]: lunaTaskNextMetadata(change.operation, weekMetas[current.key], lunaCalendarAnchor(new Date(), timezone)) } });
         if (!saved) { fail(lunaCopy.taskChanged); return; }
-        setWeekMetas(previous => {
-          if (change.operation === 'delete') { const next = { ...previous }; delete next[current.key]; return next; }
-          return { ...previous, [current.key]: lunaTaskNextMetadata(change.operation, previous[current.key], lunaCalendarAnchor(new Date(), timezone)) };
-        });
         setConversation(previous => ({ ...previous, lastTaskKey: change.operation === 'delete' ? previous.lastTaskKey === current.key ? undefined : previous.lastTaskKey : current.key }));
       } else if(proposal.kind==='week-plan'){
         const changes=lunaWeekChanges(proposal.plan);
         if(!changes){fail('Choose a valid date for every selected task.');return;}
-        if(weekMetaSignature(proposal.plan.items,weekMetas)!==proposal.plan.metadataSignature||!preview?.reviseActions(changes)){fail('A task or its schedule changed. Nothing was moved. Ask for a fresh plan.');return;}
+        if(weekMetaSignature(proposal.plan.items,weekMetas)!==proposal.plan.metadataSignature||!await preview?.reviseActions(changes)){fail('A task or its schedule changed. Nothing was moved. Ask for a fresh plan.');return;}
       }else if (proposal.kind === 'start-project') {
         const current = projects.records.find(record => record.id === proposal.record.id);
         if (proposal.projectSaved && (!current || current.status !== 'Active')) { fail('The started project is no longer active or available. Review its workspace before saving preparation.'); return; }
@@ -328,7 +328,7 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
         }
         if (proposal.savePreparation) {
           const key = projectActionKey(proposal.guide.id, 0);
-          if (failPreparation || !key || !preview?.addActions([{ key, title: proposal.guide.steps[0].title, origin: 'Project', reason: `${proposal.guide.title}. Guide ${proposal.guide.version}; preparation only, not a completed step.` }], proposal.date)) { fail('The project workspace was started, but the preparation task was not saved. Retry this review to save the task, or open the project.'); return; }
+          if (failPreparation || !key || !await preview?.addActions([{ key, title: proposal.guide.steps[0].title, origin: 'Project', reason: `${proposal.guide.title}. Guide ${proposal.guide.version}; preparation only, not a completed step.` }], proposal.date)) { fail('The project workspace was started, but the preparation task was not saved. Retry this review to save the task, or open the project.'); return; }
           setConversation(previous => ({ ...previous, lastTaskKey: key }));
         }
       } else if (proposal.kind === 'create-task' || proposal.kind === 'move-task') {
@@ -336,8 +336,8 @@ export default function LunaConversation({ context, onClose, go: navigate, curre
         if (!preview) { fail('My Week is unavailable. Nothing changed.'); return; }
         if (proposal.kind === 'move-task' && !lunaTaskRevisionMatches(preview.actions.find(action => action.id === proposal.record), proposal.revision)) { fail('This task changed after the review was prepared. Ask me to review the new task before saving.'); return; }
         const saved = proposal.kind === 'create-task'
-          ? preview.addActions([{ key: proposal.key, title: proposal.title, origin: 'Luna', reason: 'A task you requested and confirmed in Luna. It does not change environmental evidence.' }], proposal.date)
-          : preview.updateAction(proposal.record, proposal.revision, { title: proposal.title, date: proposal.date });
+          ? await preview.addActions([{ key: proposal.key, title: proposal.title, origin: 'Luna', reason: 'A task you requested and confirmed in Luna. It does not change environmental evidence.' }], proposal.date)
+          : await preview.updateAction(proposal.record, proposal.revision, { title: proposal.title, date: proposal.date });
         if (!saved) { fail('The task could not be saved. It may have changed. Nothing was overwritten.'); return; }
         const key = proposal.kind === 'create-task' ? proposal.key : preview.actions.find(action => action.id === proposal.record)?.key;
         setConversation(previous => ({ ...previous, lastTaskKey: key }));

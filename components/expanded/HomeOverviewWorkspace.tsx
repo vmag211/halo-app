@@ -36,12 +36,15 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [addOpen]);
-  const unavailable = workspace.scenario === 'loading' || workspace.scenario === 'error';
+  const required = ['tests','assets','observations','gardens','pantryItems'];
+  const productionLoading = workspace.mode === 'production' && required.some(key => !workspace.collectionStates[key] || workspace.collectionStates[key].status === 'loading');
+  const productionError = workspace.mode === 'production' && required.some(key => workspace.collectionStates[key]?.status === 'error');
+  const unavailable = productionLoading || productionError || workspace.scenario === 'loading' || workspace.scenario === 'error';
   const tests = ((workspace.collections.tests ?? []) as TestRecord[]).filter(record => !record.archived);
   const active = tests.filter(record => ['draft', 'arranged', 'sampled', 'awaiting'].includes(record.status));
   const reports = tests.filter(record => record.rows.length > 0);
-  const currentContext=workspace.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
-  const currentTest = active.find(record => record.contextId === currentContext) ?? (currentContext==='sample-current-home'?active[0]:undefined);
+  const currentContext=workspace.mode === 'production' ? workspace.service?.context?.currentHomeId : workspace.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
+  const currentTest = active.find(record => record.contextId === currentContext) ?? (workspace.mode === 'preview' && currentContext==='sample-current-home'?active[0]:undefined);
   const routines = ((workspace.collections.assets ?? []) as HomeAsset[]).filter(record => record.status !== 'replaced');
   const currentRecordIds=new Set(Object.values(workspace.collections).flat().filter(record=>!record.homeContextId||record.homeContextId===currentContext).map(record=>record.id));
   const nextRoutine = routines.filter(record => currentRecordIds.has(record.id) && record.status === 'active' && (record.snoozedUntil || record.nextDue)).sort((a, b) => (a.snoozedUntil || a.nextDue).localeCompare(b.snoozedUntil || b.nextDue))[0];
@@ -53,10 +56,10 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const link = (destination: string, view?: string, id?: string) => `${href('home', destination)}${view ? `&homeView=${view}` : ''}${id ? `&record=${encodeURIComponent(id)}` : ''}`;
   return <section id="home-workspace" tabIndex={-1} className="halo-home-workspace" aria-labelledby="home-workspace-title">
     <header className="how-heading"><h2 id="home-workspace-title">Your home workspace</h2><details className="how-add-menu" ref={addMenu} onToggle={event => setAddOpen(event.currentTarget.open)}><summary aria-label="Add a home record"><Plus size={16} aria-hidden="true" />Add</summary><nav aria-label="Add home records"><Link href={link('tests','new')} prefetch={false} onClick={closeAdd}><ClipboardList size={16} aria-hidden="true" />Plan a test</Link><Link href={link('tests','report')} prefetch={false} onClick={closeAdd}><FileText size={16} aria-hidden="true" />Add a report</Link><Link href={link('maintenance','create')} prefetch={false} onClick={closeAdd}><Wrench size={16} aria-hidden="true" />Add routine</Link><Link href={link('maintenance','observation')} prefetch={false} onClick={closeAdd}><Droplets size={16} aria-hidden="true" />Record moisture</Link></nav></details></header>
-    {unavailable ? <div className="how-notice" role="status"><p>{workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p><button className="how-action" onClick={() => workspace.setScenario('ready')}>Try again</button></div> : <>
+    {unavailable ? <div className="how-notice" role="status"><p>{productionLoading || workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p><button className="how-action" onClick={() => workspace.setScenario('ready')}>Try again</button></div> : <>
       {workspace.scenario === 'offline' && <p className="how-notice">Offline. Reconnect to save changes.</p>}
       {workspace.scenario === 'stale' && <p className="how-notice">Older records: check their source dates.</p>}
-      {currentContext!=='sample-current-home'&&<p className="how-notice">Your record library includes previous homes.</p>}
+      {workspace.mode === 'production' ? Object.values(workspace.collections).flat().some(record=>record.homeContextId&&record.homeContextId!==currentContext)&&<p className="how-notice">Your record library includes previous homes.</p> : currentContext!=='sample-current-home'&&<p className="how-notice">Your record library includes previous homes.</p>}
     </>}
     <nav className="how-overview" aria-label="Home workspace features">
       <Link className="how-overview-row how-tests" aria-label="Open test records" href={link('tests')} prefetch={false}><ClipboardList size={22} aria-hidden="true" /><span><strong>Tests</strong><small>{unavailable ? 'Tests and reports' : `${active.length} active · ${plural(reports.length, 'report')}`}</small></span><ChevronRight size={17} aria-hidden="true" /></Link>

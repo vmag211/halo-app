@@ -116,7 +116,7 @@ test('food reference mutations are unavailable offline without hiding source acc
   await expect(page.getByRole('button', { name: 'Save reference', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Follow updates', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Share reference', exact: true })).toBeEnabled();
-  await expect(page.getByRole('link', { name: 'NC official fish advisory resources', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Official fish advisory resources', exact: true })).toBeVisible();
 });
 
 test('deleting a private food question keeps the source and clears only the saved question', async ({ page }) => {

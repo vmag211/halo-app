@@ -5,10 +5,10 @@ import { useExpandedPreview } from './ExpandedPreviewState';
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { HandoffExportKind } from '@/lib/frontend/note-handoff-preview';
 
-export function SaveExplore({ origin, title, reason, date }: { origin: string; title: string; reason: string; date?: string }) {
+export function SaveExplore({ origin, title, reason, date,disabled=false }: { origin: string; title: string; reason: string; date?: string;disabled?:boolean }) {
   const state = useExpandedPreview(); const workspace = useHomeWorkspace(); const key = `explore:${origin}`;
   const saved = state?.actions.find(action => action.key === key);
-  return <button className="ex-button" disabled={!state || workspace.scenario === 'offline'} onClick={() => state?.open(saved ?? { key, title, reason, origin: 'Explore', date })}>{saved ? 'Open saved action' : 'Save to My Week'}</button>;
+  return <button className="ex-button" disabled={disabled||!state ||state.readiness!=='ready'||state.pending||Boolean(state.unknownOperation)|| workspace.scenario === 'offline'} onClick={() => state?.open(saved ?? { key, title, reason, origin: 'Explore', date })}>{saved ? 'Open saved action' : 'Save to My Week'}</button>;
 }
 
 export function ShareTools({ text, filename = 'halo-explore-draft.txt', onResult }: { text: string; filename?: string; onResult?: (kind: HandoffExportKind) => void }) {

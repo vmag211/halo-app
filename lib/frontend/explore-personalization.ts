@@ -16,9 +16,9 @@ export type ProjectEvidence = {
   numericValue?: number; unit?: string; pollutant?: string;
 };
 export type ProjectEnvironmentContext = {
-  key: string; isSample: true; state: string; county: string; renter: boolean | null; evidence: ProjectEvidence[];
+  key: string; isSample: boolean; state: string; county: string; renter: boolean | null; evidence: ProjectEvidence[];
   hasGarden: boolean; gardenWaterKnown: boolean; hasMoistureObservation: boolean; filterModelKnown: boolean;
-  sourceStatus: 'reviewed-drafts' | 'unavailable';
+  sourceStatus: 'reviewed-drafts' | 'published' | 'unavailable';
   /** Rotate equally relevant general options only; never modify environmental evidence. */
   variation?: number;
   previousIdeaIds?: string[];

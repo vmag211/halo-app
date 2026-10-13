@@ -31,7 +31,8 @@ test('outdoor periods retain explicit choice and do not imply forecast availabil
   }
   await page.getByLabel('What would you like to do?').fill('Water the garden');
   await page.getByRole('button', { name: 'Save outdoor plan', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('No forecast watch');
+  await expect(page.getByRole('status')).toContainText('Saved to My Week');
+  await expect(page.locator('.mw-workspace')).toContainText('No notification delivery is connected.');
 });
 
 for (const appearance of ['dark', 'light']) test(`${appearance} editorial headers stay legible and contained at large text`, async ({ page }, info) => {

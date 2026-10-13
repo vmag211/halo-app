@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { ArrowLeft, Check, Plus, WifiOff } from 'lucide-react';
 import WelcomeTitle from '@/components/onboarding/WelcomeTitle';
 import ResultsReveal from '@/components/onboarding/ResultsReveal';
@@ -51,7 +52,7 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
   const hadLocation = useRef(false);
 
   const finish = useCallback(() => {
-    if (onComplete) onComplete(); else router.replace(changeAddress ? '/today' : safeStageReturn(returnTo));
+    if (onComplete) onComplete(); else router.replace(changeAddress ? '/home' : safeStageReturn(returnTo));
   }, [onComplete, router, returnTo, changeAddress]);
 
   const cancel = useCallback(() => {
@@ -96,7 +97,7 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
         if (changeAddress || (profile.onboarded === true && !isProfileComplete(profile))) move(1, true);
       } catch (error) {
         if (!current()) return;
-        if (!preview && entry && hasCompletedOnboarding()) { router.replace('/today?verify=1'); return; }
+        if (!preview && entry && hasCompletedOnboarding()) { router.replace(safeStageReturn(returnTo)); return; }
         if (errorCode(error) === 'session_changed') clearOnboardingStorage();
         // A failed profile lookup is not an empty household finding. With no
         // completion flag, the specification sends the person to onboarding.
@@ -106,7 +107,7 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
       if (!current()) return;
       setSession('error'); setFailure(errorCode(error));
     }
-  }, [api, changeAddress, entry, finish, move, preview, router]);
+  }, [api, changeAddress, entry, finish, move, preview, router, returnTo]);
 
   useEffect(() => {
     mounted.current = true;
@@ -235,7 +236,7 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
   return <main ref={container} className={`halo-app${preview ? ' halo-preview' : ''}`} data-step={step}>
     <form className="halo-page" noValidate aria-label={[copy.welcome.title,copy.address.title,copy.household.title,copy.home.title,copy.reveal.title][step]} onSubmit={event => {event.preventDefault(); void submit();}}>
       {offline && <div className="halo-offline" role="status"><WifiOff size={18} aria-hidden="true" />{copy.common.offline}</div>}
-      {step === 0 && <><div className="halo-band"><div className="halo-logo halo-logo-tile"><Image src="/halo-logo-mark.png" alt="" width={158} height={158} priority unoptimized /></div></div><div className="halo-welcome-copy"><WelcomeTitle stackedSubtitle={stackedWelcomeSubtitle} /><p>{copy.welcome.description}</p><p className="halo-account-note">{copy.welcome.account}</p></div><div className="halo-footer">{errorBox}<Button type="submit" busy={session==='loading'} disabled={session==='error'}>{copy.welcome.start}</Button><p className="halo-footer-note">{copy.welcome.duration}</p></div></>}
+      {step === 0 && <><div className="halo-band"><div className="halo-logo halo-logo-tile"><Image src="/halo-logo-mark.png" alt="" width={158} height={158} priority unoptimized /></div></div><div className="halo-welcome-copy"><WelcomeTitle stackedSubtitle={stackedWelcomeSubtitle} /><p>{copy.welcome.description}</p><p className="halo-account-note">{copy.welcome.account}</p></div><div className="halo-footer">{errorBox}<Button type="submit" busy={session==='loading'} disabled={session==='error'}>{copy.welcome.start}</Button>{!preview&&<Link className="halo-text-button" href="/learn">Browse without a home</Link>}<p className="halo-footer-note">{copy.welcome.duration}</p></div></>}
       {step === 1 && <>{nav}<div className="halo-main"><h1>{copy.address.title}</h1><div className="halo-fields"><div className="halo-field"><label className="halo-label" htmlFor="halo-address">{copy.address.label}</label><input id="halo-address" className="halo-input" type="text" autoComplete="street-address" placeholder={copy.address.placeholder} value={address} disabled={busy} aria-invalid={!!errors.address} aria-describedby="halo-address-error halo-privacy" onChange={event=>{gpsRequest.current++;setLocating(false);setCoordinates(null);setAddress(event.target.value);if(!validateAddress(event.target.value))setErrors(previous=>({...previous,address:''}));}} onBlur={()=>setErrors(previous=>({...previous,address:coordinates?'':validateAddress(address)}))} /><FieldError id="halo-address-error" message={errors.address} /><p className="halo-privacy" id="halo-privacy">{copy.address.privacy}</p></div></div><div className="halo-location"><Button variant="secondary" onClick={locate} busy={locating} disabled={busy}>{copy.address.useLocation}</Button><div className="halo-location-note"><FieldError id="halo-location-error" message={errors.location} /></div></div></div><div className="halo-footer">{errorBox}<Button type="submit" busy={busy} disabled={locating || session!=='ready'}>{copy.common.continue}</Button>{busy && <p className="halo-footer-note" role="status">{copy.address.finding}</p>}</div></>}
       {step === 2 && <>{nav}<div className="halo-main"><h1>{copy.household.title}</h1><p className="halo-intro">{copy.household.description}</p><fieldset className="halo-chips"><legend className="halo-sr">{copy.household.legend}</legend>{householdKeys.map(key=><button type="button" className="halo-chip" key={key} aria-pressed={household[key]} disabled={busy} onClick={()=>setHousehold(previous=>({...previous,[key]:!previous[key]}))}><span className="halo-chip-mark">{household[key]?<Check size={17} aria-hidden="true" />:<Plus size={17} aria-hidden="true" />}</span><span>{copy.household.groups[key]}</span></button>)}</fieldset></div><div className="halo-footer">{errorBox}<div className="halo-actions-equal"><Button variant="secondary" disabled={busy} onClick={()=>move(3)}>{copy.household.skip}</Button><Button type="submit" variant="secondary" busy={busy}>{copy.common.continue}</Button></div></div></>}
       {step === 3 && <>{nav}<div className="halo-main"><h1>{copy.home.title}</h1><div className="halo-fields"><div className="halo-field"><label className="halo-label" htmlFor="halo-year"><span>{copy.home.year}</span><span className="halo-optional">{copy.common.optional}</span></label><input id="halo-year" className="halo-input" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={year} disabled={busy} aria-invalid={!!errors.year} aria-describedby="halo-year-error halo-year-help" onChange={event=>{const next=event.target.value.replace(/\D/g,'').slice(0,4);setYear(next);if(!validateHomeYear(next))setErrors(previous=>({...previous,year:''}));}} onBlur={()=>setErrors(previous=>({...previous,year:validateHomeYear(year)}))} /><FieldError id="halo-year-error" message={errors.year} /><p className="halo-year-help" id="halo-year-help">{copy.home.yearHelp}</p></div><div className="halo-field"><label className="halo-label" htmlFor="halo-water">{copy.home.water}</label><select id="halo-water" className="halo-select" value={water} disabled={busy} aria-invalid={!!errors.water} aria-describedby="halo-water-error" onChange={event=>{setWater(event.target.value);if(event.target.value)setErrors(previous=>({...previous,water:''}));}} onBlur={()=>setErrors(previous=>({...previous,water:water?'':copy.home.waterRequired}))}><option value="">{copy.home.waterPlaceholder}</option>{copy.home.waterOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><FieldError id="halo-water-error" message={errors.water} /></div></div></div><div className="halo-footer">{errorBox}<Button type="submit" busy={busy}>{copy.home.results}</Button></div></>}

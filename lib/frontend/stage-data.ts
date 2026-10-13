@@ -44,7 +44,12 @@ function dailyTrend(history: HistoryResponse | null | undefined, key: 'air' | 'u
   if (!history) return [];
   const from = isoDate(history.from); const to = isoDate(history.to);
   if (!from || !to || from > to) return [];
-  const byDate = new Map(rows(history.history).map(row => [isoDate(row.date), row]));
+  // The current overview must never splice an earlier home's point into a
+  // current-home trend. All-home history remains available in its own workflow.
+  const byDate = new Map(rows(history.history).filter(row => {
+    if (row.comparability === 'earlier_home' || row.comparability === 'unknown') return false;
+    return !history.context?.current_id || !row.home_context_id || row.home_context_id === history.context.current_id;
+  }).map(row => [isoDate(row.date), row]));
   const points: TrendPoint[] = [];
   let time = Date.parse(`${from}T12:00:00Z`); const end = Date.parse(`${to}T12:00:00Z`);
   for (let count = 0; time <= end && count < 365; time += 86400000, count++) {
@@ -66,7 +71,10 @@ function sampleTrend(raw: unknown): TrendPoint[] {
 /** Map actual route payloads into the approved presentation. No fixtures,
  * guessed readings, risk inversion, or frontend severity thresholds enter here. */
 export function buildStageData(daily: DailyResponse | null, home: HomeResponse | null, profile: ProfileResponse | null, history?: HistoryResponse | null): StageData {
-  const dailyData = record(daily); const homeData = record(home); const location = record(profile?.profile);
+  const location = record(profile?.profile);
+  const currentHome = profile?.home_context?.id ?? location.home_context_id;
+  const inCurrentHome = (value: DailyResponse | HomeResponse | null) => !currentHome || !value?.home_context_id || value.home_context_id === currentHome;
+  const dailyData = record(inCurrentHome(daily) ? daily : null); const homeData = record(inCurrentHome(home) ? home : null);
   const air = record(dailyData.air); const uv = record(dailyData.uv); const pollen = record(dailyData.pollen); const mold = record(dailyData.mold);
   const water = record(homeData.water); const radon = record(homeData.radon); const lead = record(homeData.lead);
   const breakdown = rows(homeData.breakdown);
@@ -228,5 +236,6 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   // Keep absent timestamps absent through the formatted fallback. Never use the
   // browser clock as a source retrieval time.
   if (!timestamp(dailyData.retrieved_at)) todayOverview.asOf = 'Update time unavailable';
+  if (history?.truncated) for (const key of ['air', 'uv', 'pollen'] as const) readings[key].trendCaption = 'Only returned readings are shown. This history is incomplete; missing days remain gaps.';
   return { readings, today: todayOverview, home: homeOverview };
 }

@@ -2,7 +2,8 @@
 
 import { Droplets, Fish, Flower2, Leaf, Sprout } from 'lucide-react';
 import { type FoodFollow, type GardenSite, initialGardens } from '../../lib/frontend/home-food-preview';
-import { useHomeCollection, useHomeDraft } from './HomeWorkspaceState';
+import { useHomeCollection, useHomeDraft, useHomeWorkspace } from './HomeWorkspaceState';
+import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import { PageIntro, WorkspaceLink, type WorkspaceProps } from './HomeWorkspaceUI';
 import { FoodDetails, FoodPreviewNote } from './FoodShared';
 import { FoodFish } from './FoodFish';
@@ -33,6 +34,10 @@ export default function FoodGardenWorkspace(props: WorkspaceProps) {
 }
 function FoodOverview({ navigate }: WorkspaceProps) {
   const [interests, setInterests] = useHomeDraft<string[]>('food-interests', []);
+  const [editing, setEditing, clearEditing] = useHomeDraft<string[] | null>('food-interests:draft', null);
+  const workspace = useHomeWorkspace(), actions = useExpandedPreview(), production = workspace.mode === 'production';
+  const selected = production ? editing ?? interests : interests;
+  const blocked = !actions || actions.pending || actions.readiness !== 'ready' || !!actions.unknownOperation;
   const follows = useHomeCollection<FoodFollow>('foodFollows', []);
   const gardens = useHomeCollection<GardenSite>('gardens', initialGardens);
   const saved = follows.records.filter(item => item.saved || item.following);
@@ -40,7 +45,7 @@ function FoodOverview({ navigate }: WorkspaceProps) {
     <section className="hg-kitchen-entry"><span className="hg-kicker">START IN YOUR KITCHEN</span><WorkspaceLink title="Food at home" detail="Your foods, PFAS and lead information, and follow-up questions." artwork="pantry" onClick={() => navigate('pantry')} /><p className="hg-meta">A food name alone cannot tell us its PFAS or lead content.</p></section>
     <section className="hg-stack"><h2>Explore food & garden</h2><div className="hg-food-destinations">{[...destinations].sort((a, b) => Number(interests.includes(b.view)) - Number(interests.includes(a.view))).map(item => <WorkspaceLink key={item.view} title={item.title} detail={item.detail} artwork={destinationArtwork[item.view]} onClick={() => navigate(item.view)} />)}</div></section>
     {(saved.length > 0 || gardens.records.length > 0) && <section className="hg-card"><h2>Your saved places & references</h2><div className="hg-stack">{gardens.records.map(site => <WorkspaceLink key={site.id} deletion={{ remove: () => gardens.remove(site.id), description: 'This removes this growing site and its notes. Test records, saved My Week actions and grower inquiries are kept.' }} title={site.title} detail={`${site.setup} · Irrigation: ${site.irrigation}`} icon={<Sprout />} onClick={() => navigate('garden-detail', site.id)} />)}{saved.map(item => <WorkspaceLink key={item.id} title={item.title} detail={`${item.saved ? 'Saved' : ''}${item.saved && item.following ? ' · ' : ''}${item.following ? 'Following' : ''} · Version ${item.sourceRevision}`} onClick={() => navigate(item.kind === 'fish' ? 'fish-detail' : item.kind === 'food' ? 'evidence-detail' : item.kind === 'resource' ? 'grower-detail' : 'water', item.targetId)} />)}</div></section>}
-    <FoodDetails title="Arrange your topics"><p>Move your interests to the top. All topics remain available.</p><div className="hg-actions">{destinations.map(({ view, title }) => <button key={view} className="hg-button-secondary" aria-pressed={interests.includes(view)} onClick={() => setInterests(interests.includes(view) ? interests.filter(value => value !== view) : [...interests, view])}>{title}</button>)}</div></FoodDetails>
-    <FoodDetails title="How food information works"><p>Notices apply to named products or places. Studies apply to the samples they tested. Neither tells us the contents of an untested food, crop or garden.</p><p>Missing coverage means unknown, not free of PFAS. Source updates are not connected.</p></FoodDetails>
+    <FoodDetails title="Arrange your topics"><p>Move your interests to the top. All topics remain available.</p><div className="hg-actions">{destinations.map(({ view, title }) => <button type="button" key={view} className="hg-button-secondary" disabled={production && blocked} aria-pressed={selected.includes(view)} onClick={() => { const next = selected.includes(view) ? selected.filter(value => value !== view) : [...selected, view]; if (production) setEditing(next); else setInterests(next); }}>{title}</button>)}</div>{production && editing && <div className="hg-actions"><button type="button" className="hg-button" disabled={blocked} onClick={async () => { if (await actions?.reviseActions([], { preferences: { 'food-interests': editing } })) clearEditing(); }}>Save topics</button><button type="button" className="hg-button-secondary" disabled={actions?.pending || !!actions?.unknownOperation} onClick={clearEditing}>Cancel</button></div>}{production && actions?.error && <p role="status">{actions.error}</p>}{production && actions?.unknownOperation && <button type="button" className="hg-button-secondary" disabled={actions.pending} onClick={async () => { if (await actions.reconcile()) clearEditing(); }}>Check preference save</button>}</FoodDetails>
+    <FoodDetails title="How food information works"><p>Notices apply to named products or places. Studies apply to the samples they tested. Neither tells us the contents of an untested food, crop or garden.</p><p>Missing coverage means unknown, not free of PFAS.{!production && ' Source updates are not connected.'}</p></FoodDetails>
   </div>;
 }

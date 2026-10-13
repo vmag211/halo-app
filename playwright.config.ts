@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './test/ui',
   // Live-route tests run only against the isolated fake-auth production server.
-  testIgnore: ['**/stage-*.spec.ts', '**/luna-live.spec.ts'],
+  testIgnore: ['**/stage-*.spec.ts', '**/luna-live.spec.ts', '**/production-*.spec.ts'],
   fullyParallel: true,
   workers: 3,
   timeout: 45000,

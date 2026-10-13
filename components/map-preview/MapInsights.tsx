@@ -39,10 +39,10 @@ export function MapKey({ layer, patterns, onOpen }: { layer: MapLayer; patterns:
   </button>;
 }
 
-export function AreaBrief({ points, allPoints, layer, compound, quarter, water, hasHome, onSelect, banner }: { points: MapPoint[]; allPoints: MapPoint[]; layer: MapLayer; compound: Compound; quarter: string; water: WaterFeature[]; hasHome: boolean; onSelect: (id: string) => void; banner: string | null }) {
+export function AreaBrief({ points, allPoints, layer, compound, quarter, water, hasHome, onSelect, banner, ownSystemId='SAMPLE-01' }: { points: MapPoint[]; allPoints: MapPoint[]; layer: MapLayer; compound: Compound; quarter: string; water: WaterFeature[]; hasHome: boolean; onSelect: (id: string) => void; banner: string | null; ownSystemId?:string|null }) {
   const info = summarizePoints(points, layer), copy = descriptions[layer];
   const dates = water.flatMap(w => w.latest_sample_iso ? [w.latest_sample_iso] : []).sort();
-  const own = water.find(w => w.pwsid === 'SAMPLE-01');
+  const own = water.find(w => w.pwsid === ownSystemId);
   return <div className="halo-map-brief">
     <section className="halo-map-brief-lead"><span className="halo-map-eyebrow">{layer === 'water' ? `${compounds.find(c => c[0] === compound)?.[1]} · ${quarterLabel(quarter)}` : `${layer[0].toUpperCase() + layer.slice(1)} · Current map window`}</span><h3>Read the pattern.<br/>Check the evidence.</h3><p>{copy.caution} Summaries cover records in this view.</p></section>
     <dl className="halo-map-brief-metrics"><div><dd>{info.count}</dd><dt>{copy.unit} in view</dt></div><div><dd>{info.flagged}</dd><dt>{copy.focus}</dt></div><div><dd>{info.missing}</dd><dt>{layer === 'water' ? 'without a comparable result' : 'without a category'}</dt></div></dl>

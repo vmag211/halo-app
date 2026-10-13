@@ -18,10 +18,10 @@ type Reading<T> = { data: T | null; loading: boolean; error: ErrorCode | null; c
 const blank = <T,>(): Reading<T> => ({ data: null, loading: false, error: null, cached: false });
 type Session = {
   api: LiveStageApi; gate: 'loading' | 'ready' | 'error'; gateError: ErrorCode | null;
-  profile: ProfileResponse | null; profileWarning: boolean; offline: boolean;
+  profile: ProfileResponse | null; profilePending: boolean; profileWarning: boolean; offline: boolean;
   daily: Reading<DailyResponse>; home: Reading<HomeResponse>; historyFailed: boolean;
   alerts: AlertsResponse | null; alertsError: ErrorCode | null; alertsPending: boolean;
-  refresh: (fresh?: boolean) => Promise<void>; refreshAlerts: () => Promise<void>; restart: () => Promise<void>;
+  refresh: (fresh?: boolean) => Promise<void>; refreshProfile: () => Promise<void>; refreshAlerts: () => Promise<void>; restart: () => Promise<void>;
 };
 const Context = createContext<Session | null>(null);
 export function useStageSession() { const value = useContext(Context); if (!value) throw new Error('StageSession is required'); return value; }
@@ -36,6 +36,7 @@ export default function StageSession({ children, api = liveApi }: { children: Re
   const [gate, setGate] = useState<Session['gate']>('loading');
   const [gateError, setGateError] = useState<ErrorCode | null>(null);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [profilePending, setProfilePending] = useState(false);
   const [profileWarning, setProfileWarning] = useState(false);
   const [offline, setOffline] = useState(false);
   const [daily, setDaily] = useState<Reading<DailyResponse>>(blank);
@@ -58,6 +59,7 @@ export default function StageSession({ children, api = liveApi }: { children: Re
   const epoch = useRef(0);
   const mounted = useRef(false);
   const gateRef = useRef<Session['gate']>('loading');
+  const identityRestarts = useRef({started:0,count:0});
 
   const cancelAll = useCallback(() => {
     ++epoch.current;
@@ -67,11 +69,12 @@ export default function StageSession({ children, api = liveApi }: { children: Re
   const clearMemory = useCallback(() => {
     setDaily(blank()); setHome(blank()); setHistory(undefined); setHistoryFailed(false);
     setLearn({}); setLearnPending(false); setLearnFailed(false);
-    setAlerts(null); setAlertsError(null); setAlertsPending(false); setProfile(null); setProfileWarning(false);
+    setAlerts(null); setAlertsError(null); setAlertsPending(false); setProfile(null); setProfilePending(false); setProfileWarning(false);
   }, []);
   const setupLocation = useCallback(() => {
     clearOnboardingStorage(); gateRef.current = 'loading'; setGate('loading');
-    router.replace(`/onboarding?entry=1&next=${encodeURIComponent(pathRef.current)}`);
+    const returnPath=pathRef.current==='/map'?'/map?access=owned':pathRef.current;
+    router.replace(`/onboarding?entry=1&next=${encodeURIComponent(returnPath)}`);
   }, [router]);
 
   const invalidateLocation = useCallback((code: ErrorCode) => {
@@ -157,9 +160,11 @@ export default function StageSession({ children, api = liveApi }: { children: Re
     profileRequest.current?.abort(); readingsRequest.current?.abort(); explanationRequest.current?.abort(); alertsRequest.current?.abort();
     const controller = new AbortController(); profileRequest.current = controller; const generation = epoch.current;
     const active = () => mounted.current && !controller.signal.aborted && generation === epoch.current && profileRequest.current === controller;
-    // Keep Settings mounted so its unrelated, unsaved fields survive a save or
-    // reconnection. Its profile-null state disables writes during this recheck.
-    setProfile(null); setProfileWarning(false); setLearn({}); setLearnPending(false); setLearnFailed(false);
+    // Preserve the last verified context while checking the same identity. A
+    // temporary null changes the production provider key and erases drafts.
+    // Pending/warning are explicit authority guards, not permission to use the
+    // retained profile for new writes or household-specific retrieval.
+    setProfilePending(true); setProfileWarning(false); setLearn({}); setLearnPending(false); setLearnFailed(false);
     setHistory(undefined); setHistoryFailed(false); setAlerts(null); setAlertsPending(false);
     setDaily({ ...blank(), loading: true }); setHome({ ...blank(), loading: true });
     try {
@@ -171,6 +176,8 @@ export default function StageSession({ children, api = liveApi }: { children: Re
       if (invalidateLocation(code)) return;
       if (!hasCompletedOnboarding() || code === 'invalid_response') { setupLocation(); return; }
       setProfileWarning(true);
+    } finally {
+      if (active()) setProfilePending(false);
     }
     if (active()) { void refresh(); void refreshAlerts(); }
   }, [api, restart, refresh, refreshAlerts, invalidateLocation, setupLocation]);
@@ -184,6 +191,12 @@ export default function StageSession({ children, api = liveApi }: { children: Re
       // The identity event also reaches an open assistant/settings panel. Clear
       // its provider and close the live surface before another response paints.
       flushSync(() => { cancelAll(); clearMemory(); gateRef.current = 'loading'; setGate('loading'); setGateError(null); });
+      // A rejected credential can produce sign-out/sign-in notifications while
+      // the transport recovers. Bound that cycle; never mint/recheck forever.
+      const now=Date.now();
+      if(now-identityRestarts.current.started>10000)identityRestarts.current={started:now,count:0};
+      identityRestarts.current.count++;
+      if(identityRestarts.current.count>2){gateRef.current='error';setGate('error');setGateError('session_changed');return;}
       void restart();
     };
     const settingsChanged = () => { void refreshProfile(); };
@@ -214,20 +227,21 @@ export default function StageSession({ children, api = liveApi }: { children: Re
     queueMicrotask(() => {
       if (!active()) return;
       setLearn({}); setLearnFailed(false);
-      if (gate !== 'ready' || offline || !topicKey || daily.loading || home.loading || !profile) { setLearnPending(false); return; }
+      if (gate !== 'ready' || offline || !topicKey || daily.loading || home.loading || !profile || profilePending || profileWarning) { setLearnPending(false); return; }
       setLearnPending(true);
       void Promise.all(topicKey.split(',').map(async key => {
         const topic = key as FactorKey;
         try {
           const value = await api.getLearn(topic, { ...data.readings[topic].context, locale: profile.profile?.locale === 'es' ? 'es' : 'en' }, controller.signal);
-          if (active()) setLearn(previous => ({ ...previous, [topic]: value }));
+          if (active()) { setLearn(previous => ({ ...previous, [topic]: value })); if (value.unavailable) setLearnFailed(true); }
         } catch (error) { if (active()) { const code = errorCode(error); if (!invalidateLocation(code)) setLearnFailed(true); } }
       })).finally(() => { if (active()) setLearnPending(false); });
     });
     return () => controller.abort();
-  }, [api, data, profile, topicKey, gate, offline, daily.loading, home.loading, learnAttempt, invalidateLocation]);
+  }, [api, data, profile, profilePending, profileWarning, topicKey, gate, offline, daily.loading, home.loading, learnAttempt, invalidateLocation]);
 
   const household = normalizeHousehold(profile?.household);
-  const session: Session = { api, gate, gateError, profile, profileWarning, offline, daily, home, historyFailed, alerts, alertsError, alertsPending, refresh, refreshAlerts, restart };
+  const retrySession=useCallback(()=>{identityRestarts.current={started:0,count:0};return restart();},[restart]);
+  const session: Session = { api, gate, gateError, profile, profilePending, profileWarning, offline, daily, home, historyFailed, alerts, alertsError, alertsPending, refresh, refreshProfile, refreshAlerts, restart:retrySession };
   return <Context.Provider value={session}><StageRuntimeProvider value={{ ...data, household, learn, learnPending, learnFailed, retryLearn: () => setLearnAttempt(value => value + 1) }}><HouseholdProvider bands={household}>{children}</HouseholdProvider></StageRuntimeProvider></Context.Provider>;
 }
