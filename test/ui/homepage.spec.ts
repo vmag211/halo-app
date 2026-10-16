@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-const root='/foundation/preview/expanded/?motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&motion=reduce';
 test.beforeEach(async({page})=>{await page.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
 async function add(page:Page,title:string,date?:string){await page.getByRole('button',{name:'Add task',exact:true}).click();const form=page.locator('#week-task-detail');await form.getByLabel('Task title',{exact:true}).fill(title);if(date)await form.getByLabel('Date (optional)',{exact:true}).fill(date);await form.getByRole('button',{name:'Save task',exact:true}).click();}
 async function connected(page:Page){await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByRole('button',{name:'Load connected activity examples',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Connected activity examples loaded'})).toBeVisible();await page.getByText('Expanded app review · Not approved',{exact:true}).click();}

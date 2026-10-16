@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 const failures = new WeakMap<Page, string[]>();
-const root = '/foundation/preview/expanded?tab=home&destination=tests&appearance=dark&motion=reduce';
+const root = '/foundation/preview/expanded?review=tools&tab=home&destination=tests&appearance=dark&motion=reduce';
 
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []; failures.set(page, errors);

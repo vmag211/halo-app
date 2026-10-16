@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const root = '/foundation/preview/expanded/?tab=act&motion=reduce';
+const root = '/foundation/preview/expanded/?review=tools&tab=act&motion=reduce';
 const faults = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []; faults.set(page, errors);

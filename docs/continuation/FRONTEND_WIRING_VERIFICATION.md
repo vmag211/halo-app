@@ -51,3 +51,9 @@ Automated source coverage and controlled services do not prove that every possib
 - Final source inventory: **170 JSX files, 1,800 controls, 248 exported types and 248 fingerprinted files**, from staged Git source. The single assembled packet has **19 complete source parts**, all 45 feature groups, all 25 integration journeys and all 1,630 named baseline requirements. Its mechanical verifier checks source inclusion, manifest/hash consistency, completeness marker and credential-like patterns.
 
 The review is a static public design preview, not the fake-auth test build or a production backend deployment. **Version 55 published successfully** at `https://halo-wireframe-review.yogirajapaturi.chatgpt.site`, using verified Site source commit `474eb3dd778fea3caff03ed12b94e3c1bc654bcf` and preserving the audience. The frontend commit is saved separately from the backend lane; no merge or message to Vibhav is implied. Branch publication and final compatibility check are reported in the task's completion message.
+
+## Later October 16 presentation update
+
+The shared expanded preview now omits its review banner by default. Add `review=tools` to its URL for developer controls and review qualifications; app navigation retains that parameter. Legacy component review and production behavior remain unchanged. Scenario tests explicitly request developer controls. This requires no backend contract or service changes.
+
+The static export build and TypeScript passed. Nine targeted presentation/hosted/network scenarios were checked; eight passed initially and the developer-control selector was corrected to use its accessible combobox role. The complete four-test hosted recheck then passed, including clean navigation and working developer scenario selection. Scoped lint passed. Current source fingerprints were regenerated for this component change. Evidence: `test-results-preview-banner/` and `test-results-preview-banner-release/`.

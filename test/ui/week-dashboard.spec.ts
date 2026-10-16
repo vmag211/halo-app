@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-const root='/foundation/preview/expanded/?tab=plan&motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&tab=plan&motion=reduce';
 test.beforeEach(async({page})=>{await page.clock.setFixedTime(new Date('2026-10-12T16:00:00Z'));await page.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
 async function samples(page:Page){await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByRole('button',{name:'Load a sample week',exact:true}).click();await page.getByText('Expanded app review · Not approved',{exact:true}).click();}
 for(const appearance of ['light','dark'])test(`responsive planning hierarchy in ${appearance}`,async({page},info)=>{

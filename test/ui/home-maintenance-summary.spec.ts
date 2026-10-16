@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 test.afterEach(async ({ page }) => { expect(failures.get(page)).toEqual([]); });
-const workspace = (section: string) => `/foundation/preview/expanded?tab=home&destination=${section}&appearance=dark&motion=reduce&time=day`;
+const workspace = (section: string) => `/foundation/preview/expanded?review=tools&tab=home&destination=${section}&appearance=dark&motion=reduce&time=day`;
 
 test('suspected mold uses an explicit observation path without a diagnosis or a new record type', async ({ page }) => {
   await page.goto(workspace('maintenance'));

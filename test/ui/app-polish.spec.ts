@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-const root='/foundation/preview/expanded/?motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&motion=reduce';
 test.beforeEach(async({page})=>{await page.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
 async function settings(page:Page,panel:string){await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:new RegExp(`^${panel}`)}).click();}
 async function add(page:Page,title:string){await page.getByRole('button',{name:'Add task',exact:true}).click();await page.getByLabel('Task title',{exact:true}).fill(title);await page.getByRole('button',{name:'Save task',exact:true}).click();}
@@ -55,7 +55,7 @@ test('new decorative motion is finite and stops for the app and device reduced-m
    return original.apply(this,args);
   };
  });
- await page.emulateMedia({reducedMotion:'no-preference'});await page.goto('/foundation/preview/expanded/?motion=full');
+ await page.emulateMedia({reducedMotion:'no-preference'});await page.goto('/foundation/preview/expanded/?review=tools&motion=full');
  const iterations=()=>page.evaluate(()=>(window as unknown as {haloRevealIterations:number[]}).haloRevealIterations);
  await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion','on');
  await expect.poll(async()=>(await iterations()).length).toBeGreaterThan(0);

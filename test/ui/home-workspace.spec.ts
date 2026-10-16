@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 test.afterEach(async ({ page }) => expect(faults.get(page)).toEqual([]));
-const url = (section: string, view = 'list', extra = '') => `/foundation/preview/expanded/?tab=home&destination=${section}&homeView=${view}&appearance=dark&motion=reduce&time=day${extra}`;
+const url = (section: string, view = 'list', extra = '') => `/foundation/preview/expanded/?review=tools&tab=home&destination=${section}&homeView=${view}&appearance=dark&motion=reduce&time=day${extra}`;
 const cases = [
   ['tests', 'list', ''], ['tests', 'new', ''], ['tests', 'detail', 'test-water-september'],
   ['tests', 'results', 'test-water-september'], ['tests', 'compare', 'test-water-september'],

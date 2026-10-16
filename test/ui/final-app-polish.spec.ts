@@ -11,7 +11,7 @@ test('product surfaces omit development explanations while external review retai
   test.setTimeout(120000); // Twelve full navigations, with every content assertion retained.
   const routes = ['tab=today','tab=home','tab=act','tab=plan','tab=home&destination=tests','tab=home&destination=maintenance','tab=home&destination=food','tab=home&destination=summary','tab=act&destination=projects','tab=act&destination=opportunities','tab=plan&destination=journal','tab=settings'];
   for (const query of routes) {
-    await page.goto(`/foundation/preview/expanded/?motion=reduce&${query}`);
+    await page.goto(`/foundation/preview/expanded/?review=tools&motion=reduce&${query}`);
     const app = page.getByTestId('foundation-product');
     await expect(app).toBeVisible();
     await expect(app).not.toContainText(/wireframe|design review|this preview|this visit|review session|simulated|sample household|sample workspace/i);
@@ -21,7 +21,7 @@ test('product surfaces omit development explanations while external review retai
 });
 
 test('one primary home workspace precedes the house without removing category guidance', async ({page}, info) => {
-  await page.goto('/foundation/preview/expanded/?tab=home&motion=reduce');
+  await page.goto('/foundation/preview/expanded/?review=tools&tab=home&motion=reduce');
   const workspace = page.locator('#home-workspace');
   const house = page.locator('#household');
   await expect(workspace).toHaveCount(1);
@@ -35,7 +35,7 @@ test('one primary home workspace precedes the house without removing category gu
 
 test('Homeguard uses the shared calendar with reserved icon space and manual dates', async ({page}, info) => {
   await page.setViewportSize({width:320,height:850});
-  await page.goto('/foundation/preview/expanded/?tab=home&destination=tests&homeView=new&appearance=dark&scale=150&motion=reduce');
+  await page.goto('/foundation/preview/expanded/?review=tools&tab=home&destination=tests&homeView=new&appearance=dark&scale=150&motion=reduce');
   const field = page.getByLabel('Proposed test date (optional)',{exact:true});
   await field.fill('2026-10-15');
   const padding = await field.evaluate(node => Number.parseFloat(getComputedStyle(node).paddingRight));

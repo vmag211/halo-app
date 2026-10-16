@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const faults = new WeakMap<Page, string[]>();
-const url = (section: string, view = 'list', record = '', appearance = 'dark') => `/foundation/preview/expanded/?tab=home&destination=${section}&homeView=${view}&record=${record}&appearance=${appearance}&motion=reduce&time=day`;
+const url = (section: string, view = 'list', record = '', appearance = 'dark') => `/foundation/preview/expanded/?review=tools&tab=home&destination=${section}&homeView=${view}&record=${record}&appearance=${appearance}&motion=reduce&time=day`;
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []; faults.set(page, errors);
   page.on('pageerror', error => errors.push(error.message));

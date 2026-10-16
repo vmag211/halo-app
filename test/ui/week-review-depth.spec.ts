@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-const root='/foundation/preview/expanded/?tab=plan&motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&tab=plan&motion=reduce';
 test.beforeEach(async({page})=>{await page.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
 async function add(page:Page,title:string){await page.getByRole('button',{name:'Add task',exact:true}).click();const panel=page.locator('#week-task-detail');await panel.getByLabel('Task title').fill(title);await panel.getByRole('button',{name:'Save task',exact:true}).click();}
 async function review(page:Page){await page.getByRole('button',{name:'Plan my weekly review'}).click();const panel=page.locator('#week-review-planning');await panel.getByText('Make room for unfinished work',{exact:false}).click();return panel;}

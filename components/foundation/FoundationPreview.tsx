@@ -49,6 +49,7 @@ type ToastState = { id: number; message: string; action?: () => void };
 
 export default function FoundationPreview({ initialScenario, initialFactor, initialFamily = false, initialMember, preferences = {}, productionRoute }: { initialScenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; preferences?: PreviewPreferences; productionRoute?: PreviewRoute }) {
   const expanded = preferences.expanded === true;
+  const reviewTools = useSearchParams().get('review') === 'tools';
   const workspace = useHomeWorkspace();
   const savedAppearance = workspace.drafts['halo-appearance'];
   const ambient = workspace.drafts['halo-ambient'] !== false;
@@ -89,7 +90,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
     setScenario(value);
   }
   return <div className="halo-f-review" data-mode={mode}>
-    {!productionRoute && <details className="halo-f-review-tools">
+    {!productionRoute && (!expanded || reviewTools) && <details className="halo-f-review-tools">
       <summary>{expanded ? 'Expanded app review · Not approved' : c.review}</summary><p>{c.status}</p>
       {expanded && <><p>Editable wireframes with fictional environmental records and visit-local actions. Luna conversations, project generation and task tools demonstrate proposed capabilities with deterministic sample responses, not live AI or web retrieval. No accounts, external messages or registrations are changed.</p><ExpandedReviewControls /></>}
       <p>Today covers air quality, UV, pollen, and mold. PFAS belongs only to Homeguard and does not contribute to Today. Scores and contribution shares in this review are illustrative sample values, not live API results.</p>
@@ -157,6 +158,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     if (productionRoute) return factor ? `/factors/${factor}` : productPath(tab);
     const params = new URLSearchParams({ scenario, tab, appearance, scale: String(Math.round(scale * 100)), motion, time, contrast: String(contrast) });
     if (expanded) params.set('edition', 'expanded');
+    if (search.get('review') === 'tools') params.set('review', 'tools');
     return `/foundation/preview${factor ? `/factor/${factor}` : ''}?${params}`;
   }
   const factorHref = (factor: FactorKey) => previewHref(['pfas', 'radon', 'lead'].includes(factor) ? 'home' : 'today', factor);

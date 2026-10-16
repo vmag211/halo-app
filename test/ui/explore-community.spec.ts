@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const root = '/foundation/preview/expanded/?tab=act&motion=reduce&time=day';
+const root = '/foundation/preview/expanded/?review=tools&tab=act&motion=reduce&time=day';
 const forbidden = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
   const calls: string[] = []; forbidden.set(page, calls);

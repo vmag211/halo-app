@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- October 16 presentation preview: the shared expanded preview hides the review banner and tools by default. Developer review uses `?review=tools`, retained through app navigation. Keep scenario controls and their qualifications available there; this display choice does not change production services or backend requirements.
+
 - Attribution: use `YogiBearstc` for the Git author/committer name and any author credit for this frontend work. Do not add assistant author credits, co-author trailers or generated-by signatures to commits, pull requests or repository documentation. Preserve existing human contributors, third-party licenses and factual technical references.
 
 - October 16 wiring closeout: use `docs/continuation/FRONTEND_WIRING_CLOSEOUT.md`, `FRONTEND_WIRING_VERIFICATION.md` and the complete `docs/product/HALO_BACKEND_WIRING_CURRENT.md` on `codex/october15-review-refinement`. The latest backend handoff reports a truncated supplied specification; the current packet includes the full baseline and production contracts, with a final completeness marker and manifest. Preserve the separate animated score arc and outer risk-share ring, reduced-motion/forced-color behavior and existing score semantics. Inventory is not live acceptance. Recovery identity, visit-local intentions, provider/scientific validation and real-device release gates remain explicit. Do not merge or message Vibhav's lane without a new request.

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-const root='/foundation/preview/expanded/?tab=plan&motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&tab=plan&motion=reduce';
 const faults=new WeakMap<Page,string[]>();
 test.beforeEach(async({page})=>{const errors:string[]=[];faults.set(page,errors);page.on('pageerror',error=>errors.push(error.message));await page.route('**/*',route=>{const url=new URL(route.request().url());if(!['127.0.0.1','localhost'].includes(url.hostname)||url.pathname.startsWith('/api/')){errors.push(`Unexpected request ${url.pathname}`);return route.abort();}return route.continue();});});
 test.afterEach(async({page})=>expect(faults.get(page)).toEqual([]));

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const root = '/foundation/preview/expanded/?tab=act&motion=reduce';
+const root = '/foundation/preview/expanded/?review=tools&tab=act&motion=reduce';
 const faults = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []; faults.set(page, errors);
@@ -48,7 +48,7 @@ test('one Luna conversation crosses the full map and Today without creating a se
 });
 
 test('save feedback is brief while failed writing stays visible and editable', async ({ page }) => {
-  await page.goto('/foundation/preview/expanded/?tab=home&destination=tests&homeView=new&motion=reduce');
+  await page.goto('/foundation/preview/expanded/?review=tools&tab=home&destination=tests&homeView=new&motion=reduce');
   await page.getByLabel('Test label (required)').fill('Feedback verification');
   await page.getByLabel('Sample medium (required)').selectOption('water');
   await page.getByLabel('Home or site context (required)').selectOption('sample-current-home');

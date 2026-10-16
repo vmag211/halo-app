@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-const root='/foundation/preview/expanded/?tab=plan&motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&tab=plan&motion=reduce';
 test.beforeEach(async({page})=>{await page.route('**/*',r=>{const u=new URL(r.request().url());return ['localhost','127.0.0.1'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?r.continue():r.abort();});});
 async function add(page:Page,title:string,time:string){await page.getByRole('button',{name:'Add task',exact:true}).click();const sheet=page.locator('#week-task-detail');await sheet.getByLabel('Task title').fill(title);await sheet.getByText('Time, repeat & preparation',{exact:true}).click();await sheet.getByLabel('Time (optional)',{exact:true}).fill(time);await sheet.getByLabel('Duration in minutes',{exact:true}).fill('60');await sheet.getByRole('button',{name:'Save task',exact:true}).click();}
 async function connected(page:Page){await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByRole('button',{name:'Load connected activity examples',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Connected activity examples loaded'})).toBeVisible();await page.getByText('Expanded app review · Not approved',{exact:true}).click();}

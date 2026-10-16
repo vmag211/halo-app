@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const root = '/foundation/preview/expanded/?tab=plan&motion=reduce';
+const root = '/foundation/preview/expanded/?review=tools&tab=plan&motion=reduce';
 test.beforeEach(async ({ page }) => {
   await page.route('**/*', route => {
     const url = new URL(route.request().url());

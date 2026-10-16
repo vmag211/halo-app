@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-const root='/foundation/preview/expanded/?tab=plan&motion=reduce';
+const root='/foundation/preview/expanded/?review=tools&tab=plan&motion=reduce';
 test.beforeEach(async({page})=>{await page.route('**/*',route=>{const u=new URL(route.request().url());return ['localhost','127.0.0.1'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
 async function review(page:Page,kind:'history'|'forecast',value:string){await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByRole('combobox',{name:kind==='history'?'History review data':'Forecast review data',exact:true}).selectOption(value);await page.getByText('Expanded app review · Not approved',{exact:true}).click();}
 async function seed(page:Page){await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByRole('button',{name:'Load illustrative check-ins and history',exact:true}).click();await expect(page.getByText(/24 illustrative check-ins loaded/)).toBeVisible({timeout:20000});await page.getByText('Expanded app review · Not approved',{exact:true}).click();}

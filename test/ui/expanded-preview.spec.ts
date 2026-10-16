@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 test.afterEach(async ({ page }) => { expect(failures.get(page)).toEqual([]); });
-const root = '/foundation/preview/expanded?appearance=dark&motion=reduce&time=day';
+const root = '/foundation/preview/expanded?review=tools&appearance=dark&motion=reduce&time=day';
 const factor = (key: string, extra = '') => `/foundation/preview/factor/${key}?edition=expanded&appearance=dark&motion=reduce&time=day${extra}`;
 const routine = `${root}&tab=home&destination=maintenance&homeView=detail&record=sample-filter`;
 const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main navigation' });
@@ -144,7 +144,7 @@ test('expanded household Settings requires Save and only selected figures appear
 for (const appearance of ['light', 'dark']) test(`expanded navigation and forms fit 320px at enlarged text in ${appearance}`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 850 });
   for (const tab of ['today', 'home', 'act', 'plan', 'settings']) {
-    await page.goto(`/foundation/preview/expanded?tab=${tab}&appearance=${appearance}&motion=reduce&scale=150`);
+    await page.goto(`/foundation/preview/expanded?review=tools&tab=${tab}&appearance=${appearance}&motion=reduce&scale=150`);
     await expect(mainNav(page).getByRole('link')).toHaveCount(4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`${tab}-${appearance}.png`), fullPage: true });

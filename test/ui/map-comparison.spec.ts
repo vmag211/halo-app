@@ -20,7 +20,7 @@ async function compare(page:Page,second='SAMPLE-02',extra='') {
 }
 
 test('changing home removes old map location and previously generated project evidence',async({page})=>{
-  await page.goto('/foundation/preview/expanded/?tab=act&motion=reduce');
+  await page.goto('/foundation/preview/expanded/?review=tools&tab=act&motion=reduce');
   await page.getByRole('button',{name:/Projects for you: see all \d+/}).click();
   await page.getByRole('button',{name:'Refresh ideas',exact:true}).click();
   await expect(page.locator('.ex-generation-message')).toContainText('ideas ready');

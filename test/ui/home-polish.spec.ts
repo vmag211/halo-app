@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 test.afterEach(async ({ page }) => expect(errors.get(page)).toEqual([]));
-const route = (section: string, view: string, record = '') => `/foundation/preview/expanded/?tab=home&destination=${section}&homeView=${view}&record=${record}&motion=reduce&time=day`;
+const route = (section: string, view: string, record = '') => `/foundation/preview/expanded/?review=tools&tab=home&destination=${section}&homeView=${view}&record=${record}&motion=reduce&time=day`;
 
 for (const appearance of ['dark', 'light']) test(`finishing details remain readable at 320px and 150% in ${appearance}`, async ({ page }, testInfo) => {
   test.setTimeout(90000);

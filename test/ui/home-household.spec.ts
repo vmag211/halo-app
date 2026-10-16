@@ -90,7 +90,7 @@ test('settings selections update the house without changing environmental scores
 for (const appearance of ['light', 'dark']) test(`landscape score and architectural guidance remain readable in ${appearance}`, async ({ page }, info) => {
   for (const width of [320, 375, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto(`/foundation/preview/expanded/?tab=home&appearance=${appearance}&motion=reduce&contrast=true&time=day`);
+    await page.goto(`/foundation/preview/expanded/?review=tools&tab=home&appearance=${appearance}&motion=reduce&contrast=true&time=day`);
     const landscape = page.locator('.halo-environment-scene');
     await expect(landscape).toBeVisible();
     const scenicBox = (await landscape.boundingBox())!;
