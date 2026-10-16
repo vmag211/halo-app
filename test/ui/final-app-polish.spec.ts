@@ -43,7 +43,7 @@ test('Homeguard uses the shared calendar with reserved icon space and manual dat
   await field.locator('..').getByRole('button',{name:'Choose date',exact:true}).click();
   const calendar = page.getByRole('dialog',{name:'Choose a date',exact:true});
   await page.screenshot({path:info.outputPath('home-date-picker-dark-320.png')});
-  await calendar.getByRole('button',{name:'Friday, October 16, 2026',exact:true}).click();
+  await calendar.getByRole('button',{name:/^Friday, October 16, 2026(?:, today)?$/}).click();
   await expect(field).toHaveValue('2026-10-16');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

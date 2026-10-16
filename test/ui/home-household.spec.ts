@@ -95,7 +95,7 @@ for (const appearance of ['light', 'dark']) test(`landscape score and architectu
     await expect(landscape).toBeVisible();
     const scenicBox = (await landscape.boundingBox())!;
     expect(scenicBox.height).toBeGreaterThanOrEqual(350);
-    const score = page.getByRole('img', { name: 'Your home score: 58 out of 100', exact: true });
+    const score = page.getByRole('img', { name: /^Your home score: 58 out of 100\. Inner arc shows the score\./ });
     await expect(score).toBeVisible();
     await expect(score.locator('.halo-score-orbit-value')).toHaveAttribute('stroke-dasharray', '58 42');
     const portrait = page.locator('.halo-home-portrait-art');

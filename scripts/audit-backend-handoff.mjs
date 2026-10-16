@@ -10,6 +10,8 @@ const outputIndex=process.argv.indexOf('--output');
 if(outputIndex>=0&&!process.argv[outputIndex+1])throw new Error('Supply the output directory after --output.');
 const out=path.resolve(root,outputIndex>=0?process.argv[outputIndex+1]:'tmp/backend-handoff-audit');
 const verify=process.argv.includes('--verify');
+const fromIndex=process.argv.includes('--index');
+const readSource=file=>fromIndex?execFileSync('git',['show',`:${file}`],{encoding:'utf8',maxBuffer:20*1024*1024}):fs.readFileSync(path.join(root,file),'utf8');
 if(!verify)fs.mkdirSync(out,{recursive:true});
 const tracked=execFileSync('git',['ls-files','-z'],{encoding:'utf8',maxBuffer:20*1024*1024}).split('\0').filter(Boolean);
 const normalize=s=>s.replace(/\s+/g,' ').trim();
@@ -32,7 +34,7 @@ function owner(node){for(let n=node;n;n=n.parent){if((ts.isFunctionDeclaration(n
 const files=tracked.filter(f=>/^(components|app)\/.+\.(tsx|jsx)$/.test(f));
 const controls=[]; const manifest=[];
 for(const file of files){
- const source=fs.readFileSync(path.join(root,file),'utf8');
+ const source=readSource(file);
  const sf=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  manifest.push({file,sha256:crypto.createHash('sha256').update(source).digest('hex'),domain:domain(file)});
  function visit(n){
@@ -54,7 +56,7 @@ for(const file of files){
 const typeFiles=tracked.filter(f=>/^lib\/frontend\/.+\.ts$/.test(f)&&!f.includes('/copy/'));
 const declarations=[];
 const typeManifest=[];
-for(const file of typeFiles){const source=fs.readFileSync(path.join(root,file),'utf8');typeManifest.push({file,sha256:crypto.createHash('sha256').update(source).digest('hex'),domain:domain(file)});const sf=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true);for(const n of sf.statements){if((ts.isTypeAliasDeclaration(n)||ts.isInterfaceDeclaration(n))&&n.modifiers?.some(m=>m.kind===ts.SyntaxKind.ExportKeyword)){declarations.push({file,line:sf.getLineAndCharacterOfPosition(n.getStart(sf)).line+1,name:n.name.getText(sf),text:n.getText(sf)});}}}
+for(const file of typeFiles){const source=readSource(file);typeManifest.push({file,sha256:crypto.createHash('sha256').update(source).digest('hex'),domain:domain(file)});const sf=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true);for(const n of sf.statements){if((ts.isTypeAliasDeclaration(n)||ts.isInterfaceDeclaration(n))&&n.modifiers?.some(m=>m.kind===ts.SyntaxKind.ExportKeyword)){declarations.push({file,line:sf.getLineAndCharacterOfPosition(n.getStart(sf)).line+1,name:n.name.getText(sf),text:n.getText(sf)});}}}
 const ledger=['## Appendix A. Executable interface control ledger','',
  'Generated from tracked current components and route JSX using the TypeScript parser. Every statically declared native control and every JSX element with an event callback, navigation target, form action or download is listed. Repeated data-driven rows are represented by their source control; runtime records are covered by the corresponding domain contract. This is a traceability index, not proof that callbacks already call production services. Labels and handlers are source expressions, not replacement product copy. Review-only controls and local presentation actions are intentionally visible here so they cannot accidentally become production service requirements. Consult the named owner function for complex inline closures.','',
  `Scanned ${files.length} JSX source files; found ${controls.length} control declarations. Native browser interactions and global effects are covered by shared contracts and the source-file register.`, ''];
@@ -62,8 +64,8 @@ for(const file of files){const rows=controls.filter(c=>c.file===file);if(!rows.l
 const types=['## Appendix B. Existing frontend transport and domain type register','',
  'These are extracted existing frontend types, including review models. They are evidence of required fields and adapter work, not automatic approval of a production database schema or fixture defaults. Server contracts in the main document govern authority, privacy, state semantics and proposed additions. Imports/references use their original repository names. Cosmetic component types do not require network storage.',''];
 for(const file of typeFiles){const rows=declarations.filter(t=>t.file===file);if(!rows.length)continue;types.push(`### ${file}`,'','```ts',rows.map(r=>`// Source line ${r.line}\n${r.text}`).join('\n\n'),'```','');}
-const hashes=['## Appendix C. Audited frontend source fingerprints','','SHA-256 of the checked-out bytes at audit time. The pinned Git commits locate backend, requirements, tests and other source. Line-ending changes can alter a byte hash without a semantic change; review that difference explicitly. These hashes do not certify deployed code or include secrets.','','| Source | SHA-256 |','| --- | --- |',...[...manifest,...typeManifest].map(row=>`| ${row.file} | ${row.sha256} |`),''];
-const result={version:2,head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),files:manifest,typeFiles:typeManifest,controls,declarations:declarations.map(({text,...row})=>row),totals:{jsxFiles:files.length,controls:controls.length,exportedTypes:declarations.length,fingerprintedFiles:manifest.length+typeManifest.length}};
+const hashes=['## Appendix C. Audited frontend source fingerprints','',`SHA-256 of the ${fromIndex?'staged Git index':'checked-out'} bytes at audit time. The pinned Git commits locate backend, requirements, tests and other source. Line-ending changes can alter a byte hash without a semantic change; review that difference explicitly. These hashes do not certify deployed code or include secrets.`,'','| Source | SHA-256 |','| --- | --- |',...[...manifest,...typeManifest].map(row=>`| ${row.file} | ${row.sha256} |`),''];
+const result={version:2,head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),files:manifest,typeFiles:typeManifest,controls,declarations:declarations.map(({file,line,name})=>({file,line,name})),totals:{jsxFiles:files.length,controls:controls.length,exportedTypes:declarations.length,fingerprintedFiles:manifest.length+typeManifest.length}};
 if(verify){
  const doc=fs.readFileSync(path.join(root,'docs/product/HALO_COMPLETE_BACKEND_HANDOFF.md'),'utf8').replace(/\r\n/g,'\n');
  const failures=[];

@@ -228,8 +228,10 @@ test('unknown send outcome blocks automatic retries even after internal navigati
   await page.getByRole('button', { name: 'Confirm send' }).click();
   await expect(page.getByText(/Check the existing attempt before retrying/)).toBeVisible();
   await page.getByRole('button', { name: 'Open my notes', exact: true }).first().click();
+  await expect(page.locator('[data-explore-section="observations"]')).toBeVisible();
   await page.getByLabel('Explore resources', { exact: true }).click();
   await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
+  await expect(page.locator('[data-explore-section="outreach"]')).toBeVisible();
   await page.getByRole('button', { name: 'Review what you will share' }).click();
   await page.getByText('Send with Gmail', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Review send', exact: true })).toBeDisabled();

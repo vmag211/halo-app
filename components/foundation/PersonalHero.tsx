@@ -26,6 +26,7 @@ import RisingSun from './RisingSun';
 import { useStageRuntime } from './StageRuntime';
 import { previewOverviewScore } from '@/lib/frontend/overview-preview';
 import ScoreTransparency from './ScoreTransparency';
+import OverviewScoreOrbit from './OverviewScoreOrbit';
 import './environment-briefing.css';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
@@ -53,7 +54,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     <section className="halo-environment-summary" aria-label={`${home ? 'Homeguard' : 'Today'} overview`}>
       <div className="halo-environment-scene"><EnvironmentalScene variant={home ? 'home' : 'landscape'} />
         <div className="halo-environment-heading"><div><span className="halo-ph-kicker">{home ? 'Homeguard' : 'Today'}</span><h2>{home ? 'Around your home' : 'Know the day ahead.'}</h2>{!home && runtime && areaLabel?.trim() ? <p className="halo-environment-area">Home area: {displayText(areaLabel)}</p> : <p>{home ? 'Area evidence, separate from your home tests.' : 'Air, sunlight, pollen and outdoor moisture.'}</p>}</div></div>
-        <div className="halo-environment-scoreline"><OverviewScoreOrbit score={score} home={home} partial={partial} /><div><strong>{home ? 'Home context score' : 'Today’s overview'}</strong><SeverityPill severity={severity} /><small>{missing ? 'Missing data is not an all-clear.' : partial ? 'Partial coverage · Higher is better' : 'Higher is better'}</small></div></div>
+        <div className="halo-environment-scoreline"><OverviewScoreOrbit score={score} home={home} partial={partial} segments={segments} /><div><strong>{home ? 'Home context score' : 'Today’s overview'}</strong><SeverityPill severity={severity} /><small>{missing ? 'Missing data is not an all-clear.' : partial ? 'Partial coverage · Higher is better' : 'Higher is better'}</small><small className="halo-score-orbit-key">Inner arc: score<br />Outer ring: risk shares</small></div></div>
         <div className="halo-environment-scene-bar"><span><Leaf size={14} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
       </div>
       <p className="halo-environment-updated">{overview ? overview.asOf : 'Updated September 30, 2026'}</p>
@@ -74,22 +75,6 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     </section>
     {!home && <HouseholdContext familyHref={familyHref} />}
     {home && memberHref && <div className="halo-home-management"><HomeHousehold memberHref={memberHref} /></div>}
-  </div>;
-}
-
-/** The arc represents only the supplied 0–100 score, never factor risk shares. */
-function OverviewScoreOrbit({ score, home, partial }: { score: number | null; home: boolean; partial: boolean }) {
-  const available = score !== null && Number.isFinite(score);
-  const progress = available ? Math.max(0, Math.min(100, score)) : 0;
-  return <div className="halo-environment-score halo-score-orbit" data-empty={!available} data-partial={partial} role="img" aria-label={`${home ? 'Your home score' : 'Your personal score'}: ${available ? `${score} out of 100` : 'Not available'}${partial ? '. Partial coverage' : ''}`}>
-    <svg viewBox="0 0 180 180" aria-hidden="true">
-      <circle className="halo-score-orbit-shell" cx="90" cy="90" r="87" />
-      <circle className="halo-score-orbit-ticks" cx="90" cy="90" r="79" pathLength="100" strokeDasharray=".35 1.65" />
-      <circle className="halo-score-orbit-track" cx="90" cy="90" r="68" />
-      {available && progress > 0 && <circle className="halo-score-orbit-value" cx="90" cy="90" r="68" pathLength="100" strokeDasharray={`${progress} ${100 - progress}`} transform="rotate(-90 90 90)" />}
-      <circle className="halo-score-orbit-inner" cx="90" cy="90" r="57" />
-    </svg>
-    <div className="halo-score-orbit-number" aria-hidden="true"><strong>{available ? <AnimatedNumber value={score} /> : 'N/A'}</strong><span>{available ? 'out of 100' : 'No reading'}</span></div>
   </div>;
 }
 

@@ -1,5 +1,7 @@
 # HALO App
 
+Current frontend branch: `codex/october15-review-refinement`. Vibhav's complete current wiring packet is [HALO_BACKEND_WIRING_CURRENT.md](docs/product/HALO_BACKEND_WIRING_CURRENT.md), with [current status and backend gaps](docs/continuation/FRONTEND_WIRING_CLOSEOUT.md) and [verification evidence](docs/continuation/FRONTEND_WIRING_VERIFICATION.md). Download the full packet; its final line is `HALO-WIRING-PACKET-END`. Older branch references below are historical.
+
 HALO's production frontend reuses the reviewed mobile screens for My Week, Today, Homeguard and Explore. Backend integration is documented in [the frontend integration guide](docs/continuation/FRONTEND_INTEGRATION_READY.md).
 
 - [Verification and integration limits](docs/continuation/FRONTEND_INTEGRATION_VERIFICATION.md)

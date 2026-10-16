@@ -1,5 +1,9 @@
 # HALO frontend continuation
 
+## Current checkpoint: October 16 wiring closeout
+
+Use `codex/october15-review-refinement`, [the current closeout](FRONTEND_WIRING_CLOSEOUT.md), [verification](FRONTEND_WIRING_VERIFICATION.md), and [the complete assembled backend packet](../product/HALO_BACKEND_WIRING_CURRENT.md). This supersedes the October 13 branch/status pointers below, not their domain contracts. Preserve the October 16 score animation/risk-share distinction, current responsive layouts, optional palette, privacy boundaries and unchanged approved archives. The backend's latest handoff reports a truncated supplied spec; the assembled packet includes all 1,630 baseline requirement IDs and the current frontend contracts. Do not claim provider integration from frontend test results.
+
 ## Current implementation checkpoint: October 13, 2026
 
 The current frontend branch is `codex/frontend-integration-ready-2026-10-13`. Yogi explicitly requested full production frontend implementation with the reviewed visuals preserved and a GitHub handoff for Vibhav. Start with [the integration guide](FRONTEND_INTEGRATION_READY.md), [verification receipt](FRONTEND_INTEGRATION_VERIFICATION.md), and the linked domain contracts. The older transfer instructions below are historical and do not mean this work is still unstarted.

@@ -1,5 +1,7 @@
 # HALO complete backend and frontend integration handoff
 
+**October 16 current-packet pointer:** use [HALO_BACKEND_WIRING_CURRENT.md](HALO_BACKEND_WIRING_CURRENT.md) on `codex/october15-review-refinement`. It includes this entire historical packet plus current production adapters, later review deltas, complete baseline requirements and a fresh interface audit. The snapshot, hashes and statuses below remain historical; they are not rewritten to imply current live acceptance.
+
 Prepared for Vibhav. Audit date: October 13, 2026. Status: implementation specification and repository audit, not a claim that the backend is deployed or that the production frontend is connected. This file is the single handoff document. It incorporates the completed full-app wireframes and the later user decisions, rather than only the original Today/Homeguard application.
 
 ## 1. How to use this handoff
