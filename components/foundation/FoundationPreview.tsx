@@ -30,6 +30,7 @@ import HomeOverviewWorkspace from '@/components/expanded/HomeOverviewWorkspace';
 import { destinations, isDestination } from '@/lib/frontend/expanded-preview';
 import type { AppTab } from '@/lib/frontend/navigation';
 import AlertCenter,{useAlertInbox} from '@/components/expanded/AlertCenter';
+import {colorPalette} from '@/lib/frontend/settings-preview';
 import type {SettingsProps} from '@/components/expanded/SettingsWorkspace';
 import {useHomeDraft,useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
 import '@/components/expanded/interface-refinement.css';
@@ -51,6 +52,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
   const workspace = useHomeWorkspace();
   const savedAppearance = workspace.drafts['halo-appearance'];
   const ambient = workspace.drafts['halo-ambient'] !== false;
+  const palette=colorPalette(workspace.drafts['halo-palette']??preferences.palette);
   const [appliedAppearance, setAppliedAppearance] = useState<unknown>(savedAppearance);
   const savedDisplay=workspace.drafts['halo-display'] as SettingsProps['display']|undefined;
   const [appliedDisplay,setAppliedDisplay]=useState(savedDisplay);
@@ -72,12 +74,13 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
     const url = new URL(window.location.href);
     // Only review settings live in the URL. No household information is persisted.
     url.searchParams.set('appearance', mode);
+    url.searchParams.set('palette', palette);
     url.searchParams.set('scale', scale);
     url.searchParams.set('motion', String(motion));
     url.searchParams.set('contrast', String(contrast));
     url.searchParams.set('time', time);
     window.history.replaceState(window.history.state, '', url);
-  }, [mode, scale, motion, contrast, time, productionRoute]);
+  }, [mode, palette, scale, motion, contrast, time, productionRoute]);
   function changeScenario(value: FoundationScenario) {
     const url = new URL(window.location.href);
     ['tab', 'sheet', 'learn'].forEach(key => url.searchParams.delete(key));
@@ -97,7 +100,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
       <p>Scene lighting follows the device’s local clock, independently of app appearance. This is decorative scenery, not local weather or a sunrise forecast. Play animations overrides the device preference for this preview only.</p>
       <PreviewHouseholdPicker />
     </details>}
-    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time} ambient={!expanded || ambient}><Product productionRoute={productionRoute} expanded={expanded} key={`${scenario}:${productionRoute ?? ''}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} onDisplay={next=>{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);}} /></SceneProvider></ExpandedMode>
+    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time} ambient={!expanded || ambient}><Product productionRoute={productionRoute} expanded={expanded} key={`${scenario}:${productionRoute ?? ''}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} palette={palette} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} onDisplay={next=>{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=>colorPalette(next.palette));}} /></SceneProvider></ExpandedMode>
   </div>;
 }
 
@@ -113,7 +116,7 @@ function startingSheet(scenario: FoundationScenario): SheetState | null {
   return { type: 'learn', height: 'standard', topic: 'air', state: ['loading', 'error', 'empty'].includes(state) ? state as SheetState['state'] : undefined };
 }
 
-function Product({ expanded, scenario, initialFactor, initialFamily, initialMember, appearance, scale, contrast, motion, time,onDisplay, productionRoute }: { expanded: boolean; scenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; appearance: string; scale: number; contrast: boolean; motion: MotionMode; time: SceneTime;onDisplay:SettingsProps['onDisplay'];productionRoute?: PreviewRoute }) {
+function Product({ expanded, scenario, initialFactor, initialFamily, initialMember, appearance, palette, scale, contrast, motion, time,onDisplay, productionRoute }: { expanded: boolean; scenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; appearance: string; palette: ReturnType<typeof colorPalette>; scale: number; contrast: boolean; motion: MotionMode; time: SceneTime;onDisplay:SettingsProps['onDisplay'];productionRoute?: PreviewRoute }) {
   const homeWorkspace=useHomeWorkspace();
   const homeChanged=!productionRoute&&expanded&&Boolean(homeWorkspace.collections.homeTransitions?.length);
   const router = useRouter();
@@ -286,17 +289,17 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   if (initialFamily && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FamilyGuidance scenario={current} factorHref={factorHref} parentHref={previewHref('today')} />;
   if (initialMember && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <HomeMemberGuidance member={initialMember} scenario={current} memberHref={memberHref} factorHref={factorHref} parentHref={`${previewHref('home')}#household`} />;
   const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
-  if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} href={expandedHref} factorHref={factorHref} onAlerts={()=>openSheet({type:'alerts',height:'tall'})} display={{scale:String(Math.round(scale*100)),motion,contrast,appearance}} onDisplay={onDisplay} />;
+  if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} href={expandedHref} factorHref={factorHref} onAlerts={()=>openSheet({type:'alerts',height:'tall'})} display={{scale:String(Math.round(scale*100)),motion,contrast,appearance,palette}} onDisplay={onDisplay} />;
   if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
     content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : <ExpandedPlan href={expandedHref} scoreScenario={current} />;
   } else if (showExpanded && !initialFactor && (route === 'today' || route === 'home')) {
     content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
   }
-  if(!productionRoute && expanded && search.get('access')==='public') return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined="true" style={{'--halo-text-scale':scale} as CSSProperties}><PublicBrowse mapHref={mapHref('water')+'&access=public'}/></div>;
+  if(!productionRoute && expanded && search.get('access')==='public') return <div className="halo-app halo-f-app halo-learn-shell" data-testid="foundation-product" data-refined="true" data-palette={palette} data-contrast={contrast?'high':'normal'} style={{'--halo-text-scale':scale} as CSSProperties}><PublicBrowse mapHref={mapHref('water')+'&access=public'}/></div>;
   const activeTab = route === 'settings' ? null : destination && isDestination(destination) ? destinations[destination].tab : route === 'map' ? 'act' : route === 'journal' ? 'plan' : route as AppTab;
   const dashboardHeader=showExpanded && route==="plan" && !destination && !inDetail;
-  return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined={expanded} data-responsive={expanded} data-sidebar-collapsed={sidebarCollapsed} data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
-    {!isGate && expanded && <><a className="halo-skip-content" href="#halo-main-content">Skip to content</a><AppSidebar active={activeTab} collapsed={sidebarCollapsed} onCollapse={()=>setSidebarCollapsed(!sidebarCollapsed)} href={previewHref} onNavigate={navigate} journalHref={expandedHref('plan','journal')} mapHref={mapHref('water')} learnHref={productionRoute?'/learn':`${expandedHref('plan')}&access=public`} settingsHref={previewHref('settings')}/></>}
+  return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined={expanded} data-palette={palette} data-responsive={expanded} data-sidebar-collapsed={sidebarCollapsed} data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
+    {!isGate && expanded && <><a className="halo-skip-content" href="#halo-main-content">Skip to content</a><AppSidebar active={activeTab} collapsed={sidebarCollapsed} onCollapse={()=>setSidebarCollapsed(!sidebarCollapsed)} href={previewHref} onNavigate={navigate} journalHref={expandedHref('plan','journal')} mapHref={mapHref('water')} learnHref={productionRoute?`/learn?appearance=${appearance}&palette=${palette}&contrast=${contrast}&scale=${Math.round(scale*100)}`:`${expandedHref('plan')}&access=public`} settingsHref={previewHref('settings')}/></>}
     {expanded && <InterfaceMotion />}
     <EnvironmentalScene page variant={initialFactor ?? (route === 'home' ? 'home' : 'landscape')} />
     {!isGate && <header className="halo-f-header">{dashboardHeader&&<button className="halo-f-icon halo-f-bell mw-home-alerts" aria-label={c.unread(unread)} onClick={()=>openSheet({type:"alerts",height:"standard"})}><Bell size={22} aria-hidden="true"/>{unread>0&&<span className="halo-f-badge">{unread>9?"9+":unread}</span>}</button>}{inDetail ? <Link className="halo-f-icon" href={previewHref(backTab)} aria-label={`Back to ${routeTitles[backTab]}`} prefetch={false}><ArrowLeft size={22} aria-hidden="true" /></Link> : route === 'settings' && <button className="halo-f-icon" aria-label={c.labels.back} onClick={backFromSettings}><ArrowLeft size={22} aria-hidden="true" /></button>}<h1>{initialMember ? memberCatalog[initialMember].label : initialFamily ? 'Your household' : initialFactor ? factorReadings[initialFactor].title : routeTitles[route]}</h1><div className="halo-f-header-actions">{(dashboardHeader || showExpanded && route === 'settings') && assistantEnabled && !sheet && <button className="halo-f-icon halo-f-assistant mw-header-luna" aria-label={c.labels.assistant} onClick={()=>openSheet({type:"assistant",height:"tall"})}><LunaMark size={24}/></button>}{route === 'today' && !inDetail && <button className="halo-f-icon halo-f-bell" aria-label={c.unread(unread)} onClick={() => openSheet({ type: 'alerts', height: 'standard' })}><Bell size={22} aria-hidden="true" />{unread > 0 && <span className="halo-f-badge">{unread > 9 ? '9+' : unread}</span>}</button>}{route !== 'settings' && <button className="halo-f-icon" aria-label={c.labels.settings} onClick={() => navigate('settings')}><Settings size={22} aria-hidden="true" /></button>}</div></header>}

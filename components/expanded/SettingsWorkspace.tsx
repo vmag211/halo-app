@@ -8,7 +8,7 @@ import {usePreviewHousehold} from '@/components/foundation/PreviewHousehold';
 import LunaMark from '@/components/foundation/LunaMark';
 import {homeMemberKeys,memberCatalog} from '@/lib/frontend/home-household';
 import type {FactorKey} from '@/lib/frontend/factor-preview';
-import {initialSettings,mergeUnedited,appearancePreference,appearancePreferenceKey,type AppearancePreference,type SettingsValues} from '@/lib/frontend/settings-preview';
+import {initialSettings,mergeUnedited,appearancePreference,appearancePreferenceKey,colorPalette,type ColorPalette,type AppearancePreference,type SettingsValues} from '@/lib/frontend/settings-preview';
 import {polishCopy as c} from '@/lib/frontend/copy/app-polish';
 import {useExpandedPreview} from './ExpandedPreviewState';
 import {SettingsHome,SettingsNotifications,SettingsDisplay,SettingsLuna,SettingsAbout} from './SettingsPanels';
@@ -18,7 +18,7 @@ import './app-polish.css';
 import './settings-refinement.css';
 
 export type SettingPanel=keyof typeof c.sections;
-export type SettingsProps={offline:boolean;href:(tab:string,destination?:string)=>string;factorHref:(factor:FactorKey)=>string;onAlerts:()=>void;display:{scale:string;motion:'system'|'full'|'reduce';contrast:boolean;appearance?:string;ambient?:boolean};onDisplay:(next:{scale:string;motion:'system'|'full'|'reduce';contrast:boolean;appearance?:string;ambient?:boolean})=>void};
+export type SettingsProps={offline:boolean;href:(tab:string,destination?:string)=>string;factorHref:(factor:FactorKey)=>string;onAlerts:()=>void;display:{scale:string;motion:'system'|'full'|'reduce';contrast:boolean;appearance?:string;ambient?:boolean;palette?:ColorPalette};onDisplay:(next:{scale:string;motion:'system'|'full'|'reduce';contrast:boolean;appearance?:string;ambient?:boolean;palette?:ColorPalette})=>void};
 export type PanelProps={draft:SettingsValues;change:(next:SettingsValues)=>void;blocked:boolean};
 export type CalendarSettings={zone:string;streak:boolean;linked:boolean};
 type SettingEdit={values:SettingsValues;baseline:string;display?:SettingsProps['display'];calendar?:CalendarSettings;appearance?:AppearancePreference;ambient?:boolean};
@@ -33,7 +33,7 @@ export default function SettingsWorkspace(props:SettingsProps){
  const [drafts,setDrafts]=useHomeDraft<Partial<Record<SettingPanel,SettingEdit>>>('settings:edits',{});
  const [appearance,setAppearance]=useHomeDraft<AppearancePreference>(appearancePreferenceKey,appearancePreference(props.display.appearance));
  const [ambient,setAmbient]=useHomeDraft('halo-ambient',props.display.ambient??true);
- const currentDisplay={scale:props.display.scale,motion:props.display.motion,contrast:props.display.contrast};
+ const currentDisplay={scale:props.display.scale,motion:props.display.motion,contrast:props.display.contrast,palette:colorPalette(props.display.palette)};
  const [query,setQuery]=useState(''),[message,setMessage]=useState('');
  const [baseline,setBaseline]=useState('');
  const [zone,setZone]=useHomeDraft('week:zone','America/New_York'),[streak,setStreak]=useHomeDraft('week:streak',false),[linked,setLinked]=useHomeDraft('week:include-record-dates',true);
@@ -86,12 +86,12 @@ export default function SettingsWorkspace(props:SettingsProps){
   // Review mode stays local. Production applies only its canonical receipt.
   let submitted=panel==='home'?{...values,home:current.home}:panel==='notifications'?{...values,notifications:current.notifications,quiet:current.quiet}:panel==='luna'?{...values,luna:current.luna}:panel==='display'?{...values,language:current.language}:values;
   let acceptedDisplay=displayDraft,acceptedCalendar=calendarDraft,acceptedAppearance=appearanceDraft,acceptedAmbient=ambientDraft;
-  if(production){const saved=await production.save({group:panel,values:submitted,...(panel==='home'?{household:householdDraft}:{}),...(panel==='display'?{display:{...displayDraft,appearance:appearanceDraft,ambient:ambientDraft},calendar:calendarDraft}:{})});if(!saved){setPending(false);lock.current=false;return;}submitted=saved.values;acceptedDisplay={scale:saved.display.scale,motion:saved.display.motion,contrast:saved.display.contrast};acceptedCalendar=saved.calendar;acceptedAppearance=saved.display.appearance;acceptedAmbient=saved.display.ambient;if(panel==='home'||(panel==='display'&&submitted.language!==values.language))window.dispatchEvent(new Event('halo:settings-changed'));}
+  if(production){const saved=await production.save({group:panel,values:submitted,...(panel==='home'?{household:householdDraft}:{}),...(panel==='display'?{display:{...displayDraft,appearance:appearanceDraft,ambient:ambientDraft},calendar:calendarDraft}:{})});if(!saved){setPending(false);lock.current=false;return;}submitted=saved.values;acceptedDisplay={scale:saved.display.scale,motion:saved.display.motion,contrast:saved.display.contrast,palette:colorPalette(saved.display.palette)};acceptedCalendar=saved.calendar;acceptedAppearance=saved.display.appearance;acceptedAmbient=saved.display.ambient;if(panel==='home'||(panel==='display'&&submitted.language!==values.language))window.dispatchEvent(new Event('halo:settings-changed'));}
   setValues(submitted);clearDraft();
   if(panel==='home'&&!production){homeMemberKeys.forEach(key=>setBand(key,householdDraft[memberCatalog[key].band]));preview.setHouseholdDraft(null);}
   if(panel==='display'){props.onDisplay({...acceptedDisplay,appearance:acceptedAppearance,ambient:acceptedAmbient});setZone(acceptedCalendar.zone);setStreak(acceptedCalendar.streak);setLinked(acceptedCalendar.linked);setAppearance(acceptedAppearance);setAmbient(acceptedAmbient);}
   setBaseline(JSON.stringify({values:submitted,bands:panel==='home'?householdDraft:bands,display:panel==='display'?acceptedDisplay:currentDisplay,calendar:panel==='display'?acceptedCalendar:{zone,streak,linked},appearance:panel==='display'?acceptedAppearance:appearancePreference(appearance),ambient:panel==='display'?acceptedAmbient:ambient}));
-  setMessage(c.saved);setPending(false);lock.current=false;
+  setMessage(panel==='display'&&colorPalette(displayDraft.palette)!==colorPalette(acceptedDisplay.palette)?'Your settings were saved. This connection kept the default color theme.':c.saved);setPending(false);lock.current=false;
  }
  useEffect(()=>{if(production?.conflict)queueMicrotask(()=>setMessage(c.conflict));},[production?.conflict]);
  const countRecords=Object.values(workspace.collections).reduce((n,rows)=>n+rows.length,0)+preview.actions.length;

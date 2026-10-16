@@ -69,6 +69,12 @@ The server must actually retrieve and verify those references. A `fact` label su
 
 ## Deployment and acceptance
 
+### October 16 optional color preference
+
+The existing settings snapshot and display-group save accept `display.palette?: 'ocean' | 'forest' | 'iris'`. This is independent of `appearance: 'system' | 'light' | 'dark'`. Persist and return the accepted palette in the canonical settings receipt and subsequent reads. Omission remains valid and falls back to Ocean; unsupported values are rejected. The frontend does not claim the selected palette was saved when a legacy receipt omits it, and explains that the default was retained. Unsaved choices stay drafts; Cancel, retained drafts, conflict rebase, unknown-outcome recovery and explicit Save remain unchanged. The selected private export includes the saved palette, not an unconfirmed draft. No new endpoint or provider is needed.
+
+Language preferences remain compatible with existing `en` / `es` values, but Spanish is explicitly marked Coming soon. A preference is not a claim that the app has been translated. Color palettes do not change risk thresholds, scientific factor colors or score values.
+
 The public homepage accepts an optional `HALO_PUBLIC_ORIGIN` HTTPS origin for canonical metadata. Configure it only after the deployed domain is verified. Private app routes remain noindex. The isolated review Site is not the production app origin and does not connect to backend services.
 
 Before release, run the connected concern-to-result workflow, project generation, venue lookup/forecast, grounded Luna actions and reminder lifecycle using disposable accounts. Verify real persistence, access isolation, provider errors and retry recovery. Frontend contract tests use controlled responses and do not prove those services are deployed. Full reviewed Spanish and physical-device/screen-reader acceptance remain separate release decisions.

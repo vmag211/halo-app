@@ -1,34 +1,40 @@
-/* One planner surface, a purposeful supporting rail, and a quiet scene window. */
+/* A landscape arrival, a day-focused phone planner, and a desktop support rail. */
 .mw-workspace.mw-dashboard { container:halo-week / inline-size; gap:var(--halo-space-5,24px); }
-.mw-workspace.mw-dashboard .mw-command-header { display:grid; grid-template-columns:minmax(0,1fr) 120px; align-items:center; gap:var(--halo-space-4,16px); }
+.mw-workspace.mw-dashboard .mw-command-header { display:block; min-width:0; }
 .mw-command-copy { display:grid; justify-items:start; gap:var(--halo-space-2,8px); min-width:0; }
-.mw-command-copy time { font-size:calc(.78rem * var(--halo-text-scale)); color:var(--halo-secondary); }
-.mw-workspace.mw-dashboard .mw-command-copy h2 { margin:0; font:650 calc(1.38rem * var(--halo-text-scale))/1.15 var(--font-instrument),sans-serif; letter-spacing:-.04em; text-wrap:balance; }
+.mw-command-copy time { font-size:calc(.78rem * var(--halo-text-scale)); color:#deefee; }
+.mw-workspace.mw-dashboard .mw-command-copy h2 { margin:0; max-width:15ch; color:#f4fcfb; font:650 calc(1.7rem * var(--halo-text-scale))/1.12 var(--font-instrument),sans-serif; letter-spacing:-.04em; text-wrap:balance; }
 .mw-workspace.mw-dashboard .mw-command-copy .mw-add { margin-top:3px; min-height:44px; border-radius:var(--halo-control-radius,9px); padding:10px 15px; font-size:calc(.82rem * var(--halo-text-scale)); box-shadow:none; }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail { --week-scene-height:132px; margin:0; height:132px; min-width:0; border-radius:var(--halo-panel-radius,14px); isolation:isolate; }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail .mw-ambience-content { padding:0; min-height:0; }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail .mw-ambience-shade { background:linear-gradient(180deg,transparent 40%,rgb(6 27 38 / .7)); }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail .mw-ambience-controls { top:auto; bottom:6px; right:6px; gap:3px; }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail .mw-ambience-controls { padding:0; }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail .mw-ambience-name { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-.mw-workspace.mw-dashboard .mw-ambience-thumbnail .mw-ambience-controls button { width:44px; height:44px; min-width:44px; padding:0; background:rgb(6 27 38 / .65); color:#f5fffd; }
+.mw-workspace.mw-dashboard .mw-ambience-hero { --week-scene-height:236px; width:100%; margin:0; min-width:0; border-radius:var(--halo-panel-radius,14px); isolation:isolate; }
+.mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-content { padding:64px 20px 22px; }
+.mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-shade { background:linear-gradient(90deg,rgb(6 27 38 / .73),rgb(6 27 38 / .2) 70%),linear-gradient(180deg,transparent 25%,rgb(6 27 38 / .42)); }
+.mw-workspace.mw-dashboard .mw-ambience-hero::after { display:none; }
+.mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-controls { top:12px; bottom:auto; right:12px; gap:0; padding:0 0 0 10px; }
+.mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-name { font-size:calc(.68rem * var(--halo-text-scale)); }
+.mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-controls button { width:44px; height:44px; min-width:44px; padding:0; color:#f5fffd; }
 .mw-workspace.mw-dashboard .mw-dashboard-layout { align-items:start; gap:var(--halo-space-6,32px); }
 .mw-workspace.mw-dashboard .mw-dashboard-main,.mw-workspace.mw-dashboard .mw-dashboard-support { display:grid; align-content:start; min-width:0; gap:var(--halo-space-4,16px); }
 .mw-workspace.mw-dashboard .mw-dashboard-support > * { order:initial; min-width:0; }
 .mw-workspace.mw-dashboard .mw-planner { display:grid; min-width:0; overflow:clip; gap:var(--halo-space-4,16px); border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,14px); background:var(--halo-card); box-shadow:var(--halo-shadow-soft,none); padding:var(--halo-space-4,16px); }
 .mw-workspace.mw-dashboard .mw-calendar { margin:0; padding:0; border:0; background:none; box-shadow:none; border-radius:0; }
-.mw-workspace.mw-dashboard .mw-board-header { padding:0 0 13px; gap:12px; }
+.mw-workspace.mw-dashboard .mw-board-header { display:flex; padding:0 0 10px; gap:8px; flex-wrap:wrap; align-items:center; }
+.mw-workspace.mw-dashboard .mw-board-header > div:first-child { min-width:0; flex:1; }
+.mw-workspace.mw-dashboard .mw-board-header .mw-calendar-head { display:flex; gap:0; margin:0; flex:none; }
 .mw-workspace.mw-dashboard .mw-board-month { margin:0; font-size:calc(1.35rem * var(--halo-text-scale)); }
-.mw-board-range { color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); text-align:right; }
+.mw-board-range { display:block; margin-top:5px; color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); text-align:left; }
 .mw-workspace.mw-dashboard .mw-calendar-controls { flex-wrap:wrap; gap:8px; }
 .mw-workspace.mw-dashboard .mw-calendar-controls .mw-view-switch { flex:1 1 180px; background:var(--halo-page); border-radius:var(--halo-control-radius,9px); }
 .mw-workspace.mw-dashboard .mw-calendar-controls .mw-calendar-head { margin-left:auto; }
 .mw-workspace.mw-dashboard .mw-calendar-controls .mw-view-switch button { font-size:calc(.78rem * var(--halo-text-scale)); }
 .mw-workspace.mw-dashboard .mw-days { padding:12px 0; }
-.mw-workspace.mw-dashboard .mw-days button { border-radius:var(--halo-control-radius,9px); min-height:76px; }
+.mw-workspace.mw-dashboard .mw-days button { position:relative; border-radius:var(--halo-control-radius,9px); min-height:64px; padding:7px 2px; gap:3px; }
+.mw-workspace.mw-dashboard .mw-day-count { position:absolute; bottom:3px; right:3px; min-width:13px; min-height:13px; padding:1px 3px; border-radius:4px; background:var(--halo-page); color:var(--halo-ink); font-size:calc(.58rem * var(--halo-text-scale)); line-height:1.2; }
+.mw-workspace.mw-dashboard .mw-day-count[data-empty=true] { display:none; }
+.mw-workspace.mw-dashboard .mw-days .selected .mw-day-count { background:color-mix(in srgb,var(--halo-on-primary) 14%,transparent); color:var(--halo-on-primary); }
+.mw-workspace.mw-dashboard .mw-day-markers { min-height:3px; justify-self:start; max-width:35%; margin-left:4px; }
 .mw-workspace.mw-dashboard .mw-days button[data-today=true]:not(.selected) { background:color-mix(in srgb,var(--halo-primary) 8%,transparent); box-shadow:inset 0 -2px var(--halo-primary); }
 .mw-workspace.mw-dashboard .mw-days .selected { box-shadow:none; }
-.mw-workspace.mw-dashboard .mw-week-details { border-top:0; }
+.mw-workspace.mw-dashboard .mw-week-details { border-top:1px solid var(--halo-border); }
 .mw-workspace.mw-dashboard .mw-week-details > summary { min-height:44px; padding:0; font-size:calc(.78rem * var(--halo-text-scale)); color:var(--halo-secondary); }
 .mw-workspace.mw-dashboard .mw-filter { grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; border-top:1px solid var(--halo-border); padding-top:var(--halo-space-4,16px); }
 .mw-workspace.mw-dashboard .mw-filter input { font-size:calc(.82rem * var(--halo-text-scale)); background:var(--halo-page); border-color:transparent; }
@@ -77,26 +83,62 @@
 .mw-opportunity-handoff small { color:var(--halo-secondary); line-height:1.5; }
 .mw-opportunity-handoff .mw-handoff-actions { display:flex; flex-wrap:wrap; gap:10px; }
 @container halo-week (min-width:760px) {
-  .mw-workspace.mw-dashboard .mw-command-header { grid-template-columns:minmax(0,1fr) 280px; gap:32px; }
-  .mw-workspace.mw-dashboard .mw-command-copy h2 { font-size:calc(1.9rem * var(--halo-text-scale)); }
-  .mw-workspace.mw-dashboard .mw-ambience-thumbnail { --week-scene-height:124px; height:124px; }
+  .mw-workspace.mw-dashboard .mw-command-copy h2 { max-width:22ch; font-size:calc(2.35rem * var(--halo-text-scale)); }
+  .mw-workspace.mw-dashboard .mw-ambience-hero { --week-scene-height:280px; }
+  .mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-content { padding:70px 32px 30px; }
   .mw-workspace.mw-dashboard .mw-dashboard-layout { grid-template-columns:minmax(0,1fr) minmax(260px,30%); gap:var(--halo-space-6,32px); }
   .mw-workspace.mw-dashboard .mw-dashboard-support { padding-left:0; border-left:0; }
   .mw-workspace.mw-dashboard .mw-planner { padding:var(--halo-space-5,24px); }
   .mw-workspace.mw-dashboard .mw-calendar { padding:0; }
   .mw-workspace.mw-dashboard .mw-board-month { font-size:calc(1.65rem * var(--halo-text-scale)); }
-  .mw-workspace.mw-dashboard .mw-days button { min-height:86px; }
-  .mw-workspace.mw-dashboard .mw-month button { min-height:67px; }
+  .mw-workspace.mw-dashboard .mw-days button { min-height:64px; }
+  .mw-workspace.mw-dashboard .mw-month button { min-height:54px; }
+}
+@container halo-week (max-width:599px) {
+  .mw-workspace.mw-dashboard .mw-dashboard-layout { gap:28px; }
+  .mw-workspace.mw-dashboard .mw-planner { padding:0; border:0; border-radius:0; background:none; box-shadow:none; gap:12px; overflow:visible; }
+  .mw-workspace.mw-dashboard .mw-board-month { font-size:calc(1.1rem * var(--halo-text-scale)); gap:5px; }
+  .mw-workspace.mw-dashboard .mw-board-month small { font-size:calc(.65rem * var(--halo-text-scale)); }
+  .mw-workspace.mw-dashboard .mw-board-range { display:none; }
+  .mw-workspace.mw-dashboard .mw-board-header .mw-calendar-head .mw-text { padding:6px; min-width:44px; font-size:calc(.74rem * var(--halo-text-scale)); }
+  .mw-workspace.mw-dashboard .mw-calendar-controls { padding:0; }
+  .mw-workspace.mw-dashboard .mw-calendar-controls .mw-view-switch { width:100%; flex-basis:100%; padding:0; border-radius:0; background:none; border-bottom:1px solid var(--halo-border); }
+  .mw-workspace.mw-dashboard .mw-view-switch button { border-radius:0; background:none; border-bottom:2px solid transparent; }
+  .mw-workspace.mw-dashboard .mw-view-switch button[aria-pressed=true] { border-bottom-color:var(--halo-primary); color:var(--halo-primary); background:none; box-shadow:none; }
+  .mw-workspace.mw-dashboard .mw-days { grid-template-columns:repeat(7,minmax(44px,1fr)); overflow-x:auto; padding:8px 0 4px; gap:2px; scrollbar-width:thin; }
+  .mw-workspace.mw-dashboard .mw-days button { min-height:60px; min-width:44px; padding:8px 1px 4px; }
+  .mw-workspace.mw-dashboard .mw-days strong { font-size:calc(1.05rem * var(--halo-text-scale)); }
+  .mw-workspace.mw-dashboard .mw-month { grid-template-columns:repeat(7,minmax(0,1fr)); }
+  .mw-workspace.mw-dashboard .mw-month button { min-width:0; min-height:48px; }
+  .mw-workspace.mw-dashboard .mw-filter { border-top:0; padding-top:0; }
+  .mw-workspace.mw-dashboard .mw-filter input { background:var(--halo-card); border:1px solid var(--halo-border); }
+  .mw-workspace.mw-dashboard .mw-filter-button { width:46px; padding:0; background:var(--halo-card); }
+  .mw-workspace.mw-dashboard .mw-filter-button > span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .mw-workspace.mw-dashboard .mw-agenda { padding-top:6px; }
+  .mw-workspace.mw-dashboard .mw-day-heading { padding-bottom:8px; margin-bottom:4px; }
+  .mw-workspace.mw-dashboard .mw-task { border-left:0; padding:12px 0; }
+  .mw-workspace.mw-dashboard .mw-task-symbol { width:32px; height:32px; }
+  .mw-workspace.mw-dashboard .mw-day-empty { min-height:86px; background:var(--halo-card); }
+  .mw-workspace.mw-dashboard .mw-dashboard-support { padding-top:20px; border-top:1px solid var(--halo-border); }
+  .mw-workspace.mw-dashboard .mw-support-heading { padding-top:0; }
+  .mw-workspace.mw-dashboard .mw-support-heading > span { display:none; }
 }
 @container halo-week (max-width:340px) {
-  .mw-workspace.mw-dashboard .mw-command-header { grid-template-columns:minmax(0,1fr) 100px; gap:10px; }
-  .mw-workspace.mw-dashboard .mw-command-copy h2 { font-size:calc(1.2rem * var(--halo-text-scale)); }
-  .mw-workspace.mw-dashboard .mw-planner { padding:12px; }
-  .mw-workspace.mw-dashboard .mw-board-range { display:none; }
+  .mw-workspace.mw-dashboard .mw-ambience-hero { --week-scene-height:220px; }
+  .mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-content { padding-inline:16px; }
+  .mw-workspace.mw-dashboard .mw-command-copy h2 { font-size:calc(1.5rem * var(--halo-text-scale)); }
 }
-.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-command-header { grid-template-columns:minmax(0,1fr); }
-.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-ambience-thumbnail { --week-scene-height:88px; height:88px; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-content { padding-top:80px; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-board-header { align-items:start; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-board-header > div:first-child { flex-basis:100%; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-board-header .mw-calendar-head { margin-left:auto; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-days { grid-template-columns:repeat(7,minmax(48px,1fr)); overflow-x:auto; max-width:100%; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-month { grid-template-columns:repeat(7,minmax(0,1fr)); }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .mw-workspace.mw-dashboard .mw-day-count { position:static; }
+.halo-f-app[data-contrast=high] .mw-workspace.mw-dashboard .mw-command-copy :is(h2,time) { color:var(--halo-ink); }
+.halo-f-app[data-contrast=high] .mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-controls button { color:var(--halo-ink); }
 .halo-f-app[data-contrast=high] .mw-workspace.mw-dashboard .mw-next-action { background:var(--halo-card); border:1px solid var(--halo-ink); }
 @media(forced-colors:active) {
   .mw-next-action,.mw-reminder-badge { background:Canvas; color:ButtonText; border:1px solid ButtonText; }
+  .mw-workspace.mw-dashboard .mw-command-copy :is(h2,time),.mw-workspace.mw-dashboard .mw-ambience-hero .mw-ambience-controls button { color:CanvasText; }
 }

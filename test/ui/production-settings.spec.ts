@@ -36,9 +36,9 @@ test('display edits apply only after canonical receipt and load unchanged on ano
  let current=structuredClone(settingsSnapshot),saves=0;
  const network=await mockProduction(page,{'/api/settings':async route=>{if(route.request().method()==='GET'){await jsonRoute(route,current);return;}saves++;const input=route.request().postDataJSON();expect(route.request().headers()['if-match']).toBe(String(current.revision));expect(route.request().headers()['idempotency-key']).toBe(input.operationId);current={...current,revision:current.revision+1,values:input.values,display:input.display,calendar:input.calendar};await jsonRoute(route,{operationId:input.operationId,status:'succeeded',snapshot:current});}});
  await page.goto('/settings');await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');await page.locator('[data-setting-panel="display"]').click();
- await page.getByRole('radio',{name:'Light',exact:true}).check();await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');
- await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','light');expect(saves).toBe(1);
- await page.reload();await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','light');expect(saves).toBe(1);expect(network.blocked).toEqual([]);
+ await page.getByRole('radio',{name:'Light',exact:true}).check();await page.getByRole('radio',{name:'Forest',exact:true}).check();await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-palette','ocean');
+ await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','light');await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-palette','forest');expect(saves).toBe(1);expect(current.display).toMatchObject({palette:'forest',appearance:'light'});
+ await page.reload();await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','light');await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-palette','forest');await expect(page.getByRole('radio',{name:'Forest',exact:true})).toBeChecked();expect(saves).toBe(1);expect(network.blocked).toEqual([]);
 });
 
 test('unconfirmed settings save retains the choice and reconciles before any new mutation',async({page})=>{

@@ -1,4 +1,4 @@
-/* Shared review treatment. Archived designs and live adapters remain untouched. */
+/* Shared treatment. Palettes never recolor measured risk or severity categories. */
 .halo-f-app[data-refined=true] {
   --font-fraunces:var(--font-onest);
   --halo-page:light-dark(#f4f8fa,#0b1c2a);
@@ -22,6 +22,25 @@
 .halo-f-app[data-refined=true][data-contrast=high] {
   --halo-secondary:var(--halo-ink);
   --halo-border:light-dark(#507181,#a9c9d8);
+}
+.halo-f-app[data-refined=true][data-palette=forest] {
+  --halo-page:light-dark(#f2f7f2,#0c211e); --halo-card:light-dark(#fcfefb,#17372e);
+  --halo-ink:light-dark(#163c30,#e9f5ec); --halo-secondary:light-dark(#4a6b5d,#b1cbbb);
+  --halo-primary:light-dark(#256a48,#93d4a6); --halo-on-primary:light-dark(#ffffff,#123020);
+  --halo-border:light-dark(#cbded0,#365b49); --halo-tint:light-dark(#dfefdf,#294e3a);
+  --halo-sky-wash:light-dark(#e8f2ef,#1d3838); --halo-sage-wash:light-dark(#e7f0de,#2b3e29);
+  --halo-lilac-wash:light-dark(#efeff1,#303b3e);
+}
+.halo-f-app[data-refined=true][data-palette=iris] {
+  --halo-page:light-dark(#f6f4fa,#191c30); --halo-card:light-dark(#fefcff,#292e47);
+  --halo-ink:light-dark(#383151,#f0eef9); --halo-secondary:light-dark(#68607c,#c4c0da);
+  --halo-primary:light-dark(#6b4ca3,#c5b1f0); --halo-on-primary:light-dark(#ffffff,#2c2045);
+  --halo-border:light-dark(#ded7eb,#484964); --halo-tint:light-dark(#ece4f8,#423957);
+  --halo-sky-wash:light-dark(#eaf0f8,#29384d); --halo-sage-wash:light-dark(#edf3ef,#293d3d);
+  --halo-lilac-wash:light-dark(#eee7f8,#37334e);
+}
+.halo-f-app[data-refined=true][data-contrast=high] {
+  --halo-secondary:var(--halo-ink); --halo-border:var(--halo-ink);
 }
 .halo-f-app[data-refined=true] :is(h1,h2,h3,h4) { font-family:var(--font-onest),Arial,sans-serif; }
 /* Small controls retain generous hit areas without expanding the mobile shell. */

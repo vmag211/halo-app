@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const [tab, selector, name, initiallyVisible] of [
-  ['home', '.how-priority', 'how-priority', true],
+  ['home', '.how-priority', 'how-priority', false],
   ['home', '.halo-home-household', 'halo-home-household', false],
   ['act', '.ex-place-context', 'ex-place-context', false],
 ] as const) test(`${tab} reveals ${name} ${initiallyVisible ? 'in the first viewport' : 'when scrolled into view'}`, async ({ page }, info) => {
@@ -58,7 +58,7 @@ for (const [tab, selector, name, initiallyVisible] of [
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await surface.evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
   expect((await calls(page)).filter(value => value.includes(name))).toHaveLength(count);
-  if (initiallyVisible) {
+  if (name==='how-priority') {
     const grid = page.locator('.how-overview');
     await grid.scrollIntoViewIfNeeded();
     await expect(grid).toHaveAttribute('data-interface-managed', 'true');

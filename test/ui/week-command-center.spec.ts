@@ -12,8 +12,20 @@ for(const appearance of ['light','dark'])for(const width of [375,1280])test(`com
  await expect(planner.getByRole('region',{name:'Agenda',exact:true})).toBeVisible();
  await expect(page.locator('.mw-command-copy .mw-add')).toBeVisible();
  const art=(await page.locator('.mw-ambience').boundingBox())!,workspace=(await page.locator('.mw-workspace').boundingBox())!;
- expect(art.width).toBeLessThan(workspace.width*.6);
- expect(art.height).toBeLessThanOrEqual(133);
+ expect(art.width).toBeGreaterThanOrEqual(workspace.width-2);
+ expect(art.height).toBeGreaterThanOrEqual(220);
+ expect(art.height).toBeLessThanOrEqual(310);
+ const day=(await planner.locator('.mw-days button').first().boundingBox())!;
+ expect(day.height).toBeGreaterThanOrEqual(44);
+ expect(day.height).toBeLessThanOrEqual(70);
+ const agenda=(await planner.getByRole('region',{name:'Agenda',exact:true}).boundingBox())!;
+ const details=(await planner.locator('.mw-week-details').boundingBox())!;
+ expect(agenda.y+agenda.height).toBeLessThanOrEqual(details.y+1);
+ if(width<600){
+  expect(await planner.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe('0px');
+  await expect(page.getByRole('button',{name:'Month',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Agenda',exact:true})).toBeVisible();
+ }
  await expect(page.getByRole('button',{name:'Next landscape',exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  await page.screenshot({path:info.outputPath(`week-empty-${appearance}-${width}.png`),fullPage:true});

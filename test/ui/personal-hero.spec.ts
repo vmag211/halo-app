@@ -62,14 +62,20 @@ for (const appearance of ['light', 'dark']) {
 test('no data, zero, partial and zero-risk have distinct semantics', async ({ page }) => {
   await page.goto('/foundation/preview?scenario=no-data');
   await expect(page.locator('.halo-environment-score strong')).toHaveText('N/A');
+  await expect(page.locator('.halo-score-orbit')).toHaveAttribute('data-empty', 'true');
+  await expect(page.locator('.halo-score-orbit-value')).toHaveCount(0);
   await expect(page.locator('.halo-ph-contribution-track > span')).toHaveCount(0);
   await page.goto('/foundation/preview?scenario=score-zero');
   await expect(page.locator('.halo-environment-score strong')).toHaveText('0');
+  await expect(page.locator('.halo-score-orbit')).toHaveAttribute('data-empty', 'false');
+  await expect(page.locator('.halo-score-orbit-value')).toHaveCount(0);
   await page.goto('/foundation/preview?scenario=contribution-zero');
   await expect(page.locator('.halo-environment-score strong')).toHaveText('100');
+  await expect(page.locator('.halo-score-orbit-value')).toHaveAttribute('stroke-dasharray', '100 0');
   await expect(page.locator('.halo-ph-contribution-track > span')).toHaveCount(0);
   await page.goto('/foundation/preview?scenario=partial');
   await expect(page.locator('.halo-environment-scoreline')).toContainText('Partial coverage');
+  await expect(page.locator('.halo-score-orbit')).toHaveAttribute('data-partial', 'true');
   await expect(page.locator('.halo-ph-overview')).toContainText('Based on 3 of 4 scored factors.');
   await expect(page.getByTestId('factor-scorecard').filter({ hasText: 'Pollen' })).toContainText('No data');
   await page.goto('/foundation/preview/factor/pfas?scenario=no-data');

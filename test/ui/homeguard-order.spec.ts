@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-for (const appearance of ['light', 'dark']) test(`Homeguard work precedes area evidence and household guidance in ${appearance}`, async ({ page }, testInfo) => {
+for (const appearance of ['light', 'dark']) test(`Homeguard score precedes work, evidence and household guidance in ${appearance}`, async ({ page }, testInfo) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   for (const [width, scale] of [[375, 100], [320, 150]]) {
     await page.setViewportSize({ width, height: 850 });
@@ -21,11 +21,12 @@ for (const appearance of ['light', 'dark']) test(`Homeguard work precedes area e
     const grid = await cards.boundingBox();
     const workspace = await page.locator('#home-workspace').boundingBox();
     const house = await page.locator('.halo-home-household').boundingBox();
-    expect(summary!.y).toBeGreaterThanOrEqual(workspace!.y + workspace!.height);
-    expect(grid!.y).toBeGreaterThan(summary!.y + summary!.height);
+    expect(workspace!.y).toBeGreaterThanOrEqual(summary!.y + summary!.height);
+    expect(grid!.y).toBeGreaterThan(workspace!.y + workspace!.height);
     expect(grid!.y + grid!.height).toBeLessThanOrEqual(house!.y);
     const action = await page.getByRole('link', { name:'Continue test', exact:true }).boundingBox();
-    expect(action!.y + action!.height).toBeLessThan(670);
+    expect(action!.y).toBeGreaterThan(workspace!.y);
+    expect(action!.y + action!.height).toBeLessThan(workspace!.y + workspace!.height);
     await expect(page.locator('.halo-ph-household')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`homeguard-${appearance}-${width}.png`), fullPage: true });

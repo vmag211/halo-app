@@ -1,7 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {loadFrontend} from './frontend-test-loader.mjs';
-const {recordFingerprint,actionFingerprint,selectedPrivateExport,alertSeed,changeAlert,mergeUnedited,appearancePreference}=await loadFrontend('settings-preview');
+const {recordFingerprint,actionFingerprint,selectedPrivateExport,alertSeed,changeAlert,mergeUnedited,appearancePreference,colorPalette}=await loadFrontend('settings-preview');
+
+test('color themes are allowlisted independently of light and dark appearance',()=>{
+ for(const value of ['ocean','forest','iris'])assert.equal(colorPalette(value),value);
+ for(const value of [null,undefined,'green','<script>'])assert.equal(colorPalette(value),'ocean');
+ assert.equal(appearancePreference('forest'),'system');
+ const data=selectedPrivateExport({collections:{},actions:[],drafts:{'halo-palette':'forest','settings:edits':{display:{palette:'iris'}}},groups:['preferences'],privateText:false});
+ assert.equal(data.preferences.palette,'forest');assert.ok(!JSON.stringify(data).includes('iris'));
+});
 test('appearance is validated and only saved visual preferences enter a selected export',()=>{
  assert.equal(appearancePreference('dark'),'dark');assert.equal(appearancePreference('light'),'light');assert.equal(appearancePreference('invalid'),'system');
  const data=selectedPrivateExport({collections:{},actions:[],drafts:{'halo-appearance':'light','halo-ambient':false,'settings:edits':{display:{appearance:'dark'}}},groups:['preferences'],privateText:false});

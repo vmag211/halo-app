@@ -26,7 +26,7 @@ test('review query switches cannot replace a production page with fixture or pub
  const network=await mockProduction(page);await page.goto('/plan?access=public&scenario=score-full&edition=expanded&tab=home&appearance=light');
  await expect(page.getByTestId('production-product')).toBeVisible();await expect(page.locator('.halo-f-header h1')).toHaveText('My Week');
  await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');
- await expect(page.getByRole('heading',{name:'Explore with HALO'})).toHaveCount(0);await expect(page.locator('a[href*="/preview"]')).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'Learn with HALO'})).toHaveCount(0);await expect(page.locator('a[href*="/preview"]')).toHaveCount(0);
  await expect(page.locator('body')).not.toContainText('Lower-level radon test');expect(network.blocked).toEqual([]);
 });
 
@@ -57,4 +57,16 @@ test('an unavailable profile never reveals the private app and offers public bro
 
 test('returning completed users land on My Week without redoing onboarding',async({page})=>{
  const network=await mockProduction(page);await page.goto('/onboarding?entry=1');await expect(page).toHaveURL(/\/plan$/);await expect(page.getByTestId('production-product')).toBeVisible();expect(network.blocked).toEqual([]);
+});
+
+test('slim desktop sidebar keeps expanded and collapsed controls reachable',async({page},info)=>{
+ const network=await mockProduction(page);await page.setViewportSize({width:1280,height:800});await page.goto('/app');
+ const sidebar=page.getByRole('complementary',{name:'HALO sidebar'});await expect(sidebar).toBeVisible();
+ expect((await sidebar.boundingBox())!.width).toBe(196);
+ for(const label of ['My Week','Today','Homeguard','Explore','Journal','Map','Learn','Settings']){
+  const link=sidebar.getByRole('link',{name:label,exact:true});await expect(link).toBeVisible();const box=(await link.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.y+box.height).toBeLessThanOrEqual(800);
+ }
+ await page.screenshot({path:info.outputPath('sidebar-expanded.png')});await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();await expect(sidebar).toHaveAttribute('data-collapsed','true');expect((await sidebar.boundingBox())!.width).toBe(68);
+ for(const label of ['My Week','Today','Homeguard','Explore','Journal','Map','Learn','Settings']){const link=sidebar.getByRole('link',{name:label,exact:true});await expect(link).toBeVisible();const box=(await link.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);}
+ await page.screenshot({path:info.outputPath('sidebar-collapsed.png')});await sidebar.getByRole('link',{name:'Today',exact:true}).click();await expect(page).toHaveURL(/\/app\/today$/);await page.getByRole('button',{name:'Expand navigation',exact:true}).click();await expect(sidebar).toHaveAttribute('data-collapsed','false');expect(network.blocked).toEqual([]);
 });

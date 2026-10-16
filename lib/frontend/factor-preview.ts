@@ -41,10 +41,12 @@ export type FactorReading = {
   disclosures?: string[];
 };
 import type { MotionMode, SceneTime } from './scene-clock';
-export type PreviewPreferences = { appearance?: string; scale?: string; motion?: MotionMode; time?: SceneTime; contrast?: boolean; expanded?: boolean };
+import {colorPalette,type ColorPalette} from './settings-preview';
+export type PreviewPreferences = { appearance?: string; palette?:ColorPalette; scale?: string; motion?: MotionMode; time?: SceneTime; contrast?: boolean; expanded?: boolean };
 export function readPreviewPreferences(params: Record<string, string | string[] | undefined>): PreviewPreferences {
   return {
     expanded: params.edition === 'expanded',
+    palette:colorPalette(params.palette),
     appearance: typeof params.appearance === 'string' && ['light', 'dark', 'system'].includes(params.appearance) ? params.appearance : 'system',
     scale: typeof params.scale === 'string' && ['100', '115', '130', '150'].includes(params.scale) ? params.scale : '100',
     motion: params.motion === 'true' || params.motion === 'reduce' ? 'reduce' : params.motion === 'full' ? 'full' : 'system',

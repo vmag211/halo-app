@@ -170,7 +170,9 @@ for (const appearance of ['light', 'dark']) test(`wallpaper keeps the ${appearan
     const app = await page.getByTestId('foundation-product').boundingBox();
     expect(scene!.x).toBeGreaterThanOrEqual(app!.x - 1);
     expect(scene!.x + scene!.width).toBeLessThanOrEqual(app!.x + app!.width + 1);
-    expect(scene!.width).toBeLessThanOrEqual(430);
+    const workspace = await page.locator('.mw-workspace').boundingBox();
+    expect(scene!.width).toBeGreaterThanOrEqual(workspace!.width - 2);
+    expect(scene!.height).toBeGreaterThanOrEqual(220);
     await page.screenshot({ path: info.outputPath(`week-landscape-${appearance}-${width}.png`), fullPage: true });
   }
 });

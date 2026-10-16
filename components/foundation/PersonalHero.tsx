@@ -50,11 +50,12 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
   }));
   return <div className="halo-ph-overview halo-environment-briefing" data-home={home} data-workspace={home && homeWorkspace}>
-    {home && workspace && <div className="halo-home-primary-work">{workspace}</div>}
     <section className="halo-environment-summary" aria-label={`${home ? 'Homeguard' : 'Today'} overview`}>
-      <div className="halo-environment-heading"><div><span className="halo-ph-kicker">{home ? 'Local context' : 'Your environmental briefing'}</span><h2>{home ? 'Around your home' : 'Know the day ahead.'}</h2>{!home && runtime && areaLabel?.trim() ? <p className="halo-environment-area">Home area: {displayText(areaLabel)}</p> : <p>{home ? 'Area evidence, separate from your home tests.' : 'Air, sunlight, pollen and outdoor moisture.'}</p>}</div><span className="halo-environment-mark" aria-hidden="true">{home ? <House size={26} /> : <Sun size={28} />}</span></div>
-      <div className="halo-environment-scene"><EnvironmentalScene variant={home ? 'home' : 'landscape'} /><div className="halo-environment-scene-bar"><span><Leaf size={14} aria-hidden="true" />{clock.label}</span><MotionButton /></div></div>
-      <div className="halo-environment-scoreline"><div className="halo-environment-score" data-empty={score === null} aria-label={`${home ? 'Your home score' : 'Your personal score'}: ${score === null ? 'Not available' : `${score} out of 100`}`}><strong>{score === null ? 'N/A' : <AnimatedNumber value={score} />}</strong>{score !== null && <span>/100</span>}</div><div><strong>{home ? 'Home context score' : 'Today’s overview'}</strong><SeverityPill severity={severity} /><small>{missing ? 'Missing data is not an all-clear.' : partial ? 'Partial coverage · Higher is better' : 'Higher is better'}</small></div></div>
+      <div className="halo-environment-scene"><EnvironmentalScene variant={home ? 'home' : 'landscape'} />
+        <div className="halo-environment-heading"><div><span className="halo-ph-kicker">{home ? 'Homeguard' : 'Today'}</span><h2>{home ? 'Around your home' : 'Know the day ahead.'}</h2>{!home && runtime && areaLabel?.trim() ? <p className="halo-environment-area">Home area: {displayText(areaLabel)}</p> : <p>{home ? 'Area evidence, separate from your home tests.' : 'Air, sunlight, pollen and outdoor moisture.'}</p>}</div></div>
+        <div className="halo-environment-scoreline"><OverviewScoreOrbit score={score} home={home} partial={partial} /><div><strong>{home ? 'Home context score' : 'Today’s overview'}</strong><SeverityPill severity={severity} /><small>{missing ? 'Missing data is not an all-clear.' : partial ? 'Partial coverage · Higher is better' : 'Higher is better'}</small></div></div>
+        <div className="halo-environment-scene-bar"><span><Leaf size={14} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
+      </div>
       <p className="halo-environment-updated">{overview ? overview.asOf : 'Updated September 30, 2026'}</p>
     {partial && (!runtime || !missing) && <Callout tone="notice">{overview ? <p>{`Partial score. Missing inputs: ${overview.missingInputs.join(', ') || 'Some readings are unavailable'}.`}</p> : <p>Based on {home ? 1 : 3} of {home ? 2 : 4} scored factors. {home ? 'PFAS' : 'Pollen'} data is not available right now.</p>}</Callout>}
     {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'Readings unavailable. Missing data is not an all-clear.'}</p></Callout>}
@@ -62,6 +63,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
     <ScoreTransparency home={home} keys={keys} readings={readings} overview={overview} factorHref={factorHref} missingKeys={!runtime ? keys.filter(key => missing || (partial && key === missingKey)) : undefined} />
     </section>
+    {home && workspace && <div className="halo-home-primary-work">{workspace}</div>}
     <section className="halo-environment-evidence" aria-label={home ? 'Home environmental evidence' : 'Your environmental readings'}>
     <div className="halo-ph-section-label"><h2>{home ? 'Understand the evidence' : 'Your readings'}</h2><span>Open a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
@@ -72,6 +74,22 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     </section>
     {!home && <HouseholdContext familyHref={familyHref} />}
     {home && memberHref && <div className="halo-home-management"><HomeHousehold memberHref={memberHref} /></div>}
+  </div>;
+}
+
+/** The arc represents only the supplied 0–100 score, never factor risk shares. */
+function OverviewScoreOrbit({ score, home, partial }: { score: number | null; home: boolean; partial: boolean }) {
+  const available = score !== null && Number.isFinite(score);
+  const progress = available ? Math.max(0, Math.min(100, score)) : 0;
+  return <div className="halo-environment-score halo-score-orbit" data-empty={!available} data-partial={partial} role="img" aria-label={`${home ? 'Your home score' : 'Your personal score'}: ${available ? `${score} out of 100` : 'Not available'}${partial ? '. Partial coverage' : ''}`}>
+    <svg viewBox="0 0 180 180" aria-hidden="true">
+      <circle className="halo-score-orbit-shell" cx="90" cy="90" r="87" />
+      <circle className="halo-score-orbit-ticks" cx="90" cy="90" r="79" pathLength="100" strokeDasharray=".35 1.65" />
+      <circle className="halo-score-orbit-track" cx="90" cy="90" r="68" />
+      {available && progress > 0 && <circle className="halo-score-orbit-value" cx="90" cy="90" r="68" pathLength="100" strokeDasharray={`${progress} ${100 - progress}`} transform="rotate(-90 90 90)" />}
+      <circle className="halo-score-orbit-inner" cx="90" cy="90" r="57" />
+    </svg>
+    <div className="halo-score-orbit-number" aria-hidden="true"><strong>{available ? <AnimatedNumber value={score} /> : 'N/A'}</strong><span>{available ? 'out of 100' : 'No reading'}</span></div>
   </div>;
 }
 

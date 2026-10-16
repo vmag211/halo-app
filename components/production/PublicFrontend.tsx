@@ -1,5 +1,5 @@
 'use client';
-import {useMemo,type ReactNode} from 'react';
+import {useMemo,type CSSProperties,type ReactNode} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {ProductionContext,useProductionRuntime} from './ProductionContext';
 import {createProductionRuntime,FrontendServiceError} from '@/lib/frontend/production/runtime';
@@ -8,6 +8,7 @@ import type {HomeWorkspaceService} from '@/lib/frontend/production/home-service'
 import PublicBrowse from '@/components/expanded/PublicBrowse';
 import MapPreview from '@/components/map-preview/MapPreview';
 import ProductionApp from './ProductionApp';
+import {appearancePreference,colorPalette} from '@/lib/frontend/settings-preview';
 import '@/components/expanded/interface-refinement.css';
 
 /** Public browsing has no auth import, session creation or private collection reads. */
@@ -21,4 +22,11 @@ export function ProductionMapEntry(){
  const params=useSearchParams();
  return params.get('access')==='owned'?<ProductionApp><MapSurface publicAccess={false}/></ProductionApp>:<PublicProvider><MapSurface publicAccess/></PublicProvider>;
 }
-export function ProductionLearnEntry(){return <PublicProvider><div className="halo-app halo-f-app" data-refined="true" data-testid="public-product"><PublicBrowse production mapHref="/map"/></div></PublicProvider>;}
+export function ProductionLearnEntry(){
+ const params=useSearchParams();
+ const appearance=appearancePreference(params.get('appearance'));
+ const palette=colorPalette(params.get('palette'));
+ const scale=['100','115','130','150'].includes(params.get('scale')??'')?params.get('scale')!:'100';
+ const contrast=params.get('contrast')==='true';
+ return <PublicProvider><div className="halo-app halo-f-app halo-learn-shell" data-refined="true" data-testid="public-product" data-mode={appearance} data-palette={palette} data-contrast={contrast?'high':'normal'} data-text-scale={scale} style={{colorScheme:appearance==='system'?'light dark':appearance,'--halo-text-scale':Number(scale)/100} as CSSProperties}><PublicBrowse production mapHref="/map"/></div></PublicProvider>;
+}

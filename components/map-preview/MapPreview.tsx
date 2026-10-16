@@ -1,5 +1,6 @@
 'use client';
 
+import {colorPalette} from '@/lib/frontend/settings-preview';
 import LiveDistrictPanel from './LiveDistrictPanel';
 import LiveMapComparison from './LiveMapComparison';
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -44,6 +45,8 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
   const homeChanged=Boolean(workspace.collections.homeTransitions?.length);
   const ambient=workspace.drafts['halo-ambient']!==false;
   const savedAppearance=workspace.drafts['halo-appearance'];
+  const [queryPalette,setQueryPalette]=useState<ReturnType<typeof colorPalette>>('ocean');
+  const palette=colorPalette(workspace.drafts['halo-palette']??queryPalette);
   const savedDisplay=workspace.drafts['halo-display'] as {scale?:string;motion?:string;contrast?:boolean}|undefined;
   const appliedAppearance=useRef<unknown>(undefined);
   const [scenario,setScenario] = useState<MapScenario>('ready');
@@ -58,6 +61,7 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
     const p = new URLSearchParams(location.search);
     // Browser-only preview URL is read once after hydration; no server state is involved.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQueryPalette(colorPalette(p.get('palette')));
     if (!runtime&&mapScenarios.some(s=>s[0] === p.get('mapScenario'))) setScenario(p.get('mapScenario') as MapScenario);
     if (!runtime&&comparisonCases.some(s=>s[0] === p.get('comparisonCase'))) setComparisonCase(p.get('comparisonCase') as ComparisonCase);
     setPublicMode(runtime?publicAccess:p.get('access')==='public');
@@ -74,7 +78,7 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
     if(runtime&&savedDisplay){if(['100','115','130','150'].includes(savedDisplay.scale??''))setScale(savedDisplay.scale!);setMotion(savedDisplay.motion==='reduce');setContrast(savedDisplay.contrast===true);}
     appliedAppearance.current=savedAppearance;
   },[savedAppearance,savedDisplay,initialized,runtime]);
-  useEffect(()=>{if (!initialized||runtime) return; const url=new URL(location.href); url.searchParams.set('appearance',appearance); url.searchParams.set('scale',scale); url.searchParams.set('motion',motion?'reduce':'system'); url.searchParams.set('contrast',String(contrast)); url.searchParams.set('mapScenario',scenario); history.replaceState(history.state,'',url);},[appearance,scale,motion,contrast,scenario,initialized,runtime]);
+  useEffect(()=>{if (!initialized||runtime) return; const url=new URL(location.href); url.searchParams.set('appearance',appearance); url.searchParams.set('palette',palette); url.searchParams.set('scale',scale); url.searchParams.set('motion',motion?'reduce':'system'); url.searchParams.set('contrast',String(contrast)); url.searchParams.set('mapScenario',scenario); history.replaceState(history.state,'',url);},[appearance,palette,scale,motion,contrast,scenario,initialized,runtime]);
   useEffect(()=>{if(!initialized)return;const url=new URL(location.href);if(comparisonCase==='ready')url.searchParams.delete('comparisonCase');else url.searchParams.set('comparisonCase',comparisonCase);history.replaceState(history.state,'',url);},[comparisonCase,initialized]);
   function changeScenario(next:MapScenario) { const url=new URL(location.href); ['system','panel','learn','mapSheet','compare'].forEach(k=>url.searchParams.delete(k)); history.replaceState({...history.state,_haloMapSheet:false},'',url); setScenario(next); }
   return <div className="halo-f-review halo-map-review" data-mode={appearance}>
@@ -86,11 +90,11 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
       <div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={motion} onChange={e=>setMotion(e.target.checked)}/>Reduce motion</label><label className="halo-f-tool-check"><input type="checkbox" checked={contrast} onChange={e=>setContrast(e.target.checked)}/>Higher contrast</label></div>
       <p>The atlas previews map behavior without paid tiles or a token. The production Mapbox renderer and offline storage will be connected only after design approval. Sample values do not describe these communities.</p>
     </details>}
-    <SceneProvider mode={motion?'reduce':'system'} time="live" ambient={ambient}>{initialized&&<MapExperience key={runtime?runtime.scopeKey:`${scenario}:${homeChanged}`} runtime={runtime} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
+    <SceneProvider mode={motion?'reduce':'system'} time="live" ambient={ambient}>{initialized&&<MapExperience key={runtime?runtime.scopeKey:`${scenario}:${homeChanged}`} runtime={runtime} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} palette={palette} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
   </div>;
 }
 
-function MapExperience({runtime,scenario,comparisonCase,resetComparisonCase,publicMode,homeChanged,appearance,scale,motion,contrast}:{runtime?:MapRequestRuntime;scenario:MapScenario;comparisonCase:ComparisonCase;resetComparisonCase:()=>void;publicMode:boolean;homeChanged:boolean;appearance:string;scale:number;motion:boolean;contrast:boolean}) {
+function MapExperience({runtime,scenario,comparisonCase,resetComparisonCase,publicMode,homeChanged,appearance,palette,scale,motion,contrast}:{runtime?:MapRequestRuntime;scenario:MapScenario;comparisonCase:ComparisonCase;resetComparisonCase:()=>void;publicMode:boolean;homeChanged:boolean;appearance:string;palette:ReturnType<typeof colorPalette>;scale:number;motion:boolean;contrast:boolean}) {
   const experience=useSceneExperience();
   const router = useRouter();
   const restoredSession=useRef(runtime||publicMode||homeChanged?undefined:session);
@@ -259,7 +263,7 @@ function MapExperience({runtime,scenario,comparisonCase,resetComparisonCase,publ
   const countN=layer==='water'?water.length:layer==='air'?airStations.length:layer==='facilities'?facilities.length:liveData?.radon.length??points.length;
   const inView=blocked||loading||current==='empty'?[]:points.filter(p=>visibleIds.includes(p.id));
   const results:MapResult[]=layer==='water'?visibleWater.map(w=>({id:w.pwsid,name:w.name,severity:waterSeverity(w,compound),reading:`${waterMapReading(w,compound)} · ${readingDate(waterSampleDate(w,compound))}`,sub:w.lat===null||w.lng===null?'No mapped location':w.pwsid===sampleHome.pwsid&&hasHome?'Your water system':'Service-area center',lat:w.lat,lng:w.lng})):layer==='air'?airStations.map(p=>({id:p.id,name:p.name,severity:p.severity,reading:`${p.aqi??'Unknown'} AQI · ${observationTime(p.last_reading_at)}`,sub:p.lat===null||p.lng===null?'No mapped location':'Monitoring station',lat:p.lat,lng:p.lng})):layer==='facilities'?facilities.map(p=>({id:p.id,name:p.name,severity:p.severity,reading:`Last inspection: ${readingDate(p.last_inspection)}`,sub:p.lat===null||p.lng===null?'No mapped location':'Selected facility',lat:p.lat,lng:p.lng})):(liveData?.radon??radonPoints).map(p=>({id:p.id,name:p.name,severity:p.severity,reading:'Regional potential, not a home reading',sub:`Zone ${p.zone??'unknown'}`,lat:p.lat,lng:p.lng}));
-  return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-refined="true" data-wide="true" data-motion={motion?'reduce':'system'} data-animate={experience.enabled} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
+  return <div className="halo-app halo-f-app halo-map-app" data-testid="map-product" data-refined="true" data-palette={palette} data-wide="true" data-motion={motion?'reduce':'system'} data-animate={experience.enabled} data-contrast={contrast?'high':'normal'} data-text-scale={scale*100} style={{'--halo-text-scale':scale} as CSSProperties}>
     <InterfaceMotion />
     <header className="halo-map-header"><div className="halo-map-header-left"><Link className="halo-f-icon" aria-label={publicMode?comparisonCopy.publicBack:'Back to Explore'} href={runtime&&publicMode?'/learn':foundationHref(publicMode?'plan':'act')} prefetch={false}><ArrowLeft size={21}/></Link>{!sheet&&!publicMode&&<button className="halo-map-luna" aria-label="Open Luna" onClick={()=>openSheet({kind:'assistant'})}><LunaMark size={25}/></button>}</div><div><h1>Map</h1><p>{publicMode?comparisonCopy.publicMap:'Within Explore'}</p></div><div className="halo-map-header-tools"><button className="halo-f-icon" aria-label="About this map" onClick={()=>openSheet({kind:'about'})}><Info size={21}/></button><Link href={foundationHref('settings')} className="halo-f-icon" aria-label="Settings" prefetch={false}><Settings size={21}/></Link></div></header>
     {offline&&<div className="halo-map-offline" role="status"><WifiOff size={16}/><span>{noSaved?'This layer is not saved on this device.':'Showing saved map data from Oct 1, 2026.'}</span>{<button onClick={retry}>Try again</button>}</div>}

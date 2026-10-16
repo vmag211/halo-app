@@ -56,18 +56,18 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     await expect(workspace).not.toContainText('\u2014');
     if (width===375) {
       // Bound the complete redesigned workbench to one compact surface.
-      // The primary action's first-viewport position is checked separately below.
+      // The exact continuation remains within the compact workbench.
       expect((await workspace.boundingBox())!.height).toBeLessThan(600);
       await expect(workspace.getByRole('link',{name:'Open test records',exact:true})).toContainText('Tests');
       await expect(workspace.getByRole('link',{name:'Open Food and Garden',exact:true})).toContainText('Food and Garden');
     }
-    // Homeguard now leads with work, so a jump link is no longer necessary.
+    // The requested scenic score leads, followed directly by the existing workbench.
     await page.evaluate(() => window.scrollTo(0, 0));
     const firstAction = (await primary.boundingBox())!;
     expect(firstAction.y).toBeGreaterThan(60);
-    expect(firstAction.y + firstAction.height).toBeLessThan(670);
+    expect(firstAction.y + firstAction.height).toBeLessThan((await workspace.boundingBox())!.y + (await workspace.boundingBox())!.height);
     const localContext = (await page.locator('.halo-environment-summary').boundingBox())!;
-    expect((await workspace.boundingBox())!.y).toBeLessThan(localContext.y);
+    expect((await workspace.boundingBox())!.y).toBeGreaterThanOrEqual(localContext.y + localContext.height);
     await page.screenshot({ path: info.outputPath(`workspace-top-${appearance}-${width}.png`) });
     await workspace.screenshot({ path: info.outputPath(`workspace-${appearance}-${width}.png`) });
     await workspace.locator('.how-add-menu > summary').click();

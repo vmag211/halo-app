@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Backpack, Droplets, House, Leaf, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, Backpack, Droplets, House, Leaf, ShieldCheck } from 'lucide-react';
 import { homeMemberKeys, memberCatalog, type HomeMemberKey } from '@/lib/frontend/home-household';
 import { factorColor, factorReadings } from '@/lib/frontend/factor-preview';
 import type { FoundationScenario } from '@/lib/frontend/foundation-preview';
@@ -28,12 +28,33 @@ export default function HomeHousehold({ memberHref }: { memberHref: MemberHref }
   const members = homeMemberKeys.filter(key => bands[memberCatalog[key].band]);
   return <section className="halo-home-household" id="household" aria-label="Your Homeguard household" data-motion-surface="household">
     <div className="halo-home-house" data-count={members.length}>
-      <svg className="halo-home-roof" viewBox="0 0 400 112" preserveAspectRatio="none" aria-hidden="true"><path d="M12 104 200 10 388 104Z" /><path d="M304 62V26h35v54" /><path d="M3 105 200 6 397 105" /></svg>
-      <div className="halo-home-attic" aria-hidden="true"><House size={21} strokeWidth={1.4} /></div>
-      <div className="halo-home-house-body"><p className="halo-home-house-instruction">Tap a person for their home guidance</p><div className="halo-home-residents">{members.map(member => <Link key={member} href={memberHref(member)} prefetch={false} className="halo-home-person" data-member={member} aria-label={`Home guidance for ${memberCatalog[member].label.toLowerCase()}`}><MemberFigure member={member} /><span>{memberCatalog[member].shortLabel}</span></Link>)}</div>{members.length === 0 && <p className="halo-home-house-empty">{runtime ? <>No household categories selected. <Link href="/settings">Update your household in Settings.</Link></> : 'No household categories selected. Update your household in Settings.'}</p>}<span className="halo-home-floor" aria-hidden="true" /></div>
+      <div className="halo-home-guidance-heading"><div><span className="halo-ph-kicker">Made for your household</span><h2>Everyone at home.</h2><p className="halo-home-house-instruction">Choose a person for practical home guidance.</p></div><HousePortrait /></div>
+      <div className="halo-home-house-body"><div className="halo-home-residents">{members.map(member => <Link key={member} href={memberHref(member)} prefetch={false} className="halo-home-person" data-member={member} aria-label={`Home guidance for ${memberCatalog[member].label.toLowerCase()}`}><MemberFigure member={member} /><span>{memberCatalog[member].shortLabel}</span><ArrowUpRight className="halo-home-person-arrow" size={16} aria-hidden="true" /></Link>)}</div>{members.length === 0 && <p className="halo-home-house-empty">{runtime ? <>No household categories selected. <Link href="/settings">Update your household in Settings.</Link></> : 'No household categories selected. Update your household in Settings.'}</p>}</div>
     </div>
     <p className="halo-home-house-caption">One figure per selected category, not a count of people. Categories can overlap.</p>
   </section>;
+}
+
+/** Proportional architectural artwork, not a diagram of the user's actual home. */
+function HousePortrait() {
+  return <svg className="halo-home-portrait-art" viewBox="0 0 300 200" aria-hidden="true" focusable="false">
+    <ellipse className="house-ground" cx="156" cy="174" rx="123" ry="16" />
+    <path className="house-garden" d="M23 160c-8-20 1-44 14-40 2-28 24-38 31-17 24-8 36 18 21 37l-4 25zM234 167c-13-24-7-46 6-42-5-29 18-49 32-29 12-5 23 9 13 30 15 10 8 32-6 38z" />
+    <path className="house-tree" d="m54 107 2 65m-1-39-14-10m15 22 14-14m187-15 1 57m-1-25-12-11m13 4 13-13" />
+    <path className="house-wall-side" d="m163 64 81 26v75l-81 13z" />
+    <path className="house-wall" d="m68 89 59-46 52 31v104l-111-17z" />
+    <path className="house-roof-side" d="m127 33 89 27 42 38-79-19z" />
+    <path className="house-roof" d="m52 92 74-60 63 43-8 10-54-36-66 51z" />
+    <path className="house-chimney" d="m216 61 0-28 15 5v38" />
+    <path className="house-window" d="m85 100 24 3v30l-24-3zm53 6 23 3v30l-23-3zm57-5 30 8v26l-30-6z" />
+    <path className="house-window-shine" d="m89 104 15 2-15 19zm54 6 13 2-13 17zm57-4 19 5-19 12z" />
+    <path className="house-window-frame" d="m97 102 0 29m52-24 0 30m61-31 0 27" />
+    <path className="house-door" d="m113 136 20 3v31l-20-3z" />
+    <circle className="house-handle" cx="128" cy="154" r="1.7" />
+    <path className="house-step" d="m108 167 29 4 10 7-42-5z" />
+    <path className="house-planter" d="m72 144 27 4-2 12-23-3zm125-4 32 6-3 12-28-5z" />
+    <path className="house-plants" d="M76 144c-7-14 6-16 10-4 5-17 16-9 10 6m107-6c-8-17 9-17 11-3 7-13 18-1 10 7" />
+  </svg>;
 }
 
 const factorIcons = { pfas: Droplets, radon: House, lead: ShieldCheck, mold: Leaf };

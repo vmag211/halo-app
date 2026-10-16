@@ -4,8 +4,8 @@
 .halo-f-app .halo-explore .ex-overview-heading h2 { text-align:left; margin:0; font:650 calc(1.6rem * var(--halo-text-scale))/1.2 var(--font-instrument),sans-serif; letter-spacing:-.035em; }
 .halo-explore .ex-overview-heading p { color:var(--halo-secondary); font-size:calc(.86rem * var(--halo-text-scale)); }
 .halo-explore .ex-fieldwork-layout { gap:var(--halo-space-5,20px); align-items:start; }
-.halo-explore .ex-destination { display:grid; grid-template-columns:96px minmax(0,1fr); width:100%; height:100%; min-width:0; padding:0; border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); overflow:hidden; background:var(--halo-card); color:var(--halo-ink); text-align:left; transition:border-color .18s ease,background .18s ease; }
-.halo-explore .ex-destination > .ex-photo { width:100%; height:100%; border-radius:0; min-height:170px; }
+.halo-explore .ex-destination { display:grid; grid-template-columns:minmax(0,1fr); width:100%; height:100%; min-width:0; padding:0; border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); overflow:hidden; background:var(--halo-card); color:var(--halo-ink); text-align:left; transition:border-color .18s ease,background .18s ease; }
+.halo-explore .ex-destination > .ex-photo { width:100%; height:210px; border-radius:0; min-height:210px; }
 .halo-explore .ex-destination-copy { display:grid; align-content:start; gap:7px; padding:var(--halo-space-4,16px); min-width:0; }
 .halo-explore .ex-destination-category { color:var(--halo-secondary); font-size:calc(.68rem * var(--halo-text-scale)); }
 .halo-f-app .halo-explore .ex-destination h3 { margin:0; text-align:left; font:650 calc(1.12rem * var(--halo-text-scale))/1.2 var(--font-instrument),sans-serif; letter-spacing:-.02em; }
@@ -37,7 +37,7 @@
 .halo-explore .ex-project-intro,.halo-explore .ex-project-intro-copy { display:grid; gap:var(--halo-space-4,16px); min-width:0; }
 .halo-explore .ex-project-intro-copy { align-content:start; gap:12px; }
 .halo-explore .ex-project-guide-facts { display:flex; flex-wrap:wrap; gap:8px 16px; color:var(--halo-secondary); font-size:calc(.77rem * var(--halo-text-scale)); }
-.halo-explore .ex-project-intro .ex-detail-photo { height:160px; }
+.halo-explore .ex-project-intro .ex-detail-photo { height:260px; }
 .halo-explore .ex-guide-cover-caption { font-size:calc(.67rem * var(--halo-text-scale)); }
 .halo-explore .ex-project-guide-desk { display:grid; gap:var(--halo-space-5,20px); min-width:0; }
 .halo-explore .ex-step-outline { min-width:0; }
@@ -51,7 +51,7 @@
 .halo-explore .ex-guide-instructions { gap:18px; font-size:calc(.9rem * var(--halo-text-scale)); line-height:1.65; }
 .halo-explore .ex-guide-checkpoint { border:0; padding:14px; border-radius:var(--halo-control-radius,8px); background:color-mix(in srgb,var(--halo-primary) 8%,var(--halo-card)); }
 .halo-explore .ex-opportunity-photo { position:relative; }
-.halo-explore .ex-opportunity-photo .ex-photo { height:154px; }
+.halo-explore .ex-opportunity-photo .ex-photo { height:clamp(230px,27vw,350px); }
 .halo-explore .ex-opportunity-photo > small { position:absolute; right:8px; bottom:8px; padding:4px 7px; background:#081d23; color:#fff; font-size:calc(.65rem * var(--halo-text-scale)); border-radius:4px; }
 .halo-explore .ex-opportunity-at-a-glance { border:0; padding:var(--halo-space-4,16px); border-radius:var(--halo-panel-radius,12px); background:color-mix(in srgb,var(--halo-primary) 7%,var(--halo-card)); }
 .halo-explore .ex-opportunity-decision { display:grid; gap:24px; min-width:0; }
@@ -72,8 +72,8 @@
 @container explore-workspace (min-width:650px) {
   .halo-explore .ex-fieldwork-layout { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .halo-explore .ex-fieldwork-layout > .ex-place-context { grid-column:1 / -1; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); align-items:center; }
-  .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); grid-template-rows:150px auto; height:auto; }
-  .halo-explore .ex-destination > .ex-photo { height:150px; min-height:150px; }
+  .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); grid-template-rows:240px auto; height:auto; }
+  .halo-explore .ex-destination > .ex-photo { height:240px; min-height:240px; }
   .halo-explore .ex-destination-copy { padding:20px; }
   .halo-explore .ex-generated-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .halo-explore .ex-project-intro { grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); align-items:center; }
@@ -89,11 +89,11 @@
   .halo-explore .ex-fieldwork-layout { grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
   .halo-explore .ex-fieldwork-layout > .ex-place-context { grid-column:auto; grid-template-columns:minmax(0,1fr); align-content:start; }
   .halo-f-app .halo-explore .ex-place-context .ex-mini-map-canvas { height:154px; }
-  .halo-explore .ex-destination { grid-template-rows:178px auto; }
-  .halo-explore .ex-destination > .ex-photo { height:178px; }
+  .halo-explore .ex-destination { grid-template-rows:250px auto; }
+  .halo-explore .ex-destination > .ex-photo { height:250px; }
 }
 @media(max-width:359px) {
-  .halo-explore .ex-destination { grid-template-columns:72px minmax(0,1fr); }
+  .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); }
   .halo-explore .ex-destination-copy { padding:12px; }
   .halo-explore .ex-generated-open { grid-template-columns:64px minmax(0,1fr) 14px; gap:9px; }
   .halo-explore .ex-generated-open > .ex-photo { width:64px; height:88px; }

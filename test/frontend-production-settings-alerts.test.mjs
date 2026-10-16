@@ -7,6 +7,12 @@ const {initialSettings,alertSeed}=await loadFrontend('settings-preview');
 const {createProductionRuntime}=await loadFrontend('production/runtime');
 const settings=()=>({revision:1,values:structuredClone(initialSettings),display:{appearance:'system',ambient:true,scale:'100',motion:'system',contrast:false},calendar:{zone:'America/New_York',streak:false,linked:true},unresolvedOperations:[]});
 const alerts=()=>({items:alertSeed(),unresolvedOperations:[]});
+
+test('optional color palette accepts legacy settings and only known new themes',()=>{
+ assert.equal(validSettingsSnapshot(settings()),true);
+ for(const palette of ['ocean','forest','iris'])assert.equal(validSettingsSnapshot({...settings(),display:{...settings().display,palette}}),true);
+ for(const palette of ['neon',null,0])assert.equal(validSettingsSnapshot({...settings(),display:{...settings().display,palette}}),false);
+});
 test('complete canonical settings distinguish unavailable from initial defaults',()=>{assert.equal(validSettingsSnapshot(settings()),true);for(const value of [null,{}, {...settings(),revision:0},{...settings(),unresolvedOperations:undefined}])assert.equal(validSettingsSnapshot(value),false);});
 test('settings reject malformed appearance, size, zone and consent booleans',()=>{for(const apply of [v=>v.display.appearance='neon',v=>v.display.scale='400',v=>v.display.ambient='true',v=>v.calendar.zone='Not/A_Zone',v=>v.values.luna.home='yes',v=>v.values.quiet.from='24:90',v=>v.values.notifications.air_quality_change=undefined]){const value=settings();apply(value);assert.equal(validSettingsSnapshot(value),false);}});
 test('settings support all reviewed sizes and modes and unresolved operation recovery',()=>{for(const mode of ['system','light','dark'])for(const scale of ['100','115','130','150']){const value=settings();value.display.appearance=mode;value.display.scale=scale;value.unresolvedOperations=['op-1'];assert.equal(validSettingsSnapshot(value),true);}});

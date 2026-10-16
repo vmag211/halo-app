@@ -86,3 +86,36 @@ test('settings selections update the house without changing environmental scores
   await expect(page.locator('.halo-home-person[data-member="teen"]')).toBeVisible();
   await expect(page.locator('.halo-environment-score')).toHaveAttribute('aria-label', before!);
 });
+
+for (const appearance of ['light', 'dark']) test(`landscape score and architectural guidance remain readable in ${appearance}`, async ({ page }, info) => {
+  for (const width of [320, 375, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/foundation/preview/expanded/?tab=home&appearance=${appearance}&motion=reduce&contrast=true&time=day`);
+    const landscape = page.locator('.halo-environment-scene');
+    await expect(landscape).toBeVisible();
+    const scenicBox = (await landscape.boundingBox())!;
+    expect(scenicBox.height).toBeGreaterThanOrEqual(350);
+    const score = page.getByRole('img', { name: 'Your home score: 58 out of 100', exact: true });
+    await expect(score).toBeVisible();
+    await expect(score.locator('.halo-score-orbit-value')).toHaveAttribute('stroke-dasharray', '58 42');
+    const portrait = page.locator('.halo-home-portrait-art');
+    const artwork = (await portrait.boundingBox())!;
+    expect(artwork.width / artwork.height).toBeCloseTo(1.5, 1);
+    expect(artwork.width).toBeLessThanOrEqual(300);
+    for (const person of await page.locator('.halo-home-person').all()) {
+      const target = (await person.boundingBox())!;
+      expect(target.height).toBeGreaterThanOrEqual(44);
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      if (width <= 699) {
+        const figure = (await person.locator('.halo-home-figure').boundingBox())!;
+        const label = (await person.locator('> span:not(.halo-home-figure)').boundingBox())!;
+        expect(label.y).toBeGreaterThanOrEqual(figure.y + figure.height);
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    if (width !== 768) {
+      await landscape.screenshot({ path: info.outputPath(`landscape-${appearance}-${width}.png`) });
+      await page.locator('.halo-home-household').screenshot({ path: info.outputPath(`household-${appearance}-${width}.png`) });
+    }
+  }
+});

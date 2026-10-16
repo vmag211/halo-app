@@ -16,9 +16,22 @@ const json=(route:Route,value:unknown,status=200)=>route.fulfill({status,content
 test('public Learn opens without session, private requests or preview links',async({page})=>{
  const network=await protect(page);await page.goto('/learn');
  await expect(page.getByTestId('public-product')).toBeVisible();
- await expect(page.getByRole('heading',{name:'Explore with HALO'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Learn with HALO'})).toBeVisible();
  await expect(page.locator('a[href*="/preview"]')).toHaveCount(0);
  await expect(page.getByRole('link',{name:'Set up your home'})).toHaveAttribute('href','/onboarding?entry=1');
+ expect(network.requests).toEqual([]);expect(network.forbidden).toEqual([]);
+});
+for(const [width,appearance,palette,contrast,scale] of [[375,'dark','forest',false,100],[1440,'light','iris',false,100],[320,'light','ocean',true,150],[1280,'dark','iris',true,130]] as const)test(`Learn reading layout at ${width}px in ${appearance} ${palette}`,async({page},info)=>{
+ const network=await protect(page);await page.setViewportSize({width,height:950});
+ await page.goto(`/learn?appearance=${appearance}&palette=${palette}&contrast=${contrast}&scale=${scale}`);
+ const shell=page.getByTestId('public-product');await expect(shell).toHaveAttribute('data-mode',appearance);await expect(shell).toHaveAttribute('data-palette',palette);
+ await expect(shell).toHaveAttribute('data-contrast',contrast?'high':'normal');
+ const box=await shell.boundingBox();expect(box!.width).toBeLessThanOrEqual(width);if(width>=1024)expect(box!.width).toBeGreaterThan(1000);
+ const image=await page.locator('.hc-public-landscape').boundingBox();expect(image!.height).toBeGreaterThanOrEqual(185);
+ const library=page.getByRole('region',{name:'Learn & sources'});await library.getByRole('combobox').selectOption('air');await library.locator('summary').filter({hasText:'Air quality'}).click();
+ await expect(library.getByRole('link',{name:/AirNow/})).toHaveAttribute('href','https://www.airnow.gov/aqi/aqi-basics/');await expect(library).toContainText('Source link checked: 2026-09-27');
+ await library.getByRole('searchbox').fill('not-a-topic');await expect(library).toContainText('No matching topics');await library.getByRole('button',{name:'Clear search',exact:true}).click();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width+1);await page.screenshot({path:info.outputPath(`learn-${width}-${appearance}.png`),fullPage:true});
  expect(network.requests).toEqual([]);expect(network.forbidden).toEqual([]);
 });
 test('public map uses actual records and ignores fake review scenario in URL',async({page})=>{

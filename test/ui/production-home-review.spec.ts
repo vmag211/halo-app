@@ -105,8 +105,9 @@ for (const tab of ['today', 'homeguard']) test(`${tab} uses bounded desktop comp
     const summaryBox = (await summary.boundingBox())!;
     const primary = tab === 'homeguard' ? page.locator('#home-workspace') : page.locator('.halo-environment-evidence');
     const primaryBox = (await primary.boundingBox())!;
-    expect(Math.abs(primaryBox.x - summaryBox.x)).toBeGreaterThan(200);
-    expect(sceneBox.width).toBeLessThan(550);
+    expect(primaryBox.y).toBeGreaterThanOrEqual(summaryBox.y + summaryBox.height);
+    expect(sceneBox.width).toBeGreaterThan(750);
+    expect(sceneBox.height).toBeGreaterThanOrEqual(360);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`${tab}-desktop.png`) });
     if (tab === 'homeguard') {
@@ -117,11 +118,15 @@ for (const tab of ['today', 'homeguard']) test(`${tab} uses bounded desktop comp
     await page.goto(`/app/${tab}`);
     await expect(scene).toBeVisible();
     const mobileScene = (await scene.boundingBox())!;
-    expect(mobileScene.height).toBeLessThan(160);
+    expect(mobileScene.height).toBeGreaterThanOrEqual(350);
+    expect(mobileScene.height).toBeLessThan(520);
     if (tab === 'homeguard') {
       const action = (await page.getByRole('link', { name:'Continue test', exact:true }).boundingBox())!;
-      expect(action.y + action.height).toBeLessThan(670);
-      expect((await primary.boundingBox())!.y).toBeLessThan((await summary.boundingBox())!.y);
+      const work = (await primary.boundingBox())!;
+      expect(action.y).toBeGreaterThan(work.y);
+      expect(action.y + action.height).toBeLessThan(work.y + work.height);
+      const overview = (await summary.boundingBox())!;
+      expect(work.y).toBeGreaterThanOrEqual(overview.y + overview.height);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`${tab}-mobile.png`) });
