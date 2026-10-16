@@ -2,6 +2,34 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFrontend } from './frontend-test-loader.mjs';
 const { safeStageReturn } = await loadFrontend('stage-routing');
+const { productRoute, productDestinationHref, legacyProductPath } = await loadFrontend('product-routes');
+const { deliveredStagePath, routeOwner } = await loadFrontend('navigation');
+
+test('clean product routes retain existing owners without mounting unknown paths', () => {
+  for (const [path, legacy, owner] of [
+    ['/app', '/plan', 'plan'], ['/app/plan', '/plan', 'plan'],
+    ['/app/today', '/today', 'today'], ['/app/homeguard', '/home', 'home'],
+    ['/app/explore', '/act', 'act'], ['/app/settings', '/settings', null],
+    ['/app/journal', '/plan', 'plan'], ['/app/homeguard/tests', '/home', 'home'],
+    ['/app/explore/activities', '/act', 'act'],
+  ]) {
+    assert.equal(legacyProductPath(path), legacy);
+    assert.equal(deliveredStagePath(path), true);
+    assert.equal(routeOwner(path), owner);
+    assert.equal(safeStageReturn(`${path}?address=private&token=secret`), path);
+  }
+  for (const path of ['/app/nope', '/app/homeguard/nope', '/app/explore/activities/private']) {
+    assert.equal(productRoute(path), null);
+    assert.equal(deliveredStagePath(path), false);
+    assert.equal(safeStageReturn(path), '/plan');
+  }
+});
+test('feature destinations retain semantic URL state and safe link composition', () => {
+  assert.deepEqual(productRoute('/app/homeguard/tests/?homeView=list'), { legacy:'/home', destination:'tests' });
+  assert.equal(productDestinationHref('home','tests'), '/app/homeguard/tests?view=main');
+  assert.equal(productDestinationHref('act','projects'), '/app/explore/projects?view=main');
+  assert.equal(productDestinationHref('plan','journal'), '/app/journal?view=main');
+});
 
 test('owned map reentry retains only its access mode, never private inputs',()=>{
  assert.equal(safeStageReturn('/map?access=owned&lat=35&record=private'),'/map?access=owned');

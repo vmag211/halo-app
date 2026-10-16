@@ -19,8 +19,8 @@ function RecordDate({ value }: { value: string }) {
 }
 
 function TestContinuation({ record, href }: { record:TestRecord; href:string }) {
-  const stages=[{label:'Arranged',recorded:record.arrangedByUser===true},{label:'Collected',recorded:!!record.collectionStart},{label:'Result',recorded:record.rows.length>0}];
-  return <aside className="how-continue" aria-label="Continue your home task"><div className="how-record-line"><span><strong>{record.title}</strong><small>{testStatusLabels[record.status]}</small></span><Link className="how-action" aria-label="Continue test" href={href} prefetch={false}>Continue <ArrowRight size={17} aria-hidden="true" /></Link></div><details className="how-stage-details"><summary aria-label="Stages recorded">Stages <span>{stages.filter(stage=>stage.recorded).length} of {stages.length}</span></summary><ol className="how-test-track" aria-label={`Recorded milestones for ${record.title}`}>{stages.map(stage=><li key={stage.label} data-recorded={stage.recorded}><span aria-hidden="true" /><strong>{stage.label}</strong><small>{stage.recorded?'Recorded':'Not recorded'}</small></li>)}</ol></details></aside>;
+  const stages=[{label:'Arranged',recorded:record.arrangedByUser===true||record.status==='arranged'},{label:'Collected',recorded:!!record.collectionStart},{label:'Result',recorded:record.rows.length>0}];
+  return <aside className="how-continue how-priority" aria-label="Continue your home task"><span className="how-kicker">{record.rows.length ? 'Review your results' : 'Your next step'}</span><div className="how-record-line"><span><strong>{record.title}</strong><small>{testStatusLabels[record.status]}{record.expectedDate && !record.rows.length ? <> · Expected <RecordDate value={record.expectedDate} /></> : null}</small></span><Link className="how-action how-primary-action" aria-label="Continue test" href={href} prefetch={false}>{record.rows.length ? 'Review' : 'Continue'} <ArrowRight size={17} aria-hidden="true" /></Link></div><details className="how-stage-details"><summary aria-label="Stages recorded">Recorded stages <span>{stages.filter(stage=>stage.recorded).length} of {stages.length}</span></summary><ol className="how-test-track" aria-label={`Recorded milestones for ${record.title}`}>{stages.map(stage=><li key={stage.label} data-recorded={stage.recorded}><span aria-hidden="true" /><strong>{stage.label}</strong><small>{stage.recorded?'Recorded':'Not recorded'}</small></li>)}</ol></details></aside>;
 }
 
 export default function HomeOverviewWorkspace({ href }: { href: Href }) {
@@ -45,6 +45,8 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const reports = tests.filter(record => record.rows.length > 0);
   const currentContext=workspace.mode === 'production' ? workspace.service?.context?.currentHomeId : workspace.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
   const currentTest = active.find(record => record.contextId === currentContext) ?? (workspace.mode === 'preview' && currentContext==='sample-current-home'?active[0]:undefined);
+  const currentReport = reports.filter(record => record.contextId === currentContext).sort((a, b) => b.collectionStart.localeCompare(a.collectionStart))[0];
+  const priorityRecord = currentTest ?? currentReport;
   const routines = ((workspace.collections.assets ?? []) as HomeAsset[]).filter(record => record.status !== 'replaced');
   const currentRecordIds=new Set(Object.values(workspace.collections).flat().filter(record=>!record.homeContextId||record.homeContextId===currentContext).map(record=>record.id));
   const nextRoutine = routines.filter(record => currentRecordIds.has(record.id) && record.status === 'active' && (record.snoozedUntil || record.nextDue)).sort((a, b) => (a.snoozedUntil || a.nextDue).localeCompare(b.snoozedUntil || b.nextDue))[0];
@@ -53,14 +55,21 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const gardens = (workspace.collections.gardens ?? []) as GardenSite[];
   const foods = workspace.collections.pantryItems ?? [];
   const lastSummary = workspace.drafts['summary-last-created'] as { at: string; pages: number } | undefined;
-  const link = (destination: string, view?: string, id?: string) => `${href('home', destination)}${view ? `&homeView=${view}` : ''}${id ? `&record=${encodeURIComponent(id)}` : ''}`;
+  const link = (destination: string, view?: string, id?: string) => {
+    const base = href('home', destination);
+    const query = new URLSearchParams();
+    if (view) query.set('homeView', view);
+    if (id) query.set('record', id);
+    return query.size ? `${base}${base.includes('?') ? '&' : '?'}${query}` : base;
+  };
   return <section id="home-workspace" tabIndex={-1} className="halo-home-workspace" aria-labelledby="home-workspace-title">
     <header className="how-heading"><h2 id="home-workspace-title">Your home workspace</h2><details className="how-add-menu" ref={addMenu} onToggle={event => setAddOpen(event.currentTarget.open)}><summary aria-label="Add a home record"><Plus size={16} aria-hidden="true" />Add</summary><nav aria-label="Add home records"><Link href={link('tests','new')} prefetch={false} onClick={closeAdd}><ClipboardList size={16} aria-hidden="true" />Plan a test</Link><Link href={link('tests','report')} prefetch={false} onClick={closeAdd}><FileText size={16} aria-hidden="true" />Add a report</Link><Link href={link('maintenance','create')} prefetch={false} onClick={closeAdd}><Wrench size={16} aria-hidden="true" />Add routine</Link><Link href={link('maintenance','observation')} prefetch={false} onClick={closeAdd}><Droplets size={16} aria-hidden="true" />Record moisture</Link></nav></details></header>
-    {unavailable ? <div className="how-notice" role="status"><p>{productionLoading || workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p><button className="how-action" onClick={() => workspace.setScenario('ready')}>Try again</button></div> : <>
+    {unavailable ? <div className="how-notice" role="status"><p>{productionLoading || workspace.scenario === 'loading' ? 'Loading your home workspace.' : 'Your home records could not load.'}</p>{!productionLoading && <button className="how-action" onClick={() => void workspace.retry()}>Try again</button>}</div> : <>
       {workspace.scenario === 'offline' && <p className="how-notice">Offline. Reconnect to save changes.</p>}
       {workspace.scenario === 'stale' && <p className="how-notice">Older records: check their source dates.</p>}
       {workspace.mode === 'production' ? Object.values(workspace.collections).flat().some(record=>record.homeContextId&&record.homeContextId!==currentContext)&&<p className="how-notice">Your record library includes previous homes.</p> : currentContext!=='sample-current-home'&&<p className="how-notice">Your record library includes previous homes.</p>}
     </>}
+    {!unavailable && (priorityRecord ? <TestContinuation record={priorityRecord} href={link('tests','detail',priorityRecord.id)} /> : <div className="how-priority how-start"><div><span className="how-kicker">Start with evidence</span><strong>Plan a test or keep a result.</strong></div><div className="how-start-actions"><Link className="how-action how-primary-action" href={link('tests','new')} prefetch={false}>Plan a test <ArrowRight size={17} aria-hidden="true" /></Link><Link className="how-action" href={link('tests','report')} prefetch={false}>Add a report</Link></div></div>)}
     <nav className="how-overview" aria-label="Home workspace features">
       <Link className="how-overview-row how-tests" aria-label="Open test records" href={link('tests')} prefetch={false}><ClipboardList size={22} aria-hidden="true" /><span><strong>Tests</strong><small>{unavailable ? 'Tests and reports' : `${active.length} active · ${plural(reports.length, 'report')}`}</small></span><ChevronRight size={17} aria-hidden="true" /></Link>
       <Link className="how-overview-row how-care" aria-label="Open home care" href={link('maintenance')} prefetch={false}><Wrench size={22} aria-hidden="true" /><span><strong>Home care</strong><small>{unavailable ? 'Routines and moisture' : nextRoutine ? <>Scheduled <RecordDate value={nextRoutine.snoozedUntil || nextRoutine.nextDue} /></> : `${plural(routines.length, 'routine')} · ${plural(observations.length, 'observation')}`}</small></span><ChevronRight size={17} aria-hidden="true" /></Link>
@@ -69,10 +78,6 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
     </nav>
     <details className="how-shortcuts"><summary>Quick access <ChevronRight size={15} aria-hidden="true" /></summary><div className="how-modules">
       <section className="how-workbench" aria-label="Records and home care">
-      <section className="how-module how-tests" aria-label="Tests and records"><div className="how-module-heading"><ClipboardList size={23} aria-hidden="true" /><div><h3 id="how-tests-title">Current test</h3></div></div>
-        {!unavailable && currentTest && <TestContinuation record={currentTest} href={link('tests','detail',currentTest.id)} />}
-        {!unavailable && !currentTest && <p className="how-empty">{tests.length ? 'Open a report or prepare your next test.' : 'Start with a test you are planning or a report you already have.'}</p>}
-      </section>
       <section className="how-module how-care" aria-label="Maintenance and moisture"><div className="how-module-heading"><Wrench size={23} aria-hidden="true" /><div><h3 id="how-care-title">Recent home care</h3></div></div>
         {!unavailable && <div className="how-care-list">{nextRoutine ? <Link href={link('maintenance', 'detail', nextRoutine.id)} prefetch={false}><Wrench size={18} aria-hidden="true" /><span><strong>{nextRoutine.title}</strong><small>Scheduled <RecordDate value={nextRoutine.snoozedUntil || nextRoutine.nextDue} /></small></span><ChevronRight size={17} aria-hidden="true" /></Link> : <p className="how-empty">{routines.length ? 'No active routine has a next date.' : 'Add a routine for the equipment you care for.'}</p>}{recentObservation ? <Link href={link('maintenance', 'observation-detail', recentObservation.id)} prefetch={false}><Droplets size={18} aria-hidden="true" /><span><strong>{recentObservation.title}</strong><small>Observed <RecordDate value={recentObservation.observedAt} /></small></span><ChevronRight size={17} aria-hidden="true" /></Link> : <p className="how-empty">Record dampness, a leak or a measured reading when you have one.</p>}</div>}
       </section>

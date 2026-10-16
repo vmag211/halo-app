@@ -1,8 +1,8 @@
 import {test,expect,type Page} from '@playwright/test';
 const root='/foundation/preview/expanded/?tab=plan&motion=reduce';
-test.beforeEach(async({page})=>{await page.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
+test.beforeEach(async({page})=>{await page.clock.setFixedTime(new Date('2026-10-12T16:00:00Z'));await page.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)&&!u.pathname.startsWith('/api/')?route.continue():route.abort();});});
 async function samples(page:Page){await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByRole('button',{name:'Load a sample week',exact:true}).click();await page.getByText('Expanded app review · Not approved',{exact:true}).click();}
-for(const appearance of ['light','dark'])test(`phone-sized planning layout in ${appearance}`,async({page},info)=>{
+for(const appearance of ['light','dark'])test(`responsive planning hierarchy in ${appearance}`,async({page},info)=>{
   for(const [width,scale]of [[1920,100],[1280,100],[375,100],[320,150]]){
     await page.setViewportSize({width,height:950});await page.goto(`${root}&appearance=${appearance}&scale=${scale}`);await samples(page);
     await expect(page.getByRole('heading',{name:'Up next',exact:true})).toBeVisible();
@@ -10,25 +10,47 @@ for(const appearance of ['light','dark'])test(`phone-sized planning layout in ${
     const shell=(await page.getByTestId('foundation-product').boundingBox())!;
     const agenda=(await page.locator('.mw-agenda').boundingBox())!;
     const rail=(await page.locator('.mw-planning-rail').boundingBox())!;
-    expect(shell.width).toBeLessThanOrEqual(430);expect(shell.width).toBeLessThanOrEqual(width);
-    expect(rail.x).toBeCloseTo(agenda.x,0);expect(rail.y).toBeGreaterThanOrEqual(agenda.y+agenda.height);
+    expect(shell.width).toBeLessThanOrEqual(width);
+    const workspace=(await page.locator('.mw-workspace').boundingBox())!;
+    if(width>=1280)expect(shell.width).toBeGreaterThan(430);else expect(shell.width).toBeLessThanOrEqual(430);
+    if(workspace.width>=760)expect(rail.x).toBeGreaterThan(agenda.x+agenda.width);else{expect(rail.x).toBeCloseTo(agenda.x,0);expect(rail.y).toBeGreaterThanOrEqual(agenda.y+agenda.height);}
     expect(Math.abs(shell.x-(width-shell.width)/2)).toBeLessThan(1);
-    const tabs=(await page.getByRole('navigation',{name:'Main navigation'}).boundingBox())!;
+    const nav=page.getByRole('navigation',{name:width>=1024?'Desktop main navigation':'Main navigation',exact:true});
+    await expect(nav).toBeVisible();
+    const tabs=(await nav.boundingBox())!;
     expect(tabs.width).toBeLessThanOrEqual(shell.width);
     await page.screenshot({path:info.outputPath(`dashboard-${appearance}-${width}.png`)});
     await page.getByRole('button',{name:'Month',exact:true}).click();await expect(page.locator('.mw-month-labels span')).toHaveCount(7);await expect(page.locator('.mw-days button')).toHaveCount(42);
   }
 });
-test('main tabs and task sheets retain the same mobile shell on a wide display',async({page})=>{
+test('main tabs use desktop space while task sheets retain readable widths',async({page})=>{
   await page.setViewportSize({width:1920,height:950});await page.goto(root);
   for(const name of ['Explore','Homeguard','Today','My Week']){
-    await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name,exact:true}).click();
-    expect((await page.getByTestId('foundation-product').boundingBox())!.width).toBe(430);
+    await page.getByRole('navigation',{name:'Desktop main navigation',exact:true}).getByRole('link',{name,exact:true}).click();
+    const width=(await page.getByTestId('foundation-product').boundingBox())!.width;
+    expect(width).toBeGreaterThan(430);expect(width).toBeLessThanOrEqual(1920);
   }
   await page.getByRole('button',{name:'Add task',exact:true}).click();
-  expect((await page.locator('#week-task-detail').boundingBox())!.width).toBeLessThanOrEqual(430);
+  expect((await page.locator('#week-task-detail').boundingBox())!.width).toBeLessThanOrEqual(600);
 });
-test('record date opens the original routine, and hiding sources preserves tasks',async({page})=>{await page.goto(root);await page.getByRole('button',{name:'Agenda',exact:true}).click();await expect(page.getByRole('region',{name:'Linked record dates'})).toContainText('Kitchen filter upkeep');await page.getByRole('region',{name:'Linked record dates'}).getByRole('link').filter({hasText:'Kitchen filter upkeep'}).click();await expect(page).toHaveURL(/record=sample-filter/);await page.getByRole('link',{name:'Back to Homeguard',exact:true}).click();await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'My Week',exact:true}).click();await page.locator('.mw-calendar-options > summary').click();await page.locator('.mw-date-sources > summary').click();await page.getByLabel('Include dates from my records').uncheck();await expect(page.getByRole('region',{name:'Linked record dates'})).toHaveCount(0);await expect(page.locator('.mw-task')).toHaveCount(0);});
+test('record date opens the original routine, and hiding sources preserves tasks',async({page})=>{
+  await page.goto(root);
+  await page.getByRole('button',{name:'Agenda',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Linked record dates'})).toContainText('Kitchen filter upkeep');
+  await page.getByRole('region',{name:'Linked record dates'}).getByRole('link').filter({hasText:'Kitchen filter upkeep'}).click();
+  await expect(page).toHaveURL(/record=sample-filter/);
+  await page.getByRole('link',{name:'Back to Homeguard',exact:true}).click();
+  await expect(page).not.toHaveURL(/record=sample-filter/);
+  await expect(page.getByRole('heading',{name:'Your home workspace',exact:true})).toBeVisible();
+  await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'My Week',exact:true}).click();
+  await expect(page).toHaveURL(/tab=plan/);
+  await expect(page.getByRole('heading',{name:'Your day',exact:true})).toBeVisible();
+  await page.locator('.mw-calendar-options > summary').click();
+  await page.locator('.mw-date-sources > summary').click();
+  await page.getByLabel('Include dates from my records').uncheck();
+  await expect(page.getByRole('region',{name:'Linked record dates'})).toHaveCount(0);
+  await expect(page.locator('.mw-task')).toHaveCount(0);
+});
 test('weekly review is confirmed, deduplicated and paused without deleting the task',async({page})=>{await page.goto(root);await page.getByRole('button',{name:'Plan my weekly review'}).click();const sheet=page.locator('#week-review-planning');await sheet.getByText('Choose a regular review moment',{exact:true}).click();await sheet.getByLabel('Review day',{exact:true}).selectOption('1');await sheet.getByRole('button',{name:'Save weekly review plan',exact:true}).click();await expect(sheet.getByRole('status')).toContainText('one all-day review task');await sheet.getByRole('button',{name:'Save weekly review plan',exact:true}).click();await sheet.getByRole('button',{name:'Pause weekly prompt preference'}).click();await expect(sheet.getByRole('status')).toContainText('unchanged');await sheet.getByRole('button',{name:'Done',exact:true}).click();await page.getByLabel('Find an item').fill('Review my HALO week');await expect(page.locator('.mw-agenda .mw-task')).toHaveCount(1);await expect(page.locator('.mw-review-panel')).toHaveAttribute('data-configured','false');await expect(page.getByRole('button',{name:'Plan my weekly review',exact:true})).toBeVisible();});
 test('weekly review failure retains preferences and browser Back restores opener',async({page})=>{await page.goto(root);await page.getByText('Expanded app review · Not approved',{exact:true}).click();await page.getByLabel('Simulate failed action save').check();await page.getByRole('button',{name:'Plan my weekly review'}).click();const sheet=page.locator('#week-review-planning');await sheet.getByText('Choose a regular review moment',{exact:true}).click();await sheet.getByLabel('Review day',{exact:true}).selectOption('3');await sheet.getByRole('button',{name:'Save weekly review plan',exact:true}).click();await expect(sheet.getByRole('status')).toContainText('could not save');await expect(sheet.getByLabel('Review day',{exact:true})).toHaveValue('3');await page.goBack();await expect(sheet).not.toBeVisible();await expect(page.getByRole('button',{name:'Plan my weekly review'})).toBeFocused();});
 test('reduced motion stops every dashboard decorative animation',async({page})=>{await page.goto(root+'&appearance=dark');await samples(page);for(const selector of ['.mw-calendar','.mw-next-panel','.mw-review-panel']){await expect(page.locator(selector).first()).toBeAttached();const animations=await page.locator(selector).evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).animationName));expect(animations.length).toBeGreaterThan(0);expect(animations.every(name=>name==='none')).toBe(true);}});

@@ -19,6 +19,28 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     await expect(workspace).toContainText('3 reports');
     await expect(workspace.locator('.how-shortcuts')).not.toHaveAttribute('open', '');
     await expect(workspace.locator('.how-overview-row')).toHaveCount(4);
+    const primary = workspace.getByRole('link', { name: 'Continue test', exact: true });
+    const restingForeground = await primary.evaluate(element => getComputedStyle(element).color);
+    await primary.hover();
+    await expect(primary).toHaveCSS('color', restingForeground);
+    await primary.focus();
+    await page.mouse.move(0, 0);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(primary).toBeFocused();
+    await expect(primary).toHaveCSS('color', restingForeground);
+    if (width === 320) {
+      const navigation = page.getByRole('navigation', { name: 'Main navigation', exact: true });
+      for (const label of ['My Week', 'Today', 'Homeguard', 'Explore']) {
+        const link = navigation.getByRole('link', { name: label, exact: true });
+        const target = (await link.boundingBox())!;
+        const text = (await link.locator('span').boundingBox())!;
+        expect(text.x).toBeGreaterThanOrEqual(target.x);
+        expect(text.x + text.width).toBeLessThanOrEqual(target.x + target.width);
+        expect(target.width).toBeGreaterThanOrEqual(44);
+        expect(target.height).toBeGreaterThanOrEqual(44);
+      }
+    }
     await workspace.locator('.how-shortcuts > summary').click();
     await workspace.locator('.how-stage-details > summary').click();
     await expect(page.getByRole('list', { name: /Recorded milestones/ })).toContainText('Not recorded');
@@ -33,7 +55,7 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(workspace).not.toContainText('\u2014');
     if (width===375) {
-      expect((await workspace.boundingBox())!.height).toBeLessThan(420);
+      expect((await workspace.boundingBox())!.height).toBeLessThan(590);
       await expect(workspace.getByRole('link',{name:'Open test records',exact:true})).toContainText('Tests');
       await expect(workspace.getByRole('link',{name:'Open Food and Garden',exact:true})).toContainText('Food and Garden');
     }
@@ -92,10 +114,9 @@ test('overview groups home care without duplicating continuation or hiding entra
   const workspace = page.locator('#home-workspace');
   await workspace.locator('.how-shortcuts > summary').click();
   const care = workspace.getByRole('region', { name: 'Records and home care', exact: true });
-  await expect(care.getByRole('region', { name: 'Tests and records', exact: true })).toBeVisible();
   await expect(care.getByRole('region', { name: 'Maintenance and moisture', exact: true })).toBeVisible();
   await expect(workspace.getByRole('link', { name: 'Continue test', exact: true })).toHaveCount(1);
-  await expect(workspace.locator('.how-tests .how-continue')).toHaveCount(1);
+  await expect(workspace.locator('.how-priority.how-continue')).toHaveCount(1);
   await workspace.locator('.how-stage-details > summary').click();
   await expect(workspace.getByRole('list', { name: /Recorded milestones/ })).toHaveCount(1);
   await expect(care).toContainText('Scheduled Oct 1');

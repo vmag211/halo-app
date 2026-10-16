@@ -18,7 +18,9 @@ test('homepage leads with daily work and exposes retained calendar controls on d
   await expect(page.locator('.mw-day-empty')).toHaveText('No plans for this day.');
   const calendar=await page.locator('.mw-calendar').boundingBox(),agenda=await page.locator('.mw-agenda').boundingBox(),overview=await page.locator('.mw-overview').boundingBox();
   expect(calendar!.y).toBeLessThan(agenda!.y);expect(agenda!.y).toBeLessThan(overview!.y);
-  expect((await page.locator('.mw-workspace').boundingBox())!.height).toBeLessThan(1500);
+  // The primary planning surface remains above the supporting overview stack.
+  expect((await page.locator('.mw-dashboard-main').boundingBox())!.height).toBeLessThan(850);
+  expect((await page.locator('.mw-workspace').boundingBox())!.height).toBeLessThan(1600);
   const summary=page.locator('.mw-week-details > summary');
   await summary.focus();await page.keyboard.press('Enter');
   await expect(page.locator('.mw-board-totals')).toBeVisible();

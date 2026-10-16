@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Bell, BookOpen, CircleHelp, Hand, House, Info, Map as MapIcon, Notebook, Settings, Sunrise, WifiOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import SeverityPill from '@/components/ui/SeverityPill';
@@ -22,6 +22,8 @@ import LunaAssistant from './LunaAssistant';
 import ExpandedLunaPreview from '@/components/expanded/ExpandedLunaPreview';
 import LunaMark from './LunaMark';
 import AppNavigation from '@/components/ui/AppNavigation';
+import AppSidebar from '@/components/ui/AppSidebar';
+import {productPath,productRoute,productDestinationHref} from '@/lib/frontend/product-routes';
 import { ExpandedActionDialog, ExpandedMode, ExpandedReviewControls } from '@/components/expanded/ExpandedPreviewState';
 import { ExpandedAct, ExpandedConnections, ExpandedDestinationPage, ExpandedPlan, ExpandedSettings } from '@/components/expanded/ExpandedConnections';
 import HomeOverviewWorkspace from '@/components/expanded/HomeOverviewWorkspace';
@@ -29,13 +31,14 @@ import { destinations, isDestination } from '@/lib/frontend/expanded-preview';
 import type { AppTab } from '@/lib/frontend/navigation';
 import AlertCenter,{useAlertInbox} from '@/components/expanded/AlertCenter';
 import type {SettingsProps} from '@/components/expanded/SettingsWorkspace';
-import {useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
+import {useHomeDraft,useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
 import '@/components/expanded/interface-refinement.css';
 import InterfaceMotion from '@/components/expanded/InterfaceMotion';
 import PublicBrowse from '@/components/expanded/PublicBrowse';
 import {HomeEvidence,HomeActionPlan} from '@/components/stage/HomeEvidence';
 import ProductionReadingStatus from '@/components/production/ProductionReadingStatus';
 import ProductionLearnSheet from '@/components/production/ProductionLearnSheet';
+import '@/components/ui/responsive-shell.css';
 
 const tabIcons = { today: Sunrise, home: House, map: MapIcon, journal: Notebook, act: Hand };
 const topics = ['pfas', 'radon', 'lead', 'air', 'pollen', 'uv', 'mold'];
@@ -114,9 +117,11 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const homeWorkspace=useHomeWorkspace();
   const homeChanged=!productionRoute&&expanded&&Boolean(homeWorkspace.collections.homeTransitions?.length);
   const router = useRouter();
+  const pathname=usePathname();
+  const [sidebarCollapsed,setSidebarCollapsed]=useHomeDraft('ui:sidebar-collapsed',false);
   const search = useSearchParams();
   const queryTab = productionRoute ?? search.get('tab');
-  const queryDestination = search.get('destination');
+  const queryDestination = search.get('destination') ?? (productionRoute ? productRoute(pathname)?.destination ?? null : null);
   const experience = useSceneExperience();
   const factorTab = initialFactor ? (['pfas', 'radon', 'lead'].includes(initialFactor) ? 'home' : 'today') : undefined;
   const initialRoute = productionRoute ?? (expanded && scenario === 'shell' ? 'plan' : startingRoute(scenario));
@@ -146,7 +151,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const inDetail = !!(initialFactor || initialFamily || initialMember);
   const backTab = initialFamily ? 'today' : initialMember ? 'home' : route;
   function previewHref(tab: PreviewRoute, factor?: FactorKey) {
-    if (productionRoute) return factor ? `/factors/${factor}` : `/${tab === 'journal' ? 'plan?destination=journal' : `${tab}?view=main`}`;
+    if (productionRoute) return factor ? `/factors/${factor}` : productPath(tab);
     const params = new URLSearchParams({ scenario, tab, appearance, scale: String(Math.round(scale * 100)), motion, time, contrast: String(contrast) });
     if (expanded) params.set('edition', 'expanded');
     return `/foundation/preview${factor ? `/factor/${factor}` : ''}?${params}`;
@@ -154,7 +159,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const factorHref = (factor: FactorKey) => previewHref(['pfas', 'radon', 'lead'].includes(factor) ? 'home' : 'today', factor);
   const familyHref = productionRoute ? '/family' : previewHref('today').replace('/foundation/preview?', '/foundation/preview/family?');
   const memberHref = (member: HomeMemberKey) => productionRoute ? `/household/${member}` : previewHref('home').replace('/foundation/preview?', `/foundation/preview/household/${member}?`);
-  const expandedHref = (tab: string, target?: string) => `${previewHref(tab as PreviewRoute)}${target ? `&destination=${encodeURIComponent(target)}` : ''}`;
+  const expandedHref = (tab: string, target?: string) => productionRoute ? productDestinationHref(tab,target) : `${previewHref(tab as PreviewRoute)}${target ? `&destination=${encodeURIComponent(target)}` : ''}`;
   const mapHref = (layer: string) => productionRoute ? `/map?access=owned&layer=${encodeURIComponent(layer)}` : `/foundation/preview/map?edition=expanded${layer ? `&layer=${layer}` : ''}&appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&time=${time}&contrast=${contrast}`;
   const routeRef = useRef(route);
   const scrollMemory = useRef<Record<string, number>>({});
@@ -184,7 +189,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     if (scenario === 'toast-undo') setToast({ id: ++toastSequence.current, message: c.deleteConfirm, action: () => setDeleted(false) });
     const url = new URL(window.location.href);
     if (!productionRoute && !factorTab && !initialMember && !initialFamily && url.searchParams.has('tab') && allowedRoutes.includes(url.searchParams.get('tab') ?? '')) setRoute(url.searchParams.get('tab') as PreviewRoute);
-    if (expanded) setDestination(url.searchParams.get('destination'));
+    if (expanded) setDestination(url.searchParams.get('destination') ?? (productionRoute ? productRoute(url.pathname)?.destination ?? null : null));
     const learn = url.searchParams.get('learn');
     if (learn && topics.includes(learn)) { setSheet({ type: 'learn', height: 'standard', topic: learn, generic: !['air', 'uv', 'pollen', 'mold'].includes(learn) }); sheetEntry.current = false; }
     else if (url.searchParams.has('sheet')) { sheetEntry.current = !!window.history.state?._foundationSheet; }
@@ -198,7 +203,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
       const location = new URL(window.location.href);
       const tab = location.searchParams.get('tab');
       const nextRoute = productionRoute ?? factorTab ?? (allowedRoutes.includes(tab ?? '') ? tab as PreviewRoute : initialRoute);
-      if (expanded) setDestination(location.searchParams.get('destination'));
+      if (expanded) setDestination(location.searchParams.get('destination') ?? (productionRoute ? productRoute(location.pathname)?.destination ?? null : null));
       scrollMemory.current[routeRef.current] = window.scrollY;
       setRoute(nextRoute);
       const kind = location.searchParams.get('sheet') as PreviewSheet | null;
@@ -232,10 +237,12 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     if (next === 'map') { router.push(expanded ? mapHref('water') : `/foundation/preview/map?appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&contrast=${contrast}`); return; }
     if (inDetail) { router.push(previewHref(next)); return; }
     const url = new URL(window.location.href);
-    url.searchParams.delete('destination'); setDestination(null);
+    url.searchParams.delete('destination'); url.searchParams.delete('open'); setDestination(null);
     if (fromSheet) { url.searchParams.delete('sheet'); url.searchParams.delete('learn'); window.history.replaceState({ ...window.history.state, _foundationSheet: false }, '', url); sheetEntry.current = false; setSheet(null); }
     scrollMemory.current[route] = window.scrollY;
-    url.searchParams.set('tab', next); window.history.pushState({ ...window.history.state, _foundationSheet: false, _foundationSettingsReturn: next === 'settings' ? route : null }, '', url);
+    // Next copies its router history internally. Reusing __NA here would bypass
+    // its URL hook update and leave Settings reading the previous panel query.
+    url.searchParams.set('tab', next); window.history.pushState({ haloSettingsPanel: false, _foundationSheet: false, _foundationSettingsReturn: next === 'settings' ? route : null }, '', url);
     setRoute(next); requestAnimationFrame(() => window.scrollTo(0, scrollMemory.current[next] ?? 0));
   }
   function expandFactor(key: string) {
@@ -243,7 +250,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     requestAnimationFrame(() => document.getElementById(`factor-${key}`)?.scrollIntoView({ behavior: experience.motion ? 'smooth' : 'instant', block: 'nearest' }));
   }
   function backFromSettings() {
-    if (productionRoute) { router.push('/plan'); return; }
+    if (productionRoute) { router.push(productPath('plan')); return; }
     if (window.history.state?._foundationSettingsReturn) window.history.back();
     else {
       const next=expanded?'plan':'today';const url = new URL(window.location.href); url.searchParams.set('tab', next);
@@ -275,25 +282,26 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   else if (current === 'identity') content = <Identity />;
   else if (current === 'cards') content = <><Intro title={c.labels.cardFamily} /><Card title={c.labels.staticCard}><p>{c.cardDetail}</p></Card><Card title={c.labels.tappableCard} onClick={() => openSheet({ type: 'learn', height: 'standard', topic: 'air' })}><p>{c.learn}</p></Card>{readingView}</>;
   else if (route !== 'today' && route !== 'home') content = <><Intro title={routeTitles[route]} body={c.notPage(routeTitles[route])} />{route === 'map' ? <div className="halo-f-map-placeholder"><MapIcon size={50} aria-hidden="true" /><p>{c.notPage('Map')}</p><Button variant="secondary" onClick={() => openSheet({ type: 'map', height: 'content' })}>{c.compact}</Button></div> : route === 'settings' ? <Controls household showToast={showToast} /> : readingView}</>;
-  if (initialFactor && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FactorDetail factorKey={initialFactor} scenario={current} factorHref={factorHref} parentHref={previewHref(route)} showAllSteps={expanded} evidence={productionRoute?<HomeEvidence factor={initialFactor}/>:undefined} />;
+  if (initialFactor && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FactorDetail factorKey={initialFactor} scenario={current} factorHref={factorHref} parentHref={previewHref(route)} showAllSteps={expanded} evidence={productionRoute?<HomeEvidence factor={initialFactor}/>:undefined} followThrough={expanded?<ExpandedConnections home={route==='home'} factor={initialFactor} href={expandedHref} mapHref={mapHref} scenario={current}/>:undefined} />;
   if (initialFamily && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <FamilyGuidance scenario={current} factorHref={factorHref} parentHref={previewHref('today')} />;
   if (initialMember && !['loading', 'error', 'offline-empty'].includes(current) && !isGate) content = <HomeMemberGuidance member={initialMember} scenario={current} memberHref={memberHref} factorHref={factorHref} parentHref={`${previewHref('home')}#household`} />;
   const showExpanded = expanded && !isGate && !['loading', 'error', 'offline-empty'].includes(current);
   if (showExpanded && route === 'settings') content = <ExpandedSettings offline={offline} href={expandedHref} factorHref={factorHref} onAlerts={()=>openSheet({type:'alerts',height:'tall'})} display={{scale:String(Math.round(scale*100)),motion,contrast,appearance}} onDisplay={onDisplay} />;
   if (showExpanded && !inDetail && (route === 'act' || route === 'plan' || destination)) {
     content = destination ? <ExpandedDestinationPage destination={destination} href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : route === 'act' ? <ExpandedAct href={expandedHref} mapHref={mapHref} environmentAvailable={!['no-data', 'card-no-data', 'offline-empty', 'empty', 'error', 'loading'].includes(current)} /> : <ExpandedPlan href={expandedHref} scoreScenario={current} />;
-  } else if (showExpanded && (route === 'today' || route === 'home')) {
+  } else if (showExpanded && !initialFactor && (route === 'today' || route === 'home')) {
     content = <>{content}<ExpandedConnections home={route === 'home'} factor={initialFactor} household={initialFamily || !!initialMember} href={expandedHref} mapHref={mapHref} scenario={current} /></>;
   }
   if(!productionRoute && expanded && search.get('access')==='public') return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined="true" style={{'--halo-text-scale':scale} as CSSProperties}><PublicBrowse mapHref={mapHref('water')+'&access=public'}/></div>;
   const activeTab = route === 'settings' ? null : destination && isDestination(destination) ? destinations[destination].tab : route === 'map' ? 'act' : route === 'journal' ? 'plan' : route as AppTab;
   const dashboardHeader=showExpanded && route==="plan" && !destination && !inDetail;
-  return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined={expanded} data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
+  return <div className="halo-app halo-f-app" data-testid="foundation-product" data-refined={expanded} data-responsive={expanded} data-sidebar-collapsed={sidebarCollapsed} data-week-layout={dashboardHeader} data-wide={route === 'map'} data-contrast={contrast ? 'high' : 'normal'} data-motion={motion} data-animate={experience.enabled} data-text-scale={scale * 100} style={{ '--halo-text-scale': scale, '--factor-accent': `var(--factor-${initialFactor ?? 'air'})` } as CSSProperties}>
+    {!isGate && expanded && <><a className="halo-skip-content" href="#halo-main-content">Skip to content</a><AppSidebar active={activeTab} collapsed={sidebarCollapsed} onCollapse={()=>setSidebarCollapsed(!sidebarCollapsed)} href={previewHref} onNavigate={navigate} journalHref={expandedHref('plan','journal')} mapHref={mapHref('water')} learnHref={productionRoute?'/learn':`${expandedHref('plan')}&access=public`} settingsHref={previewHref('settings')}/></>}
     {expanded && <InterfaceMotion />}
     <EnvironmentalScene page variant={initialFactor ?? (route === 'home' ? 'home' : 'landscape')} />
     {!isGate && <header className="halo-f-header">{dashboardHeader&&<button className="halo-f-icon halo-f-bell mw-home-alerts" aria-label={c.unread(unread)} onClick={()=>openSheet({type:"alerts",height:"standard"})}><Bell size={22} aria-hidden="true"/>{unread>0&&<span className="halo-f-badge">{unread>9?"9+":unread}</span>}</button>}{inDetail ? <Link className="halo-f-icon" href={previewHref(backTab)} aria-label={`Back to ${routeTitles[backTab]}`} prefetch={false}><ArrowLeft size={22} aria-hidden="true" /></Link> : route === 'settings' && <button className="halo-f-icon" aria-label={c.labels.back} onClick={backFromSettings}><ArrowLeft size={22} aria-hidden="true" /></button>}<h1>{initialMember ? memberCatalog[initialMember].label : initialFamily ? 'Your household' : initialFactor ? factorReadings[initialFactor].title : routeTitles[route]}</h1><div className="halo-f-header-actions">{(dashboardHeader || showExpanded && route === 'settings') && assistantEnabled && !sheet && <button className="halo-f-icon halo-f-assistant mw-header-luna" aria-label={c.labels.assistant} onClick={()=>openSheet({type:"assistant",height:"tall"})}><LunaMark size={24}/></button>}{route === 'today' && !inDetail && <button className="halo-f-icon halo-f-bell" aria-label={c.unread(unread)} onClick={() => openSheet({ type: 'alerts', height: 'standard' })}><Bell size={22} aria-hidden="true" />{unread > 0 && <span className="halo-f-badge">{unread > 9 ? '9+' : unread}</span>}</button>}{route !== 'settings' && <button className="halo-f-icon" aria-label={c.labels.settings} onClick={() => navigate('settings')}><Settings size={22} aria-hidden="true" /></button>}</div></header>}
     {offline && <div className="halo-f-offline"><WifiOff size={18} aria-hidden="true" /><p>{current === 'offline-empty' ? c.offlineEmpty : c.offline}</p></div>}
-    <main className="halo-f-main" aria-label={ariaTitle}>{productionRoute&&<ProductionReadingStatus route={productionRoute}/>}{!isGate && !expanded && <p className="halo-f-eyebrow">{initialFactor ? 'A closer look' : 'Your world, understood'}</p>}{current === 'stale' && <Callout tone="notice"><p>{c.stale}</p><button className="halo-text-button" onClick={() => mockRequest(() => setResolved(true))} disabled={busy}>{c.retry}</button></Callout>}{current === 'refreshing' && <p role="status" className="halo-f-refreshing"><span className="halo-spinner" aria-hidden="true" />{c.refreshing}</p>}{content}</main>
+    <main id="halo-main-content" tabIndex={-1} className="halo-f-main" aria-label={ariaTitle}>{productionRoute&&<ProductionReadingStatus route={productionRoute}/>}{!isGate && !expanded && <p className="halo-f-eyebrow">{initialFactor ? 'A closer look' : 'Your world, understood'}</p>}{current === 'stale' && <Callout tone="notice"><p>{c.stale}</p><button className="halo-text-button" onClick={() => mockRequest(() => setResolved(true))} disabled={busy}>{c.retry}</button></Callout>}{current === 'refreshing' && <p role="status" className="halo-f-refreshing"><span className="halo-spinner" aria-hidden="true" />{c.refreshing}</p>}{content}</main>
     {!isGate && <>{expanded ? <AppNavigation active={activeTab} href={previewHref} onNavigate={navigate} /> : <nav className="halo-f-tabs" aria-label={c.labels.navigation}>{previewTabs.map(tab => { const Icon = tabIcons[tab]; return <a key={tab} href={previewHref(tab)} aria-current={route === tab ? 'page' : undefined} onClick={e => { e.preventDefault(); if (route !== tab || inDetail) navigate(tab); }}><Icon size={23} aria-hidden="true" /><span>{tabLabels[tab]}</span></a>; })}</nav>}{assistantEnabled && !sheet && !dashboardHeader && !(showExpanded && route === 'settings') && <button className="halo-f-assistant" aria-label={c.labels.assistant} onClick={() => openSheet({ type: 'assistant', height: 'tall' })}><LunaMark size={28} /></button>}</>}
     {expanded && <ExpandedActionDialog offline={offline} />}
     {!sheet && toastElement}

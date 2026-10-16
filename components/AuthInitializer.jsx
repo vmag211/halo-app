@@ -21,7 +21,7 @@ export default function AuthInitializer() {
     if (window.location.pathname.startsWith('/foundation/preview')) return;
     if (window.location.pathname === '/learn') return;
     if (window.location.pathname === '/map' && new URLSearchParams(window.location.search).get('access') !== 'owned') return;
-    if (!deliveredStagePath(window.location.pathname) && !['/', '/onboarding'].includes(window.location.pathname)) return;
+    if (!deliveredStagePath(window.location.pathname) && window.location.pathname !== '/onboarding') return;
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
     import('../lib/auth').then(({ensureAnonSession}) => ensureAnonSession()).catch(() => {
       // Surfacing this is the job of whichever screen needs the session; here we

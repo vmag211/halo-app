@@ -12,6 +12,7 @@ import type { DailyResponse, ErrorCode, HomeResponse, ProfileResponse } from '@/
 import { factorKeys, isFactorKey, type FactorKey } from '@/lib/frontend/factor-preview';
 import { StageRuntimeProvider } from '@/components/foundation/StageRuntime';
 import { HouseholdProvider } from '@/components/foundation/PreviewHousehold';
+import {legacyProductPath} from '@/lib/frontend/product-routes';
 
 const liveApi = createLiveStageApi();
 type Reading<T> = { data: T | null; loading: boolean; error: ErrorCode | null; cached: boolean };
@@ -217,8 +218,9 @@ export default function StageSession({ children, api = liveApi }: { children: Re
   }, [gate, refresh]);
 
   const data = useMemo(() => buildStageData(daily.data, home.data, profile, history), [daily.data, home.data, profile, history]);
-  const activeFactor = pathname.startsWith('/factors/') ? pathname.split('/')[2] : null;
-  const topics = isFactorKey(activeFactor) ? [activeFactor] : pathname === '/family' ? factorKeys.slice(0, 4) : [];
+  const readingPath=legacyProductPath(pathname);
+  const activeFactor = readingPath.startsWith('/factors/') ? readingPath.split('/')[2] : null;
+  const topics = isFactorKey(activeFactor) ? [activeFactor] : readingPath === '/family' ? factorKeys.slice(0, 4) : [];
   const topicKey = topics.join(',');
   useEffect(() => {
     const controller = new AbortController(); explanationRequest.current?.abort(); explanationRequest.current = controller;

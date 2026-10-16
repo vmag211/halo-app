@@ -1,7 +1,7 @@
 'use client';
 
 import {useSearchParams} from 'next/navigation';
-import {useEffect,useLayoutEffect,useRef,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {ArrowLeft,Bell,BookOpen,ChevronRight,House,Search,ShieldCheck,SlidersHorizontal,X} from 'lucide-react';
 import {useHomeDraft,useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
 import {usePreviewHousehold} from '@/components/foundation/PreviewHousehold';
@@ -26,14 +26,15 @@ const icons={home:House,notifications:Bell,display:SlidersHorizontal,luna:LunaMa
 const groups:SettingPanel[][]=[['home','display','notifications','luna'],['privacy','about']];
 
 export default function SettingsWorkspace(props:SettingsProps){
- const production=useProductionPreferences();const openQuery=useSearchParams().get('open'),requestedPanel=openQuery==='household'?'home':openQuery,deepOpened=useRef(false);
+ const production=useProductionPreferences();const openQuery=useSearchParams().get('open'),requestedPanel=openQuery==='household'?'home':openQuery;
+ const panel:SettingPanel|null=requestedPanel&&Object.hasOwn(c.sections,requestedPanel)?requestedPanel as SettingPanel:null;
  const workspace=useHomeWorkspace(),preview=useExpandedPreview()!;const {bands,setBand}=usePreviewHousehold();
  const [values,setValues]=useHomeDraft<SettingsValues>('settings:values',initialSettings);
  const [drafts,setDrafts]=useHomeDraft<Partial<Record<SettingPanel,SettingEdit>>>('settings:edits',{});
  const [appearance,setAppearance]=useHomeDraft<AppearancePreference>(appearancePreferenceKey,appearancePreference(props.display.appearance));
  const [ambient,setAmbient]=useHomeDraft('halo-ambient',props.display.ambient??true);
  const currentDisplay={scale:props.display.scale,motion:props.display.motion,contrast:props.display.contrast};
- const [panel,setPanel]=useState<SettingPanel|null>(null),[query,setQuery]=useState(''),[message,setMessage]=useState('');
+ const [query,setQuery]=useState(''),[message,setMessage]=useState('');
  const [baseline,setBaseline]=useState('');
  const [zone,setZone]=useHomeDraft('week:zone','America/New_York'),[streak,setStreak]=useHomeDraft('week:streak',false),[linked,setLinked]=useHomeDraft('week:include-record-dates',true);
  const [pending,setPending]=useState(false);const lock=useRef(false);
@@ -48,18 +49,31 @@ export default function SettingsWorkspace(props:SettingsProps){
  const dirty=JSON.stringify(slice(current))!==JSON.stringify(slice(values))||panel==='home'&&JSON.stringify(householdDraft)!==JSON.stringify(bands)||panel==='display'&&(JSON.stringify(displayDraft)!==JSON.stringify(currentDisplay)||JSON.stringify(calendarDraft)!==JSON.stringify({zone,streak,linked})||appearanceDraft!==appearancePreference(appearance)||ambientDraft!==ambient);
  const unavailable=production?production.loading||!production.snapshot:['loading','error'].includes(workspace.scenario);
  const blocked=props.offline||workspace.pending||pending||!!production&&(production.loading||production.pending||!!production.unknown||!production.snapshot)||['offline','loading','error','save-error','conflict'].includes(workspace.scenario)||preview.fail;
- const panelRef=useRef(panel);
- useLayoutEffect(()=>{panelRef.current=panel;},[panel]);
+ const enteredPanel=useRef<SettingPanel|null>(null);
  const root=useRef<HTMLElement|null>(null);
  const opener=useRef<SettingPanel|null>(null);
  const snapshot=()=>JSON.stringify({values,bands,display:currentDisplay,calendar:{zone,streak,linked},appearance:appearancePreference(appearance),ambient});
  const initialBaseline=snapshot();
- useEffect(()=>{if(deepOpened.current||!requestedPanel||!Object.hasOwn(c.sections,requestedPanel)||production&&!production.snapshot)return;deepOpened.current=true;queueMicrotask(()=>{setPanel(requestedPanel as SettingPanel);setBaseline(initialBaseline);});},[requestedPanel,production,initialBaseline]);
- function enter(next:SettingPanel){opener.current=next;setMessage('');setBaseline(drafts[next]?.baseline??snapshot());setPanel(next);history.pushState({...history.state,haloSettingsPanel:true},'',location.href);}
+ useEffect(()=>{
+  if(!panel){enteredPanel.current=null;return;}
+  if(enteredPanel.current===panel||production&&!production.snapshot)return;
+  enteredPanel.current=panel;opener.current=panel;
+  queueMicrotask(()=>{setBaseline(drafts[panel]?.baseline??initialBaseline);setMessage('');});
+ },[panel,production,initialBaseline,drafts]);
+ useEffect(()=>{if(!panel)return;const frame=requestAnimationFrame(()=>root.current?.querySelector<HTMLHeadingElement>('.hp-panel-heading h2')?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);},[panel]);
+ function enter(next:SettingPanel){
+  opener.current=next;setMessage('');setBaseline(drafts[next]?.baseline??snapshot());
+  const url=new URL(location.href);url.searchParams.set('open',next);
+  history.pushState({haloSettingsPanel:true},'',`${url.pathname}${url.search}${url.hash}`);
+ }
  function rebase(){const previous=JSON.parse(baseline),nextBaseline=snapshot();updateEdit({values:mergeUnedited(current,previous.values,values),baseline:nextBaseline,...(panel==='display'?{display:mergeUnedited(displayDraft,previous.display,currentDisplay),calendar:mergeUnedited(calendarDraft,previous.calendar,{zone,streak,linked}),appearance:mergeUnedited(appearanceDraft,previous.appearance,appearancePreference(appearance)),ambient:mergeUnedited(ambientDraft,previous.ambient,ambient)}:{})});if(panel==='home')preview.setHouseholdDraft(mergeUnedited(householdDraft,previous.bands,bands));setBaseline(nextBaseline);setMessage(c.latestKept);}
- useEffect(()=>{const pop=()=>{if(!panelRef.current)return;setPanel(null);setMessage('');};window.addEventListener('popstate',pop);return()=>window.removeEventListener('popstate',pop);},[]);
  useEffect(()=>{if(panel||!opener.current)return;const frame=requestAnimationFrame(()=>root.current?.querySelector<HTMLButtonElement>(`[data-setting-panel="${opener.current}"]`)?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);},[panel]);
- function leave(){if(pending||workspace.pending)return;if(history.state?.haloSettingsPanel)history.back();else setPanel(null);}
+ function leave(){
+  if(pending||workspace.pending)return;
+  if(history.state?.haloSettingsPanel){history.back();return;}
+  const url=new URL(location.href);url.searchParams.delete('open');
+  history.replaceState(null,'',`${url.pathname}${url.search}${url.hash}`);
+ }
  async function save(){
   if(lock.current)return;
   if(blocked||!navigator.onLine){setMessage(workspace.scenario==='conflict'?c.conflict:props.offline||workspace.scenario==='offline'||!navigator.onLine?c.offline:c.failed);return;}
@@ -83,7 +97,7 @@ export default function SettingsWorkspace(props:SettingsProps){
  const found=(Object.keys(c.sections)as SettingPanel[]).filter(key=>`${c.sections[key].join(' ')} ${c.settingsSearch[key]}`.toLowerCase().includes(query.toLowerCase().trim()));
  return <section ref={root} className="halo-settings" aria-label={c.settings}>
   {!panel?<><label className="hp-setting-search"><Search size={18} aria-hidden="true"/><span className="halo-sr-only">{c.search}</span><input type="search" value={query} placeholder={c.searchHint} onChange={e=>setQuery(e.target.value)}/></label>{query&&<button className="hp-search-clear" onClick={()=>setQuery('')}><X size={14}/>{c.clearSearch}</button>}<div className="hp-settings-list">{groups.map((group,index)=>{const visible=group.filter(key=>found.includes(key));return visible.length>0&&<section className="hp-settings-group" key={index} aria-label={c.settingGroups[index]}><h3>{c.settingGroups[index]}</h3><div>{visible.map(key=>{const Icon=icons[key];return <button key={key} className="hp-setting-row" data-setting-panel={key} onClick={()=>enter(key)}><span className={`hp-setting-symbol hp-setting-${key}`}><Icon size={21}/></span><span><strong>{c.sections[key][0]}</strong><small>{sectionSummary(key)}</small></span>{drafts[key]?<span className="hp-dirty-dot" aria-hidden="true"/>:<ChevronRight size={17} aria-hidden="true"/>}</button>;})}</div></section>;})}{!found.length&&<p className="hp-search-empty">{c.noMatch}</p>}</div></>:<>
-  <button className="hp-back" aria-label={c.back} onClick={leave}><ArrowLeft size={17}/>{c.back}{dirty&&<span className="hp-dirty-dot" aria-hidden="true"/>}</button><header className="hp-panel-heading"><h2>{c.sections[panel][0]}</h2></header>
+  <button className="hp-back" aria-label={c.back} onClick={leave}><ArrowLeft size={17}/>{c.back}{dirty&&<span className="hp-dirty-dot" aria-hidden="true"/>}</button><header className="hp-panel-heading"><h2 tabIndex={-1}>{c.sections[panel][0]}</h2></header>
   {production?.error&&<div className="hp-feedback" role="status"><p>{production.error}</p><button className="hp-text" disabled={production.pending} onClick={()=>production.unknown?void production.reconcile():production.retry()}>{production.unknown?'Check save status':c.retry}</button></div>}
   {unavailable?<div className="hp-empty" role="status"><ShieldCheck size={32}/><p>{production?.loading||workspace.scenario==='loading'?c.loading:c.unknown}</p><button className="hp-text" onClick={()=>production?production.retry():workspace.setScenario('ready')}>{c.retry}</button></div>:<>
    {panel==='home'&&<SettingsHome draft={current} change={setDraft} blocked={pending}/>}

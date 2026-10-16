@@ -11,6 +11,7 @@ import ProductionPreferences from './ProductionPreferences';
 import {createProductionRuntime} from '@/lib/frontend/production/runtime';
 import {createHomeAdapter,createActionAdapter} from '@/lib/frontend/production/adapters';
 import {deliveredStagePath} from '@/lib/frontend/navigation';
+import {legacyProductPath} from '@/lib/frontend/product-routes';
 import {isFactorKey} from '@/lib/frontend/factor-preview';
 import {homeMemberKeys,type HomeMemberKey} from '@/lib/frontend/home-household';
 import type {PreviewRoute} from '@/lib/frontend/foundation-preview';
@@ -33,7 +34,7 @@ function SessionBoundary({children}:{children:ReactNode}){
  return <ConnectedApp key={`${identity}:${session.profile?.home_context?.id??session.profile?.profile?.home_context_id??'none'}:${session.profile?.home_context?.revision??session.profile?.profile?.context_revision??0}`} identityId={identity!}>{children}</ConnectedApp>;
 }
 function ConnectedApp({identityId,children}:{identityId:string;children:ReactNode}){
- const session=useStageSession(),pathname=usePathname(),router=useRouter(),params=useSearchParams();
+ const session=useStageSession(),pathname=legacyProductPath(usePathname()),router=useRouter(),params=useSearchParams();
  const legacy=params.get('learn')??params.get('risk');
  useEffect(()=>{const factor=legacy==='water'?'pfas':legacy;if(isFactorKey(factor)&&(pathname==='/home'?['pfas','radon','lead'].includes(factor):pathname==='/today'&&['air','uv','pollen','mold'].includes(factor)))router.replace(`/factors/${factor}#reading-overview`);},[legacy,pathname,router]);
  const homeId=session.profile?.home_context?.id??session.profile?.profile?.home_context_id??null;

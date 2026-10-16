@@ -2,7 +2,7 @@ import {expect,test} from '@playwright/test';
 import {mockProduction,homeId} from './production-fixtures';
 import {jsonRoute} from './stage-fixtures';
 
-for(const [path,title]of [['/plan','My Week'],['/today','Today'],['/home','Homeguard'],['/act','Explore'],['/settings','Settings']])test(`production ${path} uses the reviewed mobile shell with real routes`,async({page})=>{
+for(const [path,title]of [['/plan','My Week'],['/today','Today'],['/home','Homeguard'],['/act','Explore'],['/settings','Settings']])test(`production ${path} uses the responsive shell with real routes`,async({page})=>{
  const network=await mockProduction(page);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:1440,height:1000});await page.goto(path);
  await expect(page.getByTestId('production-product')).toBeVisible();
@@ -10,7 +10,7 @@ for(const [path,title]of [['/plan','My Week'],['/today','Today'],['/home','Homeg
  await expect(page.locator('a[href*="/foundation/preview"]')).toHaveCount(0);
  await expect(page.locator('body')).not.toContainText('Lower-level radon test');
  await expect(page.locator('body')).not.toContainText('Kitchen filter upkeep');
- const width=await page.locator('.halo-f-app').first().evaluate(node=>node.getBoundingClientRect().width);expect(width).toBeLessThanOrEqual(430);
+ const width=await page.locator('.halo-f-app').first().evaluate(node=>node.getBoundingClientRect().width);expect(width).toBeGreaterThan(430);expect(width).toBeLessThanOrEqual(1440);await expect(page.getByRole('navigation',{name:'Desktop main navigation'})).toBeVisible();await expect(page.getByRole('navigation',{name:'Main navigation',exact:true})).toBeHidden();
  expect(network.requests.some(r=>r.path.startsWith('/api/frontend/workspace'))).toBe(true);
  expect(network.blocked).toEqual([]);expect(errors).toEqual([]);
 });

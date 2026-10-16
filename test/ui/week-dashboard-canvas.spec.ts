@@ -37,9 +37,9 @@ test('weekly effort uses supplied values and opens a day without rescheduling an
 test('activity key filters the same agenda and toggles back to all work',async({page})=>{
   await page.goto(root);await connected(page);
   await page.locator('.mw-week-details > summary').click();const button=page.getByRole('navigation',{name:'Filter agenda by activity'}).getByRole('button',{name:/^Projects,/});
-  await button.click();await expect(page.getByLabel('Show',{exact:true})).toHaveValue('Projects');
+  await button.click();await page.getByRole('button',{name:/^Filters/}).click();await expect(page.getByLabel('Show',{exact:true})).toHaveValue('Projects');await page.locator('#week-filters').getByRole('button',{name:'Show results',exact:true}).click();
   await expect(page.locator('.mw-agenda .mw-task')).toHaveCount(1);await expect(page.locator('.mw-agenda')).toContainText('Draw a testable design');
-  await button.click();await expect(page.getByLabel('Show',{exact:true})).toHaveValue('Everything');
+  await button.click();await page.getByRole('button',{name:/^Filters/}).click();await expect(page.getByLabel('Show',{exact:true})).toHaveValue('Everything');await page.locator('#week-filters').getByRole('button',{name:'Show results',exact:true}).click();
 });
 
 test('saved idea scheduling prepares a review, cancels safely and revises only that task',async({page})=>{

@@ -26,10 +26,12 @@ for (const appearance of ['light', 'dark']) test(`calendar canvas dashboard rema
     const shell = (await page.getByTestId('foundation-product').boundingBox())!;
     const agenda = (await page.locator('.mw-agenda').boundingBox())!;
     const rail = (await page.locator('.mw-planning-rail').boundingBox())!;
-    expect(shell.width).toBeLessThanOrEqual(Math.min(430, width));
+    expect(shell.width).toBeLessThanOrEqual(width);
+    if(width>=1280)expect(shell.width).toBeGreaterThan(430);else expect(shell.width).toBeLessThanOrEqual(430);
     expect(Math.abs(shell.x - (width - shell.width) / 2)).toBeLessThan(1);
-    expect(rail.x).toBeCloseTo(agenda.x, 0);
-    expect(rail.y).toBeGreaterThanOrEqual(agenda.y + agenda.height);
+    const workspace=(await page.locator('.mw-workspace').boundingBox())!;
+    if(workspace.width>=760)expect(rail.x).toBeGreaterThan(agenda.x+agenda.width);
+    else{expect(rail.x).toBeCloseTo(agenda.x,0);expect(rail.y).toBeGreaterThanOrEqual(agenda.y+agenda.height);}
     for (const button of await page.locator('.mw-agenda .mw-task-actions button').all()) {
       const bounds = (await button.boundingBox())!;
       expect(bounds.width).toBeGreaterThanOrEqual(44);

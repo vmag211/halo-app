@@ -13,7 +13,12 @@ const pending = ['components/foundation/FoundationPreview.tsx', 'components/map-
 const copied = new Set();
 function allowed(path) {
   // assistant.js is the reviewed, pure diagnostic guard, not the assistant API.
-  return /^(components\/(foundation|expanded|homeguard|map-preview|onboarding|ui)\/|lib\/frontend\/)/.test(path) || ['app/OnboardingScreen.tsx','lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js', 'public/explore/photo-sources.json'].includes(path);
+  // Shared components now import production context/read helpers. Copy their
+  // definitions, never mount ProductionApp, AuthInitializer or live route shells.
+  const sharedProduction = ['ProductionContext.tsx','ProductionLearnSheet.tsx','WeekSources.tsx','ProductionRestoreAccessFlow.tsx','ProductionAccountFlows.tsx','ProductionAlerts.tsx','ProductionPreferences.tsx','ProductionPrivacy.tsx','ProductionReadingStatus.tsx','ProductionSourceOperations.tsx','useAccountService.ts'];
+  return /^(components\/(foundation|expanded|homeguard|map-preview|onboarding|ui)\/|lib\/frontend\/)/.test(path)
+    || sharedProduction.some(name=>path===`components/production/${name}`)
+    || ['components/stage/StageSession.tsx','components/stage/HomeEvidence.tsx','app/OnboardingScreen.tsx','lib/learnContent.js', 'lib/assistant.js', 'lib/auth.js', 'lib/supabase.js', 'public/explore/photo-sources.json'].includes(path);
 }
 function copy(path) {
   mkdirSync(dirname(resolve(target, path)), { recursive: true });

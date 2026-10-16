@@ -20,6 +20,7 @@
 # next.js
 /.next/
 /.next-stage-test/
+/.next-stage-test-*/
 /.next-stage-test-prerender-retry/
 /.next-stage-test-second-retry/
 /out/

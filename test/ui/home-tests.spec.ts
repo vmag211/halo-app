@@ -193,6 +193,7 @@ test('record filters survive detail navigation and garden context is explicit', 
   await page.getByLabel('Sample medium (required)').selectOption('water');
   await page.getByLabel('Purpose (required)').fill('Check the selected site linkage');
   await page.getByRole('button', { name: 'Save test plan' }).click();
+  await page.locator('.hg-test-context > summary').click();
   await expect(page.getByText('Site source at recording', { exact: true })).toBeVisible();
   await expect(page.locator('.hg-facts')).toContainText('Unknown (site revision 1)');
 });

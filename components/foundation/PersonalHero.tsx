@@ -25,6 +25,7 @@ import PreviewSectionLink from './PreviewSectionLink';
 import RisingSun from './RisingSun';
 import { useStageRuntime } from './StageRuntime';
 import { previewOverviewScore } from '@/lib/frontend/overview-preview';
+import ScoreTransparency from './ScoreTransparency';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
@@ -48,17 +49,21 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
   }));
   return <div className="halo-ph-overview" data-home={home}>
+    <div className="halo-ph-overview-header">
     <section className="halo-ph-landscape" aria-label={`${home ? 'Homeguard' : 'Today'} overview`}>
       <EnvironmentalScene variant={home ? 'home' : 'landscape'} /><div className="halo-ph-scene-content"><div className="halo-ph-scene-top"><span><Leaf size={14} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
         <SegmentedScore score={score} severity={severity} partial={partial} segments={segments} label={home ? 'Your home score' : 'Your personal score'} />
         <span className="halo-ph-higher">Higher is better</span>
       </div>
     </section>
+    <div className="halo-ph-overview-summary">
     <div className="halo-ph-introduction"><div className="halo-ph-headline">{(missing || score === 0 || zeroRisk || home) && <h2>{missing ? 'A few readings are missing' : score === 0 ? 'Take a closer look at your readings' : zeroRisk ? 'A little more room to breathe' : 'Know your home a little better.'}</h2>}<SeverityPill severity={severity} /></div><p>{home ? 'Water, ground, and the place you call home.' : 'Your air, sunlight, pollen, and moisture, brought into focus.'}</p><span className="halo-f-meta">{overview ? overview.asOf : 'Updated September 30, 2026'}</span></div>
     {partial && (!runtime || !missing) && <Callout tone="notice">{overview ? <p>{`Partial score. Missing inputs: ${overview.missingInputs.join(', ') || 'Some readings are unavailable'}.`}</p> : <p>Based on {home ? 1 : 3} of {home ? 2 : 4} scored factors. {home ? 'PFAS' : 'Pollen'} data is not available right now.</p>}</Callout>}
     {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'Readings unavailable. Missing data is not an all-clear.'}</p></Callout>}
     {overview?.notice && <Callout tone="notice"><p>{overview.notice}</p></Callout>}
     <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
+    <ScoreTransparency home={home} keys={keys} readings={readings} overview={overview} factorHref={factorHref} missingKeys={!runtime ? keys.filter(key => missing || (partial && key === missingKey)) : undefined} />
+    </div></div>
     {home && homeWorkspace && <PreviewSectionLink className="how-text-action how-workspace-jump" target="home-workspace">Open your home workspace <ArrowDown size={17} aria-hidden="true" /></PreviewSectionLink>}
     <div className="halo-ph-section-label"><h2>{home ? 'Around your home' : 'Your environment, closer up'}</h2><span>Explore a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
@@ -67,8 +72,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     })}</div>
     {!home && <HouseholdContext familyHref={familyHref} />}
     <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score.' : 'Today brings together air quality, UV, pollen, and mold conditions. Check each reading’s update time.'} Estimates are identified in each factor.</p>
-    {home && workspace}
-    {home && memberHref && <HomeHousehold memberHref={memberHref} />}
+    {home && <div className="halo-home-management">{workspace}{memberHref && <HomeHousehold memberHref={memberHref} />}</div>}
   </div>;
 }
 
@@ -102,7 +106,7 @@ const pfasPracticalSteps = [
   'Ask your local health or environmental department what steps it recommends for your water supply. A utility sample does not measure your individual exposure.',
 ];
 
-export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading, evidence, showAllSteps = false }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading; evidence?: ReactNode; showAllSteps?: boolean }) {
+export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading, evidence, followThrough, showAllSteps = false }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading; evidence?: ReactNode; followThrough?: ReactNode; showAllSteps?: boolean }) {
   const { clock } = useSceneExperience();
   const runtime = useStageRuntime();
   const readings = runtime?.readings ?? factorReadings;
@@ -131,6 +135,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
       {content && <details className="halo-ph-definition"><summary><h3>What it is</h3><span>Understand {factor.shortTitle}</span></summary><p>{displayText(content.what_it_is)}</p><a href="#reading-sources" className="halo-ph-inline-link">Explore the sources <ArrowUpRight size={15} aria-hidden="true" /></a></details>}
     </section></Reveal>
     {missing && <Callout tone="notice"><p>A missing reading is not a zero. General guidance remains available below.</p></Callout>}
+    {followThrough && <div className="halo-factor-follow-through">{followThrough}</div>}
     {factorKey === 'air' && trend}
     <Reveal><div className="halo-ph-reading-story" id="reading-detail" tabIndex={-1}>{!missing && <FactorFocus factor={factor} />}
       {!offline && why && <aside className="halo-ph-why"><h3>Why yours reads this way</h3><p>{displayText(why)}</p></aside>}

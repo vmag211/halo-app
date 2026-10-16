@@ -187,4 +187,23 @@
 .halo-home-workspace .how-shortcuts .how-continue { padding-left:0; }
 .halo-home-workspace .how-shortcuts .how-module-heading h3 { font-size:calc(.85rem * var(--halo-text-scale)); }
 .halo-home-workspace .how-heading { padding-bottom:4px; }
+
+/* The current record leads; the library stays a compact set of entrances. */
+.halo-f-app .halo-home-workspace .how-priority { margin-top:12px; padding:14px; display:grid; gap:8px; border:0; border-radius:8px; background:color-mix(in srgb,var(--halo-primary) 9%,var(--halo-card)); }
+.halo-home-workspace .how-priority .how-record-line strong { font-size:calc(.96rem * var(--halo-text-scale)); }
+.halo-home-workspace .how-priority .how-kicker { font-size:calc(.74rem * var(--halo-text-scale)); font-weight:650; }
+.halo-home-workspace .how-primary-action { min-height:44px; padding:10px 14px; border-radius:8px; color:var(--halo-on-primary,#07323b); background:var(--halo-primary); text-decoration:none; }
+.halo-f-app .halo-home-workspace .how-primary-action:is(:hover,:focus-visible) { color:var(--halo-on-primary,#07323b); text-decoration:none; filter:brightness(1.06); }
+.halo-home-workspace .how-start strong { display:block; margin-top:5px; font-size:calc(.96rem * var(--halo-text-scale)); }
+.how-start-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; }
+.halo-home-workspace .how-priority .how-stage-details > summary { min-height:44px; padding-bottom:0; }
+.halo-home-workspace .how-priority .how-record-line > span { flex-basis:auto; }
+@container home-snapshot (min-width:560px) {
+  .halo-home-workspace .how-overview { grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; }
+  .halo-home-workspace .how-start { grid-template-columns:minmax(0,1fr) auto; align-items:center; }
+}
+@container home-snapshot (max-width:290px) {
+  .halo-home-workspace .how-priority .how-record-line { align-items:flex-start; flex-wrap:wrap; }
+  .halo-home-workspace .how-priority .how-record-line > span { flex-basis:100%; }
+}
 .halo-f-app[data-contrast="high"] .how-overview-row { --how-accent:var(--halo-ink); }

@@ -6,7 +6,9 @@ import {execFileSync} from 'node:child_process';
 import ts from 'typescript';
 
 const root=process.cwd();
-const out=path.resolve(root,'tmp/backend-handoff-audit');
+const outputIndex=process.argv.indexOf('--output');
+if(outputIndex>=0&&!process.argv[outputIndex+1])throw new Error('Supply the output directory after --output.');
+const out=path.resolve(root,outputIndex>=0?process.argv[outputIndex+1]:'tmp/backend-handoff-audit');
 const verify=process.argv.includes('--verify');
 if(!verify)fs.mkdirSync(out,{recursive:true});
 const tracked=execFileSync('git',['ls-files','-z'],{encoding:'utf8',maxBuffer:20*1024*1024}).split('\0').filter(Boolean);

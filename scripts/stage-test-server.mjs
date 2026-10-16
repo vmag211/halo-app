@@ -20,6 +20,6 @@ function run(args) {
 }
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { child?.kill(signal); process.exit(0); });
 (async () => {
-  await run(['build']);
-  if (!process.argv.includes('--build-only')) await run(['start', '--hostname', '127.0.0.1', '--port', '3014']);
+  await run(['build', ...(process.env.HALO_STAGE_TEST_WEBPACK === '1' ? ['--webpack'] : [])]);
+  if (!process.argv.includes('--build-only')) await run(['start', '--hostname', '127.0.0.1', '--port', process.env.HALO_STAGE_TEST_PORT || '3014']);
 })().catch(error => { console.error(error.message); process.exit(1); });
