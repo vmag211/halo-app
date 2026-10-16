@@ -15,7 +15,7 @@ Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive ba
 | Part | Repository source | Normalized UTF-8 bytes | SHA-256 |
 | --- | --- | ---: | --- |
 | 1 | docs/continuation/FRONTEND_WIRING_CLOSEOUT.md | 15557 | 62ce755ff30be3fb976d962d23c2a260ef4e469db6108fcd42144548e475cc17 |
-| 2 | docs/continuation/FRONTEND_WIRING_VERIFICATION.md | 7823 | 2fb45202e58f695914551d1d892f9265ebf423ffc31d35fcb7aa903c4f9b571f |
+| 2 | docs/continuation/FRONTEND_WIRING_VERIFICATION.md | 8729 | 75d9f1645a3f1a132cce9655c90af9cc7523fa07e47700548ff8cca65a2ad37d |
 | 3 | tmp/frontend-wiring-closeout/operations.md | 6756 | 685083ad09176ece7b47a40fdd9b1e0cf83527cfaab9c2f05dc366f6e0365ef0 |
 | 4 | docs/continuation/FRONTEND_INTEGRATION_READY.md | 17818 | 36a0ec90c0c520c55c0b631b7250ee51f536f553f608bf061fea4a192d585c85 |
 | 5 | docs/continuation/HOME_ACCOUNT_PRODUCTION_INTEGRATION.md | 24663 | 31ba5a2d589a4ed62950df9e9b7b41753ce427f2b981496b8ee065b179e25ea3 |
@@ -30,9 +30,9 @@ Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive ba
 | 14 | docs/foundation/WIREFRAME_COMPLETION_MATRIX.md | 9946 | 84b02d188426a66f66fee136f46812cdb6f20ac07fa454a7775e8e42dd3ca6de |
 | 15 | docs/product/HALO_COMPLETE_BACKEND_HANDOFF.md | 601277 | 33abef338e35149c650856d0788ec7fd238a09b6c0b16e894adfcd2e2f0d481e |
 | 16 | docs/product/ai/HALO_BACKEND_WORKING_SPEC.md | 521027 | fc1fec4b180dc5057b2edf1c2203143d85535b43364502e674d34e04d415be86 |
-| 17 | tmp/backend-handoff-wrap/interface-ledger.md | 288082 | 0069840494e7720f1fe29560a06ccf0449f515f3c525b12b76b4cbb1aeb69159 |
+| 17 | tmp/backend-handoff-wrap/interface-ledger.md | 288084 | f2a00eb02d5f3d19e95bd01a0dd592681c2da3ff9c34689ced39e459596136c5 |
 | 18 | tmp/backend-handoff-wrap/type-register.md | 60979 | 07d06dfac47de0028157dfa34b1a8f3049cc903751b6694ec8a4abdac9415428 |
-| 19 | tmp/backend-handoff-wrap/source-register.md | 27066 | 8fdbad17e3f906608885a4ffcbd14432a8bdc30a6e1747874de5603b00395c9b |
+| 19 | tmp/backend-handoff-wrap/source-register.md | 27066 | 40dd57027a0d4bbc07a2bf9680772319ea487ecbf9ff94ad0fd8f5360751fa69 |
 
 
 ---
@@ -202,6 +202,12 @@ The review is a static public design preview, not the fake-auth test build or a 
 The shared expanded preview now omits its review banner by default. Add `review=tools` to its URL for developer controls and review qualifications; app navigation retains that parameter. Legacy component review and production behavior remain unchanged. Scenario tests explicitly request developer controls. This requires no backend contract or service changes.
 
 The static export build and TypeScript passed. Nine targeted presentation/hosted/network scenarios were checked; eight passed initially and the developer-control selector was corrected to use its accessible combobox role. The complete four-test hosted recheck then passed, including clean navigation and working developer scenario selection. Scoped lint passed. Current source fingerprints were regenerated for this component change. Evidence: `test-results-preview-banner/` and `test-results-preview-banner-release/`.
+
+## Short hosted URLs
+
+The static review now has `/app` for HALO and `/tools` for developer controls on the same hosting domain. Both are directly rendered static pages; primary tab links retain the short path. Existing long links remain supported. Static-only wrapper templates under `scripts/hosted-preview/` preserve one memory scope across the short pages and legacy factor/household/map pages. Production authentication and its existing `/app` routes are unchanged, and no backend contract is added.
+
+The 24-page static export build, main TypeScript and scoped lint passed. All nine targeted short-URL, existing-link and network-isolation browser checks passed, including trailing slashes, tab navigation, developer controls and saved-task continuity through a legacy factor page. Evidence: `test-results-short-urls/`. Interface fingerprints were refreshed without changing the requirement inventory.
 
 <!-- HALO-SOURCE-END docs/continuation/FRONTEND_WIRING_VERIFICATION.md -->
 
@@ -11931,92 +11937,92 @@ Contract family: T01-T06 / H01-H05 / shared.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0940 :94 | summary / FoundationPreview | {expanded ? 'Expanded app review · Not approved' : c.review} | (native form/control behavior) |
-| UI0941 :97 | select / FoundationPreview | {c.scenario} | onChange={e =&gt; changeScenario(e.target.value as FoundationScenario)} |
-| UI0942 :98 | select / FoundationPreview | {c.appearance} | onChange={e =&gt; setMode(e.target.value)} |
-| UI0943 :98 | select / FoundationPreview | {c.scale} | onChange={e =&gt; setScale(e.target.value)} |
-| UI0944 :99 | select / FoundationPreview | "Animation" | onChange={e =&gt; setMotion(e.target.value as MotionMode)} |
-| UI0945 :99 | select / FoundationPreview | "Scene lighting" | onChange={e =&gt; setTime(e.target.value as SceneTime)} |
-| UI0946 :100 | input / FoundationPreview | {c.contrast} | onChange={e =&gt; setContrast(e.target.checked)} |
-| UI0947 :100 | input / FoundationPreview | {c.motion} | onChange={e =&gt; setMotion(e.target.checked ? 'reduce' : 'system')} |
-| UI0948 :104 | Product / FoundationPreview | (child/component label) | onDisplay={next=&gt;{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=&gt;colorPalette(next.palette));}} |
-| UI0949 :271 | button / toastElement | {c.undo} | onClick={() =&gt; { toast.action?.(); setToast(null); }} |
-| UI0950 :272 | Readings / readingView | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })}; onSelect={expandFactor} |
-| UI0951 :272 | HomeOverviewWorkspace / readingView | (child/component label) | href={expandedHref} |
-| UI0952 :275 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
-| UI0953 :276 | EmptyState / Product | (child/component label) | action={current === 'empty' ? &lt;Button onClick={() =&gt; navigate('journal')}&gt;{c.continue}&lt;/Button&gt; : undefined} |
-| UI0954 :276 | Button / Product | {c.continue} | onClick={() =&gt; navigate('journal')} |
-| UI0955 :277 | EmptyState / Product | (child/component label) | action={expanded?&lt;div className="hc-flow"&gt;&lt;Link className="hp-primary" href="/onboarding/preview/?design=mobile"&gt;{c.setup}&lt;/Link&gt;&lt;Link href="/foundation/preview/expanded/?access=public"&gt;Browse without a home&lt;/Link&gt;&lt;/div&gt;:&lt;Button onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} busy={busy}&gt;{c.setup}&lt;/Button&gt;} |
-| UI0956 :277 | Link / Product | {c.setup} | href="/onboarding/preview/?design=mobile" |
-| UI0957 :277 | Link / Product | Browse without a home | href="/foundation/preview/expanded/?access=public" |
-| UI0958 :277 | Button / Product | {c.setup} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
-| UI0959 :278 | EmptyState / Product | (child/component label) | action={&lt;Button onClick={() =&gt; setResolved(true)}&gt;{c.goToday}&lt;/Button&gt;} |
-| UI0960 :278 | Button / Product | {c.goToday} | onClick={() =&gt; setResolved(true)} |
-| UI0961 :281 | Bars / Product | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
-| UI0962 :282 | Button / Product | {c.save} | onClick={() =&gt; mockRequest(() =&gt; showToast(c.saved))} |
-| UI0963 :282 | Button / Product | {c.continue} | onClick={() =&gt; showToast(c.saved)} |
-| UI0964 :282 | Button / Product | {c.cancel} | onClick={() =&gt; showToast(c.saved)} |
-| UI0965 :282 | Button / Product | {c.destructive} | onClick={removeEntry} |
-| UI0966 :282 | button / Product | {c.labels.settingsExample} | onClick={() =&gt; navigate('settings')} |
-| UI0967 :285 | SwipeRow / Product | (child/component label) | onAction={removeEntry} |
-| UI0968 :285 | Button / Product | {c.replaceToast} | onClick={() =&gt; showToast(c.saved)} |
-| UI0969 :286 | Button / Product | {c.standard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
-| UI0970 :286 | Button / Product | {c.tall} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
-| UI0971 :286 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
-| UI0972 :288 | Card / Product | {c.labels.tappableCard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
-| UI0973 :289 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
-| UI0974 :290 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
-| UI0975 :294 | ExpandedSettings / Product | (child/component label) | href={expandedHref}; onAlerts={()=&gt;openSheet({type:'alerts',height:'tall'})}; onDisplay={onDisplay} |
-| UI0976 :296 | ExpandedDestinationPage / Product | (child/component label) | href={expandedHref} |
-| UI0977 :296 | ExpandedAct / Product | (child/component label) | href={expandedHref} |
-| UI0978 :296 | ExpandedPlan / Product | (child/component label) | href={expandedHref} |
-| UI0979 :298 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
-| UI0980 :304 | a / Product | Skip to content | href="#halo-main-content" |
-| UI0981 :304 | AppSidebar / Product | (child/component label) | onCollapse={()=&gt;setSidebarCollapsed(!sidebarCollapsed)}; href={previewHref}; onNavigate={navigate} |
-| UI0982 :307 | button / Product | {c.unread(unread)} | onClick={()=&gt;openSheet({type:"alerts",height:"standard"})} |
-| UI0983 :307 | Link / Product | {'Back to ${routeTitles[backTab]}'} | href={previewHref(backTab)} |
-| UI0984 :307 | button / Product | {c.labels.back} | onClick={backFromSettings} |
-| UI0985 :307 | button / Product | {c.labels.assistant} | onClick={()=&gt;openSheet({type:"assistant",height:"tall"})} |
-| UI0986 :307 | button / Product | {c.unread(unread)} | onClick={() =&gt; openSheet({ type: 'alerts', height: 'standard' })} |
-| UI0987 :307 | button / Product | {c.labels.settings} | onClick={() =&gt; navigate('settings')} |
-| UI0988 :309 | button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
-| UI0989 :310 | AppNavigation / Product | (child/component label) | href={previewHref}; onNavigate={navigate} |
-| UI0990 :310 | a / Product | (child/component label) | href={previewHref(tab)}; onClick={e =&gt; { e.preventDefault(); if (route !== tab \|\| inDetail) navigate(tab); }} |
-| UI0991 :310 | button / Product | {c.labels.assistant} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
-| UI0992 :313 | ExpandedLunaPreview / Product | (child/component label) | onClose={closeSheet} |
-| UI0993 :321 | LunaAssistant / Product | (child/component label) | onClose={closeSheet} |
-| UI0994 :322 | BottomSheet / Product | "foundation-sheet" | onClose={closeSheet} |
-| UI0995 :325 | AlertCenter / Product | (child/component label) | onSettings={()=&gt;navigate('settings',true)}; onOpen={item=&gt;{const url=new URL(location.href);url.searchParams.delete('sheet');history.replaceState({...history.state,_foundationSheet:false},'',url);sheetEntry.current=false;setSheet(null);router.push(expandedHref(item.target.tab,item.target.destination));}} |
-| UI0996 :325 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setSheet({ ...sheet, state: undefined }))} |
-| UI0997 :326 | SwipeRow / Product | (child/component label) | onAction={() =&gt; { const previous = unread; setUnread(Math.max(0, unread - 1)); showToast(c.dismissConfirm, () =&gt; setUnread(previous)); }} |
-| UI0998 :326 | button / Product | {c.markRead} | onClick={() =&gt; setUnread(Math.max(0, unread - 1))} |
-| UI0999 :326 | Button / Product | {c.markAll} | onClick={() =&gt; setUnread(0)} |
-| UI1000 :326 | Button / Product | {c.replaceSheet} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
-| UI1001 :326 | Button / Product | {c.goToday} | onClick={() =&gt; navigate('today', true)} |
-| UI1002 :345 | ContributionBar / Readings | (child/component label) | onSelect={onSelect} |
-| UI1003 :346 | ExpandableCard / Readings | {factor.key} | onOpenChange={open =&gt; setExpanded(open ? factor.key : null)} |
-| UI1004 :347 | button / Readings | {c.learn} | onClick={onLearn} |
-| UI1005 :364 | SegmentedControl / Controls | {c.labels.journalMode} | onChange={setMode} |
-| UI1006 :364 | SegmentedControl / Controls | {c.labels.tenure} | onChange={setRenting} |
-| UI1007 :364 | SegmentedControl / Controls | {c.labels.filter} | onChange={value =&gt; setMode(value === 'All' ? 'Log' : 'Trends')} |
-| UI1008 :366 | AccordionRow / Controls | "household-options" | onToggle={() =&gt; setOpen(open === 'household' ? null : 'household')} |
-| UI1009 :366 | ToggleChip / Controls | {group} | onToggle={() =&gt; toggle(group)} |
-| UI1010 :366 | ToggleChip / Controls | {c.unavailable} | onToggle={() =&gt; {}} |
-| UI1011 :367 | AccordionRow / Controls | "accessibility-options" | onToggle={() =&gt; setOpen(open === 'accessibility' ? null : 'accessibility')} |
-| UI1012 :367 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
-| UI1013 :367 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
-| UI1014 :368 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
-| UI1015 :368 | Switch / Controls | {c.labels.enabledSwitch} | onChange={value =&gt; setReduce(!value)} |
-| UI1016 :368 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
-| UI1017 :389 | form / Form | (child/component label) | onSubmit={e =&gt; { e.preventDefault(); const next = { address: validation('address', address), year: validation('year', year), water: validation('water', water) }; setErrors(next); if (Object.values(next).some(Boolean)) return; setBusy(true); timer.current = setTimeout(() =&gt; { setBusy(false); setSaveError(scenario === 'form-error'); if (scenario !== 'form-error') showToast(c.saved); }, 650); }} |
-| UI1018 :390 | input / Form | {c.address} {errors.address && &lt;span id="address-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.address}&lt;/span&gt;} | onChange={e =&gt; { setAddress(e.target.value); clearValid('address', e.target.value); }}; onBlur={() =&gt; validate('address', address)} |
-| UI1019 :391 | input / Form | {c.year} {errors.year && &lt;span id="year-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.year}&lt;/span&gt;} | onChange={e =&gt; { const value = e.target.value.replace(/\D/g, ''); setYear(value); clearValid('year', value); }}; onBlur={() =&gt; validate('year', year)} |
-| UI1020 :392 | select / Form | {c.waterOptions.map((value, i) =&gt; &lt;option key={value} value={i ? value : ''}&gt;{value}&lt;/option&gt;)} | onChange={e =&gt; { setWater(e.target.value); clearValid('water', e.target.value); }}; onBlur={() =&gt; validate('water', water)} |
-| UI1021 :393 | textarea / Form | {c.note} {note.length &gt; 400 && &lt;span className="halo-f-meta" role="status"&gt;{note.length}/500&lt;/span&gt;} | onChange={e =&gt; setNote(e.target.value)} |
-| UI1022 :394 | input / Form | {c.checkbox} | onChange={e =&gt; setIllness(e.target.checked)} |
-| UI1023 :395 | input / Form | {c.slider} : {size} % | onChange={e =&gt; setSize(Number(e.target.value))} |
-| UI1024 :397 | ExpandableCard / Form | "long" | onOpenChange={setLongOpen} |
-| UI1025 :402 | button / Bars | {'${row.name}, ${row.value}, ${row.ratio} times the limit. ${row.ratio &gt; 2 ? 'Continues past the chart. ' : ''}${c.pfas}'} | onClick={onLearn} |
+| UI0940 :95 | summary / FoundationPreview | {expanded ? 'Expanded app review · Not approved' : c.review} | (native form/control behavior) |
+| UI0941 :98 | select / FoundationPreview | {c.scenario} | onChange={e =&gt; changeScenario(e.target.value as FoundationScenario)} |
+| UI0942 :99 | select / FoundationPreview | {c.appearance} | onChange={e =&gt; setMode(e.target.value)} |
+| UI0943 :99 | select / FoundationPreview | {c.scale} | onChange={e =&gt; setScale(e.target.value)} |
+| UI0944 :100 | select / FoundationPreview | "Animation" | onChange={e =&gt; setMotion(e.target.value as MotionMode)} |
+| UI0945 :100 | select / FoundationPreview | "Scene lighting" | onChange={e =&gt; setTime(e.target.value as SceneTime)} |
+| UI0946 :101 | input / FoundationPreview | {c.contrast} | onChange={e =&gt; setContrast(e.target.checked)} |
+| UI0947 :101 | input / FoundationPreview | {c.motion} | onChange={e =&gt; setMotion(e.target.checked ? 'reduce' : 'system')} |
+| UI0948 :105 | Product / FoundationPreview | (child/component label) | onDisplay={next=&gt;{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=&gt;colorPalette(next.palette));}} |
+| UI0949 :278 | button / toastElement | {c.undo} | onClick={() =&gt; { toast.action?.(); setToast(null); }} |
+| UI0950 :279 | Readings / readingView | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })}; onSelect={expandFactor} |
+| UI0951 :279 | HomeOverviewWorkspace / readingView | (child/component label) | href={expandedHref} |
+| UI0952 :282 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
+| UI0953 :283 | EmptyState / Product | (child/component label) | action={current === 'empty' ? &lt;Button onClick={() =&gt; navigate('journal')}&gt;{c.continue}&lt;/Button&gt; : undefined} |
+| UI0954 :283 | Button / Product | {c.continue} | onClick={() =&gt; navigate('journal')} |
+| UI0955 :284 | EmptyState / Product | (child/component label) | action={expanded?&lt;div className="hc-flow"&gt;&lt;Link className="hp-primary" href="/onboarding/preview/?design=mobile"&gt;{c.setup}&lt;/Link&gt;&lt;Link href="/foundation/preview/expanded/?access=public"&gt;Browse without a home&lt;/Link&gt;&lt;/div&gt;:&lt;Button onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} busy={busy}&gt;{c.setup}&lt;/Button&gt;} |
+| UI0956 :284 | Link / Product | {c.setup} | href="/onboarding/preview/?design=mobile" |
+| UI0957 :284 | Link / Product | Browse without a home | href="/foundation/preview/expanded/?access=public" |
+| UI0958 :284 | Button / Product | {c.setup} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
+| UI0959 :285 | EmptyState / Product | (child/component label) | action={&lt;Button onClick={() =&gt; setResolved(true)}&gt;{c.goToday}&lt;/Button&gt;} |
+| UI0960 :285 | Button / Product | {c.goToday} | onClick={() =&gt; setResolved(true)} |
+| UI0961 :288 | Bars / Product | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
+| UI0962 :289 | Button / Product | {c.save} | onClick={() =&gt; mockRequest(() =&gt; showToast(c.saved))} |
+| UI0963 :289 | Button / Product | {c.continue} | onClick={() =&gt; showToast(c.saved)} |
+| UI0964 :289 | Button / Product | {c.cancel} | onClick={() =&gt; showToast(c.saved)} |
+| UI0965 :289 | Button / Product | {c.destructive} | onClick={removeEntry} |
+| UI0966 :289 | button / Product | {c.labels.settingsExample} | onClick={() =&gt; navigate('settings')} |
+| UI0967 :292 | SwipeRow / Product | (child/component label) | onAction={removeEntry} |
+| UI0968 :292 | Button / Product | {c.replaceToast} | onClick={() =&gt; showToast(c.saved)} |
+| UI0969 :293 | Button / Product | {c.standard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
+| UI0970 :293 | Button / Product | {c.tall} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
+| UI0971 :293 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
+| UI0972 :295 | Card / Product | {c.labels.tappableCard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
+| UI0973 :296 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
+| UI0974 :297 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
+| UI0975 :301 | ExpandedSettings / Product | (child/component label) | href={expandedHref}; onAlerts={()=&gt;openSheet({type:'alerts',height:'tall'})}; onDisplay={onDisplay} |
+| UI0976 :303 | ExpandedDestinationPage / Product | (child/component label) | href={expandedHref} |
+| UI0977 :303 | ExpandedAct / Product | (child/component label) | href={expandedHref} |
+| UI0978 :303 | ExpandedPlan / Product | (child/component label) | href={expandedHref} |
+| UI0979 :305 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
+| UI0980 :311 | a / Product | Skip to content | href="#halo-main-content" |
+| UI0981 :311 | AppSidebar / Product | (child/component label) | onCollapse={()=&gt;setSidebarCollapsed(!sidebarCollapsed)}; href={previewHref}; onNavigate={navigate} |
+| UI0982 :314 | button / Product | {c.unread(unread)} | onClick={()=&gt;openSheet({type:"alerts",height:"standard"})} |
+| UI0983 :314 | Link / Product | {'Back to ${routeTitles[backTab]}'} | href={previewHref(backTab)} |
+| UI0984 :314 | button / Product | {c.labels.back} | onClick={backFromSettings} |
+| UI0985 :314 | button / Product | {c.labels.assistant} | onClick={()=&gt;openSheet({type:"assistant",height:"tall"})} |
+| UI0986 :314 | button / Product | {c.unread(unread)} | onClick={() =&gt; openSheet({ type: 'alerts', height: 'standard' })} |
+| UI0987 :314 | button / Product | {c.labels.settings} | onClick={() =&gt; navigate('settings')} |
+| UI0988 :316 | button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
+| UI0989 :317 | AppNavigation / Product | (child/component label) | href={previewHref}; onNavigate={navigate} |
+| UI0990 :317 | a / Product | (child/component label) | href={previewHref(tab)}; onClick={e =&gt; { e.preventDefault(); if (route !== tab \|\| inDetail) navigate(tab); }} |
+| UI0991 :317 | button / Product | {c.labels.assistant} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
+| UI0992 :320 | ExpandedLunaPreview / Product | (child/component label) | onClose={closeSheet} |
+| UI0993 :328 | LunaAssistant / Product | (child/component label) | onClose={closeSheet} |
+| UI0994 :329 | BottomSheet / Product | "foundation-sheet" | onClose={closeSheet} |
+| UI0995 :332 | AlertCenter / Product | (child/component label) | onSettings={()=&gt;navigate('settings',true)}; onOpen={item=&gt;{const url=new URL(location.href);url.searchParams.delete('sheet');history.replaceState({...history.state,_foundationSheet:false},'',url);sheetEntry.current=false;setSheet(null);router.push(expandedHref(item.target.tab,item.target.destination));}} |
+| UI0996 :332 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setSheet({ ...sheet, state: undefined }))} |
+| UI0997 :333 | SwipeRow / Product | (child/component label) | onAction={() =&gt; { const previous = unread; setUnread(Math.max(0, unread - 1)); showToast(c.dismissConfirm, () =&gt; setUnread(previous)); }} |
+| UI0998 :333 | button / Product | {c.markRead} | onClick={() =&gt; setUnread(Math.max(0, unread - 1))} |
+| UI0999 :333 | Button / Product | {c.markAll} | onClick={() =&gt; setUnread(0)} |
+| UI1000 :333 | Button / Product | {c.replaceSheet} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
+| UI1001 :333 | Button / Product | {c.goToday} | onClick={() =&gt; navigate('today', true)} |
+| UI1002 :352 | ContributionBar / Readings | (child/component label) | onSelect={onSelect} |
+| UI1003 :353 | ExpandableCard / Readings | {factor.key} | onOpenChange={open =&gt; setExpanded(open ? factor.key : null)} |
+| UI1004 :354 | button / Readings | {c.learn} | onClick={onLearn} |
+| UI1005 :371 | SegmentedControl / Controls | {c.labels.journalMode} | onChange={setMode} |
+| UI1006 :371 | SegmentedControl / Controls | {c.labels.tenure} | onChange={setRenting} |
+| UI1007 :371 | SegmentedControl / Controls | {c.labels.filter} | onChange={value =&gt; setMode(value === 'All' ? 'Log' : 'Trends')} |
+| UI1008 :373 | AccordionRow / Controls | "household-options" | onToggle={() =&gt; setOpen(open === 'household' ? null : 'household')} |
+| UI1009 :373 | ToggleChip / Controls | {group} | onToggle={() =&gt; toggle(group)} |
+| UI1010 :373 | ToggleChip / Controls | {c.unavailable} | onToggle={() =&gt; {}} |
+| UI1011 :374 | AccordionRow / Controls | "accessibility-options" | onToggle={() =&gt; setOpen(open === 'accessibility' ? null : 'accessibility')} |
+| UI1012 :374 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
+| UI1013 :374 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
+| UI1014 :375 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
+| UI1015 :375 | Switch / Controls | {c.labels.enabledSwitch} | onChange={value =&gt; setReduce(!value)} |
+| UI1016 :375 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
+| UI1017 :396 | form / Form | (child/component label) | onSubmit={e =&gt; { e.preventDefault(); const next = { address: validation('address', address), year: validation('year', year), water: validation('water', water) }; setErrors(next); if (Object.values(next).some(Boolean)) return; setBusy(true); timer.current = setTimeout(() =&gt; { setBusy(false); setSaveError(scenario === 'form-error'); if (scenario !== 'form-error') showToast(c.saved); }, 650); }} |
+| UI1018 :397 | input / Form | {c.address} {errors.address && &lt;span id="address-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.address}&lt;/span&gt;} | onChange={e =&gt; { setAddress(e.target.value); clearValid('address', e.target.value); }}; onBlur={() =&gt; validate('address', address)} |
+| UI1019 :398 | input / Form | {c.year} {errors.year && &lt;span id="year-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.year}&lt;/span&gt;} | onChange={e =&gt; { const value = e.target.value.replace(/\D/g, ''); setYear(value); clearValid('year', value); }}; onBlur={() =&gt; validate('year', year)} |
+| UI1020 :399 | select / Form | {c.waterOptions.map((value, i) =&gt; &lt;option key={value} value={i ? value : ''}&gt;{value}&lt;/option&gt;)} | onChange={e =&gt; { setWater(e.target.value); clearValid('water', e.target.value); }}; onBlur={() =&gt; validate('water', water)} |
+| UI1021 :400 | textarea / Form | {c.note} {note.length &gt; 400 && &lt;span className="halo-f-meta" role="status"&gt;{note.length}/500&lt;/span&gt;} | onChange={e =&gt; setNote(e.target.value)} |
+| UI1022 :401 | input / Form | {c.checkbox} | onChange={e =&gt; setIllness(e.target.checked)} |
+| UI1023 :402 | input / Form | {c.slider} : {size} % | onChange={e =&gt; setSize(Number(e.target.value))} |
+| UI1024 :404 | ExpandableCard / Form | "long" | onOpenChange={setLongOpen} |
+| UI1025 :409 | button / Bars | {'${row.name}, ${row.value}, ${row.ratio} times the limit. ${row.ratio &gt; 2 ? 'Continues past the chart. ' : ''}${c.pfas}'} | onClick={onLearn} |
 
 ### components/foundation/HomeHousehold.tsx
 
@@ -14756,7 +14762,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/foundation/FactorSteps.tsx | a586a238f0c0a5fde9560c1f4be895ec92e7a3ec21f68780d869cdc03de2f3e2 |
 | components/foundation/FactorTrend.tsx | 134b1946ee0d2ef4671e0d56908a47912800ba953ac8ac6c534c44459af4c18e |
 | components/foundation/FamilyGuidance.tsx | 4eeab0c1102d475f99ef3f4f5b9e79d9827f75121c8b25a03ea4611ed961890f |
-| components/foundation/FoundationPreview.tsx | 36b5b748f611ae4d29d2fad7e9ac8738ae68154a89e9cfa5f2056475689f7a86 |
+| components/foundation/FoundationPreview.tsx | 3ce6898b82d3f47a9a47b45090c1d2c2e41cb59f8953d8bfe66d74d9b424be64 |
 | components/foundation/HomeHousehold.tsx | 5410f2a6f895f11e8540962f32a83a400dceb498452510f6d30af3f7db6d4cf5 |
 | components/foundation/LunaAssistant.tsx | e1e2c185d79cb2f640ce11ba01fc1e6087caa1c1f25af9fb3aa45e48e6e4b46d |
 | components/foundation/LunaMark.tsx | 6315e469419d46c2307663a6eb621a2692e2b809c1cbee26860cbdfd62dac6fe |

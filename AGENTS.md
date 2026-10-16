@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- Hosted preview links: use `/app` for the clean static preview and `/tools` for developer controls. The Sites-only wrapper templates in `scripts/hosted-preview/` keep their providers shared with legacy specialist routes. These aliases do not replace the authenticated production `/app` routes. Existing long review links remain supported.
+
 - October 16 presentation preview: the shared expanded preview hides the review banner and tools by default. Developer review uses `?review=tools`, retained through app navigation. Keep scenario controls and their qualifications available there; this display choice does not change production services or backend requirements.
 
 - Attribution: use `YogiBearstc` for the Git author/committer name and any author credit for this frontend work. Do not add assistant author credits, co-author trailers or generated-by signatures to commits, pull requests or repository documentation. Preserve existing human contributors, third-party licenses and factual technical references.

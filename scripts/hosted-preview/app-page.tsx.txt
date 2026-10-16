@@ -1,0 +1,3 @@
+import PreviewEntry from '@/components/PreviewEntry';
+export const metadata={title:'HALO'};
+export default function Page(){return <PreviewEntry forceExpanded/>;}

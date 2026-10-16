@@ -1,6 +1,6 @@
 // Mechanical source sync for the isolated static review. Never copies app routes,
 // root layout, credentials, or production authentication initialization.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,4 +51,20 @@ function copyTree(path) {
 }
 copyTree('public');
 for (const path of ['app/globals.css', 'app/onboarding.css', 'app/onboarding-mobile.css', 'app/foundation/preview/preview.css']) copy(path);
+// Static-only short entries. Production /app and its authentication are not copied.
+for (const [template,destination] of [
+  ['PreviewShell.tsx.txt','components/PreviewShell.tsx'],
+  ['app-page.tsx.txt','app/app/page.tsx'],
+  ['tools-page.tsx.txt','app/tools/page.tsx'],
+  ['legacy-layout.tsx.txt','app/foundation/preview/layout.tsx'],
+]) {
+  mkdirSync(dirname(resolve(target,destination)),{recursive:true});
+  copyFileSync(resolve(source,'scripts/hosted-preview',template),resolve(target,destination));
+}
+const layoutPath=resolve(target,'app/layout.tsx');
+const layout=readFileSync(layoutPath,'utf8');
+if(!layout.includes("import PreviewShell from '@/components/PreviewShell'")) {
+  if(!layout.includes('{children}</body>'))throw new Error('Review the retained static root layout before adding its shared preview scope.');
+  writeFileSync(layoutPath,"import PreviewShell from '@/components/PreviewShell';\n"+layout.replace('{children}</body>','<PreviewShell>{children}</PreviewShell></body>'));
+}
 console.log(JSON.stringify({ target, modules: [...copied].sort(), wrapperPolicy: 'Retain static-only routes and root layout; verify provider wiring separately.' }, null, 2));

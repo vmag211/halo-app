@@ -49,7 +49,8 @@ type ToastState = { id: number; message: string; action?: () => void };
 
 export default function FoundationPreview({ initialScenario, initialFactor, initialFamily = false, initialMember, preferences = {}, productionRoute }: { initialScenario: FoundationScenario; initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; preferences?: PreviewPreferences; productionRoute?: PreviewRoute }) {
   const expanded = preferences.expanded === true;
-  const reviewTools = useSearchParams().get('review') === 'tools';
+  const previewPath = usePathname().replace(/\/$/, '');
+  const reviewTools = useSearchParams().get('review') === 'tools' || previewPath === '/tools';
   const workspace = useHomeWorkspace();
   const savedAppearance = workspace.drafts['halo-appearance'];
   const ambient = workspace.drafts['halo-ambient'] !== false;
@@ -71,7 +72,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
     setMode(savedAppearance === 'system' || savedAppearance === 'light' || savedAppearance === 'dark' ? savedAppearance : 'system');
   }
   useEffect(() => {
-    if (productionRoute) return;
+    if (productionRoute || previewPath === '/app' || previewPath === '/tools') return;
     const url = new URL(window.location.href);
     // Only review settings live in the URL. No household information is persisted.
     url.searchParams.set('appearance', mode);
@@ -81,7 +82,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
     url.searchParams.set('contrast', String(contrast));
     url.searchParams.set('time', time);
     window.history.replaceState(window.history.state, '', url);
-  }, [mode, palette, scale, motion, contrast, time, productionRoute]);
+  }, [mode, palette, scale, motion, contrast, time, productionRoute, previewPath]);
   function changeScenario(value: FoundationScenario) {
     const url = new URL(window.location.href);
     ['tab', 'sheet', 'learn'].forEach(key => url.searchParams.delete(key));
@@ -121,7 +122,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const homeWorkspace=useHomeWorkspace();
   const homeChanged=!productionRoute&&expanded&&Boolean(homeWorkspace.collections.homeTransitions?.length);
   const router = useRouter();
-  const pathname=usePathname();
+  const pathname=usePathname().replace(/\/$/, '');
   const [sidebarCollapsed,setSidebarCollapsed]=useHomeDraft('ui:sidebar-collapsed',false);
   const search = useSearchParams();
   const queryTab = productionRoute ?? search.get('tab');
@@ -154,16 +155,22 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   }, [expanded, initialFactor, initialFamily, initialMember, queryTab, queryDestination]);
   const inDetail = !!(initialFactor || initialFamily || initialMember);
   const backTab = initialFamily ? 'today' : initialMember ? 'home' : route;
-  function previewHref(tab: PreviewRoute, factor?: FactorKey) {
+  function previewHref(tab: PreviewRoute, factor?: FactorKey, specialist = false) {
     if (productionRoute) return factor ? `/factors/${factor}` : productPath(tab);
+    if (!factor && !specialist && (pathname === '/app' || pathname === '/tools')) {
+      const short = new URLSearchParams();
+      short.set('tab', tab);
+      if (scenario !== 'shell') short.set('scenario', scenario);
+      return `${pathname}${short.size ? `?${short}` : ''}`;
+    }
     const params = new URLSearchParams({ scenario, tab, appearance, scale: String(Math.round(scale * 100)), motion, time, contrast: String(contrast) });
     if (expanded) params.set('edition', 'expanded');
-    if (search.get('review') === 'tools') params.set('review', 'tools');
+    if (search.get('review') === 'tools' || pathname === '/tools') params.set('review', 'tools');
     return `/foundation/preview${factor ? `/factor/${factor}` : ''}?${params}`;
   }
   const factorHref = (factor: FactorKey) => previewHref(['pfas', 'radon', 'lead'].includes(factor) ? 'home' : 'today', factor);
-  const familyHref = productionRoute ? '/family' : previewHref('today').replace('/foundation/preview?', '/foundation/preview/family?');
-  const memberHref = (member: HomeMemberKey) => productionRoute ? `/household/${member}` : previewHref('home').replace('/foundation/preview?', `/foundation/preview/household/${member}?`);
+  const familyHref = productionRoute ? '/family' : previewHref('today',undefined,true).replace('/foundation/preview?', '/foundation/preview/family?');
+  const memberHref = (member: HomeMemberKey) => productionRoute ? `/household/${member}` : previewHref('home',undefined,true).replace('/foundation/preview?', `/foundation/preview/household/${member}?`);
   const expandedHref = (tab: string, target?: string) => productionRoute ? productDestinationHref(tab,target) : `${previewHref(tab as PreviewRoute)}${target ? `&destination=${encodeURIComponent(target)}` : ''}`;
   const mapHref = (layer: string) => productionRoute ? `/map?access=owned&layer=${encodeURIComponent(layer)}` : `/foundation/preview/map?edition=expanded${layer ? `&layer=${layer}` : ''}&appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&time=${time}&contrast=${contrast}`;
   const routeRef = useRef(route);

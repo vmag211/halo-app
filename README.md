@@ -2,7 +2,7 @@
 
 Current frontend branch: `codex/october15-review-refinement`. Vibhav's complete current wiring packet is [HALO_BACKEND_WIRING_CURRENT.md](docs/product/HALO_BACKEND_WIRING_CURRENT.md), with [current status and backend gaps](docs/continuation/FRONTEND_WIRING_CLOSEOUT.md) and [verification evidence](docs/continuation/FRONTEND_WIRING_VERIFICATION.md). Download the full packet; its final line is `HALO-WIRING-PACKET-END`. Older branch references below are historical.
 
-[Shared preview](https://halo-wireframe-review.yogirajapaturi.chatgpt.site/foundation/preview/expanded/) opens without the review banner. [Developer review](https://halo-wireframe-review.yogirajapaturi.chatgpt.site/foundation/preview/expanded/?review=tools) retains scenario controls and review qualifications. This presentation setting requires no backend change.
+[HALO](https://halo-wireframe-review.yogirajapaturi.chatgpt.site/app) opens without the review banner. [Tools](https://halo-wireframe-review.yogirajapaturi.chatgpt.site/tools) retains scenario controls and review qualifications. These short URLs belong to the static preview; the existing long preview links also work. This presentation setting requires no backend change.
 
 HALO's production frontend reuses the reviewed mobile screens for My Week, Today, Homeguard and Explore. Backend integration is documented in [the frontend integration guide](docs/continuation/FRONTEND_INTEGRATION_READY.md).
 

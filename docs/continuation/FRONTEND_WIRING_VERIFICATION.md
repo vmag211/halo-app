@@ -57,3 +57,9 @@ The review is a static public design preview, not the fake-auth test build or a 
 The shared expanded preview now omits its review banner by default. Add `review=tools` to its URL for developer controls and review qualifications; app navigation retains that parameter. Legacy component review and production behavior remain unchanged. Scenario tests explicitly request developer controls. This requires no backend contract or service changes.
 
 The static export build and TypeScript passed. Nine targeted presentation/hosted/network scenarios were checked; eight passed initially and the developer-control selector was corrected to use its accessible combobox role. The complete four-test hosted recheck then passed, including clean navigation and working developer scenario selection. Scoped lint passed. Current source fingerprints were regenerated for this component change. Evidence: `test-results-preview-banner/` and `test-results-preview-banner-release/`.
+
+## Short hosted URLs
+
+The static review now has `/app` for HALO and `/tools` for developer controls on the same hosting domain. Both are directly rendered static pages; primary tab links retain the short path. Existing long links remain supported. Static-only wrapper templates under `scripts/hosted-preview/` preserve one memory scope across the short pages and legacy factor/household/map pages. Production authentication and its existing `/app` routes are unchanged, and no backend contract is added.
+
+The 24-page static export build, main TypeScript and scoped lint passed. All nine targeted short-URL, existing-link and network-isolation browser checks passed, including trailing slashes, tab navigation, developer controls and saved-task continuity through a legacy factor page. Evidence: `test-results-short-urls/`. Interface fingerprints were refreshed without changing the requirement inventory.
