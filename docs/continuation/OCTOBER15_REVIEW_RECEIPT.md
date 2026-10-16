@@ -54,7 +54,9 @@ The pre-existing edits to `HOSTED_REVIEW.md`, `VISUAL_LIBRARY_ASSETS.md` and `li
 
 ## Publication and saved source
 
-The revision is isolated on `codex/october15-review-refinement`, based on `codex/frontend-integration-ready-2026-10-13`, for a draft integration review. No merge or production-service deployment is implied.
+The revision is committed and pushed on `codex/october15-review-refinement`, based on `codex/frontend-integration-ready-2026-10-13`, for a draft integration review. Application commit: `5df88be`. No merge or production-service deployment is implied.
+
+Pull-request creation is blocked: the GitHub connector returned HTTP 403, and the security reviewer rejected reusing stored Git credentials for an alternate API request. That alternate request did not execute; no credentials were retrieved. The temporary helper was removed. No PR was created. A maintainer can [open the prepared branch comparison](https://github.com/vmag211/halo-app/compare/codex/frontend-integration-ready-2026-10-13...codex/october15-review-refinement?expand=1) and create a draft PR, or grant the GitHub connection the required pull-request permission. The existing frontend integration PR and backend lane were not modified.
 
 The existing public [HALO review](https://halo-wireframe-review.yogirajapaturi.chatgpt.site/foundation/preview/expanded/?tab=plan) was updated through the Sites workflow. The native deployment returned **succeeded** on October 16, 2026 UTC (October 15 local).
 
