@@ -1,5 +1,34 @@
 # HALO homepage integration delta
 
+## October 16 review redesign: canonical reminder status
+
+The calendar-first frontend now accepts an optional, read-only `reminderStates` map in the existing `ActionSnapshot`. No endpoint, mutation command, preference field or scheduler was added. Existing responses without this field remain valid and display a requested reminder without claiming scheduling or delivery.
+
+Each map key is a canonical action ID. Its value is the `ReminderState` type in `lib/frontend/week-reminders.ts`:
+
+```ts
+{
+  actionRevision: number;
+  scheduleSignature: string;
+  status: 'pending' | 'registered' | 'scheduled' | 'delivered'
+    | 'failed' | 'cancelled' | 'paused' | 'unknown';
+  updatedAt: string;
+  scheduledFor?: string;
+  deliveredAt?: string;
+  channel?: 'push' | 'email' | 'in-app';
+}
+```
+
+The signature is `JSON.stringify([action.date, meta.time, meta.zone, meta.reminder, meta.paused, meta.archived, action.state])`. It excludes private preparation and history. Return the exact action revision and signature against which the scheduler state was established. Older evidence is retained as history but displayed as **Needs sync**, never as a current Scheduled or Delivered state. `updatedAt`, `scheduledFor` and `deliveredAt` must be valid instants with an explicit timezone. Scheduled requires `scheduledFor`; delivered requires `deliveredAt`. Unknown actions or malformed entries invalidate the snapshot rather than allowing unverified success labels.
+
+Task preference edits continue through the existing revision-bound action command. Reminder evidence is not a writable preference or task metadata field. The service must independently enforce ownership, scheduling consent, quiet hours, timezone/DST, cancellation for completed/paused/archived tasks, idempotency and delivery receipts, as required by the original whole-app handoff. The UI's Refresh reminder status performs the existing action snapshot read, not a retry/send job. A delivered receipt does not assert that the message was read. A disabled request without a canonical cancelled/paused receipt does not claim that a job has stopped.
+
+My Week now has a single continuous calendar/search/agenda surface, a compact masthead with the original optional landscape controls, and a distinct supporting rail. All earlier task sheets, captured-review actions, private preparation, manual recurrence, actual-date recap, Journal, Patterns, season, exports and linked record dates remain. Preparation checks and automatic-repeat choices retain their explicit visit-only scope. This redesign does not claim those services have become durable.
+
+The opportunity-to-outdoors bridge uses a visit-local, explicitly accepted handoff from Explore. It does not transmit a place or date in the URL, fetch a forecast before acceptance, silently overwrite an outdoor draft, register participation or move an organizer event. The accepted source-local date and place feed the existing forecast read; absent venue-local date stays blank until the user deliberately supplies one. The optional event timezone fields are documented in `EXPLORE_BACKEND_DELTA.md`.
+
+Timed task summaries and Up next now use the same display-zone day and clock as the calendar. Saved source-zone schedules, immutable dates and ICS export remain unchanged. Forecast horizon acceptance is still a specific integration gate: the current `ForecastSnapshot` declares `horizonStart`/`horizonEnd` only as strings, without specifying whether they are local inclusive calendar dates or absolute interval boundaries. Vibhav must choose and document that representation, including timezone and endpoint inclusivity, and test near-midnight/DST boundaries. Per-period start/end already require explicit timezone instants. Do not treat the existing horizon label or its date-prefix comparison as verified source coverage until that contract is settled.
+
 October12, 2026. Yogi requested My Week as the first tab and default homepage, followed by Today, Homeguard and Explore. This is a wireframe extension, not authorization to change Vibhav's backend or bypass approval. The shared navigation order is updated, but production delivery flags and current live entry gates remain. The expanded static review opens My Week by default; explicit tab, factor, record and specialist-map links retain their owner.
 
 ## Verified current boundary

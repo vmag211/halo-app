@@ -1,5 +1,6 @@
 import { actionDraftError, revisedActionBatch, validActionDate, type ActionRevision, type ActionSeed, type PreviewAction } from '../expanded-preview';
 import { emptyWeekMeta, eventInstant, type WeekMeta } from '../week-preview';
+import { validReminderStates, type ReminderState } from '../week-reminders';
 
 /** One command owns a task and its schedule, preparation and completion metadata. */
 export type ActionCommitOptions = {
@@ -8,7 +9,7 @@ export type ActionCommitOptions = {
   preferences?: Record<string, unknown>;
   initialStates?: Record<string, PreviewAction['state']>;
 };
-export type ActionSnapshot = { actions: PreviewAction[]; metas: Record<string, WeekMeta>; preferences?: Record<string, unknown>;unresolvedOperations?:string[] };
+export type ActionSnapshot = { actions: PreviewAction[]; metas: Record<string, WeekMeta>; preferences?: Record<string, unknown>;unresolvedOperations?:string[]; reminderStates?: Record<string, ReminderState> };
 export type ActionCommand = ActionCommitOptions & (
   | { kind: 'add'; seeds: ActionSeed[]; date: string }
   | { kind: 'revise'; changes: ActionRevision[] }
@@ -94,7 +95,7 @@ export function validActionSnapshot(value: unknown): value is ActionSnapshot {
     ids.add(action.id); keys.add(action.key);
     if (data.metas[action.key] && actionMetadataError({ ...emptyWeekMeta, ...data.metas[action.key] }, action)) return false;
   }
-  return Object.keys(data.metas).every(key => keys.has(key));
+  return Object.keys(data.metas).every(key => keys.has(key)) && (data.reminderStates === undefined || validReminderStates(data.reminderStates, data.actions));
 }
 
 /** A valid unrelated snapshot is not proof that the user's command succeeded. */

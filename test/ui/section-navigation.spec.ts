@@ -50,6 +50,7 @@ for (const factor of ['air', 'uv', 'pollen', 'mold', 'pfas', 'radon', 'lead']) {
 }
 
 test('full-motion scrolling, reordered family link and respiratory label', async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/foundation/preview/?tab=today&motion=reduce');
   const lastCard = page.getByTestId('factor-scorecard').last();
   const family = page.locator('.halo-ph-family-link');
@@ -68,7 +69,7 @@ test('full-motion scrolling, reordered family link and respiratory label', async
   await page.screenshot({ path: info.outputPath('numbered-tips.png'), animations: 'disabled' });
 });
 
-for (const appearance of ['light', 'dark']) test(`Today solid tints and rounded navigation fit ${appearance}`, async ({ page }, info) => {
+for (const appearance of ['light', 'dark']) test(`Today compact factor rows retain distinct accents and rounded navigation in ${appearance}`, async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/foundation/preview/?tab=today&appearance=${appearance}&motion=reduce`);
   const cards = page.getByTestId('factor-scorecard');
@@ -76,7 +77,9 @@ for (const appearance of ['light', 'dark']) test(`Today solid tints and rounded 
   const colors = [];
   for (const card of await cards.all()) {
     await expect(card).toHaveCSS('background-image', 'none');
-    colors.push(await card.evaluate(node => getComputedStyle(node).backgroundColor));
+    await expect(card.getByRole('heading')).toBeVisible();
+    await expect(card.locator('.halo-ph-card-reading')).toBeVisible();
+    colors.push(await card.locator('.halo-ph-factor-icon').evaluate(node => getComputedStyle(node).color));
   }
   expect(new Set(colors).size).toBe(4);
   await expect(page.locator('.halo-f-tabs')).toHaveCSS('border-radius', '28px');

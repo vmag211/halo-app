@@ -13,18 +13,20 @@ test.beforeEach(async ({ page }) => {
 });
 test.afterEach(async ({ page }) => expect(faults.get(page)).toEqual([]));
 
-for (const appearance of ['light', 'dark']) test(`Explore stays composed inside a narrow app at desktop viewport in ${appearance}`, async ({ page }, info) => {
+for (const appearance of ['light', 'dark']) test(`Explore uses balanced destination columns at desktop viewport in ${appearance}`, async ({ page }, info) => {
   await page.setViewportSize({ width: 1260, height: 1000 });
   await page.goto(`${root}&appearance=${appearance}`);
   const app = page.locator('.halo-f-app');
-  const lead = page.locator('.ex-generated-lead');
+  const lead = page.locator('.ex-personalized-preview .ex-destination');
   await expect(lead).toBeVisible();
   const frame = await app.boundingBox(); const bounds = await lead.boundingBox();
-  expect(bounds!.width).toBeGreaterThan(frame!.width * .75);
+  expect(bounds!.width).toBeGreaterThan(200);
+  expect(bounds!.width).toBeLessThan(frame!.width * .6);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   expect(await page.getByRole('button', { name: 'Quick note', exact: true }).count()).toBe(0);
   expect(await page.getByRole('button', { name: 'Work with Luna', exact: true }).count()).toBe(0);
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toHaveCount(1);
-  await page.locator('.ex-generated-lead img').evaluate(async image => { if (image instanceof HTMLImageElement) await image.decode(); });
+  await lead.locator('img').evaluate(async image => { if (image instanceof HTMLImageElement) await image.decode(); });
   await page.screenshot({ path: info.outputPath(`explore-rebuilt-${appearance}.png`) });
 });
 

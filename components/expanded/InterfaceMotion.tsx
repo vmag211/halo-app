@@ -15,7 +15,7 @@ const surfaces = [
   '.mw-workspace > section', '.mw-workspace > .mw-followup',
   '.hg-workspace-nav', '.hg-intro', '.hg-content section', '.hg-content .hg-card', '.hg-content .hg-form',
   '.hg-content .hg-grid', '.hg-content .hg-deletable-record', '.hg-content .hg-empty',
-  '.halo-home-workspace', '.halo-home-household', '.how-module',
+  '.halo-home-workspace', '.halo-home-household', '.how-priority', '.how-overview', '.how-module',
   '.halo-ph-introduction', '.halo-ph-family-link', '.halo-ph-sources', '.halo-ph-related', '.halo-expanded-section',
   '.ex-workbench-header', '.ex-fieldwork-layout > section', '.ex-fieldwork-layout > div',
   '.ex-map-entry', '.ex-community-bridge', '.ex-continuations',

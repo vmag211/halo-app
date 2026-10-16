@@ -9,7 +9,9 @@ for(const appearance of ['light','dark'])test(`calendar-first canvas, paired too
   await expect(page.locator('.mw-board-month')).toBeVisible();
   const paper=await page.locator('.mw-calendar').evaluate(el=>{const style=getComputedStyle(el);return [style.backgroundColor,style.backgroundImage];});
   const agendaColor=await page.locator('.mw-agenda').evaluate(el=>{const style=getComputedStyle(el);return [style.backgroundColor,style.backgroundImage];});
-  expect(paper).not.toEqual(agendaColor);
+  // The redesign makes calendar and agenda one continuous planner surface.
+  expect(paper).toEqual(agendaColor);
+  await expect(page.getByRole('region',{name:'Your planner',exact:true}).getByRole('region',{name:'Calendar',exact:true})).toBeVisible();
   const calendar=(await page.locator('.mw-calendar').boundingBox())!,agenda=(await page.locator('.mw-agenda').boundingBox())!;
   expect(calendar.y).toBeLessThan(agenda.y);
   const tools=await page.locator('.mw-dashboard-tools a').all();const left=(await tools[0].boundingBox())!,right=(await tools[1].boundingBox())!;

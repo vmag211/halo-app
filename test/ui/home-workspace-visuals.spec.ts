@@ -22,9 +22,18 @@ for (const appearance of ['light', 'dark']) test(`four home workspaces have dist
     await expect(page.getByRole('combobox', { name:'Home workspace', exact: true })).toHaveValue(section);
     await expect(page.getByRole('link', { name: 'Back to Homeguard' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    const heading = await page.locator('[data-home-heading]').boundingBox();
-    const art = await page.locator('.hg-intro [data-work-art]').boundingBox();
-    expect(art!.x).toBeGreaterThanOrEqual(heading!.x + heading!.width - 1);
+    if (section === 'tests' || section === 'maintenance') {
+      // These workspaces put their art in actionable entry tools, not repeated intro banners.
+      await expect(page.locator('.hg-intro [data-work-art]')).toBeHidden();
+      const tools = page.locator(section === 'tests' ? '.hg-test-entry-tools' : '.hg-care-columns');
+      await expect(tools.locator('[data-work-art]').first()).toBeVisible();
+      await expect(tools.getByRole('button').first()).toBeVisible();
+    } else {
+      const heading = await page.locator('[data-home-heading]').boundingBox();
+      const art = await page.locator('.hg-intro [data-work-art]').boundingBox();
+      expect(art).not.toBeNull();
+      expect(art!.x).toBeGreaterThanOrEqual(heading!.x + heading!.width - 1);
+    }
     if (section === 'food') {
       await expect(page.locator('.hg-food-destinations [data-work-art]')).toHaveCount(5);
       await expect(page.getByRole('button', { name: /^Food at home/ })).toBeVisible();
@@ -69,14 +78,14 @@ test('report contents responds to explicit record and privacy choices', async ({
 
 test('project refresh changes relevant photo subjects and image failure does not follow a new idea', async ({ page }) => {
   await page.route('**/explore/soil-sampling.webp', route => route.abort());
-  await page.goto(explore);
-  const lead = page.locator('.ex-generated-lead .ex-photo');
+  await page.goto(`${explore}&destination=projects`);
+  const lead = page.locator('.ex-generated-item .ex-photo').first();
   await expect(lead).toHaveAttribute('data-photo-scene','soil');
   await expect(lead).toHaveAttribute('data-photo-state','unavailable');
   const scenes = new Set(['soil']);
   for (let i=0;i<4;i++) {
-    await page.getByRole('button',{name:'Refresh project ideas',exact:true}).click();
-    await expect(page.getByRole('button',{name:'Refresh project ideas',exact:true})).toBeEnabled();
+    await page.getByRole('button',{name:'Refresh ideas',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Refresh ideas',exact:true})).toBeEnabled();
     const scene = (await lead.getAttribute('data-photo-scene'))!; scenes.add(scene);
     if (scene !== 'soil') { await expect(lead).toHaveAttribute('data-photo-state','available'); await expect.poll(() => lead.locator('img').evaluate((img:HTMLImageElement) => img.complete && img.naturalWidth>0)).toBe(true); }
   }
@@ -91,7 +100,8 @@ test('project detail photographs are activity-specific and all reusable assets h
     await expect(photo).toHaveAttribute('data-photo-scene',scene);
     await expect.poll(() => photo.locator('img').evaluate((img:HTMLImageElement)=>img.complete && img.naturalWidth>0)).toBe(true);
     await expect(page.locator('.ex-guide-cover')).toContainText('not build instructions');
-    await expect(page.locator('.ex-guide-cover [data-artwork]')).toHaveCount(1);
+    await expect(page.locator('.ex-guide-cover [data-artwork]')).toHaveCount(0);
+    await expect(page.getByRole('navigation',{name:'Project guide steps'})).toBeVisible();
     if (scene==='solar') await page.screenshot({path:info.outputPath('project-solar-photo.png')});
   }
   await page.getByLabel('Explore resources',{exact:true}).click();

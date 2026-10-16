@@ -9,11 +9,11 @@ test.afterEach(async ({ page }) => expect(errors.get(page)).toEqual([]));
 
 test('three core paths have balanced primary presentation and useful entry points', async ({ page }, info) => {
   await page.goto(root);
-  const involvement = page.locator('.ex-involvement-cover'); const projects = page.locator('.ex-generated-lead');
+  const involvement = page.locator('.ex-involvement-preview .ex-destination'); const projects = page.locator('.ex-personalized-preview .ex-destination');
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Projects for you', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Explore the map', exact: true })).toBeVisible();
-  const sizes = await page.locator('.ex-fieldwork-layout h3').evaluateAll(headings => headings.map(heading => getComputedStyle(heading).fontSize));
+  const sizes = await page.locator('.ex-fieldwork-layout .ex-destination h3').evaluateAll(headings => headings.map(heading => getComputedStyle(heading).fontSize));
   expect(new Set(sizes).size).toBe(1);
   const first = await involvement.boundingBox(); const second = await projects.boundingBox();
   expect(Math.abs(first!.width - second!.width)).toBeLessThan(2);
@@ -36,7 +36,7 @@ test('interests generate a few relevant illustrated ideas with loading, cancel a
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
   await expect(page.locator('.ex-project-generating')).toHaveCount(0);
   await expect(page.locator('.ex-generated-item')).toHaveCount(3);
-  await expect(page.locator('.ex-generated-item [data-artwork]')).toHaveCount(3);
+  await expect(page.locator('.ex-generated-item .ex-photo')).toHaveCount(3);
 });
 
 test('failed generation and unreviewed interests keep the prior set and editable preferences', async ({ page }) => {
@@ -62,7 +62,7 @@ test('slow generation is cancellable and its animation respects reduced motion',
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
   await expect(page.locator('.ex-project-generating')).toBeVisible();
   expect(await page.locator('.ex-generation-leaf').first().evaluate(element => getComputedStyle(element).animationName)).toBe('none');
-  await expect(page.getByRole('button', { name: 'Make these fit me', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Preferences', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Cancel generation', exact: true }).click();
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
 });
@@ -105,12 +105,25 @@ test('opportunity essentials, source handoff and participation draft are connect
   await page.locator('[data-opportunity-id="charlotte-anytime"]').click();
   const detail = page.locator('.ex-opportunity-detail');
   await expect(detail).toContainText('What you’ll do'); await expect(detail).toContainText('Charlotte city limits');
-  await expect(detail.locator('[data-artwork]')).toHaveAttribute('data-artwork', 'cleanup');
+  await expect(detail.locator('.ex-photo')).toHaveAttribute('data-photo-scene', 'cleanup');
+  await expect(detail).toContainText('Activity photo, not the venue');
   await expect(detail.getByRole('link', { name: 'Check details & registration' })).toHaveAttribute('href', /charlottenc\.gov/);
   await expect(detail).toContainText('Opening it does not register you');
   await page.getByRole('button', { name: 'Plan my participation' }).click();
   await expect(page.getByLabel('Opportunity name (required)')).toHaveValue('Cleanup Litter Anytime');
   await expect(page.getByLabel('Activity date (optional)')).toHaveValue('');
+});
+
+test('an organizer-only participation draft is never silently replaced by a listing', async ({ page }) => {
+  await page.goto(`${root}&destination=opportunities&exploreView=new`);
+  await page.getByLabel('Organizer (required)').fill('My existing organizer');
+  await page.getByRole('button',{name:'Back and keep commitment draft',exact:true}).click();
+  await page.locator('[data-opportunity-id="charlotte-anytime"]').click();
+  await page.getByRole('button',{name:'Plan my participation',exact:true}).click();
+  await expect(page.getByRole('group',{name:'Keep or replace participation draft'})).toBeVisible();
+  await page.getByRole('button',{name:'Open my existing draft',exact:true}).click();
+  await expect(page.getByLabel('Organizer (required)')).toHaveValue('My existing organizer');
+  await expect(page.getByLabel('Opportunity name (required)')).toHaveValue('');
 });
 
 for (const appearance of ['light', 'dark']) test(`illustrated discovery and project details fit 320px enlarged in ${appearance}`, async ({ page }, info) => {

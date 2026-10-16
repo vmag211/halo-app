@@ -13,6 +13,23 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => { expect(failures.get(page)).toEqual([]); });
 const workspace = (section: string) => `/foundation/preview/expanded?tab=home&destination=${section}&appearance=dark&motion=reduce&time=day`;
 
+test('suspected mold uses an explicit observation path without a diagnosis or a new record type', async ({ page }) => {
+  await page.goto(workspace('maintenance'));
+  await page.getByRole('button', { name:'Record suspected mold', exact:true }).click();
+  await expect(page.getByRole('combobox', { name:'Observation type', exact:true })).toHaveValue('other');
+  await expect(page.getByLabel('Observation label', { exact:true })).toHaveValue('Suspected mold');
+  await expect(page.getByLabel('Measured reading (optional)', { exact:true })).toHaveValue('');
+  await page.getByLabel('Observed date and time', { exact:true }).fill('2026-10-01T08:00');
+  await page.getByLabel('Room or site label (optional)', { exact:true }).fill('Bathroom ceiling');
+  await page.getByLabel('Private note (optional)', { exact:true }).fill('Dark patch noticed after a leak. Needs follow-up.');
+  await page.getByRole('button', { name:'Save observation', exact:true }).click();
+  await expect(page.getByRole('heading', { name:'Suspected mold', exact:true })).toBeVisible();
+  await expect(page.locator('.hg-observation-record')).toContainText('Other observation');
+  await expect(page.locator('.hg-observation-record')).toContainText('No measured reading supplied');
+  await expect(page.getByText('This observation is separate from the outdoor mold estimate. It is not a mold identification or a diagnosis.', { exact:true })).toBeVisible();
+  await expect(page.getByRole('button', { name:'Save to My Week', exact:true })).toBeVisible();
+});
+
 test('maintenance saves a cadence and retains a skipped occurrence without completion', async ({ page }) => {
   await page.goto(workspace('maintenance'));
   await page.getByRole('button', { name: /Add a routine/ }).click();

@@ -1,0 +1,64 @@
+/* Work first, evidence second. These compositions replace the giant overview dial,
+   without changing the score source or any factor/detail workflow. */
+.halo-f-app .halo-environment-briefing { display:grid; gap:var(--halo-space-5,24px); container:environment-briefing / inline-size; }
+.halo-home-primary-work { min-width:0; }
+.halo-environment-summary { min-width:0; display:grid; gap:12px; padding:20px; border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,16px); background:var(--halo-card); overflow:hidden; }
+.halo-environment-heading { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+.halo-environment-heading > div { min-width:0; }
+.halo-f-app .halo-environment-heading h2 { margin:5px 0 7px; font:650 calc(1.5rem * var(--halo-text-scale))/1.18 var(--font-instrument),sans-serif; text-align:left; letter-spacing:-.035em; }
+.halo-environment-heading p { margin:0; color:var(--halo-secondary); font-size:calc(.85rem * var(--halo-text-scale)); line-height:1.5; }
+.halo-environment-mark { display:grid; place-items:center; flex:none; width:44px; height:44px; border-radius:12px; background:var(--halo-tint); color:var(--halo-primary); }
+.halo-environment-scene { position:relative; isolation:isolate; height:132px; margin:4px -20px 0; overflow:hidden; background:var(--halo-page); }
+.halo-environment-scene:after { content:''; position:absolute; inset:0; background:linear-gradient(transparent 40%,rgb(4 28 40 / .68)); pointer-events:none; }
+.halo-environment-scene-bar { position:absolute; z-index:2; bottom:6px; inset-inline:16px; display:flex; align-items:center; justify-content:space-between; color:#efffff; }
+.halo-environment-scene-bar > span { display:flex; gap:7px; align-items:center; font-size:calc(.73rem * var(--halo-text-scale)); }
+.halo-environment-scene-bar .halo-ph-motion-note { color:#efffff; }
+.halo-environment-scene-bar .halo-ph-motion { color:#efffff; background:rgb(5 30 40 / .5); }
+.halo-environment-scoreline { display:flex; align-items:center; gap:18px; padding-top:5px; }
+.halo-environment-score { display:flex; align-items:baseline; gap:3px; flex:none; font-family:var(--font-instrument),sans-serif; font-variant-numeric:tabular-nums; color:var(--halo-ink); }
+.halo-environment-score strong { font-size:calc(2.65rem * var(--halo-text-scale)); letter-spacing:-.07em; line-height:1; font-weight:650; }
+.halo-environment-score[data-empty=true] strong { font-size:calc(1.65rem * var(--halo-text-scale)); letter-spacing:-.03em; }
+.halo-environment-score > span { font-size:calc(.75rem * var(--halo-text-scale)); color:var(--halo-secondary); }
+.halo-environment-scoreline > div:last-child { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; min-width:0; }
+.halo-environment-scoreline > div:last-child > strong { font-size:calc(.83rem * var(--halo-text-scale)); font-weight:650; }
+.halo-environment-scoreline small { flex-basis:100%; color:var(--halo-secondary); font-size:calc(.73rem * var(--halo-text-scale)); line-height:1.4; }
+.halo-environment-updated { margin:0; color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); }
+.halo-environment-evidence { min-width:0; display:grid; gap:12px; align-content:start; }
+.halo-f-app .halo-environment-briefing .halo-ph-section-label { display:flex; justify-content:space-between; margin:0; align-items:center; gap:12px; }
+.halo-f-app .halo-environment-briefing .halo-ph-section-label h2 { font:650 calc(1.1rem * var(--halo-text-scale))/1.3 var(--font-instrument),sans-serif; text-align:left; }
+.halo-environment-briefing .halo-ph-section-label > span { font-size:calc(.72rem * var(--halo-text-scale)); }
+.halo-f-app .halo-environment-briefing .halo-ph-factor-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,16px); overflow:hidden; background:var(--halo-card); }
+.halo-environment-briefing .halo-ph-factor-grid > div + div { border-top:1px solid var(--halo-border); }
+.halo-f-app .halo-environment-briefing .halo-ph-factor-card { display:grid; grid-template-columns:34px minmax(0,1fr) auto; grid-template-rows:auto auto; align-items:center; gap:5px 12px; padding:16px; border:0; border-radius:0; min-height:104px; background:none; box-shadow:none; text-align:left; }
+.halo-environment-briefing .halo-ph-card-top { grid-column:1; grid-row:1 / 3; display:grid; gap:5px; margin:0; }
+.halo-environment-briefing .halo-ph-factor-icon { width:34px; height:38px; background:none; border:0; }
+.halo-environment-briefing .halo-ph-card-estimate { font-size:calc(.58rem * var(--halo-text-scale)); padding:0; text-align:center; }
+.halo-f-app .halo-environment-briefing .halo-ph-factor-card h3 { grid-column:2; grid-row:1; margin:0; font:650 calc(.93rem * var(--halo-text-scale))/1.3 var(--font-instrument),sans-serif; text-align:left; }
+.halo-environment-briefing .halo-ph-card-reading { grid-column:2; grid-row:2; font-size:calc(.8rem * var(--halo-text-scale)); line-height:1.4; min-height:0; }
+.halo-environment-briefing .halo-ph-card-score { grid-column:3; grid-row:1; display:flex; gap:2px; align-items:baseline; justify-content:flex-end; margin:0; }
+.halo-f-app .halo-environment-briefing .halo-ph-card-score strong { font:650 calc(1.3rem * var(--halo-text-scale))/1 var(--font-instrument),sans-serif; letter-spacing:-.04em; }
+.halo-f-app .halo-environment-briefing .halo-ph-card-score[data-unscored=true] strong { font-size:calc(.72rem * var(--halo-text-scale)); letter-spacing:0; }
+.halo-environment-briefing .halo-ph-card-score > span { font-size:calc(.61rem * var(--halo-text-scale)); }
+.halo-environment-briefing .halo-ph-factor-card > .halo-severity { grid-column:3; grid-row:2; justify-self:end; }
+.halo-environment-briefing .halo-ph-factor-card:hover { background:color-mix(in srgb,var(--factor-accent) 8%,var(--halo-card)); }
+.halo-environment-briefing .halo-ph-footnote { margin:0; text-align:left; font-size:calc(.74rem * var(--halo-text-scale)); line-height:1.55; }
+.halo-environment-briefing .halo-home-management { display:block; grid-column:1 / -1; margin:0; }
+.halo-environment-briefing[data-home=true] .halo-environment-scene { height:84px; }
+.halo-environment-briefing .halo-ph-family-link { margin:0; }
+@media(min-width:1200px) {
+ .halo-environment-briefing[data-home=true] { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); align-items:start; }
+ .halo-environment-briefing[data-home=true] .halo-home-primary-work { grid-column:1; grid-row:1 / 3; }
+ .halo-environment-briefing[data-home=true] .halo-environment-summary { grid-column:2; grid-row:1; }
+ .halo-environment-briefing[data-home=true] .halo-environment-evidence { grid-column:2; grid-row:2; }
+ .halo-environment-briefing[data-home=false] { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); align-items:start; }
+ .halo-environment-briefing[data-home=false] .halo-environment-summary { grid-row:1 / 3; }
+ .halo-environment-briefing[data-home=false] .halo-ph-family-link { grid-column:2; }
+}
+@media(max-width:359px) {
+ .halo-environment-summary { padding:16px; }
+ .halo-environment-scene { margin-inline:-16px; }
+ .halo-f-app .halo-environment-briefing .halo-ph-factor-card { padding:13px 12px; gap:5px 8px; grid-template-columns:28px minmax(0,1fr) auto; }
+}
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-environment-briefing .halo-ph-factor-card { grid-template-columns:30px minmax(0,1fr); }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-environment-briefing .halo-ph-card-score { grid-column:2; grid-row:3; justify-content:flex-start; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-environment-briefing .halo-ph-factor-card > .halo-severity { grid-column:2; grid-row:4; justify-self:start; }

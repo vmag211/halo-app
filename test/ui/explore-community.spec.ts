@@ -36,7 +36,7 @@ test('hub is evergreen and every photo uses regular rectangular frames', async (
     expect(style.clip).toBe('none');
     expect(style.tl).toBe(style.tr); expect(style.bl).toBe(style.br);
   }
-  await expect(page.locator('.ex-involvement-cover')).toBeVisible();
+  await expect(page.locator('.ex-involvement-preview .ex-destination')).toBeVisible();
   await expect(page.locator('.ex-community-bridge')).toBeVisible();
 });
 
@@ -49,7 +49,7 @@ test('area label remains local and can be cleared', async ({ page }) => {
   await page.getByLabel('State', { exact: true }).fill('North Carolina');
   await page.getByRole('button', { name: 'Use this area' }).click();
   expect(page.url()).not.toContain('Private');
-  await page.locator('.ex-involvement-cover').click();
+  await page.locator('.ex-involvement-preview .ex-destination').click();
   await expect(page.locator('.ex-area-toggle')).toContainText('Private planning place');
   await page.locator('.ex-area-toggle').click();
   await page.getByRole('button', { name: 'Clear area' }).click();
@@ -310,12 +310,15 @@ test('a note save completing after navigation does not pull the user back', asyn
   await page.getByLabel('Your note (required)').fill('What can I ask my community group?');
   await page.getByRole('button', { name: 'Save note' }).click();
   await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Find your next step.', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Get involved: find local volunteering and organizations' }).click();
   await expect(page.locator('.ex-local-route')).toHaveCount(5);
   await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save note', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open my notes', exact: true }).click();
-  await expect(page.locator('.ex-note-row').filter({ hasText: 'A background save' })).toBeVisible();
+  const savedNote = page.locator('.ex-note-row').filter({ hasText: 'A background save' });
+  await expect(savedNote).toHaveCount(1);
+  await expect(savedNote).toBeVisible();
 });
 
 for (const appearance of ['light', 'dark']) test(`deep Explore flows remain usable at 320px enlarged in ${appearance}`, async ({ page }, info) => {

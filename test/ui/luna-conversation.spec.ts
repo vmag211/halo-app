@@ -161,7 +161,8 @@ test('A failed project request keeps the existing generated batch unchanged', as
   await expect(dialog).toContainText('Luna is unavailable');
   await dialog.getByRole('button', { name: 'View all 12 project ideas' }).click();
   await expect(page).toHaveURL(/destination=projects/);
-  await expect(page.locator('.ex-generated-title')).toContainText('12 ideas');
+  await expect(page.locator('.ex-generated-title')).toContainText('12 practical ideas');
+  await expect(page.locator('.ex-generated-item')).toHaveCount(12);
 });
 
 test('Missing environmental readings never become fixture-based personal explanations', async ({ page }) => {

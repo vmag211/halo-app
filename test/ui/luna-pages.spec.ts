@@ -17,7 +17,8 @@ const pages = [
 ];
 
 test('Luna opens and closes without losing the page across the shared app and subpages', async ({ page }) => {
-  test.setTimeout(120000);
+  // This functional sweep visits 35 independent routes, not one timed journey.
+  test.setTimeout(pages.length * 8000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', route => {

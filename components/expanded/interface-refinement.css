@@ -51,12 +51,12 @@
   border:1px solid color-mix(in srgb,var(--halo-primary) 80%,var(--halo-ink));
   background:var(--halo-primary); color:var(--halo-on-primary);
   box-shadow:0 3px 10px color-mix(in srgb,var(--halo-primary) 15%,transparent),inset 0 1px 0 #ffffff18;
-  border-radius:10px; min-height:44px; font-weight:650;
+  border-radius:var(--halo-control-radius,10px); min-height:44px; font-weight:650; padding:var(--halo-space-3,12px) var(--halo-space-4,16px);
 }
 .halo-f-app[data-refined=true] :is(.ex-button-secondary,.hg-button-secondary,.hp-alert-open) {
   border:1px solid color-mix(in srgb,var(--halo-primary) 32%,var(--halo-border));
   background:var(--halo-tint); color:var(--halo-primary);
-  border-radius:10px; min-height:44px; padding:10px 13px; text-align:center;
+  border-radius:var(--halo-control-radius,10px); min-height:44px; padding:var(--halo-space-3,12px) var(--halo-space-4,16px); text-align:center;
 }
 .halo-f-app[data-refined=true] :is(.ex-project-preview-tools,.ex-personalized-heading,.ex-workbench-section-head,.ex-map-preview-head) > .ex-text-button {
   padding:9px 12px; border:1px solid var(--halo-border); border-radius:9px;
@@ -75,7 +75,7 @@
 .halo-f-app[data-refined=true] .how-add-menu > nav a svg { color:var(--halo-primary); flex-shrink:0; }
 .halo-f-app[data-refined=true] :is(input,textarea,select) { accent-color:var(--halo-primary); }
 .halo-f-app[data-refined=true] :is(.ex-form,.hg-form,.hp-panel-content) :is(input:not([type=checkbox]):not([type=radio]),select,textarea) {
-  background:var(--halo-card); border-color:var(--halo-border); border-radius:10px;
+  background:var(--halo-card); border-color:var(--halo-border); border-radius:var(--halo-control-radius,10px);
 }
 .halo-f-app[data-refined=true] :is(.ex-form,.hg-form,.hp-panel-content) :is(input,select,textarea):focus {
   border-color:var(--halo-primary);
@@ -95,7 +95,7 @@
 .halo-f-app[data-refined=true] .hg-workspace[data-home-section=summary] { --hg-accent:var(--halo-lilac); }
 .halo-f-app[data-refined=true] .halo-explore { --ex-sage:var(--halo-sage-wash); --ex-paper:var(--halo-card); --ex-lilac:var(--halo-lilac-wash); --ex-green:var(--halo-sage); }
 .halo-f-app[data-refined=true] :is(.ex-resource-menu,.how-add-menu > nav) {
-  border:1px solid var(--halo-border); border-radius:12px; box-shadow:0 12px 32px light-dark(#153d5524,#00000044);
+  border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,16px); box-shadow:var(--halo-shadow-soft,0 12px 32px light-dark(#153d5524,#00000044));
 }
 .halo-f-app[data-refined=true] :is(.ex-generated-lead,.ex-involvement-cover,.ex-photo) { border-radius:12px; }
 .halo-f-app[data-refined=true] .ex-community-bridge { background:var(--halo-sky-wash); border:1px solid var(--halo-border); border-radius:12px; }
@@ -110,7 +110,7 @@
 .halo-f-app[data-refined=true] .hp-alert-open { font-size:calc(.75rem * var(--halo-text-scale)); }
 .halo-f-app[data-refined=true] .hp-alert-actions .hp-alert-mark-read { padding:8px 0; }
 .halo-f-app[data-refined=true] .hp-alert-open svg { flex-shrink:0; }
-/* Gentle atmosphere behind the app, never over labels or recorded values. */
+/* Quiet depth behind the app. Movement belongs to bounded scenes, not working surfaces. */
 .halo-f-app[data-refined=true] .halo-env--page::before,
 .halo-f-app[data-refined=true] .halo-env--page::after {
   content:''; position:absolute; inset:0; pointer-events:none; opacity:.65;
@@ -119,11 +119,6 @@
 .halo-f-app[data-refined=true] .halo-env--page::after {
   background:radial-gradient(ellipse at 86% 65%,light-dark(#8bc6ad18,#86b9a012),transparent 42%);
 }
-.halo-f-app[data-refined=true] .halo-env--page[data-moving=true]::before { animation:halo-ambient-light 18s ease-in-out infinite alternate; }
-.halo-f-app[data-refined=true] .halo-env--page[data-moving=true]::after { animation:halo-ambient-light 24s ease-in-out -6s infinite alternate-reverse; }
-.halo-f-app[data-refined=true] .halo-env--page[data-moving=false]::before,
-.halo-f-app[data-refined=true] .halo-env--page[data-moving=false]::after { animation-play-state:paused; }
-@keyframes halo-ambient-light { from { transform:translate3d(-2%,-1%,0); opacity:.4; } to { transform:translate3d(3%,2%,0); opacity:.8; } }
 /* Small entrances and response motion preserve the final value and never gate input. */
 .halo-f-app[data-refined=true][data-animate=true] :is(.hp-alert-item,.ex-resource-menu,.how-add-menu[open] > nav) { animation:halo-surface-enter .28s ease-out both; }
 .halo-f-app[data-refined=true][data-animate=true] :is(.ex-button,.ex-button-secondary,.hg-button,.hg-button-secondary,.hp-primary,.hp-alert-open,.ex-project-preview-tools > button,.how-add-menu > summary,.halo-f-tabs a) {

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, Clock, MapPin, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
-import { filterCommunityOpportunities, opportunityState, communityOpportunities, type CommunityOpportunity } from '@/lib/frontend/explore-opportunities';
+import { filterCommunityOpportunities, opportunityState, opportunityLocalDate, opportunityOutdoorHandoff, hasParticipationDraft, communityOpportunities, type CommunityOpportunity, type OpportunityOutdoorHandoff } from '@/lib/frontend/explore-opportunities';
 import { localParticipationResources, localResourceScope, type LocalResourceScope } from '@/lib/frontend/explore-local-resources';
 import type { ExploreSection } from '@/lib/frontend/explore-preview';
 import { blankEngagement } from '@/lib/frontend/explore-workspace';
@@ -16,6 +17,7 @@ import {useProductionResource,useProductionRuntime} from '@/components/productio
 import {validOpportunityResults} from '@/lib/frontend/production/explore-service';
 
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
+type Href = (tab: string, destination?: string) => string;
 const readClock = () => Math.floor(Date.now() / 60000) * 60000;
 const serverClock = () => null;
 function subscribeClock(notify: () => void) {
@@ -26,12 +28,11 @@ function subscribeClock(notify: () => void) {
 export function GetInvolvedPreview({ go }: { go: Go }) {
   const [area] = useHomeDraft('explore:area', blankArea);
   return <section className="ex-involvement-preview" aria-label="Get involved">
-    <div className="ex-workbench-section-head"><h3>Get involved</h3><button className="ex-text-button" onClick={() => go('opportunities')}>Find opportunities<ArrowRight size={16} aria-hidden="true" /></button></div>
-    <button className="ex-involvement-cover" onClick={() => go('opportunities')} aria-label="Get involved: find local volunteering and organizations"><ExplorePhoto scene="trail" /><span><small>Events &amp; ongoing programs</small><strong>Community volunteering</strong><span><MapPin size={15} aria-hidden="true" />{areaLabel(area) || 'Choose your area'}<ArrowRight size={18} aria-hidden="true" /></span></span></button>
+    <button className="ex-destination" onClick={() => go('opportunities')} aria-label="Get involved: find local volunteering and organizations"><ExplorePhoto scene="cleanup" /><span className="ex-destination-copy"><span className="ex-destination-category">With your community</span><h3>Get involved</h3><span className="ex-destination-description">Cleanups, planting and local programs.</span><span className="ex-destination-location"><MapPin size={14} aria-hidden="true" />{areaLabel(area) || 'Choose your area'}</span><span className="ex-destination-action">Find opportunities<ArrowRight size={17} aria-hidden="true" /></span></span></button>
   </section>;
 }
 
-export default function ExploreOpportunities({ go }: { go: Go }) {
+export default function ExploreOpportunities({ go, href }: { go: Go; href: Href }) {
   const runtime=useProductionRuntime();
   const [area] = useHomeDraft('explore:area', blankArea);
   const [selected, setSelected] = useHomeDraft('explore:local-selected', '');
@@ -53,7 +54,7 @@ export default function ExploreOpportunities({ go }: { go: Go }) {
   const matches = now === null ? [] : runtime?listings.filter(item=>['upcoming','rolling'].includes(opportunityState(item,now))):filterCommunityOpportunities({ area, scope, timing, interest: filters.interest, search: filters.search, now });
   const staleCoverage = now !== null && listings.some(item => (runtime||scope === 'examples' || item.scopes.includes(scope)) && opportunityState(item, now) === 'needs-check');
   const opportunity = listings.find(item => item.id === selected);
-  if (opportunity && now !== null) return <OpportunityDetail key={opportunity.id} item={opportunity} back={() => setSelected('')} go={go} now={now} />;
+  if (opportunity && now !== null) return <OpportunityDetail key={opportunity.id} item={opportunity} back={() => setSelected('')} go={go} href={href} now={now} />;
   if (!runtime&&localParticipationResources.some(item => item.id === selected)) return <VolunteeringFinder go={go} />;
   return <section className="ex-detail ex-opportunity-finder" aria-label="Local volunteering and organizations">
     <p className="ex-opportunity-result-note">Upcoming events and rolling programs, with official next steps.</p>
@@ -73,33 +74,33 @@ export default function ExploreOpportunities({ go }: { go: Go }) {
   </section>;
 }
 
-function OpportunityDetail({ item, back, go, now }: { item: CommunityOpportunity; back: () => void; go: Go; now: number }) {
-  const runtime=useProductionRuntime();
+function OpportunityDetail({ item, back, go, href, now }: { item: CommunityOpportunity; back: () => void; go: Go; href: Href; now: number }) {
+  const router = useRouter();
   const heading = useRef<HTMLHeadingElement>(null);
   const [draft, setDraft] = useHomeDraft('explore:commitment:new', blankEngagement());
+  const [, setOutdoorHandoff] = useHomeDraft<OpportunityOutdoorHandoff | null>('week:outdoor-handoff', null);
   const [replace, setReplace] = useState(false);
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
   const status = opportunityState(item, now); const available = status === 'upcoming' || status === 'rolling';
   function prepare() {
-    setDraft({ ...blankEngagement(), title: item.title, organizer: item.organizer, cause: item.interest === 'Cleanup' ? 'Public spaces' : 'Habitats', url: item.url, place: item.venue, date: item.startsAt?.slice(0, 10) ?? '', preparation: `${item.timeLabel}. Source checked ${item.checkedAt}.\n${item.bring}\n${item.safety}\nConfirm the actual meeting point, access and registration on the official page.` });
+    const date = opportunityLocalDate(item);
+    setDraft({ ...blankEngagement(), title: item.title, organizer: item.organizer, cause: item.interest === 'Cleanup' ? 'Public spaces' : 'Habitats', url: item.url, place: item.address || item.venue, date, preparation: `${item.timeLabel}. Source checked ${item.checkedAt}.${date ? '' : '\nConfirm the venue-local calendar date before scheduling.'}\n${item.bring}\n${item.safety}\nConfirm the actual meeting point, access and registration on the official page.` });
     go('opportunities', 'new');
   }
   return <section className="ex-detail ex-opportunity-detail" aria-label="Opportunity details" data-opportunity-id={item.id}>
     <button className="ex-text-button" onClick={back}><ArrowLeft size={16} aria-hidden="true" />All opportunities</button>
-    <ProjectIllustration kind={item.artwork} />
+    <div className="ex-opportunity-photo"><ExplorePhoto scene={item.artwork === 'tree' ? 'tree' : item.artwork === 'garden' ? 'garden' : 'cleanup'} /><small>Activity photo, not the venue</small></div>
     <header><span className="ex-kicker">{item.interest} · {item.kind === 'scheduled' ? 'Scheduled session' : 'Rolling program'}</span><h3 ref={heading} tabIndex={-1}>{item.title}</h3><p>{item.organizer} · {item.area}</p></header>
     {!available && <p className="ex-notice" role="status">{status === 'past' ? 'This session has already started or passed.' : status === 'cancelled' ? 'This listing reports a cancelled session.' : status === 'full' ? 'This listing reports no available places.' : status === 'postponed' ? 'This session is postponed. A new date is not confirmed here.' : 'This listing needs a fresh availability check.'} Use the organizer’s site for current opportunities.</p>}
     <p className="ex-opportunity-summary">{item.summary}</p>
     <div className="ex-opportunity-at-a-glance"><p><CalendarDays size={17} aria-hidden="true" /><span>{item.timeLabel}</span></p><p><Clock size={17} aria-hidden="true" /><span>{item.duration}</span></p><p><MapPin size={17} aria-hidden="true" /><span>{item.venue}</span></p></div>
-    <section className="ex-opportunity-work"><h4>What you’ll do</h4><ul>{item.work.map(work => <li key={work}>{work}</li>)}</ul></section>
-    <dl className="ex-opportunity-essentials"><div><dt>Cost</dt><dd>{item.cost}</dd></div><div><dt>Who can join</dt><dd>{item.age}</dd></div></dl>
-    <p className="ex-meta">Accessibility is not confirmed. Ask about a suitable task before joining.</p>
-    <p className="ex-meta">{item.safety}</p>
+    <div className="ex-opportunity-decision"><section className="ex-opportunity-work"><h4>What you’ll do</h4><ol>{item.work.map(work => <li key={work}>{work}</li>)}</ol></section><dl className="ex-opportunity-essentials"><div><dt>Cost</dt><dd>{item.cost}</dd></div><div><dt>Who can join</dt><dd>{item.age}</dd></div><div><dt>Access</dt><dd>{item.access}</dd></div></dl></div>
+    <p className="ex-opportunity-safety">{item.safety}</p>
     <a className="ex-button" href={item.url} target="_blank" rel="noreferrer">{available ? 'Check details & registration' : 'Open official organizer page'}<ArrowUpRight size={16} aria-hidden="true" /></a>
     <p className="ex-meta">Official website. Opening it does not register you.</p>
     <details className="ex-opportunity-consider"><summary>Preparation and access details</summary><dl className="ex-facts">{Object.entries({ 'Access and suitable tasks': item.access, 'Bring or prepare': item.bring }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details>
-    <button className="ex-text-button" disabled={!available} onClick={() => draft.title || draft.preparation ? setReplace(true) : prepare()}>Plan my participation<ArrowRight size={16} aria-hidden="true" /></button>
+    <div className="ex-opportunity-actions"><button className="ex-secondary-button" disabled={!available} onClick={() => hasParticipationDraft(draft) ? setReplace(true) : prepare()}>Plan my participation<ArrowRight size={16} aria-hidden="true" /></button><button className="ex-secondary-button" onClick={() => { setOutdoorHandoff(opportunityOutdoorHandoff(item)); router.push(href('plan', 'outdoors')); }}>Check outdoor conditions<ArrowRight size={16} aria-hidden="true" /></button></div>
     {replace && <div className="ex-notice" role="group" aria-label="Keep or replace participation draft"><p>You have an unfinished participation draft.</p><button className="ex-text-button" onClick={() => go('opportunities', 'new')}>Open my existing draft</button><button className="ex-text-button" onClick={prepare}>Replace unfinished draft with this opportunity</button><button className="ex-text-button" onClick={() => setReplace(false)}>Cancel</button></div>}
-    <details className="ex-opportunity-coverage"><summary>Source and availability</summary><p>Official listing checked {item.checkedAt}. Capacity and registration are confirmed by the organizer. {runtime?'Confirm the stated meeting place, timezone and access details before joining.':'Scheduled times use the Charlotte venue’s America/New_York timezone; recheck with the organizer.'}</p>{item.address&&<p>Meeting address: {item.address}</p>}<a href={item.url} target="_blank" rel="noreferrer">Original source</a></details>
+    <details className="ex-opportunity-coverage"><summary>Source and availability</summary><p>Official listing checked {item.checkedAt}. Capacity and registration are confirmed by the organizer. {item.venueTimezoneBasis === 'source' ? `Venue timezone: ${item.venueTimezone}.` : 'Confirm the venue-local date and timezone before scheduling.'}</p>{item.address&&<p>Meeting address: {item.address}</p>}<a href={item.url} target="_blank" rel="noreferrer">Original source</a></details>
   </section>;
 }

@@ -25,20 +25,25 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-for (const [tab, selector, name] of [
-  ['home', '.halo-home-workspace', 'halo-home-workspace'],
-  ['home', '.halo-home-household', 'halo-home-household'],
-  ['act', '.ex-mini-map', 'ex-mini-map'],
-  ['act', '.ex-community-bridge', 'ex-community-bridge'],
-]) test(`${tab} reveals ${name} when scrolling to it, not merely when the page mounts`, async ({ page }, info) => {
+for (const [tab, selector, name, initiallyVisible] of [
+  ['home', '.how-priority', 'how-priority', true],
+  ['home', '.halo-home-household', 'halo-home-household', false],
+  ['act', '.ex-place-context', 'ex-place-context', false],
+] as const) test(`${tab} reveals ${name} ${initiallyVisible ? 'in the first viewport' : 'when scrolled into view'}`, async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 680 });
   await page.goto(`${root}&tab=${tab}`);
   await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion', 'on');
   const surface = page.locator(selector);
-  await expect(surface).toHaveAttribute('data-interface-pending', 'true');
-  expect(await surface.evaluate(node => node.getBoundingClientRect().top)).toBeGreaterThan(680);
-  expect((await calls(page)).some(value => value.includes(name))).toBe(false);
-  await surface.evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  if (initiallyVisible) {
+    expect(await surface.evaluate(node => node.getBoundingClientRect().top)).toBeLessThan(680);
+    // A tall workbench keeps its container still and reveals useful groups separately.
+    await expect(page.locator('.halo-home-workspace')).not.toHaveAttribute('data-interface-managed');
+  } else {
+    await expect(surface).toHaveAttribute('data-interface-pending', 'true');
+    expect(await surface.evaluate(node => node.getBoundingClientRect().top)).toBeGreaterThan(680);
+    expect((await calls(page)).some(value => value.includes(name))).toBe(false);
+    await surface.evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  }
   await expect.poll(async () => (await calls(page)).some(value => value.includes(name))).toBe(true);
   await page.screenshot({ path: info.outputPath(`${name}-scroll-entrance.png`), animations: 'allow' });
   const motion = await page.evaluate(target => (window as unknown as {
@@ -53,6 +58,35 @@ for (const [tab, selector, name] of [
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await surface.evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
   expect((await calls(page)).filter(value => value.includes(name))).toHaveLength(count);
+  if (initiallyVisible) {
+    const grid = page.locator('.how-overview');
+    await grid.scrollIntoViewIfNeeded();
+    await expect(grid).toHaveAttribute('data-interface-managed', 'true');
+    await expect(grid).not.toHaveAttribute('data-interface-entering');
+    expect((await calls(page)).filter(value => value === 'how-overview')).toHaveLength(1);
+    await expect(grid.locator('[data-interface-managed]')).toHaveCount(0);
+    await expect(page.locator('.halo-home-workspace')).not.toHaveAttribute('data-interface-managed');
+    await surface.getByRole('link', { name: 'Continue test', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Lower-level radon test', exact: true })).toBeVisible();
+  }
+});
+
+test('the compact Explore map and community group has one entrance without nested moving controls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 680 });
+  await page.goto(`${root}&tab=act`);
+  await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion', 'on');
+  const group = page.locator('.ex-place-context');
+  await expect(group).toHaveAttribute('data-interface-pending', 'true');
+  await group.evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await expect(group).toHaveAttribute('data-interface-managed', 'true');
+  await expect(group).not.toHaveAttribute('data-interface-entering');
+  for (const selector of ['.ex-mini-map', '.ex-community-bridge']) {
+    const child = group.locator(selector);
+    await expect(child).toBeVisible();
+    await expect(child).not.toHaveAttribute('data-interface-managed');
+    expect(await child.evaluate(node => getComputedStyle(node).transform)).toBe('none');
+  }
+  expect((await calls(page)).filter(name => name.includes('ex-place-context'))).toHaveLength(1);
 });
 
 test('long Homeguard record pages reveal later sections independently of their stack', async ({ page }) => {
@@ -139,16 +173,22 @@ test('pressing a revealing record keeps its delete target still until the click 
   });
   await page.goto(`${root}&tab=home&destination=tests`);
   await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion', 'on');
+  await page.evaluate(() => document.fonts.ready);
   const row = page.locator('.hg-deletable-record').first();
   await row.scrollIntoViewIfNeeded();
   await expect(row).toHaveAttribute('data-interface-entering', 'surface');
   const remove = row.getByRole('button', { name: /^Delete / });
   const bounds = await remove.boundingBox();
-  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  const beforeTransform = await row.evaluate(node => getComputedStyle(node).transform);
+  const pointer = { x: bounds!.x + bounds!.width / 2, y: bounds!.y + bounds!.height / 2 };
+  await page.mouse.move(pointer.x, pointer.y);
   await page.mouse.down();
   const pressedBounds = await remove.boundingBox();
-  // Allow subpixel compositor rounding, never the 22px entrance translation.
-  expect(Math.abs(pressedBounds!.y - bounds!.y)).toBeLessThan(1);
+  // Allow one CSS pixel of native focus/scroll rounding, never cancellation of
+  // the 22px entrance. The same paused transform and hit target must remain.
+  expect(Math.abs(pressedBounds!.y - bounds!.y)).toBeLessThanOrEqual(1);
+  expect(await row.evaluate(node => getComputedStyle(node).transform)).toBe(beforeTransform);
+  expect(await remove.evaluate((node, point) => node.contains(document.elementFromPoint(point.x, point.y)), pointer)).toBe(true);
   expect(pressedBounds!.x).toBeCloseTo(bounds!.x, 3);
   expect(pressedBounds!.width).toBeCloseTo(bounds!.width, 3);
   expect(pressedBounds!.height).toBeCloseTo(bounds!.height, 3);
@@ -162,7 +202,7 @@ test('pressing a revealing record keeps its delete target still until the click 
 test('photo-led Explore buttons have matching hover and keyboard focus depth without moving controls', async ({ page }) => {
   await page.goto(`${root}&tab=act`);
   await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-interface-motion', 'on');
-  for (const selector of ['.ex-involvement-cover', '.ex-generated-lead']) {
+  for (const selector of ['.ex-involvement-preview .ex-destination', '.ex-personalized-preview .ex-destination']) {
     const button = page.locator(selector);
     const photo = button.locator('.ex-photo img');
     await button.scrollIntoViewIfNeeded();
@@ -179,7 +219,7 @@ test('photo-led Explore buttons have matching hover and keyboard focus depth wit
     await expect.poll(() => photo.evaluate(node => new DOMMatrixReadOnly(getComputedStyle(node).transform).a)).toBeGreaterThanOrEqual(1.024);
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  for (const photo of await page.locator('.ex-involvement-cover .ex-photo img,.ex-generated-lead .ex-photo img').all()) {
+  for (const photo of await page.locator('.ex-involvement-preview .ex-photo img,.ex-personalized-preview .ex-photo img').all()) {
     await expect(photo).toHaveCSS('transform', 'none');
     await expect(photo).toHaveCSS('filter', 'none');
     await expect(photo).toHaveCSS('transition-duration', '0s');

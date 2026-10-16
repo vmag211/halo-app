@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".next-stage-test/**",
+    ".next-stage-test-*/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
@@ -19,6 +20,7 @@ const eslintConfig = defineConfig([
     "docs/foundation/approved/**",
     "playwright-report/**",
     "test-results/**",
+    "test-results-*/**",
   ]),
 ]);
 

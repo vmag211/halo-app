@@ -1,6 +1,8 @@
 import type { ProjectGuide } from '../explore-project-guides';
 import type { ProjectGenerationState, ProjectConstraints, ProjectEvidence } from '../explore-personalization';
 import type { CommunityOpportunity } from '../explore-opportunities';
+import { validVenueTimezone, opportunityLocalDate, opportunityInstant } from '../explore-opportunities';
+import { validDay } from '../explore-workspace';
 import type { LocalParticipationResource } from '../explore-local-resources';
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -40,8 +42,14 @@ export function validProjectGeneration(value: unknown): value is ProjectGenerati
 export type OpportunityResults = { items: CommunityOpportunity[]; areaLabel: string; checkedAt: string; availability: 'ready'|'empty'|'partial'|'no_coverage'|'unavailable'; nextCursor: string|null; complete: boolean };
 export function validOpportunity(value: unknown): value is CommunityOpportunity {
   if (!object(value) || !['id','organizer','title','interest','area','venue','timeLabel','checkedAt','summary','duration','cost','age','access','bring','join','safety'].every(key=>text(value[key])) || !member(value.artwork,['tree','cleanup','garden']) || !member(value.kind,['scheduled','rolling']) || !member(value.status,['listed','cancelled','full','postponed']) || !safeSourceUrl(value.url) || !strings(value.work) || !strings(value.scopes))return false;
-  if (value.kind==='scheduled' && (!text(value.startsAt)||!text(value.endsAt)||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value.startsAt)||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value.endsAt)||!Number.isFinite(Date.parse(value.startsAt))||Date.parse(value.endsAt)<=Date.parse(value.startsAt))) return false;
-  return Number.isFinite(Date.parse(String(value.checkedAt))) && (value.address===undefined||text(value.address));
+  if (!['id','organizer','title'].every(key=>String(value[key]).trim())) return false;
+  if (value.kind==='scheduled' && (!text(value.startsAt)||!text(value.endsAt)||!Number.isFinite(opportunityInstant(value.startsAt))||!Number.isFinite(opportunityInstant(value.endsAt))||opportunityInstant(value.endsAt)<=opportunityInstant(value.startsAt))) return false;
+  if (value.venueLocalDate !== undefined && (!text(value.venueLocalDate,10) || !validDay(value.venueLocalDate))) return false;
+  if (value.venueTimezone !== undefined && (!text(value.venueTimezone,100) || !validVenueTimezone(value.venueTimezone))) return false;
+  if (value.venueTimezoneBasis !== undefined && !member(value.venueTimezoneBasis,['source','inferred'])) return false;
+  if (value.venueTimezoneBasis !== undefined && !value.venueTimezone) return false;
+  if (value.kind === 'scheduled' && value.venueLocalDate && value.venueTimezoneBasis === 'source' && !opportunityLocalDate(value as CommunityOpportunity)) return false;
+  return validDay(String(value.checkedAt)) && (value.address===undefined||text(value.address));
 }
 export function validOpportunityResults(value: unknown): value is OpportunityResults {
   return object(value)&&Array.isArray(value.items)&&value.items.length<=100&&value.items.every(validOpportunity)&&new Set(value.items.map(item=>item.id)).size===value.items.length&&text(value.areaLabel,300)&&text(value.checkedAt,100)&&member(value.availability,['ready','empty','partial','no_coverage','unavailable'])&&typeof value.complete==='boolean'&&(value.nextCursor===null||text(value.nextCursor,2000));

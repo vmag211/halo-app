@@ -103,7 +103,7 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
 
   useLayoutEffect(() => {
     if (!open || !popup.current || !input.current) return;
-    const element = popup.current;
+    const element = popup.current, focusTrigger = trigger.current;
     // Popover top-layer positioning also works inside HALO's modal task sheets.
     if (typeof element.showPopover === 'function' && !element.matches(':popover-open')) element.showPopover();
     const position = () => {
@@ -130,7 +130,7 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
       window.removeEventListener('scroll', position, true);
       document.removeEventListener('pointerdown', outside);
       if (typeof element.hidePopover === 'function' && element.matches(':popover-open')) element.hidePopover();
-      if (restoreFocus.current && trigger.current?.isConnected) trigger.current.focus({ preventScroll: true });
+      if (restoreFocus.current && focusTrigger?.isConnected) focusTrigger.focus({ preventScroll: true });
     };
   }, [open, close]);
 

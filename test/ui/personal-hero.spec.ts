@@ -14,13 +14,14 @@ test('Today has four factors, no PFAS contribution, and Homeguard owns PFAS', as
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(page.getByTestId('factor-scorecard')).toHaveCount(4);
   await expect(page.locator('.halo-ph-overview')).not.toContainText('PFAS');
-  const arcs = page.locator('.halo-ph-ring-segment');
-  await expect(arcs).toHaveCount(4);
-  const shares = await arcs.evaluateAll(nodes => nodes.map(n => Number(n.getAttribute('stroke-dasharray')!.split(' ')[0])));
-  [12, 28, 14, 8].forEach((expected, index) => expect(shares[index]).toBeCloseTo(expected / 62 * 100, 10));
-  expect(shares.reduce((total, n) => total + n, 0)).toBeCloseTo(100, 10);
+  const contributions = page.locator('.halo-ph-contribution-track > span');
+  await expect(contributions).toHaveCount(4);
+  const shares = await contributions.evaluateAll(nodes => nodes.map(n => Number.parseFloat((n as HTMLElement).style.width)));
+  // CSS percentage serialization rounds values; the normalized contribution must stay intact.
+  [12, 28, 14, 8].forEach((expected, index) => expect(shares[index]).toBeCloseTo(expected / 62 * 100, 4));
+  expect(shares.reduce((total, n) => total + n, 0)).toBeCloseTo(100, 3);
   await page.getByRole('link', { name: 'Homeguard', exact: true }).click();
-  await expect(page.locator('.halo-ph-ring-segment[data-factor="pfas"]')).toHaveCount(1);
+  await expect(page.locator('.halo-ph-legend').getByRole('link', { name: /^PFAS,/ })).toHaveCount(1);
   const before = await page.evaluate(() => window.history.length);
   await page.getByTestId('factor-scorecard').filter({ hasText: 'PFAS' }).click();
   await expect(page).toHaveURL(/\/factor\/pfas/);
@@ -60,15 +61,16 @@ for (const appearance of ['light', 'dark']) {
 
 test('no data, zero, partial and zero-risk have distinct semantics', async ({ page }) => {
   await page.goto('/foundation/preview?scenario=no-data');
-  await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('No data');
-  await expect(page.locator('.halo-ph-ring-segment')).toHaveCount(0);
+  await expect(page.locator('.halo-environment-score strong')).toHaveText('N/A');
+  await expect(page.locator('.halo-ph-contribution-track > span')).toHaveCount(0);
   await page.goto('/foundation/preview?scenario=score-zero');
-  await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('0');
+  await expect(page.locator('.halo-environment-score strong')).toHaveText('0');
   await page.goto('/foundation/preview?scenario=contribution-zero');
-  await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('100');
-  await expect(page.locator('.halo-ph-ring-segment')).toHaveCount(0);
+  await expect(page.locator('.halo-environment-score strong')).toHaveText('100');
+  await expect(page.locator('.halo-ph-contribution-track > span')).toHaveCount(0);
   await page.goto('/foundation/preview?scenario=partial');
-  await expect(page.locator('.halo-ph-ring-partial')).toHaveCount(1);
+  await expect(page.locator('.halo-environment-scoreline')).toContainText('Partial coverage');
+  await expect(page.locator('.halo-ph-overview')).toContainText('Based on 3 of 4 scored factors.');
   await expect(page.getByTestId('factor-scorecard').filter({ hasText: 'Pollen' })).toContainText('No data');
   await page.goto('/foundation/preview/factor/pfas?scenario=no-data');
   await expect(page.getByRole('heading', { name: 'Why yours reads this way' })).toHaveCount(0);
@@ -106,7 +108,7 @@ test('chart inspection, missing history, offline Learn and unscored lead', async
 test('overview visual review', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/foundation/preview?tab=today');
-  await expect(page.locator('.halo-ph-scene-top')).not.toContainText('Local time');
+  await expect(page.locator('.halo-environment-scene-bar')).not.toContainText('Local time');
   if (process.env.HALO_REVIEW_SCREENSHOT === '1') {
     await page.screenshot({ path: info.outputPath('overview-light.png'), fullPage: true, animations: 'disabled' });
     await page.screenshot({ path: info.outputPath('overview-viewport.png'), animations: 'disabled' });

@@ -24,7 +24,7 @@ test('private water shows the returned testing plan without a measured score or 
     }),
   } });
   await page.goto('/home');
-  await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('No data');
+  await expect(page.locator('.halo-environment-score strong')).toHaveText('N/A');
   await expect(page.getByRole('heading', { name: 'Start with testing', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Open your water testing plan', exact: true }).click();
   await expect(page).toHaveURL(/\/factors\/pfas#reading-detail$/);
@@ -86,7 +86,7 @@ test('utility-wide lead and ordered action items keep their limits; absent evide
   await page.getByRole('button', { name: 'Refresh readings', exact: true }).click();
   await expect(actions).toContainText('There is not enough evidence for a scored action plan. Missing data is not an all-clear.');
   await expect(actions.locator('summary')).toHaveCount(0);
-  await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('No data');
+  await expect(page.locator('.halo-environment-score strong')).toHaveText('N/A');
   expect(network.blocked).toEqual([]);
 });
 

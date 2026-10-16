@@ -3,6 +3,13 @@ import {dayAdd,emptyWeekMeta,eventInstant,type WeekMeta} from './week-preview';
 
 export function instantDay(instant:string,zone:string){try{const p=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(instant));return `${p.find(x=>x.type==='year')?.value}-${p.find(x=>x.type==='month')?.value}-${p.find(x=>x.type==='day')?.value}`;}catch{return '';}}
 export function actionDisplayDay(a:PreviewAction,m:WeekMeta,zone:string){const instant=m.time?eventInstant(a.date,m.time,m.zone):null;return instant?instantDay(instant,zone):a.date;}
+/** A timed task's date and clock must be rendered in the same display zone. */
+export function actionDisplaySchedule(a:PreviewAction,m:WeekMeta,zone:string){
+  const instant=m.time?eventInstant(a.date,m.time,m.zone):null;
+  if(!instant)return {date:a.date,time:'',instant:null};
+  const time=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(instant));
+  return {date:instantDay(instant,zone),time,instant};
+}
 export function clockLabel(instant:string,zone:string){return new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'}).format(new Date(instant));}
 export function dayBoundary(day:string,zone:string){const midnight=eventInstant(day,'00:00',zone);if(midnight)return midnight;const base=Date.parse(`${day}T12:00:00Z`);for(let n=base-36*3600000;n<=base+36*3600000;n+=3600000){if(instantDay(new Date(n).toISOString(),zone)!==day)continue;let lo=n-3600000,hi=n;while(hi-lo>1){const mid=Math.floor((lo+hi)/2);if(instantDay(new Date(mid).toISOString(),zone)===day)hi=mid;else lo=mid;}return new Date(hi).toISOString();}return null;}
 export type TimelineItem={action:PreviewAction;start:string;end:string;overlap:boolean;gapBefore:number;continues:boolean};

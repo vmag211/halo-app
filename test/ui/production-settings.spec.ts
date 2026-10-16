@@ -2,6 +2,36 @@ import {expect,test} from '@playwright/test';
 import {mockProduction,settingsSnapshot,homeId} from './production-fixtures';
 import {jsonRoute,stageProfile} from './stage-fixtures';
 
+test('desktop settings section navigation returns to the index and retains unsaved drafts',async({page},info)=>{
+ await page.setViewportSize({width:1280,height:900});
+ const network=await mockProduction(page);
+ await page.goto('/settings');await page.locator('[data-setting-panel="display"]').click();
+ await page.getByRole('radio',{name:'Light',exact:true}).check();
+ const sections=page.getByRole('navigation',{name:'Settings sections',exact:true});
+ await sections.getByRole('button',{name:'Home & household',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Home & household',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'All settings',exact:true}).click();
+ await expect(page.locator('[data-setting-panel="display"]')).toBeVisible();
+ await page.locator('[data-setting-panel="display"]').click();
+ await expect(page.getByRole('radio',{name:'Light',exact:true})).toBeChecked();
+ await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');
+ await page.screenshot({path:info.outputPath('settings-desktop-draft.png'),fullPage:true});
+ expect(network.requests.filter(request=>request.method!=='GET'&&request.path==='/api/settings')).toHaveLength(0);
+ expect(network.blocked).toEqual([]);
+});
+
+test('direct settings panel links return to settings after desktop section switching',async({page})=>{
+ await page.setViewportSize({width:1280,height:900});await mockProduction(page);
+ await page.goto('/app/today');await expect(page.getByTestId('production-product')).toBeVisible();
+ await page.goto('/app/settings?open=display');
+ await page.getByRole('navigation',{name:'Settings sections',exact:true}).getByRole('button',{name:'Home & household',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Home & household',exact:true})).toBeVisible();
+ await expect(page).toHaveURL(/open=home/);
+ await page.getByRole('button',{name:'All settings',exact:true}).click();
+ await expect(page.locator('[data-setting-panel="display"]')).toBeVisible();
+ await expect(page).toHaveURL(/\/app\/settings(?:\?|$)/);
+});
+
 test('display edits apply only after canonical receipt and load unchanged on another visit',async({page})=>{
  let current=structuredClone(settingsSnapshot),saves=0;
  const network=await mockProduction(page,{'/api/settings':async route=>{if(route.request().method()==='GET'){await jsonRoute(route,current);return;}saves++;const input=route.request().postDataJSON();expect(route.request().headers()['if-match']).toBe(String(current.revision));expect(route.request().headers()['idempotency-key']).toBe(input.operationId);current={...current,revision:current.revision+1,values:input.values,display:input.display,calendar:input.calendar};await jsonRoute(route,{operationId:input.operationId,status:'succeeded',snapshot:current});}});

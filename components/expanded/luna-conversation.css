@@ -17,6 +17,14 @@
 .lc-starts { display:grid; gap:4px; }
 .lc-starts button { display:flex; align-items:center; justify-content:space-between; gap:9px; min-height:48px; text-align:left; padding:10px 0; color:var(--halo-primary); background:transparent; border:0; border-bottom:1px solid var(--halo-border); font:inherit; font-size:calc(.85rem * var(--halo-text-scale)); }
 .lc-message { min-width:0; margin:0 0 24px; }
+.lc-answer > p,.lc-evidence > p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:calc(.88rem * var(--halo-text-scale)); line-height:1.65; }
+.lc-evidence { margin-top:var(--halo-space-4,16px); padding:var(--halo-space-3,12px) var(--halo-space-4,16px); border-left:3px solid var(--halo-border); background:color-mix(in srgb,var(--halo-card) 70%,transparent); }
+.lc-evidence--fact { border-color:var(--halo-primary); }
+.lc-evidence--interpretation { border-color:light-dark(#796c9a,#bcb0d9); }
+.lc-evidence h4 { display:flex; align-items:center; gap:8px; margin:0 0 8px; font-size:calc(.76rem * var(--halo-text-scale)); font-weight:650; }
+.lc-evidence > small { display:block; margin-top:8px; color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); line-height:1.5; }
+.lc-evidence-citations { list-style:none; margin:4px 0 0; padding:0; }
+.lc-evidence-citations a { display:inline-flex; align-items:center; min-height:44px; color:var(--halo-primary); font-size:calc(.74rem * var(--halo-text-scale)); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; }
 .lc-message--user { margin-left:30px; padding:12px 15px; background:var(--halo-tint); border-radius:15px 4px 15px 15px; }
 .lc-role { display:block; margin-bottom:5px; font-size:calc(.65rem * var(--halo-text-scale)); color:var(--halo-secondary); }
 .halo-f-app .lc-message > p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:calc(.88rem * var(--halo-text-scale)); line-height:1.65; text-align:left; }

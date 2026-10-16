@@ -12,6 +12,7 @@ import { useHomeCollection, useHomeDraft, useHomeWorkspace } from './HomeWorkspa
 import { ActionButton, Confirm, DeleteButton, Empty, Field, PageIntro, RecordForm, SourceNote, WorkspaceLink, type WorkspaceProps } from './HomeWorkspaceUI';
 import TestProgress, { type TestProgressStep } from './TestProgress';
 import './records-polish.css';
+import './home-record-workflows.css';
 import { PrivateReportAttachments } from './PrivateAttachments';
 
 type Save = (record: TestRecord) => Promise<boolean>;
@@ -70,14 +71,14 @@ function TestsList({ records, navigate, factor, remove }: WorkspaceProps & { rec
   const setContext = (context: string) => setFilters(previous => ({ ...previous, context }));
   const setArchived = (archived: boolean) => setFilters(previous => ({ ...previous, archived }));
   const visible = records.filter(record => record.archived === archived && (kind === 'all' || record.kind === kind) && (status === 'all' || record.status === status) && (context === 'all' || record.contextId === context) && `${record.title} ${record.provider} ${record.purpose} ${record.rows.map(row => row.analyte).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase()));
-  return <div className="hg-stack">
+  return <div className="hg-stack hg-test-library">
     <PageIntro eyebrow="Homeguard" title="Home tests & reports" description="Keep real-world water, radon, lead and soil tests in one place." icon={<FlaskConical />} />
-    <div className="hg-choice-grid">
+    <div className="hg-test-entry-tools">
       <WorkspaceLink title="Plan a test" detail="Track a test you arrange outside HALO." artwork="tests" onClick={() => navigate('new')} />
       <WorkspaceLink title="Add a report" detail="Already have results? Start here." artwork="report" onClick={() => navigate('report')} />
     </div>
     <p className="hg-inline-meta">HALO keeps your records. It does not perform tests or automatically change your score.</p>
-    <section className="hg-stack" aria-label="Filter tests">
+    <section className="hg-stack hg-test-library-filters" aria-label="Filter tests">
       <Field label="Search records"><div className="hg-search"><Search size={17} aria-hidden="true" /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Test name, lab or substance" /></div></Field>
       <details className="hg-filter-details" open={kind !== 'all' || status !== 'all' || context !== 'all' || archived ? true : undefined}><summary>Filter records{kind !== 'all' || status !== 'all' || context !== 'all' || archived ? ' · Active' : ''}</summary><div className="hg-fields">
         <Field label="Test kind"><select value={kind} onChange={event => setKind(event.target.value)}><option value="all">All test kinds</option>{testKinds.map(value => <option key={value} value={value}>{kindLabels[value]}</option>)}</select></Field>
@@ -111,15 +112,17 @@ function TestEditor({ record, recordId, save, navigate, factor, view }: Workspac
     if (await save(next)) { clearDraft(); navigate(addingReport ? 'results' : 'detail', next.id); }
     setBusy(false);
   }
-  return <div className="hg-stack"><PageIntro eyebrow="Home tests & reports" title={record ? 'Edit test details' : addingReport ? 'Add an existing report' : 'Plan a test'} description={addingReport ? 'First identify the sample. Next, copy the results from your report.' : 'Choose what and where to test. You arrange the test with a provider outside HALO.'} icon={<FlaskConical />} /><RecordForm onSubmit={submit} onCancel={leave} submitLabel={record ? 'Save test details' : addingReport ? 'Continue to results' : 'Save test plan'} busy={busy}>
+  return <div className="hg-stack hg-test-editor"><PageIntro eyebrow="Home tests & reports" title={record ? 'Edit test details' : addingReport ? 'Add an existing report' : 'Plan a test'} description={addingReport ? 'Identify the sample, then copy the original results.' : 'Choose what and where. Arrange the test with your provider.'} icon={<FlaskConical />} /><RecordForm onSubmit={submit} onCancel={leave} submitLabel={record ? 'Save test details' : addingReport ? 'Continue to results' : 'Save test plan'} busy={busy}>
     <Errors errors={errors} />
+    <div className="hg-form-section"><h3>What are you testing?</h3>
     <Field label="Test label (required)"><input required maxLength={160} value={draft.title} onChange={event => set('title', event.target.value)} placeholder="For example, kitchen tap test" /></Field>
     <div className="hg-grid"><Field label="Test kind (required)"><select value={draft.kind} onChange={event => set('kind', event.target.value as TestRecord['kind'])}>{testKinds.map(kind => <option key={kind} value={kind}>{kindLabels[kind]}</option>)}</select></Field><Field label="Sample medium (required)"><select required value={draft.medium} onChange={event => set('medium', event.target.value)}><option value="">Choose the medium</option><option value="water">Water</option><option value="air">Air</option><option value="soil">Soil</option><option value="tissue">Tissue</option><option value="unknown">Unknown</option></select></Field></div>
     <Field label="Home or site context (required)" hint="Historical tests keep their original context when you move."><select required value={draft.contextId} onChange={event => setDraft({ ...draft, contextId: event.target.value, contextSnapshot: snapshotContext(contexts.find(context => context.id === event.target.value)) })}><option value="">Choose the sample context</option>{draft.contextId && !contexts.some(context => context.id === draft.contextId) && <option value={draft.contextId}>Retained historical context</option>}{contexts.map(context => <option value={context.id} key={context.id}>{context.label} ({context.state})</option>)}</select></Field>
-    <Field label="Purpose (required)"><textarea required maxLength={600} value={draft.purpose} onChange={event => set('purpose', event.target.value)} placeholder="What would you like this test to document?" /></Field>
+    <Field label="Purpose (required)"><textarea required maxLength={600} value={draft.purpose} onChange={event => set('purpose', event.target.value)} placeholder="What would you like this test to document?" /></Field></div>
+    <div className="hg-form-section"><h3>{addingReport ? 'Report origin' : 'When and with whom'}</h3>
     <Field label="Lab or provider (optional)" hint="Enter the name on the report or leave it blank."><input maxLength={160} value={draft.provider} onChange={event => set('provider', event.target.value)} /></Field>
     {!addingReport && <><div className="hg-grid"><Field label="Proposed test date (optional)"><DateInput value={draft.plannedDate} onChange={event => set('plannedDate', event.target.value)} /></Field>{!record && <Field label="Current progress"><select value={draft.status} onChange={event => set('status', event.target.value as TestRecord['status'])}><option value="draft">Still preparing</option><option value="arranged">Already arranged</option></select></Field>}</div><p className="hg-meta">Ask your provider which kit to use, how to collect the sample and what it costs.</p></>}
-    {record?.rows.length ? <SourceNote>Changing context or method can change whether a record is comparable. Original result rows and correction history are retained.</SourceNote> : null}
+    </div>{record?.rows.length ? <SourceNote>Changing context or method can change whether a record is comparable. Original result rows and correction history are retained.</SourceNote> : null}
     <p className="hg-meta">{dirty ? 'Unsaved changes.' : 'No unsaved changes.'}</p>{dirty && <Button variant="tertiary" onClick={() => setDiscard(true)}>Discard draft</Button>}
   </RecordForm>{discard && <Confirm title="Discard test edits?" onConfirm={() => { clearDraft(); setDiscard(false); leave(); }} onCancel={() => setDiscard(false)}>Only this unsaved draft will be discarded. Your saved test record stays as it is.</Confirm>}</div>;
 }

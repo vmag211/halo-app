@@ -21,7 +21,7 @@ async function compare(page:Page,second='SAMPLE-02',extra='') {
 
 test('changing home removes old map location and previously generated project evidence',async({page})=>{
   await page.goto('/foundation/preview/expanded/?tab=act&motion=reduce');
-  await page.getByRole('button',{name:/See all \d+/}).click();
+  await page.getByRole('button',{name:/Projects for you: see all \d+/}).click();
   await page.getByRole('button',{name:'Refresh ideas',exact:true}).click();
   await expect(page.locator('.ex-generation-message')).toContainText('ideas ready');
   await page.getByRole('button',{name:'Back to Explore',exact:true}).click();
@@ -49,7 +49,7 @@ test('changing home removes old map location and previously generated project ev
   await expect(page.getByRole('dialog')).not.toContainText('Your water system');
   await page.getByRole('button',{name:'Close sheet',exact:true}).click();
   await page.getByRole('link',{name:'Back to Explore',exact:true}).click();
-  await page.getByRole('button',{name:/See all \d+/}).click();
+  await page.getByRole('button',{name:/Projects for you: see all \d+/}).click();
   await page.locator('summary').filter({hasText:'Generation details and sources'}).click();
   await expect(page.locator('.ex-generation-details')).toContainText('Public environmental readings are unavailable');
   await expect(page.locator('.ex-generation-details li')).toHaveCount(0);

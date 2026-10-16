@@ -85,11 +85,11 @@ for (const appearance of ['light', 'dark'] as const) for (const width of [320, 3
       await ready(page, route);
       await cleanSurface(page);
       if (route === '/today') {
-        await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('62');
+        await expect(page.locator('.halo-environment-score strong')).toHaveText('62');
         await expect(page.getByTestId('factor-scorecard')).toHaveCount(4);
         await expect(page.locator('.halo-ph-overview')).not.toContainText('PFAS');
       }
-      if (route === '/home') { await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('31'); await expect(page.getByTestId('factor-scorecard')).toHaveCount(3); }
+      if (route === '/home') { await expect(page.locator('.halo-environment-score strong')).toHaveText('31'); await expect(page.getByTestId('factor-scorecard')).toHaveCount(3); }
       if (route === '/factors/air') { await expect(page.locator('.halo-ph-reading-capsule')).toContainText('101'); await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('Not scored'); }
       if (['/factors/uv', '/factors/pollen', '/factors/mold'].includes(route)) await expect(page.locator('#reading-overview h2')).not.toContainText('not available');
       if (route === '/factors/pfas') await expect(page.locator('.halo-ph-reading-capsule')).toContainText('3.7ppt PFOA');
@@ -122,9 +122,9 @@ test('missing readings never render fixture scores, dates, households, or Luna e
   const network = await mockStage(page);
   for (const route of ['/today', '/home', '/family', ...factors.map(factor => `/factors/${factor}`)]) {
     await ready(page, route); await cleanSurface(page);
-    if (route === '/today' || route === '/home') await expect(page.locator('.halo-ph-ring-center strong')).toHaveText('No data');
+    if (route === '/today' || route === '/home') await expect(page.locator('.halo-environment-score strong')).toHaveText('N/A');
     if (route.startsWith('/factors/')) await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('No data');
-    await expect(page.locator('.halo-ph-ring-segment')).toHaveCount(0);
+    await expect(page.locator('.halo-ph-contribution-track > span')).toHaveCount(0);
   }
   await ready(page, '/home');
   await expect(page.locator('.halo-home-person')).toHaveCount(2);

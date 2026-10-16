@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowUpRight, Droplets, Flower2, House, Leaf, Pause, Play, ShieldCheck, Sprout, Sun, Users, Wind } from 'lucide-react';
+import { ArrowUpRight, Droplets, Flower2, House, Leaf, Pause, Play, ShieldCheck, Sprout, Sun, Users, Wind } from 'lucide-react';
 import SeverityPill from '@/components/ui/SeverityPill';
 import { Callout, ProvenancePill } from '@/components/ui/Foundation';
 import { learnTopic } from '@/lib/learnContent';
@@ -10,7 +10,7 @@ import { displayText } from '@/lib/frontend/onboarding';
 import { factorColor, factorReadings, homeFactorKeys, personalFactorKeys, previewRiskShares, type FactorKey, type FactorReading } from '@/lib/frontend/factor-preview';
 import type { FoundationScenario } from '@/lib/frontend/foundation-preview';
 import EnvironmentalScene from './EnvironmentalScene';
-import SegmentedScore, { CompactContributionBar, type ScoreSegment } from './SegmentedScore';
+import { CompactContributionBar, type ScoreSegment } from './SegmentedScore';
 import FactorScoreCard from './FactorScoreCard';
 import FactorTrend from './FactorTrend';
 import { AnimatedNumber, Reveal, useSceneExperience } from './SceneExperience';
@@ -26,12 +26,13 @@ import RisingSun from './RisingSun';
 import { useStageRuntime } from './StageRuntime';
 import { previewOverviewScore } from '@/lib/frontend/overview-preview';
 import ScoreTransparency from './ScoreTransparency';
+import './environment-briefing.css';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
-type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; familyHref?: string; memberHref?: MemberHref; home?: boolean; homeWorkspace?: boolean; workspace?: ReactNode };
+type OverviewProps = { scenario: FoundationScenario; factorHref: FactorHref; familyHref?: string; memberHref?: MemberHref; home?: boolean; homeWorkspace?: boolean; workspace?: ReactNode; areaLabel?: string };
 
-export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false, homeWorkspace = false, workspace }: OverviewProps) {
+export default function PersonalHero({ scenario, factorHref, familyHref, memberHref, home = false, homeWorkspace = false, workspace, areaLabel }: OverviewProps) {
   const { clock } = useSceneExperience();
   const runtime = useStageRuntime();
   const overview = runtime ? (home ? runtime.home : runtime.today) : null;
@@ -48,31 +49,29 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     key, label: readings[key].shortTitle, color: factorColor(key), href: factorHref(key),
     share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
   }));
-  return <div className="halo-ph-overview" data-home={home}>
-    <div className="halo-ph-overview-header">
-    <section className="halo-ph-landscape" aria-label={`${home ? 'Homeguard' : 'Today'} overview`}>
-      <EnvironmentalScene variant={home ? 'home' : 'landscape'} /><div className="halo-ph-scene-content"><div className="halo-ph-scene-top"><span><Leaf size={14} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
-        <SegmentedScore score={score} severity={severity} partial={partial} segments={segments} label={home ? 'Your home score' : 'Your personal score'} />
-        <span className="halo-ph-higher">Higher is better</span>
-      </div>
-    </section>
-    <div className="halo-ph-overview-summary">
-    <div className="halo-ph-introduction"><div className="halo-ph-headline">{(missing || score === 0 || zeroRisk || home) && <h2>{missing ? 'A few readings are missing' : score === 0 ? 'Take a closer look at your readings' : zeroRisk ? 'A little more room to breathe' : 'Know your home a little better.'}</h2>}<SeverityPill severity={severity} /></div><p>{home ? 'Water, ground, and the place you call home.' : 'Your air, sunlight, pollen, and moisture, brought into focus.'}</p><span className="halo-f-meta">{overview ? overview.asOf : 'Updated September 30, 2026'}</span></div>
+  return <div className="halo-ph-overview halo-environment-briefing" data-home={home} data-workspace={home && homeWorkspace}>
+    {home && workspace && <div className="halo-home-primary-work">{workspace}</div>}
+    <section className="halo-environment-summary" aria-label={`${home ? 'Homeguard' : 'Today'} overview`}>
+      <div className="halo-environment-heading"><div><span className="halo-ph-kicker">{home ? 'Local context' : 'Your environmental briefing'}</span><h2>{home ? 'Around your home' : 'Know the day ahead.'}</h2>{!home && runtime && areaLabel?.trim() ? <p className="halo-environment-area">Home area: {displayText(areaLabel)}</p> : <p>{home ? 'Area evidence, separate from your home tests.' : 'Air, sunlight, pollen and outdoor moisture.'}</p>}</div><span className="halo-environment-mark" aria-hidden="true">{home ? <House size={26} /> : <Sun size={28} />}</span></div>
+      <div className="halo-environment-scene"><EnvironmentalScene variant={home ? 'home' : 'landscape'} /><div className="halo-environment-scene-bar"><span><Leaf size={14} aria-hidden="true" />{clock.label}</span><MotionButton /></div></div>
+      <div className="halo-environment-scoreline"><div className="halo-environment-score" data-empty={score === null} aria-label={`${home ? 'Your home score' : 'Your personal score'}: ${score === null ? 'Not available' : `${score} out of 100`}`}><strong>{score === null ? 'N/A' : <AnimatedNumber value={score} />}</strong>{score !== null && <span>/100</span>}</div><div><strong>{home ? 'Home context score' : 'Today’s overview'}</strong><SeverityPill severity={severity} /><small>{missing ? 'Missing data is not an all-clear.' : partial ? 'Partial coverage · Higher is better' : 'Higher is better'}</small></div></div>
+      <p className="halo-environment-updated">{overview ? overview.asOf : 'Updated September 30, 2026'}</p>
     {partial && (!runtime || !missing) && <Callout tone="notice">{overview ? <p>{`Partial score. Missing inputs: ${overview.missingInputs.join(', ') || 'Some readings are unavailable'}.`}</p> : <p>Based on {home ? 1 : 3} of {home ? 2 : 4} scored factors. {home ? 'PFAS' : 'Pollen'} data is not available right now.</p>}</Callout>}
     {missing && <Callout tone="notice"><p>{runtime ? 'A complete score is not available. Missing data does not mean low risk.' : 'Readings unavailable. Missing data is not an all-clear.'}</p></Callout>}
     {overview?.notice && <Callout tone="notice"><p>{overview.notice}</p></Callout>}
     <CompactContributionBar segments={segments} unavailableNote={overview?.contributionNote} />
     <ScoreTransparency home={home} keys={keys} readings={readings} overview={overview} factorHref={factorHref} missingKeys={!runtime ? keys.filter(key => missing || (partial && key === missingKey)) : undefined} />
-    </div></div>
-    {home && homeWorkspace && <PreviewSectionLink className="how-text-action how-workspace-jump" target="home-workspace">Open your home workspace <ArrowDown size={17} aria-hidden="true" /></PreviewSectionLink>}
-    <div className="halo-ph-section-label"><h2>{home ? 'Around your home' : 'Your environment, closer up'}</h2><span>Explore a factor</span></div>
+    </section>
+    <section className="halo-environment-evidence" aria-label={home ? 'Home environmental evidence' : 'Your environmental readings'}>
+    <div className="halo-ph-section-label"><h2>{home ? 'Understand the evidence' : 'Your readings'}</h2><span>Open a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
       const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? factor.severity === 'no_data' : missing || (partial && key === missingKey);
       return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} /></Reveal>;
     })}</div>
+    <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score. Area evidence does not measure conditions inside your home.' : 'Readings can update at different times. Open a factor for its source, history and practical steps.'} Estimates are identified in each factor.</p>
+    </section>
     {!home && <HouseholdContext familyHref={familyHref} />}
-    <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score.' : 'Today brings together air quality, UV, pollen, and mold conditions. Check each reading’s update time.'} Estimates are identified in each factor.</p>
-    {home && <div className="halo-home-management">{workspace}{memberHref && <HomeHousehold memberHref={memberHref} />}</div>}
+    {home && memberHref && <div className="halo-home-management"><HomeHousehold memberHref={memberHref} /></div>}
   </div>;
 }
 

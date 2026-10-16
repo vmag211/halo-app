@@ -163,17 +163,17 @@ test('project completion requires every real step and a result, and Homeguard ha
   await expect(page.locator('.ex-project-reflection').getByRole('alert')).toContainText('actually recorded');
   await page.getByLabel('My project result').fill('I received and reviewed the dated report, then chose a qualified follow-up.');
   await page.getByRole('button', { name: 'Record project completion' }).click();
-  await expect(page.locator('.ex-project-workspace > .ex-kicker')).toContainText('Completed');
+  await expect(page.locator('.ex-project-intro-copy > .ex-kicker')).toContainText('Completed');
   await page.getByText('Related actions', { exact: true }).click();
   await page.getByRole('link', { name: 'Continue into tests and home records' }).click();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Explore', exact: true }).click();
-  await page.locator('.ex-personalized-preview').getByRole('button', { name: /See all \d+/ }).click();
+  await page.locator('.ex-personalized-preview').getByRole('button', { name: /Projects for you: see all \d+/ }).click();
   await page.locator('.ex-project-continuation > summary').click();
   await page.locator('.ex-project-continuation').getByRole('button').click();
   await expect(page.locator('.ex-project-progress')).toContainText('4 of 4');
   await expect(page.getByLabel('My project result')).toHaveValue(/received and reviewed/);
   await page.getByRole('button', { name: 'Reopen this step' }).click();
-  await expect(page.locator('.ex-project-workspace > .ex-kicker')).toContainText('Completion needs review');
+  await expect(page.locator('.ex-project-intro-copy > .ex-kicker')).toContainText('Completion needs review');
 });
 
 test('a failed project batch creates no partial tasks and keeps choices', async ({ page }) => {

@@ -14,7 +14,8 @@ test('isolated production preview map backing store matches its displayed size',
     const canvas = element as HTMLCanvasElement;
     const box = canvas.getBoundingClientRect();
     const ratio = Math.min(devicePixelRatio, 2);
-    return { backing: [canvas.width, canvas.height], display: [Math.round(box.width * ratio), Math.round(box.height * ratio)] };
-  })).toEqual({ backing: [1056, 260], display: [1056, 260] });
+    return canvas.width>0&&canvas.height>0&&canvas.width===Math.round(box.width*ratio)&&canvas.height===Math.round(box.height*ratio);
+  })).toBe(true);
+  const bounds=await map.boundingBox();expect(bounds!.width).toBeGreaterThan(200);expect(bounds!.height).toBeGreaterThanOrEqual(150);expect(bounds!.height).toBeLessThanOrEqual(260);
   await map.screenshot({ path: info.outputPath('production-map-ready.png') });
 });

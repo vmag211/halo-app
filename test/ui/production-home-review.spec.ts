@@ -18,8 +18,10 @@ test('home overview retries real collections and promotes the current home test'
   });
   await page.goto('/app/homeguard');
   const workspace = page.locator('#home-workspace');
-  await expect(workspace).toContainText('Your home records could not load.');
+  await expect(workspace).toContainText('Some home records could not load.');
   await expect(workspace).not.toContainText('Lower-level radon test');
+  await expect(workspace.locator('.how-overview-row.how-care')).toContainText('0 routines');
+  await expect(workspace.locator('.how-overview-row.how-food')).toContainText('0 foods');
   const before = testReads;
   ready = true;
   await workspace.getByRole('button', { name: 'Try again', exact: true }).click();
@@ -35,9 +37,49 @@ test('home overview retries real collections and promotes the current home test'
   expect(network.blocked).toEqual([]);
 });
 
+for (const unavailableCollection of ['pantryItems', 'assets']) test(`a ${unavailableCollection} failure keeps loaded home test and other work available`, async ({ page }) => {
+  let ready = false;
+  let release: () => void = () => {};
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const reads: string[] = [];
+  const network = await mockProduction(page, {
+    '/api/frontend/workspace': async (route, url) => {
+      const collection = url.searchParams.get('collection') ?? '';
+      reads.push(collection);
+      if (collection === unavailableCollection && !ready) {
+        await pending;
+        await jsonRoute(route, { error:'unavailable' }, 503);
+        return;
+      }
+      await jsonRoute(route, { records:collection === 'tests' ? [current] : [], revision:1, availability:'ready', complete:true, pendingOperations:[] });
+    },
+  });
+  await page.goto('/app/homeguard');
+  const workspace = page.locator('#home-workspace');
+  try {
+    await expect(workspace.getByRole('link', { name:'Continue test', exact:true })).toBeVisible();
+    await expect(workspace).toContainText('Loading more home records.');
+  } finally { release(); }
+  await expect(workspace).toContainText('Some home records could not load.');
+  await expect(workspace.locator('.how-priority')).toContainText(current.title);
+  await expect(workspace.locator('.how-overview-row.how-tests')).toContainText('1 active');
+  await expect(workspace.locator(unavailableCollection === 'assets' ? '.how-overview-row.how-food' : '.how-overview-row.how-care')).toContainText(unavailableCollection === 'assets' ? '0 foods' : '0 routines');
+  const requiredCollections = ['tests', 'assets', 'observations', 'gardens', 'pantryItems'];
+  const before = Object.fromEntries(requiredCollections.map(key => [key, reads.filter(value => value === key).length]));
+  ready = true;
+  await workspace.getByRole('button', { name:'Try again', exact:true }).click();
+  await expect(workspace.locator('.how-notice')).toHaveCount(0);
+  for (const key of requiredCollections) expect(reads.filter(value => value === key)).toHaveLength(before[key] + Number(key === unavailableCollection));
+  await workspace.getByRole('link', { name:'Continue test', exact:true }).click();
+  await expect(page.getByRole('heading', { name:current.title, exact:true })).toBeVisible();
+  expect(network.requests.filter(item => item.method !== 'GET')).toEqual([]);
+  expect(network.blocked).toEqual([]);
+});
+
 test('missing production readings retain their missing state in score transparency', async ({ page }) => {
   const network = await mockProduction(page);
   await page.goto('/app/today');
+  await expect(page.locator('.halo-environment-area')).toHaveText('Home area: Cabarrus, NC');
   const disclosure = page.locator('.halo-score-transparency');
   await disclosure.locator('> summary').click();
   await expect(disclosure).toContainText('0 of 4 readings');
@@ -49,20 +91,21 @@ test('missing production readings retain their missing state in score transparen
   expect(network.blocked).toEqual([]);
 });
 
-test('Today and Homeguard use bounded desktop composition without changing mobile order', async ({ page }, info) => {
+for (const tab of ['today', 'homeguard']) test(`${tab} uses bounded desktop composition and a purposeful mobile order`, async ({ page }, info) => {
   const network = await mockProduction(page, {
     '/api/frontend/workspace': (route, url) => jsonRoute(route, { records: url.searchParams.get('collection') === 'tests' ? [current] : [], revision: 1, availability: 'ready', complete: true, pendingOperations: [] }),
   });
-  for (const tab of ['today', 'homeguard']) {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`/app/${tab}`);
-    const scene = page.locator('.halo-ph-overview-header > .halo-ph-landscape');
-    const summary = page.locator('.halo-ph-overview-summary');
+    const scene = page.locator('.halo-environment-scene');
+    const summary = page.locator('.halo-environment-summary');
     await expect(scene).toBeVisible();
     await expect(summary).toBeVisible();
     const sceneBox = (await scene.boundingBox())!;
     const summaryBox = (await summary.boundingBox())!;
-    expect(summaryBox.x).toBeGreaterThan(sceneBox.x + sceneBox.width);
+    const primary = tab === 'homeguard' ? page.locator('#home-workspace') : page.locator('.halo-environment-evidence');
+    const primaryBox = (await primary.boundingBox())!;
+    expect(Math.abs(primaryBox.x - summaryBox.x)).toBeGreaterThan(200);
     expect(sceneBox.width).toBeLessThan(550);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`${tab}-desktop.png`) });
@@ -74,11 +117,13 @@ test('Today and Homeguard use bounded desktop composition without changing mobil
     await page.goto(`/app/${tab}`);
     await expect(scene).toBeVisible();
     const mobileScene = (await scene.boundingBox())!;
-    const mobileSummary = await summary.locator('.halo-ph-introduction').boundingBox();
-    // The retained mobile introduction overlaps the decorative scene edge by 22px.
-    expect(mobileSummary!.y).toBeGreaterThan(mobileScene.y + mobileScene.height - 50);
+    expect(mobileScene.height).toBeLessThan(160);
+    if (tab === 'homeguard') {
+      const action = (await page.getByRole('link', { name:'Continue test', exact:true }).boundingBox())!;
+      expect(action.y + action.height).toBeLessThan(670);
+      expect((await primary.boundingBox())!.y).toBeLessThan((await summary.boundingBox())!.y);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`${tab}-mobile.png`) });
-  }
   expect(network.blocked).toEqual([]);
 });

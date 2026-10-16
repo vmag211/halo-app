@@ -9,6 +9,7 @@ import { type PreviewAction } from '@/lib/frontend/expanded-preview';
 import { dayLabel, emptyWeekMeta, eventInstant, type WeekMeta } from '@/lib/frontend/week-preview';
 import { nextWeeklyReview, weeklyReviewKey, type WeeklyReviewPreferences, type WeekRecord } from '@/lib/frontend/week-records';
 import { lunaCalendarAnchor } from '@/lib/frontend/luna-tools-preview';
+import {actionDisplaySchedule} from '@/lib/frontend/week-timeline';
 import WeekReviewPlanner from './WeekReviewPlanner';
 import './week-planning.css';
 
@@ -22,7 +23,7 @@ export default function WeekPlanningRail({today,zone,actions,records,metas,onOpe
   const [preferences]=useHomeDraft<WeeklyReviewPreferences>('week:review-preferences',{enabled:false,weekday:0,time:'17:00',zone});
   const [sheet,setSheet]=useState(false);const [draft,setDraft]=useState(preferences);const [feedback,setFeedback]=useState('');
   const meta=(a:PreviewAction)=>({...emptyWeekMeta,...metas[a.key]});
-  const upcoming=[...actions.filter(a=>a.date>=today&&a.date!==selectedDay&&a.state!=='completed'&&!meta(a).paused&&!meta(a).archived).map(a=>({id:a.id,title:a.title,date:a.date,kind:'Task',action:a,record:null as WeekRecord|null,time:meta(a).time})),...records.filter(r=>r.date>=today&&r.date!==selectedDay).map(r=>({id:r.id,title:r.title,date:r.date,kind:r.kind==='routine'?'Home care':r.category,action:null as PreviewAction|null,record:r,time:''}))].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||a.title.localeCompare(b.title));
+  const upcoming=[...actions.filter(a=>a.state!=='completed'&&!meta(a).paused&&!meta(a).archived).map(a=>{const schedule=actionDisplaySchedule(a,meta(a),zone);return {id:a.id,title:a.title,date:schedule.date,kind:'Task',action:a,record:null as WeekRecord|null,time:schedule.time};}).filter(a=>a.date>=today&&a.date!==selectedDay),...records.filter(r=>r.date>=today&&r.date!==selectedDay).map(r=>({id:r.id,title:r.title,date:r.date,kind:r.kind==='routine'?'Home care':r.category,action:null as PreviewAction|null,record:r,time:''}))].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||a.title.localeCompare(b.title));
   const earlier=records.filter(r=>r.date<today);const next=nextWeeklyReview(lunaCalendarAnchor(new Date(),preferences.zone),preferences.weekday);
   useEffect(()=>{if(!sheet)return;window.history.pushState({...window.history.state,haloWeekReviewSheet:true},'',location.href);const back=()=>setSheet(false);window.addEventListener('popstate',back);return()=>window.removeEventListener('popstate',back);},[sheet]);
   const closeSheet=()=>{if(window.history.state?.haloWeekReviewSheet)window.history.back();else setSheet(false);};

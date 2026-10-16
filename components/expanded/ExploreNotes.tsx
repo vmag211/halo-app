@@ -19,15 +19,16 @@ import {usePrivateUpload} from '@/components/homeguard/usePrivateUpload';
 import {PrivateAttachmentDownload,PrivateObservationPhoto} from '@/components/homeguard/PrivateAttachments';
 
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
+type CaptureNavigation = () => () => boolean;
 const types = ['Observation', 'Question', 'Idea', 'Conversation'] as const;
 const dateLabel = (note: FieldNote) => note.observedAt ? `${note.observedAt.replace('T', ' ')} (${note.timezone})` : 'No date supplied';
 
-export default function ExploreNotes({ go, view, id, mapHref }: { go: Go; view: string; id: string; mapHref: (layer: string) => string }) {
+export default function ExploreNotes({ go, view, id, mapHref, captureNavigation }: { go: Go; view: string; id: string; mapHref: (layer: string) => string; captureNavigation: CaptureNavigation }) {
   const workspace = useHomeWorkspace();
   const collection = useHomeCollection<FieldNote>('exploreNotes', initialFieldNotes);
   const [filters, setFilters] = useHomeDraft<{ search: string; type: string; pinned: boolean; archive?: string }>('explore:note-filters', { search: '', type: 'All notes', pinned: false, archive: 'Active' });
   const record = collection.records.find(item => item.id === id);
-  if (view === 'new' || view === 'edit') return <NoteForm key={id || 'new'} record={record} edit={view === 'edit'} save={collection.save} go={go} />;
+  if (view === 'new' || view === 'edit') return <NoteForm key={id || 'new'} record={record} edit={view === 'edit'} save={collection.save} go={go} captureNavigation={captureNavigation} />;
   if (view === 'detail') {
     if (!record) return <div className="ex-empty"><h3>This note is unavailable</h3><button className="ex-button" onClick={() => go('observations')}>All notes</button></div>;
     return <NoteDetail key={record.id} record={record} save={collection.save} go={go} mapHref={mapHref} />;
@@ -60,21 +61,45 @@ function ReviewNoteLuna({ record }: { record: FieldNote }) {
   return <details className="ex-disclosure ex-luna-context"><summary><LunaMark size={23} />Prepare with Luna</summary><p className="ex-meta">For immediate danger, contact local emergency services. HALO and Luna are not emergency reporting channels.</p><p>Choose the note details you want Luna to use.</p><label>What would you like help with?<select value={purpose} onChange={event => { setPurpose(event.target.value); setPreview(''); setConsent(false); }}>{['Clarify my question', 'Find a follow-up', 'Organize my observation'].map(value => <option key={value}>{value}</option>)}</select></label><div className="ex-checklist">{Object.entries({ title: 'Note title', description: 'Description', time: 'Date and timezone', place: 'Place label', evidence: 'Selected public map context' }).map(([key, label]) => <label className="ex-check" key={key}><input type="checkbox" checked={selection[key as keyof typeof selection]} onChange={event => { setSelection({ ...selection, [key]: event.target.checked }); setConsent(false); setPreview(''); }} />{label}</label>)}</div><label className="ex-check"><input type="checkbox" checked={consent} onChange={event => { setConsent(event.target.checked); setPreview(''); }} />I choose only these fields for this request</label><button className="ex-button" disabled={!consent || !Object.values(selection).some(Boolean)} onClick={() => { setPreview(`${purpose}. Do not infer a cause or treat this note as a verified measurement.\n\n${Object.entries(fields).filter(([key]) => selection[key as keyof typeof selection]).map(([key, value]) => `${key}: ${value}`).join('\n')}`); setPreparedRevision(record.revision); }}>Review Luna request</button>{preview && <div className="ex-luna-request" role="status"><h4>Selected context</h4>{stale ? <p>This note changed. Review the current details again.</p> : <pre>{preview}</pre>}<p className="ex-meta">Selected context is not sent automatically.</p></div>}</details>;
 }
 
-function NoteForm({ record, edit, save, go }: { record?: FieldNote; edit: boolean; save: (note: FieldNote) => Promise<boolean>; go: Go }) {
+function NoteForm({ record, edit, save, go, captureNavigation }: { record?: FieldNote; edit: boolean; save: (note: FieldNote) => Promise<boolean>; go: Go; captureNavigation: CaptureNavigation }) {
   const upload = usePrivateUpload();
   const [stableId] = useState(() => record?.id || crypto.randomUUID());
   const workspace = useHomeWorkspace(); const [starter, , clearStarter] = useHomeDraft('explore:note-starter', '');
   const [evidenceStarter, , clearEvidence] = useHomeDraft('explore:note-evidence-starter', blankEvidence);
   const initial = record ?? { ...blankFieldNote(), ...(starter ? { title: 'A question about my community', description: starter, noteType: 'Question' as const, evidence: evidenceStarter.recordId ? [evidenceStarter] : [] } : {}) };
-  const [draft, setDraft, clearDraft] = useHomeDraft(`explore:note:${record?.id ?? 'new'}`, initial);
+  const draftKey = `explore:note:${record?.id ?? 'new'}`;
+  const [draft, setDraft] = useHomeDraft(draftKey, initial);
   const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const navigationIntent = useRef(0);
+  useEffect(() => {
+    alive.current = true;
+    // Observe navigation before an asynchronous route transition can unmount this form.
+    // The write still completes; only its optional detail-screen redirect is suppressed.
+    const leaving = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+      if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+      const next = new URL(link.href, window.location.href);
+      if (next.origin === window.location.origin && next.pathname + next.search !== window.location.pathname + window.location.search) navigationIntent.current++;
+    };
+    const historyChanged = () => { navigationIntent.current++; };
+    document.addEventListener('click', leaving, true);
+    window.addEventListener('popstate', historyChanged);
+    return () => {
+      alive.current = false;
+      document.removeEventListener('click', leaving, true);
+      window.removeEventListener('popstate', historyChanged);
+    };
+  }, []);
   const [photoPending,setPhotoPending]=useState(false);
   const [error, setError] = useState(''); const pendingId = useRef<string | null>(null);
   const observed = !draft.noteType || draft.noteType === 'Observation';
   async function submit() {
     if (photoPending || upload.busy || upload.unknown) { setError('Review the selected photo or check its upload before saving.'); return; }
     const invalid = fieldNoteError(draft); setError(invalid ?? ''); if (invalid) return;
+    const navigationUnchanged = captureNavigation();
+    const intentAtSave = navigationIntent.current;
+    const locationAtSave = window.location.pathname + window.location.search;
     pendingId.current ??= stableId;
     const next = { ...draft, id: pendingId.current };
     if (workspace.mode === 'production' && draft.photo) {
@@ -85,7 +110,14 @@ function NoteForm({ record, edit, save, go }: { record?: FieldNote; edit: boolea
       if (attachment?.status !== 'ready') return;
       next.photo = undefined; next.photoAttachment = { id: attachment.id, revision: attachment.revision, name: 'halo-observation.png', metadataRemoved: true };
     }
-    if (await save(next) && alive.current) { clearDraft(); clearStarter(); clearEvidence(); go('observations', 'detail', next.id); }
+    if (await save(next)) {
+      // A confirmed save retires only its own draft, even if the user has left.
+      // Reference checks keep any newer writing or incoming context untouched.
+      workspace.clearDraft(draftKey, draft);
+      workspace.clearDraft('explore:note-starter', starter);
+      workspace.clearDraft('explore:note-evidence-starter', evidenceStarter);
+      if (alive.current && navigationUnchanged() && navigationIntent.current === intentAtSave && window.location.pathname + window.location.search === locationAtSave) go('observations', 'detail', next.id);
+    }
   }
   if (edit && !record) return <div className="ex-empty"><h3>This note is unavailable</h3><button className="ex-button" onClick={() => go('observations')}>All notes</button></div>;
   return <form className="ex-form" onSubmit={event => { event.preventDefault(); void submit(); }}><h3>{edit ? 'Edit your note' : 'Make a little room for a thought.'}</h3>{!record && starter && draft.description !== starter && <aside className="ex-notice"><p>You already have an unfinished draft. Keep your writing, or append the community question you selected.</p><p>{starter}</p><button type="button" className="ex-text-button" onClick={() => { const description = `${draft.description}\n\n${starter}`.trim(); if (description.length > 3000) { setError('This question will not fit in the current note. Save your writing first, then create a separate question note.'); return; } setDraft({ ...draft, description, evidence: evidenceStarter.recordId ? [...(draft.evidence ?? []).filter(item => !(item.recordId === evidenceStarter.recordId && item.layer === evidenceStarter.layer)), evidenceStarter] : draft.evidence }); clearStarter(); clearEvidence(); }}>Add this question to my draft</button><button type="button" className="ex-text-button" onClick={() => { clearStarter(); clearEvidence(); }}>Keep my draft as it is</button></aside>}{upload.message && <p role="status">{upload.message}</p>}{upload.unknown && <button type="button" className="ex-button" disabled={upload.busy} onClick={() => void upload.upload()}>Check photo upload status</button>}<fieldset className="ex-note-fields" disabled={workspace.pending || upload.busy || upload.unknown}><label>Note type<select value={draft.noteType ?? 'Observation'} onChange={event => setDraft({ ...draft, noteType: event.target.value as FieldNote['noteType'] })}>{types.map(value => <option key={value}>{value}</option>)}</select></label><label>Title (required)<input required maxLength={160} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} /></label>{observed && <label>What you noticed<select value={draft.kind} onChange={event => setDraft({ ...draft, kind: event.target.value })}>{['Appearance', 'Odor', 'Litter', 'Habitat', 'Other'].map(value => <option key={value}>{value}</option>)}</select></label>}<label>{observed ? 'Observed date and time (required)' : 'Date and time (optional)'}<input required={observed} type="datetime-local" value={draft.observedAt} onChange={event => setDraft({ ...draft, observedAt: event.target.value })} /></label><label>Timezone<input value={draft.timezone} onChange={event => setDraft({ ...draft, timezone: event.target.value })} /></label><label>Coarse place label (optional)<input maxLength={160} value={draft.place} onChange={event => setDraft({ ...draft, place: event.target.value })} /></label><label>{observed ? 'Factual description (required)' : 'Your note (required)'}<textarea required maxLength={3000} value={draft.description} onChange={event => setDraft({ ...draft, description: event.target.value })} /></label>{draft.photoAttachment && !draft.photo && <div className="ex-photo-review"><PrivateAttachmentDownload attachmentId={draft.photoAttachment.id} revision={draft.photoAttachment.revision} name={draft.photoAttachment.name} image /><button type="button" className="ex-text-button" onClick={()=>setDraft({...draft,photoAttachment:undefined})}>Remove photo when saving</button></div>}<NotePhotoEditor photo={draft.photo} onChange={photo=>{if(upload.reset())setDraft({...draft,photo});}} disabled={workspace.pending || upload.busy || upload.unknown} onPendingChange={setPhotoPending}/>{workspace.mode === 'production' && draft.photo && <p className="ex-meta">Only this reviewed, processed photo will be uploaded privately when you save the note.</p>}<label className="ex-check"><input type="checkbox" checked={Boolean(draft.pinned)} onChange={event => setDraft({ ...draft, pinned: event.target.checked })} />Pin this note</label></fieldset><p className="ex-meta">{observed ? 'Describe what you observed from a safe place. Appearance or odor alone does not identify a contaminant.' : 'Keep a question or idea without having to supply an observation date.'} Nothing is sent to Luna or an external contact when you save.</p>{error && <p role="alert">{error}</p>}<button className="ex-button" disabled={workspace.pending || workspace.scenario === 'offline' || photoPending || upload.busy || upload.unknown}>Save note</button><button type="button" className="ex-text-button" disabled={upload.busy || upload.unknown} onClick={() => go('observations')}>Back and keep draft</button></form>;

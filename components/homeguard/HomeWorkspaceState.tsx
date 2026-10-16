@@ -7,6 +7,7 @@ import { initialGardens, initialUsage } from '@/lib/frontend/home-food-preview';
 import {recordFingerprint} from '@/lib/frontend/settings-preview';
 import { acceptedHomeReceipt, homeReceiptCoversCommand, validHomeChanges, validHomeRecords, type HomeCollectionSnapshot, type HomeWorkspaceCommand, type HomeWorkspaceReceipt, type HomeWorkspaceService } from '@/lib/frontend/production/home-service';
 import { validProductionCollection } from '@/lib/frontend/production/home-records';
+import { clearHomeDraft } from '@/lib/frontend/home-drafts';
 
 export type HomeScenario = 'ready' | 'empty' | 'loading' | 'error' | 'offline' | 'stale' | 'conflict' | 'save-error';
 export type HomeRecord = { id: string; title: string; revision: number; homeContextId?:string };
@@ -29,7 +30,7 @@ type State = {
   removeNotes: (selection: { id: string; revision: number }[]) => Promise<boolean>;
   clearPrivate: (scope:'journal'|'all', expected:string, checkOther?:()=>boolean) => Promise<boolean>;
   setDraft: (key: string, update: (previous: unknown) => unknown) => void;
-  clearDraft: (key: string) => void; reset: () => void;
+  clearDraft: (key: string, expected?: unknown) => void; reset: () => void;
 };
 const Context = createContext<State | null>(null);
 const sharedCollectionKeys = ['tests', 'assets', 'observations', 'gardens', 'usage', 'pantryItems', 'foodQuestions', 'fishNotes', 'foodFollows', 'growerInquiries', 'homeTransitions', 'exploreNotes', 'exploreOutcomes', 'exploreProjects', 'exploreEngagements', 'weekJournal'];
@@ -282,7 +283,7 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     resolvePendingOperation: operationId => { resolvedOperations.current.add(operationId); unknownRef.current.delete(operationId); setUnknownOperations(previous => previous.filter(item => item.operationId !== operationId)); },
     collections, drafts, scenario, message, pending, setScenario, clearMessage: () => { if (!unknownRef.current.size) setMessage(''); }, seed, write, remove, removeNotes,clearPrivate,
     setDraft: (key, update) => setDrafts(previous => ({ ...previous, [key]: update(previous[key]) })),
-    clearDraft: key => setDrafts(previous => { const next = { ...previous }; delete next[key]; return next; }),
+    clearDraft: (key, ...expected) => setDrafts(previous => clearHomeDraft(previous, key, ...expected)),
     reset: () => { if (service) { void retry(); return; } generation.current++; commit(initialCollections()); setDrafts({}); setScenario('ready'); setMessage('Workspace reset.'); },
   }}>{children}</Context.Provider>;
 }

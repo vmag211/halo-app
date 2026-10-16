@@ -20,9 +20,9 @@ test('renamed navigation, overview paths and map keep Explore ownership', async 
   await expect(page.getByRole('link', { name: 'Back to Explore' })).toBeVisible();
   await page.getByRole('link', { name: 'Back to Explore' }).click();
   for (const path of ['volunteering', 'projects', 'notes', 'community']) {
-    if (path === 'projects') await page.locator('.ex-personalized-preview').getByRole('button', { name: /See all \d+/ }).click();
+    if (path === 'projects') await page.locator('.ex-personalized-preview').getByRole('button', { name: /Projects for you: see all \d+/ }).click();
     else if (path === 'notes') await page.getByRole('button', { name: 'Open my notes', exact: true }).click();
-    else await page.locator(path === 'volunteering' ? '.ex-involvement-cover' : '.ex-community-bridge').click();
+    else await page.locator(path === 'volunteering' ? '.ex-involvement-preview .ex-destination' : '.ex-community-bridge').click();
     await expect(page.getByRole('navigation', { name: 'Explore sections' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Explore', exact: true })).toHaveAttribute('aria-current', 'page');
     await page.getByRole('button', { name: 'Back to Explore', exact: true }).first().click();
@@ -163,7 +163,7 @@ test('photo failure keeps every Explore entry usable', async ({ page }) => {
   await page.goto(root);
   await page.locator('.ex-community-bridge').scrollIntoViewIfNeeded();
   await expect(page.locator('.ex-photo[data-photo-state="unavailable"]')).toHaveCount(3);
-  await page.locator('.ex-personalized-preview').getByRole('button', { name: /See all \d+/ }).click();
+  await page.locator('.ex-personalized-preview').getByRole('button', { name: /Projects for you: see all \d+/ }).click();
   await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
   await page.getByRole('button', { name: /Get to know your water/ }).click();
   await expect(page.locator('.ex-project-step')).toBeVisible();

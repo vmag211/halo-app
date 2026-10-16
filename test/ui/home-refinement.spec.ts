@@ -47,8 +47,10 @@ for (const appearance of ['light', 'dark']) test(`refined forms, icons and typog
 test('section ambience honors reduced motion and higher contrast', async ({ page }) => {
   for (const destination of ['tests', 'food', 'maintenance', 'summary']) {
     await page.goto(url(destination));
-    await expect(page.locator('.hg-intro [data-work-art]')).toBeVisible();
-    const moving = await page.locator('.hg-intro [data-work-art] *').evaluateAll(elements => elements.some(el => getComputedStyle(el).animationName !== 'none'));
+    const artwork = page.locator(destination === 'tests' ? '.hg-test-entry-tools [data-work-art]' : destination === 'maintenance' ? '.hg-care-column > .hg-link [data-work-art]' : '.hg-intro [data-work-art]');
+    await expect(artwork.first()).toBeVisible();
+    if (['tests', 'maintenance'].includes(destination)) await expect(page.locator('.hg-intro [data-work-art]')).toBeHidden();
+    const moving = await artwork.locator('*').evaluateAll(elements => elements.some(el => getComputedStyle(el).animationName !== 'none'));
     expect(moving).toBe(false);
   }
   await page.goto(`${url('food')}&contrast=true`);
@@ -119,5 +121,6 @@ test('focused garden link editor retains a failed draft and supports retry witho
   await page.getByRole('button', { name: 'Save test links', exact: true }).click();
   await page.getByRole('button', { name: /^Kitchen tap, September water/ }).click();
   await expect(page.getByRole('heading', { name: 'Kitchen tap, September', exact: true })).toBeVisible();
+  await page.locator('.hg-test-context > summary').click();
   await expect(page.getByText('Example home', { exact: true })).toBeVisible();
 });

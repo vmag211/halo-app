@@ -65,7 +65,7 @@ test('a new project step uses the same My Week action and remains explicit throu
 
 test('project preferences regenerate the shared set and keep narrower constraints honest', async ({ page }) => {
   await page.goto(root);
-  await page.getByRole('button', { name: 'Make these fit me', exact: true }).click();
+  await page.getByRole('button', { name: 'Preferences', exact: true }).click();
   const fit = page.getByRole('dialog', { name: 'Make these projects fit me' });
   await fit.getByLabel('Where could you do this?').selectOption('indoors');
   await fit.getByLabel('Who would take part?').selectOption('solo');
@@ -78,7 +78,7 @@ test('project preferences regenerate the shared set and keep narrower constraint
   await page.getByText('Generation details and sources', { exact: true }).click();
   await expect(page.locator('.ex-generation-details')).toContainText('does not invent unsuitable projects');
   await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
-  await expect(page.getByRole('button', { name: `See all ${count}`, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: `Projects for you: see all ${count}`, exact: true })).toBeVisible();
 });
 
 test('refresh varies relevant ideas without creating projects or losing old guide IDs', async ({ page }) => {

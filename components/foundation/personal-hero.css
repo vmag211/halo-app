@@ -178,19 +178,19 @@
 .halo-ph-detail-score > strong[data-empty="true"] { font-size:calc(2.5rem * var(--halo-text-scale)); }
 .halo-ph-motion-note { font-size:calc(.6rem * var(--halo-text-scale)); max-width:80px; text-align:right; opacity:.9; }
 .halo-ph-factor-grid > .halo-reveal { min-width:0; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) { grid-column:1/-1; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) { grid-column:1/-1; }
 /* The last single card is a compact summary row, not a stretched two-column tile. */
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-factor-card { display:grid; grid-template-columns:42px minmax(0,1fr) auto; grid-template-areas:"icon title score" "icon reading score" "icon severity score"; align-items:center; justify-items:center; gap:7px 12px; padding:16px; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-top { grid-area:icon; margin:0; gap:6px; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) h3 { grid-area:title; min-width:0; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score { grid-area:score; margin:0; white-space:nowrap; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score strong { font-size:calc(2rem * var(--halo-text-scale)); }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score[data-unscored="true"] { max-width:5.5em; white-space:normal; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score[data-unscored="true"] strong { font-size:calc(.875rem * var(--halo-text-scale)); }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-reading { grid-area:reading; min-width:0; margin:0; }
-.halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-severity { grid-area:severity; margin:0; }
-.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-factor-card { grid-template-columns:52px minmax(0,1fr); grid-template-areas:"icon title" "icon score" "icon reading" "icon severity"; gap:8px 14px; }
-.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score[data-unscored="true"] { max-width:none; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-factor-card { display:grid; grid-template-columns:42px minmax(0,1fr) auto; grid-template-areas:"icon title score" "icon reading score" "icon severity score"; align-items:center; justify-items:center; gap:7px 12px; padding:16px; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-top { grid-area:icon; margin:0; gap:6px; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) h3 { grid-area:title; min-width:0; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score { grid-area:score; margin:0; white-space:nowrap; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score strong { font-size:calc(2rem * var(--halo-text-scale)); }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score[data-unscored="true"] { max-width:5.5em; white-space:normal; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score[data-unscored="true"] strong { font-size:calc(.875rem * var(--halo-text-scale)); }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-reading { grid-area:reading; min-width:0; margin:0; }
+.halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-severity { grid-area:severity; margin:0; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-factor-card { grid-template-columns:52px minmax(0,1fr); grid-template-areas:"icon title" "icon score" "icon reading" "icon severity"; gap:8px 14px; }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score[data-unscored="true"] { max-width:none; }
 .halo-f-app .halo-ph-factor-card:is(:hover,:focus-visible) { background:color-mix(in srgb,var(--factor-accent) 14%,var(--halo-card)); border-color:color-mix(in srgb,var(--factor-accent) 55%,var(--halo-border)); }
 .halo-f-app :is(.halo-ph-detail,.halo-ph-overview) :is(button,a):is(:hover,:focus-visible) { color:var(--factor-accent,var(--halo-primary)); }
 .halo-f-app .halo-ph-detail .halo-ph-motion:hover { color:#fff; background:color-mix(in srgb,var(--factor-accent) 45%,#123); }

@@ -55,18 +55,19 @@ for (const appearance of ['light', 'dark']) test(`home workspace fits narrow scr
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await expect(workspace).not.toContainText('\u2014');
     if (width===375) {
-      expect((await workspace.boundingBox())!.height).toBeLessThan(590);
+      // Bound the complete redesigned workbench to one compact surface.
+      // The primary action's first-viewport position is checked separately below.
+      expect((await workspace.boundingBox())!.height).toBeLessThan(600);
       await expect(workspace.getByRole('link',{name:'Open test records',exact:true})).toContainText('Tests');
       await expect(workspace.getByRole('link',{name:'Open Food and Garden',exact:true})).toContainText('Food and Garden');
     }
-    await page.getByRole('link', { name: 'Open your home workspace' }).click();
-    await expect(page).toHaveURL(/#home-workspace$/);
-    await expect(workspace).toBeFocused();
-    expect((await workspace.boundingBox())!.y).toBeGreaterThan(60);
-    const jumped = (await workspace.boundingBox())!;
-    // The primary workspace now precedes the household illustration.
-    expect(jumped.y).toBeLessThan(400);
-    if (width===375) expect(jumped.y + jumped.height).toBeLessThan(770);
+    // Homeguard now leads with work, so a jump link is no longer necessary.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const firstAction = (await primary.boundingBox())!;
+    expect(firstAction.y).toBeGreaterThan(60);
+    expect(firstAction.y + firstAction.height).toBeLessThan(670);
+    const localContext = (await page.locator('.halo-environment-summary').boundingBox())!;
+    expect((await workspace.boundingBox())!.y).toBeLessThan(localContext.y);
     await page.screenshot({ path: info.outputPath(`workspace-top-${appearance}-${width}.png`) });
     await workspace.screenshot({ path: info.outputPath(`workspace-${appearance}-${width}.png`) });
     await workspace.locator('.how-add-menu > summary').click();

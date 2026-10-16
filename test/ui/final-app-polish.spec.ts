@@ -8,6 +8,7 @@ test.beforeEach(async ({page}) => {
 });
 
 test('product surfaces omit development explanations while external review retains truthful scope', async ({page}) => {
+  test.setTimeout(120000); // Twelve full navigations, with every content assertion retained.
   const routes = ['tab=today','tab=home','tab=act','tab=plan','tab=home&destination=tests','tab=home&destination=maintenance','tab=home&destination=food','tab=home&destination=summary','tab=act&destination=projects','tab=act&destination=opportunities','tab=plan&destination=journal','tab=settings'];
   for (const query of routes) {
     await page.goto(`/foundation/preview/expanded/?motion=reduce&${query}`);

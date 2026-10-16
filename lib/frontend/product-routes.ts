@@ -11,6 +11,7 @@ const destinations: Record<string, { path:string; owner:string; legacy:string }>
   patterns:{path:'/app/plan/patterns',owner:'plan',legacy:'/plan'},
   recap:{path:'/app/plan/recap',owner:'plan',legacy:'/plan'},
   outdoors:{path:'/app/plan/outdoors',owner:'plan',legacy:'/plan'},
+  reminders:{path:'/app/plan/reminders',owner:'plan',legacy:'/plan'},
   opportunities:{path:'/app/explore/activities',owner:'act',legacy:'/act'},
   organizations:{path:'/app/explore/organizations',owner:'act',legacy:'/act'},
   projects:{path:'/app/explore/projects',owner:'act',legacy:'/act'},

@@ -61,10 +61,12 @@ export default function SettingsWorkspace(props:SettingsProps){
   queueMicrotask(()=>{setBaseline(drafts[panel]?.baseline??initialBaseline);setMessage('');});
  },[panel,production,initialBaseline,drafts]);
  useEffect(()=>{if(!panel)return;const frame=requestAnimationFrame(()=>root.current?.querySelector<HTMLHeadingElement>('.hp-panel-heading h2')?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);},[panel]);
- function enter(next:SettingPanel){
+ function enter(next:SettingPanel,replace=false){
   opener.current=next;setMessage('');setBaseline(drafts[next]?.baseline??snapshot());
   const url=new URL(location.href);url.searchParams.set('open',next);
-  history.pushState({haloSettingsPanel:true},'',`${url.pathname}${url.search}${url.hash}`);
+  // Pass only our marker. Reusing Next's internal history flags bypasses its URL subscription.
+  const state=replace?(history.state?.haloSettingsPanel?{haloSettingsPanel:true}:null):{haloSettingsPanel:true};
+  history[replace?'replaceState':'pushState'](state,'',`${url.pathname}${url.search}${url.hash}`);
  }
  function rebase(){const previous=JSON.parse(baseline),nextBaseline=snapshot();updateEdit({values:mergeUnedited(current,previous.values,values),baseline:nextBaseline,...(panel==='display'?{display:mergeUnedited(displayDraft,previous.display,currentDisplay),calendar:mergeUnedited(calendarDraft,previous.calendar,{zone,streak,linked}),appearance:mergeUnedited(appearanceDraft,previous.appearance,appearancePreference(appearance)),ambient:mergeUnedited(ambientDraft,previous.ambient,ambient)}:{})});if(panel==='home')preview.setHouseholdDraft(mergeUnedited(householdDraft,previous.bands,bands));setBaseline(nextBaseline);setMessage(c.latestKept);}
  useEffect(()=>{if(panel||!opener.current)return;const frame=requestAnimationFrame(()=>root.current?.querySelector<HTMLButtonElement>(`[data-setting-panel="${opener.current}"]`)?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);},[panel]);
@@ -95,7 +97,9 @@ export default function SettingsWorkspace(props:SettingsProps){
  const countRecords=Object.values(workspace.collections).reduce((n,rows)=>n+rows.length,0)+preview.actions.length;
  const sectionSummary=(key:SettingPanel)=>drafts[key]?c.savedDraft:key==='home'?c.categoriesSelected(selected.length):key==='notifications'?c.notificationSummary(Object.values(values.notifications).filter(Boolean).length):key==='display'?c.displaySummary(c.appearanceOptions[appearancePreference(appearance)],props.display.scale):key==='luna'?c.contextSummary(Object.values(values.luna).filter(Boolean).length):key==='privacy'?c.recordsCount(countRecords):c.sections.about[1];
  const found=(Object.keys(c.sections)as SettingPanel[]).filter(key=>`${c.sections[key].join(' ')} ${c.settingsSearch[key]}`.toLowerCase().includes(query.toLowerCase().trim()));
- return <section ref={root} className="halo-settings" aria-label={c.settings}>
+ return <section ref={root} className="halo-settings" data-panel-open={!!panel} aria-label={c.settings}>
+  {panel&&<nav className="hp-settings-nav" aria-label="Settings sections">{(Object.keys(c.sections)as SettingPanel[]).map(key=>{const Icon=icons[key];return <button key={key} disabled={pending} aria-current={panel===key?'page':undefined} onClick={()=>panel!==key&&enter(key,true)}><Icon size={18} aria-hidden="true"/><span>{c.sections[key][0]}</span>{drafts[key]&&<span className="hp-dirty-dot" aria-label="Unsaved changes"/>}</button>;})}</nav>}
+  <div className="hp-settings-content">
   {!panel?<><label className="hp-setting-search"><Search size={18} aria-hidden="true"/><span className="halo-sr-only">{c.search}</span><input type="search" value={query} placeholder={c.searchHint} onChange={e=>setQuery(e.target.value)}/></label>{query&&<button className="hp-search-clear" onClick={()=>setQuery('')}><X size={14}/>{c.clearSearch}</button>}<div className="hp-settings-list">{groups.map((group,index)=>{const visible=group.filter(key=>found.includes(key));return visible.length>0&&<section className="hp-settings-group" key={index} aria-label={c.settingGroups[index]}><h3>{c.settingGroups[index]}</h3><div>{visible.map(key=>{const Icon=icons[key];return <button key={key} className="hp-setting-row" data-setting-panel={key} onClick={()=>enter(key)}><span className={`hp-setting-symbol hp-setting-${key}`}><Icon size={21}/></span><span><strong>{c.sections[key][0]}</strong><small>{sectionSummary(key)}</small></span>{drafts[key]?<span className="hp-dirty-dot" aria-hidden="true"/>:<ChevronRight size={17} aria-hidden="true"/>}</button>;})}</div></section>;})}{!found.length&&<p className="hp-search-empty">{c.noMatch}</p>}</div></>:<>
   <button className="hp-back" aria-label={c.back} onClick={leave}><ArrowLeft size={17}/>{c.back}{dirty&&<span className="hp-dirty-dot" aria-hidden="true"/>}</button><header className="hp-panel-heading"><h2 tabIndex={-1}>{c.sections[panel][0]}</h2></header>
   {production?.error&&<div className="hp-feedback" role="status"><p>{production.error}</p><button className="hp-text" disabled={production.pending} onClick={()=>production.unknown?void production.reconcile():production.retry()}>{production.unknown?'Check save status':c.retry}</button></div>}
@@ -109,5 +113,6 @@ export default function SettingsWorkspace(props:SettingsProps){
    {!['privacy','about'].includes(panel)&&<footer className="hp-save-bar"><div><p role="status">{message||(dirty?c.dirty:'')}</p>{message===c.conflict&&<button className="hp-text" disabled={production?.loading} onClick={rebase}>{c.reload}</button>}</div><button className="hp-primary" disabled={pending||!dirty} onClick={()=>void save()}>{c.save}</button><button className="hp-text" disabled={pending||!dirty} onClick={()=>{clearDraft();if(panel==='home')preview.setHouseholdDraft(null);setBaseline(snapshot());setMessage('');}}>{c.cancel}</button></footer>}
   </>}
   </>}
+  </div>
  </section>;
 }

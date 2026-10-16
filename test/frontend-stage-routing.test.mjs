@@ -11,7 +11,7 @@ test('clean product routes retain existing owners without mounting unknown paths
     ['/app/today', '/today', 'today'], ['/app/homeguard', '/home', 'home'],
     ['/app/explore', '/act', 'act'], ['/app/settings', '/settings', null],
     ['/app/journal', '/plan', 'plan'], ['/app/homeguard/tests', '/home', 'home'],
-    ['/app/explore/activities', '/act', 'act'],
+    ['/app/explore/activities', '/act', 'act'], ['/app/plan/reminders', '/plan', 'plan'],
   ]) {
     assert.equal(legacyProductPath(path), legacy);
     assert.equal(deliveredStagePath(path), true);
@@ -29,6 +29,8 @@ test('feature destinations retain semantic URL state and safe link composition',
   assert.equal(productDestinationHref('home','tests'), '/app/homeguard/tests?view=main');
   assert.equal(productDestinationHref('act','projects'), '/app/explore/projects?view=main');
   assert.equal(productDestinationHref('plan','journal'), '/app/journal?view=main');
+  assert.deepEqual(productRoute('/app/plan/reminders'), { legacy:'/plan', destination:'reminders' });
+  assert.equal(productDestinationHref('plan','reminders'), '/app/plan/reminders?view=main');
 });
 
 test('owned map reentry retains only its access mode, never private inputs',()=>{

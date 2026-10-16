@@ -1,4 +1,17 @@
 /* Settings has its own compact, grouped hierarchy within the shared HALO shell. */
+.hp-settings-nav { display:none; }
+.hp-settings-content { min-width:0; }
+@media(min-width:1024px) {
+ .halo-settings[data-panel-open=true] { display:grid; grid-template-columns:190px minmax(0,1fr); gap:var(--halo-space-6,32px); align-items:start; }
+ .hp-settings-nav { display:grid; gap:var(--halo-space-2,8px); position:sticky; top:96px; border-right:1px solid var(--halo-border); padding-right:var(--halo-space-4,16px); }
+ .hp-settings-nav button { display:flex; gap:10px; align-items:center; min-height:48px; width:100%; border:0; border-radius:var(--halo-control-radius,10px); padding:10px; background:transparent; color:var(--halo-secondary); font:inherit; font-size:calc(.82rem * var(--halo-text-scale)); text-align:left; cursor:pointer; }
+ .hp-settings-nav button[aria-current=page] { background:var(--halo-tint); color:var(--halo-primary); font-weight:650; }
+ .hp-settings-nav button:hover { background:var(--halo-tint); }
+ .hp-settings-nav svg { flex:none; }
+ .halo-settings:not([data-panel-open=true]) .hp-settings-list { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); align-items:start; gap:var(--halo-space-6,32px); }
+ .halo-settings .hp-setting-search { max-width:480px; }
+ .halo-settings .hp-save-bar { position:sticky; bottom:0; padding:var(--halo-space-4,16px); border:1px solid var(--halo-border); border-radius:var(--halo-control-radius,10px); background:var(--halo-card); box-shadow:var(--halo-shadow-soft); z-index:3; }
+}
 .halo-settings .hp-panel-heading h2 { margin:0; font:650 calc(1.38rem * var(--halo-text-scale))/1.25 var(--font-instrument),sans-serif; letter-spacing:-.03em; }
 .halo-settings .hp-panel-heading { padding:14px 0 23px; }
 .halo-settings .hp-setting-search { padding:3px 12px; border:1px solid var(--halo-border); border-radius:11px; background:var(--halo-card); }

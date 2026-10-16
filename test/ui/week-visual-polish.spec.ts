@@ -31,7 +31,7 @@ for (const appearance of ['light', 'dark']) test(`calendar canvas dashboard rema
     expect(Math.abs(shell.x - (width - shell.width) / 2)).toBeLessThan(1);
     const workspace=(await page.locator('.mw-workspace').boundingBox())!;
     if(workspace.width>=760)expect(rail.x).toBeGreaterThan(agenda.x+agenda.width);
-    else{expect(rail.x).toBeCloseTo(agenda.x,0);expect(rail.y).toBeGreaterThanOrEqual(agenda.y+agenda.height);}
+    else{expect(rail.x).toBeCloseTo(workspace.x,0);expect(rail.y).toBeGreaterThanOrEqual(agenda.y+agenda.height);}
     for (const button of await page.locator('.mw-agenda .mw-task-actions button').all()) {
       const bounds = (await button.boundingBox())!;
       expect(bounds.width).toBeGreaterThanOrEqual(44);

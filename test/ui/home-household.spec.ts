@@ -77,12 +77,12 @@ for (const appearance of ['light', 'dark']) test(`house and compact cards fit ${
 test('settings selections update the house without changing environmental scores', async ({ page }) => {
   await page.goto('/foundation/preview/?edition=expanded&tab=home&appearance=dark&motion=reduce');
   await expect(page.locator('.halo-home-person')).toHaveCount(4);
-  const before = await page.locator('.halo-ph-ring-center').innerText();
+  const before = await page.locator('.halo-environment-score').getAttribute('aria-label');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /^Home & household/ }).click();
   await page.locator('.halo-settings').getByRole('checkbox', { name: 'Teens', exact: true }).check();
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await page.getByRole('link', { name: 'Homeguard', exact: true }).click();
   await expect(page.locator('.halo-home-person[data-member="teen"]')).toBeVisible();
-  await expect(page.locator('.halo-ph-ring-center')).toHaveText(before, { useInnerText: true });
+  await expect(page.locator('.halo-environment-score')).toHaveAttribute('aria-label', before!);
 });

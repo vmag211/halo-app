@@ -40,20 +40,20 @@
   .halo-f-app[data-responsive="true"] .halo-score-transparency { margin:0; }
   .halo-f-app[data-responsive="true"] .halo-ph-overview > .halo-ph-section-label { justify-content:space-between; text-align:left; }
   .halo-f-app[data-responsive="true"] .halo-ph-overview > .halo-ph-section-label h2 { width:auto; }
-  .halo-f-app[data-responsive="true"] .halo-ph-factor-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
-  .halo-f-app[data-responsive="true"] .halo-ph-overview[data-home="true"] .halo-ph-factor-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .halo-f-app[data-responsive="true"] .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) { grid-column:auto; }
-  .halo-f-app[data-responsive="true"] .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-factor-card { display:flex; flex-direction:column; gap:0; }
-  .halo-f-app[data-responsive="true"] .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-top { margin-bottom:10px; }
-  .halo-f-app[data-responsive="true"] .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score { margin:9px 0 7px; }
-  .halo-f-app[data-responsive="true"] .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-severity { margin-top:auto; }
-  .halo-f-app[data-responsive="true"] .halo-home-management { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr); gap:28px; align-items:start; }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview[data-home="true"]:not(.halo-environment-briefing) .halo-ph-factor-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) { grid-column:auto; }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-factor-card { display:flex; flex-direction:column; gap:0; }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-top { margin-bottom:10px; }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-ph-card-score { margin:9px 0 7px; }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid > .halo-reveal:last-child:nth-child(odd) .halo-severity { margin-top:auto; }
+  .halo-f-app[data-responsive="true"] .halo-ph-overview:not(.halo-environment-briefing) .halo-home-management { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr); gap:28px; align-items:start; }
   .halo-f-app[data-responsive="true"] .halo-home-management > .halo-home-workspace { margin:0; }
   .halo-f-app[data-responsive="true"] .halo-home-management > .halo-home-household { margin:0; padding-top:0; }
   .halo-f-app[data-responsive="true"] .halo-ph-detail { max-width:840px; margin-inline:auto; }
   .halo-f-app[data-responsive="true"] .halo-ph-detail > .halo-ph-factor-hero { border-radius:16px; margin:0; }
   .halo-f-app[data-responsive="true"] .halo-ph-detail .halo-ph-reading-story { margin-inline:0; padding-inline:24px; }
-  .halo-f-app[data-responsive="true"]:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-factor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .halo-f-app[data-responsive="true"]:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-overview:not(.halo-environment-briefing) .halo-ph-factor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .halo-f-app[data-responsive="true"]:is([data-text-scale="130"],[data-text-scale="150"]) .halo-ph-overview-header,
   .halo-f-app[data-responsive="true"]:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-management { grid-template-columns:minmax(0,1fr); }
 }

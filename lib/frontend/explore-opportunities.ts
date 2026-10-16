@@ -1,5 +1,5 @@
 import { localResourceScope, type LocalResourceScope } from './explore-local-resources';
-import { validDay } from './explore-workspace';
+import { validDay, blankEngagement, type Engagement } from './explore-workspace';
 type ExploreArea = { place: string; state: string };
 
 /** Checked public snapshots, not a live availability or distance service. */
@@ -7,10 +7,43 @@ export type CommunityOpportunity = {
   id: string; organizer: string; title: string; interest: string; artwork: 'tree' | 'cleanup' | 'garden';
   scopes: LocalResourceScope[]; area: string; venue: string; address?: string;
   kind: 'scheduled' | 'rolling'; startsAt?: string; endsAt?: string; timeLabel: string;
+  /** Source-supplied venue date/zone. Never substitute the account or browser zone. */
+  venueLocalDate?: string; venueTimezone?: string; venueTimezoneBasis?: 'source' | 'inferred';
   checkedAt: string; status: 'listed' | 'cancelled' | 'full' | 'postponed'; url: string;
   summary: string; work: string[]; duration: string; cost: string; age: string; access: string;
   bring: string; join: string; safety: string;
 };
+export type OpportunityOutdoorHandoff = {
+  id: string; title: string; date: string; place: string; timezone?: string;
+  startsAt?: string; sourceUrl: string; sourceCheckedAt: string;
+};
+export function validVenueTimezone(value: string): boolean {
+  try { new Intl.DateTimeFormat('en', { timeZone: value }).format(); return Boolean(value); } catch { return false; }
+}
+export function opportunityInstant(value?: string): number {
+  return value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) && validDay(value.slice(0,10)) && Number(value.slice(11,13)) < 24 && Number(value.slice(14,16)) < 60 && Number(value.slice(17,19)) < 60 ? Date.parse(value) : NaN;
+}
+/** Include every editable field, not only a draft title or preparation text. */
+export function hasParticipationDraft(draft: Engagement): boolean {
+  const blank = blankEngagement();
+  return Object.entries(blank).some(([key, value]) => typeof value === 'string' && key !== 'id' && String(draft[key as keyof Engagement] ?? '').trim() !== value);
+}
+/** A missing or inferred zone is not authority to choose a calendar date. */
+export function opportunityLocalDate(item: CommunityOpportunity): string {
+  if (item.kind !== 'scheduled') return '';
+  const supplied = item.venueLocalDate && validDay(item.venueLocalDate) ? item.venueLocalDate : '';
+  if (item.venueTimezoneBasis !== 'source' || !item.venueTimezone || !validVenueTimezone(item.venueTimezone)) return supplied;
+  if (!Number.isFinite(opportunityInstant(item.startsAt))) return supplied;
+  const parts = new Intl.DateTimeFormat('en', { timeZone: item.venueTimezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(item.startsAt!));
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? '';
+  const derived = `${part('year')}-${part('month')}-${part('day')}`;
+  return supplied && supplied !== derived ? '' : derived;
+}
+export function opportunityOutdoorHandoff(item: CommunityOpportunity): OpportunityOutdoorHandoff {
+  return { id: item.id, title: item.title, date: opportunityLocalDate(item), place: item.address || item.venue,
+    ...(item.venueTimezoneBasis === 'source' && item.venueTimezone && validVenueTimezone(item.venueTimezone) ? { timezone: item.venueTimezone } : {}),
+    ...(item.startsAt ? { startsAt: item.startsAt } : {}), sourceUrl: item.url, sourceCheckedAt: item.checkedAt };
+}
 const checkedAt = '2026-10-11';
 export const communityOpportunities: CommunityOpportunity[] = [
   {
@@ -40,8 +73,7 @@ export const communityOpportunities: CommunityOpportunity[] = [
 export function opportunityState(item: CommunityOpportunity, now = Date.now()) {
   if (item.status !== 'listed') return item.status;
   if (item.kind === 'scheduled') {
-    const instant = (value?: string) => value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) && validDay(value.slice(0, 10)) && Number(value.slice(11, 13)) < 24 && Number(value.slice(14, 16)) < 60 && Number(value.slice(17, 19)) < 60 ? Date.parse(value) : NaN;
-    const start = instant(item.startsAt); const end = instant(item.endsAt);
+    const start = opportunityInstant(item.startsAt); const end = opportunityInstant(item.endsAt);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 'needs-check';
     if (start <= now) return 'past';
   }

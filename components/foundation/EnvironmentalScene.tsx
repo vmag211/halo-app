@@ -33,10 +33,9 @@ export default function EnvironmentalScene({ variant = 'landscape', page = false
       {['mold', 'air'].includes(variant) && <div className="halo-env__mist" />}
       {['home', 'lead', 'radon', 'uv'].includes(variant) && <div className="halo-env__window-light" />}
     </>}
-    {(page || sky || variant === 'mold') && <div className="halo-env__atmosphere"><i /><i /></div>}
+    {!page && (sky || variant === 'mold') && <div className="halo-env__atmosphere"><i /><i /></div>}
     {!page && ['landscape', 'home', 'lead', 'radon', 'pollen', 'uv'].includes(variant) && <div className="halo-env__canopy-light" />}
     {!page && ['landscape', 'pfas'].includes(variant) && <div className="halo-env__water-light"><i /><i /><i /></div>}
-    <div className="halo-env__particles">{Array.from({ length: page ? 9 : 18 }, (_, i) => <i key={i} style={{ '--x': `${(i * 47 + 7) % 100}%`, '--y': `${(i * 31 + 19) % 100}%`, '--duration': `${12 + i % 7 * 2}s`, '--delay': `${-i * 1.7}s`, '--size': `${1.5 + (i % 4) * .6}px` } as CSSProperties} />)}</div>
     {!page && <div className="halo-env__veil" />}
   </div>;
 }

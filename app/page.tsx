@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import type {Metadata} from 'next';
 import Image from 'next/image';
 import {ArrowRight,House,Leaf,CalendarDays} from 'lucide-react';
 import './landing.css';
+import {publicOrigin} from '@/lib/frontend/public-origin';
+const canonical=publicOrigin(process.env.HALO_PUBLIC_ORIGIN);
+export const metadata:Metadata=canonical?{alternates:{canonical}}:{};
 export default function Home(){
  return <main className="halo-landing">
   <header><Link href="/" aria-label="HALO homepage"><span className="halo-landing-mark" aria-hidden="true"/><strong>HALO</strong></Link><Link className="halo-landing-open" href="/app">Open HALO <ArrowRight size={18} aria-hidden="true"/></Link></header>

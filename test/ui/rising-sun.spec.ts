@@ -20,6 +20,7 @@ for (const appearance of ['light', 'dark']) test(`rising half-sun ${appearance} 
 });
 
 test('sun rises with full motion, rays pause, and reduction is static', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/foundation/preview/family/?appearance=dark&motion=full&time=night');
   await page.locator('.halo-family-window').scrollIntoViewIfNeeded();
   const sun = page.locator('.halo-rising-sun');
@@ -29,5 +30,9 @@ test('sun rises with full motion, rays pause, and reduction is static', async ({
   await expect(sun.locator('.halo-rising-sun-rays')).toHaveCSS('animation-play-state', 'paused');
   await page.locator('.halo-f-review-tools > summary').click();
   await page.getByLabel('Animation', { exact: true }).selectOption('reduce');
+  await expect(sun.locator('.halo-rising-sun-rays')).toHaveCSS('animation-name', 'none');
+  await page.getByLabel('Animation', { exact: true }).selectOption('full');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(sun.locator('.halo-rising-sun-disc')).toHaveCSS('animation-name', 'none');
   await expect(sun.locator('.halo-rising-sun-rays')).toHaveCSS('animation-name', 'none');
 });

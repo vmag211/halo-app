@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-for (const appearance of ['light', 'dark']) test(`Homeguard scorecards and compact workspace precede the household in ${appearance}`, async ({ page }, testInfo) => {
+for (const appearance of ['light', 'dark']) test(`Homeguard work precedes area evidence and household guidance in ${appearance}`, async ({ page }, testInfo) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   for (const [width, scale] of [[375, 100], [320, 150]]) {
     await page.setViewportSize({ width, height: 850 });
@@ -17,13 +17,15 @@ for (const appearance of ['light', 'dark']) test(`Homeguard scorecards and compa
     await expect(cards).toContainText('PFAS in water');
     await expect(cards).toContainText('Radon');
     await expect(cards).toContainText('Lead in plumbing');
-    const hero = await page.locator('.halo-ph-landscape').boundingBox();
+    const summary = await page.locator('.halo-environment-summary').boundingBox();
     const grid = await cards.boundingBox();
     const workspace = await page.locator('#home-workspace').boundingBox();
     const house = await page.locator('.halo-home-household').boundingBox();
-    expect(grid!.y).toBeGreaterThan(hero!.y + hero!.height);
-    expect(grid!.y + grid!.height).toBeLessThanOrEqual(workspace!.y);
-    expect(workspace!.y + workspace!.height).toBeLessThanOrEqual(house!.y);
+    expect(summary!.y).toBeGreaterThanOrEqual(workspace!.y + workspace!.height);
+    expect(grid!.y).toBeGreaterThan(summary!.y + summary!.height);
+    expect(grid!.y + grid!.height).toBeLessThanOrEqual(house!.y);
+    const action = await page.getByRole('link', { name:'Continue test', exact:true }).boundingBox();
+    expect(action!.y + action!.height).toBeLessThan(670);
     await expect(page.locator('.halo-ph-household')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`homeguard-${appearance}-${width}.png`), fullPage: true });

@@ -74,7 +74,9 @@ for(const [width,scale,appearance] of [[320,150,'light'],[375,100,'dark'],[430,1
       await expect(page.getByTestId('foundation-product')).toBeVisible();
       await expect(page.getByTestId('foundation-product')).not.toContainText('This destination is unavailable');
       await page.evaluate(()=>document.fonts.ready);await fits(page);
-      expect((await page.getByTestId('foundation-product').boundingBox())!.width).toBeLessThanOrEqual(430);
+      const shellWidth=(await page.getByTestId('foundation-product').boundingBox())!.width;
+      expect(shellWidth).toBeLessThanOrEqual(width>=1024?1440:width>=768?720:430);
+      if(width>=1024){expect(shellWidth).toBeGreaterThan(720);await expect(page.locator('.halo-app-sidebar')).toBeVisible();}
     }
     expect(errors).toEqual([]);
   });

@@ -22,7 +22,7 @@ export function SceneProvider({ children, mode, time, ambient = true }: { childr
     document.addEventListener('visibilitychange', visible); media.addEventListener('change', updatePreference);
     return () => { cancelAnimationFrame(firstFrame); clearInterval(timer); media.removeEventListener('change', updatePreference); document.removeEventListener('visibilitychange', visible); };
   }, [time]);
-  const enabled = ready && mode !== 'reduce' && (mode === 'full' || !deviceReduced);
+  const enabled = ready && mode !== 'reduce' && !deviceReduced;
   const motion = enabled && !paused && ambient;
   return <SceneContext.Provider value={{ clock, enabled, motion, paused, togglePaused: () => setPaused(p => !p), deviceReduced, ready }}>{children}</SceneContext.Provider>;
 }

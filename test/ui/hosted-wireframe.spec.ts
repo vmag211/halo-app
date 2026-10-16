@@ -1,6 +1,20 @@
 import { test, expect } from '@playwright/test';
 
 test.skip(process.env.HALO_HOSTED_REVIEW_TEST !== '1', 'Static hosted-review export only.');
+
+test('static desktop settings switches panels without losing drafts or its return destination', async ({page}) => {
+  await page.setViewportSize({width:1280,height:900});
+  await page.goto('/foundation/preview/expanded/?tab=settings&appearance=dark&motion=reduce');
+  await page.locator('[data-setting-panel="display"]').click();
+  await page.getByRole('radio',{name:'Light',exact:true}).check();
+  await page.getByRole('navigation',{name:'Settings sections',exact:true}).getByRole('button',{name:'Home & household',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Home & household',exact:true})).toBeVisible();
+  await expect(page).toHaveURL(/open=home/);
+  await page.getByRole('button',{name:'All settings',exact:true}).click();
+  await page.locator('[data-setting-panel="display"]').click();
+  await expect(page.getByRole('radio',{name:'Light',exact:true})).toBeChecked();
+  await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');
+});
 test('hosted entry retains review settings and opens the shared four-tab layout', async ({ page }) => {
   const unexpected: string[] = [];
   page.on('pageerror', error => unexpected.push(error.message));

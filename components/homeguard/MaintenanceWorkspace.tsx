@@ -3,7 +3,7 @@ import DateInput from '@/components/ui/DateInput';
 
 import { useEffect, useRef, useState } from 'react';
 import {sanitizeNotePhoto} from '@/lib/frontend/note-photo-preview';
-import { ClipboardList, Droplets, Pencil, Wrench } from 'lucide-react';
+import { ClipboardList, Droplets, Pencil, Search, Wrench } from 'lucide-react';
 import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import { BottomSheet } from '@/components/ui/Foundation';
 import { factorKeys, factorReadings } from '@/lib/frontend/factor-preview';
@@ -11,6 +11,7 @@ import { assetError, blankAsset, blankObservation, localDay, maintenanceTransiti
 import { useHomeCollection, useHomeDraft, useHomeWorkspace } from './HomeWorkspaceState';
 import { ActionButton, Confirm, DeleteButton, Empty, Field, PageIntro, RecordForm, SourceNote, WorkspaceLink, type WorkspaceProps } from './HomeWorkspaceUI';
 import './records-polish.css';
+import './home-record-workflows.css';
 import { usePrivateUpload } from './usePrivateUpload';
 import { PrivateAttachmentDownload } from './PrivateAttachments';
 
@@ -20,6 +21,7 @@ export default function MaintenanceWorkspace(props: WorkspaceProps) {
   const assets = useHomeCollection<HomeAsset>('assets', sampleAssets);
   const observations = useHomeCollection<MoistureObservation>('observations', sampleObservations);
   const { collections } = useHomeWorkspace();
+  const [, setObservationEntry] = useHomeDraft<'moisture' | 'suspected-mold'>('observation:entry', 'moisture');
   const selected = assets.records.find(record => record.id === props.recordId);
   const observation = observations.records.find(record => record.id === props.recordId);
   if (props.view === 'create' || props.view === 'edit') return <AssetForm key={`${props.view}-${props.recordId ?? 'new'}`} {...props} record={selected} save={assets.save} tests={collections.tests ?? []} />;
@@ -32,17 +34,21 @@ export default function MaintenanceWorkspace(props: WorkspaceProps) {
     if (!selected) return <Empty title="Routine unavailable" action={<button onClick={() => props.navigate('list')}>Back to maintenance</button>}>This record may have been removed. Your other routines are still available.</Empty>;
     return <AssetDetail {...props} record={selected} save={assets.save} remove={assets.remove} />;
   }
-  return <>
-    <PageIntro eyebrow="Homeguard" title="Maintenance & moisture" description="Keep up with home care and follow up on leaks, dampness or humidity." icon={<Wrench />} />
-    <div className="hg-choice-grid"><WorkspaceLink title="Add a routine" detail="Keep a schedule for filters or other home care." artwork="maintenance" onClick={() => props.navigate('create')} /><WorkspaceLink title="Record moisture" detail="Save what you noticed or measured." artwork="moisture" onClick={() => props.navigate('observation')} /></div>
+  return <div className="hg-care-workbench">
+    <PageIntro eyebrow="Homeguard" title="Maintenance & moisture" description="Keep the work and the evidence together." icon={<Wrench />} />
+    <div className="hg-care-columns"><div className="hg-care-column">
+    <WorkspaceLink title="Add a routine" detail="A schedule for filters and home care." artwork="maintenance" onClick={() => props.navigate('create')} />
     <section className="hg-stack hg-care-group" data-care-group="routines"><header><Wrench size={20} aria-hidden="true" /><h2>Your routines</h2></header>
       {assets.records.length ? assets.records.map(asset => <WorkspaceLink key={asset.id} deletion={{ remove: () => assets.remove(asset.id), description: 'This removes this routine, its schedule and service history. Separate moisture observations, tests and saved My Week actions are kept.' }} title={asset.title} detail={`${asset.status === 'active' ? asset.nextDue ? `Due ${asset.snoozedUntil || asset.nextDue}` : 'Routine ended' : asset.status === 'paused' ? 'Paused' : 'Replaced'} · ${scheduleDescription(asset)}`} icon={<Wrench />} onClick={() => props.navigate('detail', asset.id)} />) : <Empty title="No routines yet">Add equipment only when keeping its instructions or service history is useful.</Empty>}
     </section>
+    </div><div className="hg-care-column"><WorkspaceLink title="Record moisture" detail="A leak, dampness or measured humidity." artwork="moisture" onClick={() => { setObservationEntry('moisture'); props.navigate('observation'); }} />
     <section className="hg-stack hg-care-group" data-care-group="moisture"><header><Droplets size={20} aria-hidden="true" /><h2>Moisture observations</h2></header><p className="hg-meta">Your indoor observations, separate from the outdoor mold estimate.</p>
       {observations.records.length ? observations.records.map(record => <WorkspaceLink key={record.id} deletion={{ remove: () => observations.remove(record.id), description: 'This removes this observation and its local photo. Linked routines, tests and saved My Week actions are kept.' }} title={record.title} detail={`${record.observedAt.replace('T', ' ')} · ${record.room || 'Room not supplied'} · User reported`} icon={<Droplets />} onClick={() => props.navigate('observation-detail', record.id)} />) : <Empty title="No observations recorded">A note, time and optional measurement can help you follow up.</Empty>}
     </section>
-    <SourceNote>Logged work does not confirm a hazard is resolved.</SourceNote>
-  </>;
+    <button type="button" className="hg-button-secondary hg-suspected-mold-entry" onClick={() => { setObservationEntry('suspected-mold'); props.navigate('observation'); }}><Search size={17} aria-hidden="true" />Record suspected mold</button>
+    <p className="hg-meta">Save an observation to follow up, not a mold identification.</p>
+    </div></div><SourceNote>Logged work does not confirm a hazard is resolved.</SourceNote>
+  </div>;
 }
 
 function AssetForm({ record, save, tests, ...props }: WorkspaceProps & { record?: HomeAsset; save: (record: HomeAsset) => Promise<boolean>; tests: { id: string; title: string }[] }) {
@@ -107,9 +113,10 @@ function AssetDetail({ record, save, remove, ...props }: WorkspaceProps & { reco
 
 function ObservationForm({ record, save, assets, tests, ...props }: WorkspaceProps & { record?: MoistureObservation; save: (record: MoistureObservation) => Promise<boolean>; assets: HomeAsset[]; tests: { id: string; title: string }[] }) {
   const workspace = useHomeWorkspace(), upload = usePrivateUpload();
+  const [entry, , clearEntry] = useHomeDraft<'moisture' | 'suspected-mold'>('observation:entry', 'moisture');
   const [photoReviewed, setPhotoReviewed] = useState(false);
   const [recordId] = useState(() => record?.id || crypto.randomUUID());
-  const [draft, setDraft, clearDraft] = useHomeDraft<MoistureObservation>(`observation:${record?.id ?? 'new'}`, record ?? blankObservation());
+  const [draft, setDraft, clearDraft] = useHomeDraft<MoistureObservation>(`observation:${record?.id ?? 'new'}`, record ?? (entry === 'suspected-mold' ? { ...blankObservation(), kind: 'other', title: 'Suspected mold', source: 'Visual observation by household', unit: '' } : blankObservation()));
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [photoBusy, setPhotoBusy] = useState(false); const [discard, setDiscard] = useState(false);
   const photoRequest=useRef<AbortController|null>(null);
   useEffect(()=>()=>photoRequest.current?.abort(),[]);
@@ -129,7 +136,7 @@ function ObservationForm({ record, save, assets, tests, ...props }: WorkspacePro
         if (attachment?.status !== 'ready') return;
         next.photoAttachmentId = attachment.id; next.photoAttachmentRevision = attachment.revision; next.photoData = '';
       }
-      if (await save(next)) { clearDraft(); props.navigate('observation-detail', next.id); }
+      if (await save(next)) { clearDraft(); clearEntry(); props.navigate('observation-detail', next.id); }
     } catch { setError('Your observation could not be saved. Your draft is kept.'); }
     finally { setBusy(false); }
   }
@@ -141,7 +148,8 @@ function ObservationForm({ record, save, assets, tests, ...props }: WorkspacePro
     catch(error){if(!request.signal.aborted)setError(error instanceof Error?error.message:'The image could not be read. Choose another file.');}
     finally{if(photoRequest.current===request)setPhotoBusy(false);}
   }
-  return <><PageIntro eyebrow="Moisture observation" title={record ? 'Edit observation' : 'What did you notice?'} description="Record what you saw or measured. A photo cannot identify mold or establish indoor safety." icon={<Droplets />} />
+  return <div className="hg-observation-editor"><PageIntro eyebrow="Moisture observation" title={record ? 'Edit observation' : 'What did you notice?'} description="Record what you saw or measured. A photo cannot identify mold or establish indoor safety." icon={<Droplets />} />
+    {!record && entry === 'suspected-mold' && <div className="hg-observation-intent"><Search size={19} aria-hidden="true" /><div><strong>Suspected mold</strong><p>Use Other observation. Describe what you noticed without identifying a species or making a diagnosis. Any existing draft is kept.</p><button type="button" className="hg-text-button" onClick={() => update({ kind:'other', title:draft.title || 'Suspected mold', source:draft.source || 'Visual observation by household' })}>Use suspected-mold observation</button></div></div>}
     {upload.unknown && <div className="hg-error" role="status"><p>{upload.message}</p><button type="button" disabled={upload.busy} onClick={() => void upload.upload()}>Check upload status</button></div>}
     {!upload.unknown && upload.message && <p role="status">{upload.message}</p>}
     <RecordForm onSubmit={submit} busy={busy || photoBusy || upload.busy || upload.unknown} submitLabel="Save observation" onCancel={() => props.navigate(record ? 'observation-detail' : 'list', record?.id)}>
@@ -152,7 +160,7 @@ function ObservationForm({ record, save, assets, tests, ...props }: WorkspacePro
       <div className="hg-grid"><Field label="Measured reading (optional)"><input type="number" step="any" min={0} value={draft.reading} onChange={e => update({ reading: e.target.value })} /></Field><Field label="Original unit"><input value={draft.unit} maxLength={40} onChange={e => update({ unit: e.target.value })} /></Field></div><Field label="Measurement or observation source" hint="Required for a measured value. For example, your hygrometer or visual observation."><input value={draft.source} maxLength={160} onChange={e => update({ source: e.target.value })} /></Field><p className="hg-meta">Relative humidity is a user-entered measurement. No automatic mold detection or weather-derived indoor reading.</p>
       <Field label="Private note (optional)"><textarea rows={3} maxLength={2000} value={draft.note} onChange={e => update({ note: e.target.value })} /></Field><Field label="Private photo (optional)" hint={workspace.mode === 'production' ? 'JPEG, PNG or WebP, up to 5 MB. Embedded metadata is removed. Only your reviewed copy is uploaded when you save.' : 'JPEG, PNG or WebP, up to 5 MB. Embedded metadata is removed. Review visible faces, signs and places before saving. Nothing is uploaded.'}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => selectPhoto(e.target.files?.[0])} /></Field>{photoBusy && <div role="status">Preparing a private image copy...<button type="button" onClick={()=>{photoRequest.current?.abort();setPhotoBusy(false);}}>Cancel photo preparation</button></div>}{draft.photoData && <div className="hg-local-photo"><p>{draft.photoName} · Local image</p>{/* eslint-disable-line @next/next/no-img-element */}<img src={draft.photoData} alt="Selected observation attachment" style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain' }} /><button type="button" onClick={() => { if (upload.reset()) { setPhotoReviewed(false); update({ photoName: '', photoData: '' }); } }}>Remove photo</button></div>}
       <Field label="Linked routine (optional)"><select value={draft.assetId} onChange={e => update({ assetId: e.target.value })}><option value="">No linked routine</option>{draft.assetId && !assets.some(asset => asset.id === draft.assetId) && <option value={draft.assetId}>Previously linked routine (removed)</option>}{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></Field><Field label="Linked test (optional)"><select value={draft.testId} onChange={e => update({ testId: e.target.value })}><option value="">No linked test</option>{draft.testId && !tests.some(test => test.id === draft.testId) && <option value={draft.testId}>Previously linked test (removed)</option>}{tests.map(test => <option key={test.id} value={test.id}>{test.title}</option>)}</select></Field>{error && <p role="alert">{error}</p>}
-    </RecordForm><button className="hg-text-button" onClick={() => setDiscard(true)}>Discard observation draft</button>{discard && <Confirm title="Discard observation draft?" onCancel={() => setDiscard(false)} onConfirm={() => { clearDraft(); props.navigate(record ? 'observation-detail' : 'list', record?.id); }}>Unsaved text and the selected local photo will be removed from this draft.</Confirm>}</>;
+    </RecordForm><button className="hg-text-button" onClick={() => setDiscard(true)}>Discard observation draft</button>{discard && <Confirm title="Discard observation draft?" onCancel={() => setDiscard(false)} onConfirm={() => { clearDraft(); clearEntry(); props.navigate(record ? 'observation-detail' : 'list', record?.id); }}>Unsaved text and the selected local photo will be removed from this draft.</Confirm>}</div>;
 }
 
 function ObservationDetail({ record, remove, ...props }: WorkspaceProps & { record: MoistureObservation; remove: (id: string) => Promise<boolean> }) {
