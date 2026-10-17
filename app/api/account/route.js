@@ -3,15 +3,8 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseEnum } from '@/lib/validate';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
-import { isOperationsUnavailable, operationsUnavailable, listUnresolvedOperations } from '@/lib/operations';
-import {
-  ACCOUNT_FEATURES,
-  IMPLEMENTED_FEATURES,
-  linkedMethod,
-  openChallenge,
-  recoveryRevision,
-  recoverySnapshot,
-} from '@/lib/account';
+import { isOperationsUnavailable, operationsUnavailable } from '@/lib/operations';
+import { ACCOUNT_FEATURES, IMPLEMENTED_FEATURES, readRecoverySnapshot, recoverySnapshot } from '@/lib/account';
 
 /**
  * GET /api/account?feature=<feature>
@@ -87,48 +80,12 @@ export async function GET(request) {
       );
     }
 
-    // The provider holds the address; the database holds the challenge. Both
-    // are needed, and a missing table must surface as "unavailable" rather
-    // than as an empty answer.
-    const { data: account, error: accountError } = await supabaseAdmin.auth.admin.getUserById(userId);
-    if (accountError) throw new Error(accountError.message);
-
-    // One round trip for both the newest challenge and how many there have
-    // ever been: `count: 'exact'` reports every match regardless of the limit.
-    const {
-      data: challenges,
-      count: challengeCount,
-      error: challengeError,
-    } = await supabaseAdmin
-      .from('recovery_challenges')
-      .select('id, status, expires_at, consumed_at, created_at', { count: 'exact' })
-      .eq('profile_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (challengeError) throw challengeError;
-
-    // Owned domains only. An unauthenticated recovery operation has no owner
-    // to attribute it to, so it can never appear in anyone's inventory; the
-    // client reconciles those through the recovery routes with the id it kept.
-    const unresolvedOperations = await listUnresolvedOperations(supabaseAdmin, {
-      profileId: userId,
-      domains: ['account'],
-    });
-
-    const method = linkedMethod(account?.user);
-    return NextResponse.json(
-      recoverySnapshot({
-        enabled: true,
-        method,
-        // The challenge's address is the account's own verified address: a
-        // challenge exists only for an email that resolved to this identity.
-        challenge: openChallenge(challenges?.[0], { maskedAddress: method?.maskedAddress }),
-        devices: [], // task 9
-        unresolvedOperations,
-        revision: recoveryRevision({ challengeCount: challengeCount ?? 0, hasMethod: !!method }),
-      }),
-      { headers },
-    );
+    // The provider holds the address, the database holds the challenge and the
+    // ledger holds the revision. All three are needed, and a missing table must
+    // surface as "unavailable" rather than as an empty answer. The command
+    // route builds its receipts from the same function, so the revision this
+    // read publishes is exactly the one a later write checks.
+    return NextResponse.json(await readRecoverySnapshot(supabaseAdmin, userId), { headers });
   } catch (err) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);

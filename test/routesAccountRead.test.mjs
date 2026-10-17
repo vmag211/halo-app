@@ -43,6 +43,7 @@ const OTHER_CHALLENGE = '77777777-7777-4777-8777-777777777772';
 const PENDING_OP = '88888888-8888-4888-8888-888888888881';
 const SETTLED_OP = '88888888-8888-4888-8888-888888888882';
 const OTHER_OP = '88888888-8888-4888-8888-888888888883';
+const OTHER_DOMAIN_OP = '88888888-8888-4888-8888-888888888884';
 
 const future = () => new Date(Date.now() + 30 * 60 * 1000).toISOString();
 const past = () => new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -74,6 +75,17 @@ function harness({ challenges = [], operations = [], identities } = {}) {
 
 const read = (h, who, { feature = 'recovery', env = ON } = {}) =>
   h.call(ROUTE, 'GET', { as: who, url: `${ROUTE}?feature=${feature}`, env });
+
+/** A settled account command in the ledger, which is what the revision counts. */
+const accountOp = (id, overrides = {}) => ({
+  operation_id: id,
+  domain: 'account',
+  kind: 'account.request-recovery',
+  status: 'succeeded',
+  result: { operationId: id, status: 'succeeded' },
+  created_at: ago(1000),
+  ...overrides,
+});
 
 /**
  * The recovery branch of `validAccountSnapshot`, transcribed. Kept as one
@@ -261,32 +273,46 @@ test('unresolved operations list this household unsettled account work, and nobo
   assert.deepEqual(body.unresolvedOperations, [PENDING_OP], 'settled work is resolved; another household is not listed');
 });
 
-test('revision advances when the recovery state changes, so a later write can detect a conflict', async () => {
-  const linkedOnly = await (await read(harness(), 'alice')).json();
-  const withChallenge = await (
-    await read(harness({ challenges: [{ id: CHALLENGE, status: 'pending', expires_at: future() }] }), 'alice')
+test('revision advances with every account command, so a later write can detect a conflict', async () => {
+  const none = await (await read(harness(), 'alice')).json();
+  assert.equal(none.revision, 0, 'no command recorded is revision zero');
+  const one = await (await read(harness({ operations: [accountOp(SETTLED_OP)] }), 'alice')).json();
+  const two = await (
+    await read(harness({ operations: [accountOp(SETTLED_OP), accountOp(OTHER_OP)] }), 'alice')
   ).json();
-  assert.ok(withChallenge.revision > linkedOnly.revision, 'adding a challenge advances the revision');
+  assert.ok(one.revision > none.revision, 'the first command advances it');
+  assert.ok(two.revision > one.revision, 'and so does the next');
   const anonymous = await (await read(harness(), 'bob')).json();
-  assert.equal(anonymous.revision, 0, 'nothing linked and nothing open is revision zero');
+  assert.equal(anonymous.revision, 0, 'a household that has changed nothing is revision zero');
 });
 
 // ---------------------------------------------------------------------------
 // Input, identity and degradation
 // ---------------------------------------------------------------------------
 
-test('revision counts the linked address and every challenge ever made for it', async () => {
-  // Pinned exactly, because task 4's If-Match precondition rests on it: one for
-  // the linked address, one per challenge row, and challenges are only ever
-  // inserted, so it cannot go backwards.
+test("revision counts this household's account commands, and nothing else", async () => {
+  // Pinned exactly, because task 4's If-Match precondition rests on it: one per
+  // account-domain ledger row. A row is written before every command is
+  // attempted and is never deleted or edited afterwards, so the revision cannot
+  // go backwards when a method is unlinked or a challenge is dropped, which the
+  // challenge count it used to be could.
   const h = harness({
     challenges: [
       { id: CHALLENGE, status: 'pending', expires_at: future(), created_at: ago(1000) },
       { id: OTHER_CHALLENGE, status: 'expired', expires_at: past(), created_at: ago(60 * 60 * 1000) },
     ],
+    operations: [
+      accountOp(SETTLED_OP, { kind: 'account.remove-recovery' }),
+      accountOp(OTHER_OP, { profile_id: 'bob' }),
+      accountOp(OTHER_DOMAIN_OP, { domain: 'alerts', kind: 'alerts.update' }),
+    ],
   });
   const body = await (await read(h, 'alice')).json();
-  assert.equal(body.revision, 3, 'two challenges plus the linked address');
+  assert.equal(
+    body.revision,
+    1,
+    'one account command; the challenges, another household and another domain do not count',
+  );
 });
 
 test('the feature must be one the contract names', async () => {
