@@ -52,7 +52,7 @@ The spec was being reported as missing. It is not: the complete 521,027-byte wor
 - **Recovery is not usable.** Tasks 4, 5, 7, 8 and 9 do not exist, so nothing can link an address or recover an account yet. The flag is off and applying 0018 does not turn it on.
 - `recovery.devices` is always an empty list. That is not a claim that a household has no devices; task 9 populates it.
 - The end-to-end Supabase session-minting exchange is unproven. Task 8 depends on it and keeps the stated fallback.
-- Migrations 0015 to 0018 are applied nowhere. The 0015 and 0016 back-outs passed a throwaway-project trial; the 0017 and 0018 blocks are tested on PGlite only.
+- **0015 and 0016 are applied to production** (confirmed 2026-10-17 by the state query in `YOUR_TODO.md` 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present). They were applied after `baseline-audit.deployed.json` was captured, so that file records the pre-migration catalog and is now stale. **0015's four checks are present but NOT validated** (`m15_validated` 0), which is the outstanding step in 2.5. **0017 and 0018 are applied nowhere**, and their back-out blocks are tested on PGlite only, unlike the 0015 and 0016 blocks which passed a throwaway-project trial.
 - Vibhav's blockers are unchanged and were not worked around: no `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in any environment (BE-340, blocks task 6), no backup or restore coverage on the current Supabase plan (BE-307), no recorded recovery objectives (BE-360), and no approved retention periods, including none for a consumed or expired challenge or for settled recovery receipts.
 - Every B01 limit in the section below still applies.
 
@@ -96,13 +96,13 @@ The pre-existing untracked `components/onboarding/mobile-review.css` is unrelate
 
 ## Migrations and human checks
 
-**0015 and 0016 are written and locally tested but NOT applied anywhere**: not to production, and not to any staging or disposable project by this work. Deployed state remains unverified. Do not run `supabase/baseline/reconstructed_baseline.sql` on the real project: it is a local reconstruction with auth stubs.
+**0015 and 0016 were not applied anywhere at the time this B01 section was written.** They have since been applied to production (2026-10-17); see the B02 section above. Nothing in this B01 section applied them, and 0015's four checks still need validating. Do not run `supabase/baseline/reconstructed_baseline.sql` on the real project: it is a local reconstruction with auth stubs.
 
-1. Run `docs/backend/baseline-audit.sql` read-only in the intended Supabase project and save the schema-only JSON as `docs/backend/baseline-audit.deployed.json`. Review grants/RLS, especially the assumed public utility RLS, and compare with the reconstruction.
+1. **Done 2026-10-17**, findings in `docs/backend/baseline-audit.deployed.json`. That capture predates the 0015 and 0016 apply, so it now records the pre-migration schema and is marked superseded in the file; re-run `baseline-audit.sql` to capture the post-migration catalog.
 2. Check legacy push endpoints and browser writes as described in `YOUR_TODO.md`.
-3. Try 0015 then 0016 on a disposable Supabase project (required before 0016), including the checks, both "If you need to back out" blocks and re-applying, as `YOUR_TODO.md` Part 2 lists; take a production backup first. Review production major-version differences from PGlite/Postgres 18. Then coordinate deployment/application with Vibhav; do not infer authorization from this checkpoint.
+3. **Done for 0015 and 0016**: the throwaway-project trial passed at Postgres 17.6 (including both back-out blocks and re-applying), and Vibhav applied both to production on 2026-10-17. Outstanding: validate 0015's four checks (`YOUR_TODO.md` 2.5). **Not done for 0017 and 0018**, which are applied nowhere and have been tested on PGlite only; nothing deployed references their tables, so there is no hurry. Do not infer authorization to apply anything from this checkpoint.
 4. Review the recovery ADR and privacy disclosure. No choice or retention period is approved. B05 sensitive input remains disabled until both decisions are approved and selected safeguards pass tests.
-5. Supply full spec text starting with the remainder of BE-032, BE-033 onward and DS/MP/UI/AC/ST/WF/AG/MA/VR/feature packets under `docs/product/`.
+5. **Resolved:** the complete working spec is in this repository's git objects on `origin/codex/october15-review-refinement` at `docs/product/ai/HALO_BACKEND_WORKING_SPEC.md`, sha256 `fc1fec4b...415be86`, verified 2026-10-17. `WORKFLOW.md` step 2 has the command to read it. Nothing further is needed from Vibhav here.
 
 ## Unresolved gates and known limits
 

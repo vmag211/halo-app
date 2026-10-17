@@ -1,31 +1,43 @@
 {
-  "_captured": "2026-10-17",
-  "_source": "docs/backend/baseline-audit.sql run read-only in the Supabase SQL editor of the deployed HALO project",
-  "_contents": "catalog only: table and column definitions, RLS flags, policies, foreign keys, functions, privileges, triggers, extensions, roles. No rows from any HALO table, no passwords, no keys.",
-  "_findings": [
-    "server_version_num 170006 = PostgreSQL 17.6. The local test suite runs on PGlite/Postgres 18.",
-    "ucmr5_utilities has RLS enabled with a single SELECT policy named 'Allow public read access on ucmr5_utilities' using (true). The anon/authenticated INSERT/UPDATE/DELETE grants are inert under RLS. The guarded remedy in YOUR_TODO 1.1 was NOT needed and was NOT run.",
-    "The reconstruction had guessed that policy's name as 'Enable read access for all users'; no deployed policy ever had that name. Corrected in reconstructed_baseline.sql and in the YOUR_TODO remedy.",
-    "supabase_migrations_ledger is null: migrations are applied by hand in the SQL editor, so no ledger rows exist. That 0001-0014 are applied is inferred from schema shape, not recorded.",
-    "0015 and 0016 confirmed NOT applied: no save_household function, symptom_logs carries only symptom_logs_severity_check, full grants remain on the four locked tables, no home_contexts table, no daily_scores.home_context_id.",
-    "Production carries a SECURITY DEFINER function rls_auto_enable() returning event_trigger with search_path=pg_catalog. It is in no migration and no baseline. The audit does not read pg_event_trigger, so whether an event trigger is bound to it is unknown.",
-    "map_layers and water_snapshots have RLS enabled with no policies at all: service-role-only tables.",
-    "handle_new_user is SECURITY DEFINER with EXECUTE granted to anon and authenticated. It returns trigger so it cannot usefully be called directly, but the grant is unnecessary. Deferred hardening item.",
-    "Default privileges grant arwdDxtm on every new public table to anon and authenticated. 0016 correctly revokes these on home_contexts and re-grants only SELECT to authenticated."
-  ],
-  "_tables_deployed": [
-    "alerts", "assistant_corpus", "daily_scores", "home_risks", "household_bands",
-    "learn_content", "map_layers", "notification_prefs", "profiles",
-    "push_subscriptions", "symptom_logs", "ucmr5_utilities", "volunteer_orgs", "water_snapshots"
-  ],
-  "_row_counts_at_capture": {
-    "profiles": 60,
-    "daily_scores": 419,
-    "household_bands": 9,
-    "symptom_logs": 1,
-    "alerts": 0,
-    "notification_prefs": 0,
-    "push_subscriptions": 0
-  },
-  "_note": "The full catalog JSON was reviewed in the session transcript rather than stored here, because it names every column of every table and is reproducible at any time by re-running docs/backend/baseline-audit.sql. Re-run it after applying 0015 and 0016 to capture the post-migration catalog."
+ "_captured": "2026-10-17",
+ "_source": "docs/backend/baseline-audit.sql run read-only in the Supabase SQL editor of the deployed HALO project",
+ "_contents": "catalog only: table and column definitions, RLS flags, policies, foreign keys, functions, privileges, triggers, extensions, roles. No rows from any HALO table, no passwords, no keys.",
+ "_findings": [
+  "server_version_num 170006 = PostgreSQL 17.6. The local test suite runs on PGlite/Postgres 18.",
+  "ucmr5_utilities has RLS enabled with a single SELECT policy named 'Allow public read access on ucmr5_utilities' using (true). The anon/authenticated INSERT/UPDATE/DELETE grants are inert under RLS. The guarded remedy in YOUR_TODO 1.1 was NOT needed and was NOT run.",
+  "The reconstruction had guessed that policy's name as 'Enable read access for all users'; no deployed policy ever had that name. Corrected in reconstructed_baseline.sql and in the YOUR_TODO remedy.",
+  "supabase_migrations_ledger is null: migrations are applied by hand in the SQL editor, so no ledger rows exist. That 0001-0014 are applied is inferred from schema shape, not recorded.",
+  "0015 and 0016 confirmed NOT applied: no save_household function, symptom_logs carries only symptom_logs_severity_check, full grants remain on the four locked tables, no home_contexts table, no daily_scores.home_context_id.",
+  "Production carries a SECURITY DEFINER function rls_auto_enable() returning event_trigger with search_path=pg_catalog. It is in no migration and no baseline. The audit does not read pg_event_trigger, so whether an event trigger is bound to it is unknown.",
+  "map_layers and water_snapshots have RLS enabled with no policies at all: service-role-only tables.",
+  "handle_new_user is SECURITY DEFINER with EXECUTE granted to anon and authenticated. It returns trigger so it cannot usefully be called directly, but the grant is unnecessary. Deferred hardening item.",
+  "Default privileges grant arwdDxtm on every new public table to anon and authenticated. 0016 correctly revokes these on home_contexts and re-grants only SELECT to authenticated."
+ ],
+ "_tables_deployed": [
+  "alerts",
+  "assistant_corpus",
+  "daily_scores",
+  "home_risks",
+  "household_bands",
+  "learn_content",
+  "map_layers",
+  "notification_prefs",
+  "profiles",
+  "push_subscriptions",
+  "symptom_logs",
+  "ucmr5_utilities",
+  "volunteer_orgs",
+  "water_snapshots"
+ ],
+ "_row_counts_at_capture": {
+  "profiles": 60,
+  "daily_scores": 419,
+  "household_bands": 9,
+  "symptom_logs": 1,
+  "alerts": 0,
+  "notification_prefs": 0,
+  "push_subscriptions": 0
+ },
+ "_note": "The full catalog JSON was reviewed in the session transcript rather than stored here, because it names every column of every table and is reproducible at any time by re-running docs/backend/baseline-audit.sql. Re-run it after applying 0015 and 0016 to capture the post-migration catalog.",
+ "_superseded": "Captured BEFORE 0015 and 0016 were applied. Vibhav applied both to production later on 2026-10-17, so the '0015 and 0016 confirmed NOT applied' finding below and _tables_deployed (no home_contexts) describe the pre-migration schema and are no longer the deployed state. Re-run docs/backend/baseline-audit.sql to capture the post-migration catalog. For a quick answer on which migrations are applied, use the state query in docs/backend/YOUR_TODO.md 2.6."
 }

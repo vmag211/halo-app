@@ -9,7 +9,8 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 - **1.3 direct browser writes: done** on this branch. Five hits, all server-side service-role code, none on the four locked tables. Still needs confirming against whatever is actually deployed, which is Yogi's.
 - **Part 2 trial: done and passed**, on a throwaway Supabase project at Postgres 17.6, using `docs/backend/trial-schema-0001-0014.sql`. Applied 0015 and its three checks, seeded two households, applied 0016 (all nine columns true, backfill created 2 contexts and linked every reading), backed both out and verified, then re-applied and re-checked. The back-out blocks are therefore no longer PGlite-only.
 - **Backup:** free plan, no scheduled backups or PITR available. CSV exports taken instead. Note these two migrations modify no pre-existing column or row; the only data writes are inserts into the new `home_contexts` table and population of the new nullable `daily_scores.home_context_id`.
-- **Still to do on production:** apply 0015 (then validate the four constraints immediately, since the single `symptom_logs` row is already clean), then 0016, then `notify pgrst, 'reload schema';`.
+- **0015 and 0016 are APPLIED to production.** Confirmed 2026-10-17 with the state query in 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present. They were applied after the 1.1 audit was captured, so `baseline-audit.deployed.json` holds the pre-migration catalog and should be re-captured.
+- **Still to do on production:** validate 0015's four checks (section 2.5; they are in place for new rows but `convalidated` is false, and your one `symptom_logs` row is already clean so it should pass). Re-run `baseline-audit.sql` afterwards to capture the post-migration catalog.
 
 Status right now:
 
@@ -17,7 +18,7 @@ Status right now:
 - Task 10 is committed at `d492e9e`: rejected writes no longer replace identity or replay; recovery options and a complete privacy inventory are documented. Neither decision is approved.
 - Task 11: executable API contracts, synthetic fixtures, handler conformance, requirements tracker and current checkpoint are written. Final test counts and commit evidence are in `docs/backend/checkpoint.md`.
 - Branch and push state: `vmag211/backend` is the working branch, and the controller pushes it after each reviewed task. Run `git log origin/vmag211/backend..HEAD` to see which commits are not pushed yet (an empty list means everything is pushed). Nothing was merged to main.
-- Migrations 0015, 0016, 0017 and 0018 are written and locally tested but NOT applied anywhere (not to production, and not to any staging or disposable project by this work).
+- Migration state: **0015 and 0016 are applied to production** (2026-10-17), with 0015's four checks still unvalidated. **0017 and 0018 are applied nowhere.** Nothing deployed references the 0017 or 0018 tables yet, so there is no hurry: `origin/main` has no reference to `operations` or `recovery_challenges`.
 - Back-out blocks: the 0015 and 0016 blocks passed the throwaway-project trial above. The **0017 and 0018 blocks, and the guarded `ucmr5_utilities` remedy (1.1), are tested only on the local PGlite copy** (`test/migrationBackout.test.mjs`), not on Supabase. Each is a single `drop table`, so there is less to get wrong, but that is not the same as having been run there.
 - 0017 (operation ledger) and 0018 (recovery challenges) are new in B02. Applying 0018 does not turn recovery on: it stays behind a server-enforced flag that is off, and the Turnstile key, backup coverage and retention decisions are all still open.
 - `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
@@ -129,6 +130,8 @@ Each migration below ends with an **If you need to back out** block. Back out 00
 
 ### 2.1 Apply 0015 (transactional household save and database constraints)
 
+**Done on production, 2026-10-17.** Kept for the record, for the back-out block below, and in case it is ever applied to another project. The four checks still need validating: see 2.5.
+
 Needs 0001 to 0014 applied first (they are).
 
 1. SQL Editor, **New query**.
@@ -216,6 +219,8 @@ What this does NOT restore or undo:
 - Journal rows saved while the checks were in place stay as they are.
 
 ### 2.2 Apply 0016 (home contexts), at a quiet time
+
+**Done on production, 2026-10-17.** Kept for the record and for the back-out block below.
 
 Run it when few people are using the app. Needs 0015 first.
 
@@ -369,7 +374,9 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every challenge in flight is deleted, so anyone part way through proving ownership of their address has to start again once it is reapplied. Nothing else is affected, and no account that was already recovered loses anything.
 
-### 2.5 Later, once the old rows are clean
+### 2.5 Validate 0015's four checks (OUTSTANDING on production)
+
+0015 adds its four checks `NOT VALID`, so they constrain new rows but were never checked against existing ones. The state query in 2.6 reports this as `m15_checks` 4 with `m15_validated` 0, which is where production stands today.
 
 Only when the optional check in 2.1 step 2 returned no rows (fix or delete what it listed first). This turns the new checks into full constraints:
 
@@ -382,6 +389,36 @@ alter table public.symptom_logs validate constraint symptom_logs_entry_date_chec
 ```
 
 If one of them fails, an old row still breaks that rule. Fix or delete the rows the check in 2.1 step 2 lists, then run it again.
+
+`symptom_logs_severity_check` comes from 0003 and is already validated, so validating it again is a harmless no-op. The other four are the ones that matter.
+
+### 2.6 Which migrations are applied (read only, run any time)
+
+One query, nothing changed. Use it instead of trusting any document in this repository, including this one. It was checked against a local copy with 0001 to 0014 applied and again with every migration applied, so the answers are known to discriminate.
+
+```sql
+select
+  to_regprocedure('public.save_household(uuid, jsonb, boolean, text)') is not null as m15_function,
+  (select count(*) from pg_constraint
+     where conrelid = 'public.symptom_logs'::regclass and contype = 'c'
+       and conname in ('symptom_logs_band_check','symptom_logs_entry_date_check',
+                       'symptom_logs_note_length_check','symptom_logs_symptoms_count_check')) as m15_checks,
+  (select count(*) from pg_constraint
+     where conrelid = 'public.symptom_logs'::regclass and contype = 'c' and convalidated
+       and conname in ('symptom_logs_band_check','symptom_logs_entry_date_check',
+                       'symptom_logs_note_length_check','symptom_logs_symptoms_count_check')) as m15_validated,
+  not has_table_privilege('authenticated', 'public.profiles', 'INSERT') as m15_revoked,
+  to_regclass('public.home_contexts') is not null as m16_table,
+  to_regprocedure('public.transition_home_context(uuid, jsonb, jsonb, uuid)') is not null as m16_function,
+  exists (select 1 from pg_attribute where attrelid = 'public.daily_scores'::regclass
+            and attname = 'home_context_id' and not attisdropped) as m16_column,
+  to_regclass('public.operations') is not null as m17_table,
+  to_regclass('public.recovery_challenges') is not null as m18_table;
+```
+
+Reading it: a migration is applied when all of its columns are true (`m15_checks` 4). `m15_validated` is 0 even after a correct 0015 apply, because those checks go in `NOT VALID`; 4 and 0 together mean 0015 is applied and 2.5 is still outstanding.
+
+Production on 2026-10-17 returned `true, 4, 0, true, true, true, true, false, false`: 0015 and 0016 applied, their checks not yet validated, 0017 and 0018 not applied.
 
 ---
 

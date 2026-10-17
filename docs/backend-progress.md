@@ -1,4 +1,4 @@
-> Current B01 handoff (2026-10-10): see [checkpoint](backend/checkpoint.md), [requirements tracker](backend/requirements-tracker.md) and [your manual TODO](backend/YOUR_TODO.md). The September status below is preserved as historical context. The B01 continuation was tested locally and has not applied production migrations or merged to main.
+> Current B01 handoff (2026-10-10): see [checkpoint](backend/checkpoint.md), [requirements tracker](backend/requirements-tracker.md) and [your manual TODO](backend/YOUR_TODO.md). The September status below is preserved as historical context. The B01 continuation was tested locally and did not itself apply any production migration or merge to main. Vibhav applied 0015 and 0016 to production on 2026-10-17; 0017 and 0018 are not applied. The checkpoint and `backend/YOUR_TODO.md` 2.6 carry the current migration state.
 
 # HALO backend — status
 
