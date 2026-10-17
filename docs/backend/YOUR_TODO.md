@@ -12,7 +12,8 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 - **0015 and 0016 are APPLIED to production.** Confirmed 2026-10-17 with the state query in 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present. They were applied after the 1.1 audit was captured, so `baseline-audit.deployed.json` holds the pre-migration catalog and should be re-captured.
 - **0015's four checks are validated** (2026-10-17, `m15_validated` 4). 0015 and 0016 are therefore complete on production.
 - **0017 and 0018 are applied to production** (2026-10-17). Both verifications returned every column true, including `no_client_access`, so the revokes closed `anon` and `authenticated` on both new tables. **Migrations 0001 to 0018 are now all applied.**
-- **Still to do on production:** re-run `baseline-audit.sql` and save the result over `docs/backend/baseline-audit.deployed.json`, which currently holds the pre-migration catalog.
+- **Post-migration catalog captured** and saved over `docs/backend/baseline-audit.deployed.json` (2026-10-17). It found one latent privilege gap, and **the 2.7 remedy was applied the same day**, so `anon` and `authenticated` no longer hold TRUNCATE, REFERENCES or TRIGGER on any public table.
+- **Nothing is outstanding on production.** The database is at 0001 to 0018 with 0015 validated and the privilege gap closed. What remains is the decisions in Part 3, not database work.
 
 Status right now:
 
@@ -428,7 +429,9 @@ Reading it: a migration is applied when all of its columns are true (`m15_checks
 
 Production on 2026-10-17 ended the day with every column satisfied: 0015 and 0016 applied and validated, 0017 and 0018 applied, so the query now returns `true, 4, 4, true, true, true, true, true, true`. Two earlier readings the same day returned `m15_validated` 0 (before 2.5) and `m17_table`/`m18_table` false (before 2.3 and 2.4).
 
-### 2.7 Close the TRUNCATE gap (recommended, not urgent)
+### 2.7 Close the TRUNCATE gap
+
+**Done on production, 2026-10-17.** Kept for the record, for the check query, and in case it is ever needed on another project.
 
 Found in the 2026-10-17 post-migration catalog. `anon` and `authenticated` hold `TRUNCATE`, `REFERENCES` and `TRIGGER` on every table in `public`, because that is what Supabase's default privileges grant and no migration took them back. 0015 revoked INSERT, UPDATE and DELETE on the four written tables, which was the right fix for those, but it did not touch these three.
 
