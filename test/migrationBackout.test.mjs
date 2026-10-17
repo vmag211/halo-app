@@ -46,6 +46,9 @@ function docBlock(name) {
 
 const migration = (number) => listMigrations().find((m) => m.number === number);
 
+/** Tables a signed-in browser role must not be able to truncate. */
+const TRUNCATABLE = ['public.profiles', 'public.symptom_logs', 'public.household_bands', 'public.notification_prefs', 'public.daily_scores', 'public.alerts'];
+
 const ALICE = 'b0c40000-0000-4000-8000-000000000001';
 const WRITE_TABLES = ['public.profiles', 'public.household_bands', 'public.symptom_logs', 'public.notification_prefs'];
 const API_ROLES = ['anon', 'authenticated'];
@@ -290,4 +293,82 @@ test('after both back-outs, 0017 and 0018 apply again and give exactly the schem
   // Reapplied empty: the receipts and challenges really were deleted, not hidden.
   assert.deepEqual((await db.query(`select count(*)::int as n from public.operations`)).rows, [{ n: 0 }]);
   assert.deepEqual((await db.query(`select count(*)::int as n from public.recovery_challenges`)).rows, [{ n: 0 }]);
+});
+
+// ---- remedy-truncate: the privilege row level security does not govern.
+// 0015 revoked INSERT, UPDATE and DELETE on the four written tables, but
+// TRUNCATE, REFERENCES and TRIGGER were left in place by Supabase's default
+// privileges on every public table. RLS does not apply to TRUNCATE, so the
+// grant is not inert the way the write grants are: it would let a signed-in
+// role empty a table outright. The 2026-10-17 production catalog shows it
+// live there. Nothing reachable exposes it (PostgREST has no TRUNCATE verb and
+// no callable function issues one), so this is defence in depth, not an open
+// door, which is why it is a documented remedy rather than a migration.
+
+test('before the remedy, an authenticated role can truncate household tables even though DELETE is denied', async () => {
+  const db2 = await createDb();
+  await db2.exec(`insert into auth.users (id, is_anonymous) values ('${ALICE}', true)`);
+  await assert.rejects(
+    () => db2.asRole('authenticated', ALICE, (tx) => tx.query('delete from public.symptom_logs')),
+    /permission denied/i,
+    'DELETE is denied, because row level security governs it',
+  );
+  // And yet TRUNCATE is allowed, which is the whole point of the remedy.
+  await db2.asRole('authenticated', ALICE, (tx) => tx.query('truncate public.symptom_logs'));
+  await db2.close();
+});
+
+test('the remedy removes truncate, references and trigger from both browser roles on every public table', async () => {
+  const db2 = await createDb();
+  await db2.exec(`insert into auth.users (id, is_anonymous) values ('${ALICE}', true)`);
+  await db2.exec(docBlock('remedy-truncate'));
+
+  for (const table of TRUNCATABLE) {
+    for (const role of API_ROLES) {
+      for (const privilege of ['TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+        const { rows: [row] } = await db2.query(
+          `select has_table_privilege($1, $2, $3) as held`,
+          [role, table, privilege],
+        );
+        assert.equal(row.held, false, `${role} no longer holds ${privilege} on ${table}`);
+      }
+    }
+  }
+  await assert.rejects(
+    () => db2.asRole('authenticated', ALICE, (tx) => tx.query('truncate public.symptom_logs')),
+    /permission denied/i,
+    'the owner can no longer empty the table',
+  );
+  await db2.close();
+});
+
+test('the remedy leaves the reads the app depends on working', async () => {
+  const db2 = await createDb();
+  await db2.exec(`insert into auth.users (id, is_anonymous) values ('${ALICE}', true)`);
+  await db2.asService(
+    (tx) => tx.exec(`insert into public.symptom_logs (profile_id, entry_date, symptoms) values ('${ALICE}', '2026-09-10', array['cough'])`),
+    { commit: true },
+  );
+  await db2.exec(docBlock('remedy-truncate'));
+
+  // The owner still reads their own rows, and the public reference tables are still readable.
+  const own = await db2.asRole('authenticated', ALICE, (tx) => tx.query('select count(*)::int as n from public.symptom_logs'));
+  assert.equal(own.rows[0].n, 1, 'the owner still sees their own journal');
+  const reference = await db2.asRole('anon', ALICE, (tx) => tx.query('select count(*)::int as n from public.learn_content'));
+  assert.ok(Number.isInteger(reference.rows[0].n), 'public reference content is still readable');
+  // The service role, which every route uses, is untouched.
+  for (const table of TRUNCATABLE) {
+    const { rows: [row] } = await db2.query(`select has_table_privilege('service_role', $1, 'TRUNCATE') as held`, [table]);
+    assert.equal(row.held, true, `service_role keeps TRUNCATE on ${table}`);
+  }
+  await db2.close();
+});
+
+test('the remedy is safe to run twice', async () => {
+  const db2 = await createDb();
+  await db2.exec(docBlock('remedy-truncate'));
+  const first = await runAudit(db2);
+  await db2.exec(docBlock('remedy-truncate'));
+  assert.deepEqual(await runAudit(db2), first);
+  await db2.close();
 });

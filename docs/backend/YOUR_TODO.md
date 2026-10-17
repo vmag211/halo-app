@@ -428,6 +428,41 @@ Reading it: a migration is applied when all of its columns are true (`m15_checks
 
 Production on 2026-10-17 ended the day with every column satisfied: 0015 and 0016 applied and validated, 0017 and 0018 applied, so the query now returns `true, 4, 4, true, true, true, true, true, true`. Two earlier readings the same day returned `m15_validated` 0 (before 2.5) and `m17_table`/`m18_table` false (before 2.3 and 2.4).
 
+### 2.7 Close the TRUNCATE gap (recommended, not urgent)
+
+Found in the 2026-10-17 post-migration catalog. `anon` and `authenticated` hold `TRUNCATE`, `REFERENCES` and `TRIGGER` on every table in `public`, because that is what Supabase's default privileges grant and no migration took them back. 0015 revoked INSERT, UPDATE and DELETE on the four written tables, which was the right fix for those, but it did not touch these three.
+
+Why these three are different from the write grants: **row level security does not govern TRUNCATE.** The leftover INSERT/UPDATE/DELETE grants on the other tables are genuinely inert, because RLS has no policy allowing those commands and so refuses them. TRUNCATE is not refused. Proved on a local copy: an authenticated role is denied `delete from public.symptom_logs` and yet allowed `truncate public.symptom_logs`, which would empty every household's journal at once.
+
+**It is not reachable today, which is why this is not urgent.** PostgREST has no TRUNCATE verb, so the Supabase REST API cannot issue one. The only functions `anon` and `authenticated` may execute are `handle_new_user` and `rls_auto_enable`, and both return trigger types that Postgres refuses to call directly ("trigger functions can only be called as triggers"). So this is a privilege that should not exist rather than a door standing open. Close it anyway: it is the difference between "RLS protects this" and "RLS protects this and the privilege is gone too".
+
+In a **New query**, paste and run this. It changes no data and is safe to run twice.
+
+<!-- remedy-truncate -->
+```sql
+revoke truncate, references, trigger on all tables in schema public from anon, authenticated;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+Check it (expect `held` false on every row):
+
+```sql
+select c.relname as table_name, r.rolname as role_name,
+       has_table_privilege(r.rolname, c.oid, 'TRUNCATE')
+         or has_table_privilege(r.rolname, c.oid, 'REFERENCES')
+         or has_table_privilege(r.rolname, c.oid, 'TRIGGER') as held
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+ cross join (select rolname from pg_roles where rolname in ('anon', 'authenticated')) r
+ where n.nspname = 'public' and c.relkind = 'r'
+ order by c.relname, r.rolname;
+```
+
+What this does NOT change: the service role keeps every privilege, so no route is affected. Owners keep reading their own rows and the public reference tables stay readable. Tested in `test/migrationBackout.test.mjs`, which runs this exact block and checks the reads still work.
+
+Not done here, and your call whether it is worth it: the other tables still grant `anon` and `authenticated` INSERT, UPDATE and DELETE (`alerts`, `daily_scores`, `home_risks`, `push_subscriptions`, and the public reference tables). Those really are inert under RLS, which denies every one of those commands for lack of a policy. Revoking them would be belt and braces rather than a fix, and it is a wider change, so it is left as a separate decision.
+
 ---
 
 ## Part 3. Decisions only you can make
