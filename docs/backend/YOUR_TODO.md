@@ -11,8 +11,8 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 - **Backup:** free plan, no scheduled backups or PITR available. CSV exports taken instead. Note these two migrations modify no pre-existing column or row; the only data writes are inserts into the new `home_contexts` table and population of the new nullable `daily_scores.home_context_id`.
 - **0015 and 0016 are APPLIED to production.** Confirmed 2026-10-17 with the state query in 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present. They were applied after the 1.1 audit was captured, so `baseline-audit.deployed.json` holds the pre-migration catalog and should be re-captured.
 - **0015's four checks are validated** (2026-10-17, `m15_validated` 4). 0015 and 0016 are therefore complete on production.
-- **0017 is applied to production** (2026-10-17). Its verification returned all five columns true, including `no_client_access`, so the revoke closed `anon` and `authenticated` as intended.
-- **Still to do on production:** apply 0018 (section 2.4), then re-run `baseline-audit.sql` to capture the post-migration catalog.
+- **0017 and 0018 are applied to production** (2026-10-17). Both verifications returned every column true, including `no_client_access`, so the revokes closed `anon` and `authenticated` on both new tables. **Migrations 0001 to 0018 are now all applied.**
+- **Still to do on production:** re-run `baseline-audit.sql` and save the result over `docs/backend/baseline-audit.deployed.json`, which currently holds the pre-migration catalog.
 
 Status right now:
 
@@ -20,11 +20,11 @@ Status right now:
 - Task 10 is committed at `d492e9e`: rejected writes no longer replace identity or replay; recovery options and a complete privacy inventory are documented. Neither decision is approved.
 - Task 11: executable API contracts, synthetic fixtures, handler conformance, requirements tracker and current checkpoint are written. Final test counts and commit evidence are in `docs/backend/checkpoint.md`.
 - Branch and push state: `vmag211/backend` is the working branch, and the controller pushes it after each reviewed task. Run `git log origin/vmag211/backend..HEAD` to see which commits are not pushed yet (an empty list means everything is pushed). Nothing was merged to main.
-- Migration state: **0015 and 0016 are applied to production** (2026-10-17), with 0015's four checks still unvalidated. **0017 and 0018 are applied nowhere.** Nothing deployed references the 0017 or 0018 tables yet, so there is no hurry: `origin/main` has no reference to `operations` or `recovery_challenges`.
-- Back-out blocks: the 0015 and 0016 blocks passed the throwaway-project trial above. The **0017 and 0018 blocks, and the guarded `ucmr5_utilities` remedy (1.1), are tested only on the local PGlite copy** (`test/migrationBackout.test.mjs`), not on Supabase. Each is a single `drop table`, so there is less to get wrong, but that is not the same as having been run there.
+- Migration state: **0001 to 0018 are all applied to production** (0015 and 0016 on 2026-10-17 with the four checks validated, 0017 and 0018 the same day, each verified). Applying them activated nothing: `origin/main` has no reference to `operations` or `recovery_challenges`, the routes that use them are unpushed and undeployed, and recovery stays behind a flag that is off.
+- Back-out blocks: the 0015 and 0016 blocks passed the throwaway-project trial above. The **0017 and 0018 blocks, and the guarded `ucmr5_utilities` remedy (1.1), are tested only on the local PGlite copy** (`test/migrationBackout.test.mjs`), not on Supabase. Each of the two is a single `drop table`, so there is less to get wrong, but that is not the same as having been run there. They now matter more, because both tables are live.
 - 0017 (operation ledger) and 0018 (recovery challenges) are new in B02. Applying 0018 does not turn recovery on: it stays behind a server-enforced flag that is off, and the Turnstile key, backup coverage and retention decisions are all still open.
 - `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
-- Your next actions are the disposable-project verification for 0017 and 0018, and the recovery/privacy decisions. **The full spec is no longer missing:** it is in this repository at `docs/product/ai/HALO_BACKEND_WORKING_SPEC.md` on `origin/codex/october15-review-refinement`, 521,027 bytes, sha256 `fc1fec4b...415be86`, verified 2026-10-17 against the figure in Yogi's wiring packet. The instructions below remain the manual checklist.
+- Your next actions are re-capturing the deployed catalog, and the recovery/privacy decisions. **The full spec is no longer missing:** it is in this repository at `docs/product/ai/HALO_BACKEND_WORKING_SPEC.md` on `origin/codex/october15-review-refinement`, 521,027 bytes, sha256 `fc1fec4b...415be86`, verified 2026-10-17 against the figure in Yogi's wiring packet. The instructions below remain the manual checklist.
 
 The sections below are in the order to do them. Part 1 can be done today and is read only, with ONE exception: the guarded `ucmr5_utilities` fix in 1.1 changes your database, and you run it only if the audit says to. Part 2 changes your database, so do it only when you are ready.
 
@@ -355,6 +355,8 @@ What this does NOT restore or undo: every recorded outcome is deleted for good. 
 
 ### 2.4 Apply 0018 (account recovery challenges)
 
+**Done on production, 2026-10-17**, verification all five columns true including `seven_checks`. Kept for the record and for the back-out block below.
+
 Needs 0017 first. Quiet in the same way: one new table and its indexes, no existing table read or written, a brief SHARE ROW EXCLUSIVE on `profiles` for the foreign key.
 
 What it is for: one row per attempt to prove ownership of an email that is already linked to an identity, for the Restore access flow. Only hashes are stored, never the address, the client nonce or the restore token.
@@ -424,7 +426,7 @@ select
 
 Reading it: a migration is applied when all of its columns are true (`m15_checks` 4). `m15_validated` is 0 even after a correct 0015 apply, because those checks go in `NOT VALID`; 4 and 0 together mean 0015 is applied and 2.5 is still outstanding.
 
-Production on 2026-10-17 returned `true, 4, 4, true, true, true, true, false, false`: 0015 and 0016 applied and validated, 0017 and 0018 not applied. An earlier reading the same day returned `m15_validated` 0, before section 2.5 was run.
+Production on 2026-10-17 ended the day with every column satisfied: 0015 and 0016 applied and validated, 0017 and 0018 applied, so the query now returns `true, 4, 4, true, true, true, true, true, true`. Two earlier readings the same day returned `m15_validated` 0 (before 2.5) and `m17_table`/`m18_table` false (before 2.3 and 2.4).
 
 ---
 
