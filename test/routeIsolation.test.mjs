@@ -50,6 +50,7 @@ const ROUTE_COVERAGE = {
   'GET /api/journal/findings': 'isolation: read matrix (readiness would flip if rows pooled); historyContextReaders: an earlier home\'s readings are left out',
   'POST /api/journal/retrospective': 'isolation: read only, body profile_id ignored, only the caller\'s days',
   'GET /api/journal/summary': 'isolation: read matrix (day counts would pool)',
+  'GET /api/account': 'routesAccountRead: the challenge and unresolved operations are read for the caller only; a profile_id in the query changes nothing; off by the flag nothing is read at all',
   'GET /api/learn': 'isolation: read matrix (household note from the caller\'s composition)',
   'GET /api/map': 'isolation: read matrix (no household data)',
   'GET /api/notifications': 'isolation: read matrix',

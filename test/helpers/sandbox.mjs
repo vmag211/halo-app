@@ -18,9 +18,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 /**
- * Every variable app/ and lib/ read from process.env. A drift test in
- * test/routeSandbox.test.mjs fails when the code starts reading one that is not
- * listed here, so a new provider key cannot slip through a developer's shell.
+ * Every variable app/ and lib/ read from process.env, plus every capability
+ * flag in lib/features.js (those are read as process.env[variable], which a
+ * source scan cannot see, so the drift test takes them from the registry). A
+ * drift test in test/routeSandbox.test.mjs fails when the code starts reading
+ * one that is not listed here, so neither a new provider key nor a new
+ * capability flag can slip through a developer's shell.
  */
 export const SCRUBBED_ENV = [
   'AIRNOW_API_KEY',
@@ -36,6 +39,7 @@ export const SCRUBBED_ENV = [
   'ASSISTANT_SEND_HOUSEHOLD_CONTEXT',
   'CRON_SECRET',
   'GOOGLE_POLLEN_API_KEY',
+  'HALO_FEATURE_RECOVERY',
   'MAPBOX_TOKEN',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_SUPABASE_URL',

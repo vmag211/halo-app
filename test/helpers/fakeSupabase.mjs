@@ -40,7 +40,7 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   };
   for (const [name, declaration] of Object.entries(tables)) declare(name, declaration);
   for (const [name, rows] of Object.entries(seed)) declare(name).seed(rows);
-  for (const identity of identities) users.set(identity.id, { isAnonymous: false, email: null, ...identity });
+  for (const identity of identities) users.set(identity.id, { isAnonymous: false, email: null, emailConfirmedAt: null, ...identity });
 
   const publicUser = (user) => ({
     id: user.id,
@@ -108,6 +108,22 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
         return { data: { user: publicUser(user) }, error: null };
       },
       admin: {
+        /**
+         * One user by id, as the Admin API returns it: `{ data: { user }, error }`,
+         * with `email_confirmed_at` because that is how the real payload reports
+         * a verified address (a linked-but-unconfirmed address has null).
+         */
+        getUserById: async (id) => {
+          const user = users.get(id);
+          if (!user) {
+            return { data: { user: null }, error: authError(404, 'User not found', { code: 'user_not_found' }) };
+          }
+          return {
+            data: { user: { ...publicUser(user), email_confirmed_at: user.emailConfirmedAt ?? null } },
+            error: null,
+          };
+        },
+
         /** Removes the user and cascades to every table declaring an ownerColumn. */
         deleteUser: async (id) => {
           if (!users.delete(id)) {

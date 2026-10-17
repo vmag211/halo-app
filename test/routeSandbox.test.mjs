@@ -6,6 +6,7 @@ import { createRouteHarness } from './helpers/routeHarness.mjs';
 import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { SCRUBBED_ENV, withSandbox } from './helpers/sandbox.mjs';
 import { haloTables } from './helpers/tables.mjs';
+const { FEATURE_FLAGS } = await import('../lib/features.js');
 
 const PROBE = 'test/helpers/fixtures/probeRoute.mjs';
 const TABLES = haloTables('profiles');
@@ -164,7 +165,15 @@ test('drift: every environment variable the app and libs read is scrubbed during
   walk(path.join(REPO_ROOT, 'app'));
   walk(path.join(REPO_ROOT, 'lib'));
 
+  // Capability flags are read as process.env[variable], which the scan above
+  // cannot see, so they are taken from the registry itself. A new flag is
+  // therefore required to be scrubbed without anyone remembering to add it:
+  // otherwise a developer's shell could switch a capability on inside a route
+  // test, which is exactly what this sandbox exists to prevent.
+  for (const variable of Object.values(FEATURE_FLAGS)) read.add(variable);
+
   assert.ok(read.has('UPSTASH_REDIS_REST_URL') && read.has('AIRNOW_API_KEY') && read.has('VAPID_SUBJECT'), 'the scan found nothing');
+  assert.ok(Object.keys(FEATURE_FLAGS).length > 0, 'the capability flag registry is not empty');
   const missing = [...read].filter((name) => !SCRUBBED_ENV.includes(name)).sort();
   assert.deepEqual(missing, [], `add these to SCRUBBED_ENV in test/helpers/sandbox.mjs: ${missing.join(', ')}`);
   for (const name of ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'AIRNOW_API_KEY', 'GOOGLE_POLLEN_API_KEY', 'MAPBOX_TOKEN', 'ASSISTANT_MODEL_KEY', 'OPENUV_API_KEY', 'SUPABASE_SERVICE_ROLE_KEY']) {
