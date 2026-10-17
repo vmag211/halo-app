@@ -1,6 +1,6 @@
 /* Illustrated editorial scenery. Ambient motion never represents measured exposure. */
 .halo-env { position:absolute; inset:0; overflow:hidden; pointer-events:none; isolation:isolate; background:#1b3940; }
-.halo-env__photo { position:absolute; inset:-7%; background:var(--scene-image) center 54% / cover no-repeat; transform:scale(1.06); filter:brightness(calc(.38 + var(--daylight) * .57)) saturate(calc(.45 + var(--daylight) * .4)); --scene-animation:halo-camera 26s ease-in-out infinite alternate; animation:var(--scene-animation); transition:filter 1.2s linear; }
+.halo-env__photo { position:absolute; inset:-7%; background:var(--scene-image) center 54% / cover no-repeat; transform:scale(1.06); filter:brightness(calc(.38 + var(--daylight) * .57)) saturate(calc(.45 + var(--daylight) * .4)); --scene-animation:halo-camera 12s ease-in-out -3s infinite alternate; animation:var(--scene-animation); transition:filter 1.2s linear; }
 .halo-env--air .halo-env__photo { background-position:35% 18%; }
 .halo-env--pfas .halo-env__photo { background-position:42% 90%; }
 .halo-env--mold .halo-env__photo { background-position:20% 55%; --scene-animation:halo-woodland-pan 30s ease-in-out infinite alternate; }
@@ -33,7 +33,7 @@
 .halo-env--page { position:fixed; inset:0; z-index:-1; background:radial-gradient(ellipse at 10% 20%,color-mix(in srgb,var(--factor-accent,var(--halo-primary)) 8%,transparent),transparent 60%),radial-gradient(ellipse at 90% 75%,light-dark(#a2bbaa18,#737bb91a),transparent 60%); }
 .halo-env--page .halo-env__particles i { background:var(--factor-accent,var(--halo-primary)); opacity:.13; width:calc(var(--size) * 1.5); }
 .halo-env[data-moving="false"] * { animation-play-state:paused !important; }
-@keyframes halo-camera { from { transform:scale(1.12) translate3d(-2%,0,0); } to { transform:scale(1.18) translate3d(2%,-1%,0); } }
+@keyframes halo-camera { from { transform:scale(1.12) translate3d(-5.5%,.4%,0); } to { transform:scale(1.15) translate3d(5.5%,-.4%,0); } }
 @keyframes halo-woodland-pan { from { transform:scale(1.15) translate3d(-4%,0,0); } to { transform:scale(1.15) translate3d(4%,-1%,0); } }
 @keyframes halo-drift { from { translate:-35px 18px; opacity:0; } 15%,80% { opacity:.5; } to { translate:65px -24px; opacity:0; } }
 @keyframes halo-spores { from { translate:-45px -8px; opacity:0; } 20%,75% { opacity:.65; } to { translate:90px 40px; opacity:0; } }

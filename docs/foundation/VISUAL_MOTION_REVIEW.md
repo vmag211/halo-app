@@ -1,5 +1,7 @@
 # App-wide visual and motion refinement
 
+October 17 refinement: the main Today/Homeguard camera sweep is wider and faster, all five My Week landscapes pan with the water overlay kept in the same coordinate space, and editorial imagery has a slower bounded sweep. Smaller week activity photos respond to hover/focus without moving text or controls. The 30-second visible-time rotation and existing reduction, pause, visibility and resource limits remain. This supersedes the earlier stationary-image description and adds no backend dependency.
+
 October12,2026. Editable review, not screen approval or production/backend integration.
 
 ## What changed

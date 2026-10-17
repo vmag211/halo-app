@@ -1,12 +1,15 @@
 /* Original environmental art plus independent water, mist, light and foreground motion. */
 .mw-ambience { --week-scene-height:214px; position:relative; isolation:isolate; min-height:var(--week-scene-height); overflow:hidden; background:#153a4a; border-radius:0; margin:-4px calc(-1 * var(--halo-gutter)) 0; }
-.mw-ambience-art,.mw-ambience-layer,.mw-ambience-layer > img,.mw-ambience-water,.mw-ambience-shade { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.mw-ambience-art,.mw-ambience-layer,.mw-ambience-panorama > img,.mw-ambience-water,.mw-ambience-shade { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .mw-ambience-art { overflow:hidden; border-radius:inherit; z-index:-1; background:linear-gradient(155deg,#638c9b,#254f5e 54%,#193e48); }
 .mw-ambience-layer { overflow:hidden; opacity:1; }
 .mw-ambience-layer[data-pending=true] { opacity:0; }
 .mw-ambience[data-dissolve=true] .mw-ambience-layer[data-revealing=true] { animation:mw-landscape-dissolve 3.6s cubic-bezier(.3,0,.2,1) both; }
-.mw-ambience-layer > img { object-fit:cover; object-position:center; user-select:none; }
-.mw-ambience-layer[data-failed=true] > img { display:none; }
+.mw-ambience-panorama { position:absolute; inset:-8%; pointer-events:none; animation:mw-landscape-pan 12s ease-in-out -3s infinite alternate; animation-play-state:paused; }
+.mw-ambience[data-moving=true] .mw-ambience-layer[data-pending=false] .mw-ambience-panorama { animation-play-state:running; }
+.mw-ambience-layer[data-landscape=coast] .mw-ambience-panorama,.mw-ambience-layer[data-landscape=cove] .mw-ambience-panorama { animation-direction:alternate-reverse; }
+.mw-ambience-panorama > img { object-fit:cover; object-position:center; user-select:none; }
+.mw-ambience-layer[data-failed=true] .mw-ambience-panorama > img { display:none; }
 .mw-ambience-water { opacity:.94; }
 .mw-ambience-shade { background:linear-gradient(180deg,rgb(6 27 38 / .15),transparent 30%,rgb(6 27 38 / .25) 58%,rgb(6 27 38 / .88)); }
 .mw-ambience::after { content:''; position:absolute; z-index:1; inset:auto 0 0; height:10px; background:linear-gradient(transparent,var(--halo-page)); pointer-events:none; }
@@ -33,12 +36,14 @@
 .mw-ambience[data-dissolve=false] .mw-ambience-layer { transition:none; }
 .mw-ambience-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
 @keyframes mw-landscape-mist { from { transform:translateX(-4%) scaleX(.95); opacity:.55; } to { transform:translateX(6%) scaleX(1.08); opacity:.9; } }
+@keyframes mw-landscape-pan { from { transform:translate3d(-4.5%,.35%,0) scale(1.04); } to { transform:translate3d(4.5%,-.35%,0) scale(1.06); } }
 @keyframes mw-landscape-dissolve { from { opacity:0; } to { opacity:1; } }
 @keyframes mw-landscape-light { from { transform:rotate(-5deg) translateX(-6%); opacity:.6; } to { transform:rotate(5deg) translateX(7%); opacity:1; } }
 @keyframes mw-landscape-reed { from { transform:rotate(-1.2deg); } to { transform:rotate(1.5deg); } }
 @media(hover:hover) { .mw-workspace .mw-ambience-controls button:hover { background:rgb(190 235 221 / .15); } }
 @media(prefers-reduced-motion:reduce) {
   .mw-ambience :is(.mw-ambience-haze,.mw-ambience-light,.mw-ambience-reed-left,.mw-ambience-reed-right) { animation:none; }
+  .mw-ambience .mw-ambience-panorama { animation:none; transform:none; inset:0; }
   .mw-ambience .mw-ambience-layer { transition:none; animation:none; }
 }
 .halo-f-app[data-contrast=high] .mw-ambience-art { visibility:hidden; }

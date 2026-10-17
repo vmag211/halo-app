@@ -95,10 +95,12 @@ function LandscapeLayer({ scene, pending, moving, dissolve, revealing, onReady, 
   }, [pending, image, failed, onReady, scene.id]);
   useEffect(()=>{if(failed)onError(scene.id);},[failed,onError,scene.id]);
   return <div className="mw-ambience-layer" data-landscape={scene.id} data-pending={pending} data-dissolve={dissolve} data-revealing={revealing} data-failed={failed} aria-hidden="true">
-    {/* Decorative art is kept separate from the assistant, data and task models. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img ref={ref} src={scene.src} alt="" decoding="async" draggable={false} />
-    {!failed && <WaterSurface image={image} scene={scene} moving={moving && !pending} />}
+    <div className="mw-ambience-panorama">
+      {/* The image and source-coordinate water mask share one camera movement. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img ref={ref} src={scene.src} alt="" decoding="async" draggable={false} />
+      {!failed && <WaterSurface image={image} scene={scene} moving={moving && !pending} />}
+    </div>
     <span className="mw-ambience-haze mw-ambience-haze-back" />
     <span className="mw-ambience-haze mw-ambience-haze-front" />
     <span className="mw-ambience-light" />

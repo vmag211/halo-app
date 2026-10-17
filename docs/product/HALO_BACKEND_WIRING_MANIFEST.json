@@ -24,8 +24,8 @@
     },
     {
       "source": "docs/continuation/FRONTEND_WIRING_VERIFICATION.md",
-      "bytes": 8729,
-      "sha256": "75d9f1645a3f1a132cce9655c90af9cc7523fa07e47700548ff8cca65a2ad37d"
+      "bytes": 10594,
+      "sha256": "9b35e0b4297b516d13dace85b67199ae2f89e8f6bd00eb7aaea212a7b5d41e1d"
     },
     {
       "source": "tmp/frontend-wiring-closeout/operations.md",
@@ -100,7 +100,7 @@
     {
       "source": "tmp/backend-handoff-wrap/interface-ledger.md",
       "bytes": 288084,
-      "sha256": "f2a00eb02d5f3d19e95bd01a0dd592681c2da3ff9c34689ced39e459596136c5"
+      "sha256": "75f3fef724f405502e20b397a63883e28add8706a391512393895a6f7c333a08"
     },
     {
       "source": "tmp/backend-handoff-wrap/type-register.md",
@@ -110,12 +110,12 @@
     {
       "source": "tmp/backend-handoff-wrap/source-register.md",
       "bytes": 27066,
-      "sha256": "40dd57027a0d4bbc07a2bf9680772319ea487ecbf9ff94ad0fd8f5360751fa69"
+      "sha256": "3810f4991e0cfe8d93fe4c4e701c50d44588b018b40fc86973e7f8efe12eda74"
     }
   ],
   "packet": {
     "path": "docs/product/HALO_BACKEND_WIRING_CURRENT.md",
-    "bytes": 1744282,
-    "sha256": "30bbb122d0e93da85b98c230ae898dcc3404ef63bf13195830517c3b93f8bbca"
+    "bytes": 1746148,
+    "sha256": "2fb9facaa9ab620998bcab337e2c4ea1cb62f933b1537990a205704374ce7448"
   }
 }

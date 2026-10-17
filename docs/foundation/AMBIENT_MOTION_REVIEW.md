@@ -1,5 +1,7 @@
 # Environmental ambience and interface motion
 
+October 17 update: Today/Homeguard now have a wider 12-second one-way camera sweep. My Week applies a 12-second sweep to the complete image and its aligned water mask for all five landscapes, so the complete scenery now moves within a fixed frame. This supersedes the stationary-bank description below for the camera layer only; independent water, mist and light remain. The 30-second eligible scene rotation, pause/resource controls and static fallback are unchanged. Editorial scenes gain gentle image panning; smaller week activity photos have hover/keyboard-focus feedback. No new assets or backend fields are required.
+
 October 12, 2026. Editable wireframe review only. This is not approval of new screens or production/backend delivery.
 
 The subsequent [visual-coverage refinement](VISUAL_MOTION_REVIEW.md) supersedes the three-scene/two-minute values below with five scenes and30-second eligible visible-time rotation. Other renderer/fallback semantics remain. The original three-asset provenance stays intact.

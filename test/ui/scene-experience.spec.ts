@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 
 test('live lighting crosses dawn in dark appearance without reloading', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-09-30T07:59:40-04:00') });
-  await page.goto('/foundation/preview?tab=today&appearance=dark&time=live');
+  await page.goto('/foundation/preview?review=tools&tab=today&appearance=dark&time=live');
   const scene = page.locator('.halo-environment-scene .halo-env');
   await expect(scene).toHaveAttribute('data-phase', 'dawn');
   await page.clock.fastForward(31_000);
@@ -20,7 +20,7 @@ test('live lighting crosses dawn in dark appearance without reloading', async ({
 });
 
 test('day and night override stays independent of appearance and persists through routes', async ({ page }) => {
-  await page.goto('/foundation/preview?tab=today&appearance=light&time=night');
+  await page.goto('/foundation/preview?review=tools&tab=today&appearance=light&time=night');
   await expect(page.locator('.halo-environment-scene .halo-env')).toHaveAttribute('data-phase', 'night');
   await expect(page.locator('.halo-env__moon')).toHaveCSS('opacity', '1');
   await page.getByTestId('factor-scorecard').filter({ hasText: 'Mold' }).click();
@@ -51,7 +51,7 @@ test('full motion animates bounded scenery without random particles, and pause f
 });
 
 test('device reduction preserves final scores even in full mode; permitted motion draws charts', async ({ page }) => {
-  await page.goto('/foundation/preview?tab=today&motion=system');
+  await page.goto('/foundation/preview?review=tools&tab=today&motion=system');
   await expect(page.locator('.halo-environment-score .halo-number')).toHaveText('74');
   await expect(page.locator('.halo-environment-scene .halo-env__photo')).toHaveCSS('animation-name', 'none');
   await page.locator('.halo-f-review-tools > summary').click();
@@ -70,7 +70,7 @@ test('device reduction preserves final scores even in full mode; permitted motio
 });
 
 test('staggered cards reveal their final scores and a factor-colored hover', async ({ page }) => {
-  await page.goto('/foundation/preview?tab=today&motion=full');
+  await page.goto('/foundation/preview?review=tools&tab=today&motion=full');
   const card = page.getByTestId('factor-scorecard').first();
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator('.halo-number')).toHaveText('88');

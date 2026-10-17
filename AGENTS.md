@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- October 17 image motion: Today and Homeguard use a wider 12-second one-way camera sweep. All five My Week landscapes pan as a single image/water-mask layer, retaining 30-second eligible rotation and pause controls. Editorial art uses a gentler camera movement, with photo-only hover/focus feedback on week activity images. Preserve device reduction, hidden/offscreen pauses and restriction behavior. This is frontend decoration with no new backend contract or image assets.
+
 - Hosted preview links: use `/app` for the clean static preview and `/tools` for developer controls. The Sites-only wrapper templates in `scripts/hosted-preview/` keep their providers shared with legacy specialist routes. These aliases do not replace the authenticated production `/app` routes. Existing long review links remain supported.
 
 - October 16 presentation preview: the shared expanded preview hides the review banner and tools by default. Developer review uses `?review=tools`, retained through app navigation. Keep scenario controls and their qualifications available there; this display choice does not change production services or backend requirements.

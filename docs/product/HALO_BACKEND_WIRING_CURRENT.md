@@ -15,7 +15,7 @@ Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive ba
 | Part | Repository source | Normalized UTF-8 bytes | SHA-256 |
 | --- | --- | ---: | --- |
 | 1 | docs/continuation/FRONTEND_WIRING_CLOSEOUT.md | 15557 | 62ce755ff30be3fb976d962d23c2a260ef4e469db6108fcd42144548e475cc17 |
-| 2 | docs/continuation/FRONTEND_WIRING_VERIFICATION.md | 8729 | 75d9f1645a3f1a132cce9655c90af9cc7523fa07e47700548ff8cca65a2ad37d |
+| 2 | docs/continuation/FRONTEND_WIRING_VERIFICATION.md | 10594 | 9b35e0b4297b516d13dace85b67199ae2f89e8f6bd00eb7aaea212a7b5d41e1d |
 | 3 | tmp/frontend-wiring-closeout/operations.md | 6756 | 685083ad09176ece7b47a40fdd9b1e0cf83527cfaab9c2f05dc366f6e0365ef0 |
 | 4 | docs/continuation/FRONTEND_INTEGRATION_READY.md | 17818 | 36a0ec90c0c520c55c0b631b7250ee51f536f553f608bf061fea4a192d585c85 |
 | 5 | docs/continuation/HOME_ACCOUNT_PRODUCTION_INTEGRATION.md | 24663 | 31ba5a2d589a4ed62950df9e9b7b41753ce427f2b981496b8ee065b179e25ea3 |
@@ -30,9 +30,9 @@ Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive ba
 | 14 | docs/foundation/WIREFRAME_COMPLETION_MATRIX.md | 9946 | 84b02d188426a66f66fee136f46812cdb6f20ac07fa454a7775e8e42dd3ca6de |
 | 15 | docs/product/HALO_COMPLETE_BACKEND_HANDOFF.md | 601277 | 33abef338e35149c650856d0788ec7fd238a09b6c0b16e894adfcd2e2f0d481e |
 | 16 | docs/product/ai/HALO_BACKEND_WORKING_SPEC.md | 521027 | fc1fec4b180dc5057b2edf1c2203143d85535b43364502e674d34e04d415be86 |
-| 17 | tmp/backend-handoff-wrap/interface-ledger.md | 288084 | f2a00eb02d5f3d19e95bd01a0dd592681c2da3ff9c34689ced39e459596136c5 |
+| 17 | tmp/backend-handoff-wrap/interface-ledger.md | 288084 | 75f3fef724f405502e20b397a63883e28add8706a391512393895a6f7c333a08 |
 | 18 | tmp/backend-handoff-wrap/type-register.md | 60979 | 07d06dfac47de0028157dfa34b1a8f3049cc903751b6694ec8a4abdac9415428 |
-| 19 | tmp/backend-handoff-wrap/source-register.md | 27066 | 40dd57027a0d4bbc07a2bf9680772319ea487ecbf9ff94ad0fd8f5360751fa69 |
+| 19 | tmp/backend-handoff-wrap/source-register.md | 27066 | 3810f4991e0cfe8d93fe4c4e701c50d44588b018b40fc86973e7f8efe12eda74 |
 
 
 ---
@@ -208,6 +208,16 @@ The static export build and TypeScript passed. Nine targeted presentation/hosted
 The static review now has `/app` for HALO and `/tools` for developer controls on the same hosting domain. Both are directly rendered static pages; primary tab links retain the short path. Existing long links remain supported. Static-only wrapper templates under `scripts/hosted-preview/` preserve one memory scope across the short pages and legacy factor/household/map pages. Production authentication and its existing `/app` routes are unchanged, and no backend contract is added.
 
 The 24-page static export build, main TypeScript and scoped lint passed. All nine targeted short-URL, existing-link and network-isolation browser checks passed, including trailing slashes, tab navigation, developer controls and saved-task continuity through a legacy factor page. Evidence: `test-results-short-urls/`. Interface fingerprints were refreshed without changing the requirement inventory.
+
+## October 17 image motion update
+
+Today and Homeguard use a wider 12-second one-way camera sweep, replacing the previous 26-second movement. All five My Week landscapes use a bounded 12-second sweep, with the photograph and source-coordinate water overlay inside the same moving wrapper. The scene frame, score text, calendar and controls remain stationary. Editorial images have a gentler 16-second sweep; smaller week activity photos gain photo-only hover/focus movement and a slight brightness lift. No image files, scientific values, API payloads or backend fields changed.
+
+All 20 focused browser scenarios have passing results: 11 existing week ambience checks, five scene checks and four new camera/alignment checks. Coverage includes all five images, frame coverage, aligned image/canvas geometry, pause, device reduction, offscreen/hidden behavior, 30-second eligible rotation, save-data/contrast, loading failures, canvas fallback and responsive layouts. The initial camera assertions were corrected to select the CSS camera animation instead of a simultaneous lighting transition and to sample its keyframes deterministically. Two older scene checks now request the developer tools explicitly. Evidence: `test-results-panorama-refresh/`, `test-results-panorama-release/` and `test-results-panorama-scene-release/`.
+
+Six relevant scene/crop/water unit checks, main TypeScript, scoped lint and the 24-page static export build passed. The current source/control fingerprints and assembled wiring packet were refreshed. The pre-existing local waterline and unrelated documentation edits remain outside this update. Existing backend wiring requirements are unchanged.
+
+Static preview version 58 published successfully on the existing HALO Site, from Site source commit `fd8a53a7543ad2e934dff8c94ea5bba8dc8c3791`. The `/app` and `/tools` links remain valid.
 
 <!-- HALO-SOURCE-END docs/continuation/FRONTEND_WIRING_VERIFICATION.md -->
 
@@ -11642,9 +11652,9 @@ Contract family: P01-P06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0771 :204 | LandscapeLayer / WeekAmbience | (child/component label) | onReady={ready}; onError={failed} |
-| UI0772 :209 | button / WeekAmbience | {paused ? copy.resume : copy.pause} | onClick={() =&gt; setPaused(value =&gt; !value)} |
-| UI0773 :210 | button / WeekAmbience | {copy.next} | onClick={() =&gt; advance(true)} |
+| UI0771 :206 | LandscapeLayer / WeekAmbience | (child/component label) | onReady={ready}; onError={failed} |
+| UI0772 :211 | button / WeekAmbience | {paused ? copy.resume : copy.pause} | onClick={() =&gt; setPaused(value =&gt; !value)} |
+| UI0773 :212 | button / WeekAmbience | {copy.next} | onClick={() =&gt; advance(true)} |
 
 ### components/expanded/WeekConnectedExamples.tsx
 
@@ -14741,7 +14751,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/expanded/SettingsWorkspace.tsx | 655cdc30972a55a2e1c66e2bb2a1ba2d8a65e1b528802bba1cd0206e6873a45f |
 | components/expanded/SourceOperationsReview.tsx | 2d41915a906a027acd45d13cbb22498e6f8b0ef1996c4ac26a7d6165a14f19c8 |
 | components/expanded/WeekActivityDetails.tsx | 0ed1a4308ecd55fd91790bc3221dc4b19962a1e848fa9ffd2c38ef8cd70e5ca3 |
-| components/expanded/WeekAmbience.tsx | 6f2af8e6da0f8fb0f9ef4e8b38dc1c2cd8dcfbb63217cd5eee48ecdbebfacfd4 |
+| components/expanded/WeekAmbience.tsx | af1a7408f1498ed33c7273a6180de523f18356a4a8e7315d7aa0a8e69f7dae75 |
 | components/expanded/WeekConnectedExamples.tsx | d3c9b390561093a027fc74834d1721539499989828a227ee3ef2875d188f1bcc |
 | components/expanded/WeekDashboardOverview.tsx | 484141602d71c9a154f9ed8d8ea9df5bd8840233ee648131b74db701fd50a0eb |
 | components/expanded/WeekDashboardSummary.tsx | 22c09c2c770f55327541f7bcd6707a37e4b3bdee36b04aa0658124394e25d9be |

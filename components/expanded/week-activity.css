@@ -7,6 +7,15 @@
 .mw-activity-cover span:not(.ex-photo) { color:var(--halo-secondary); font-size:calc(.75rem * var(--halo-text-scale)); }
 .mw-activity-photo { width:82px; height:92px; min-width:82px; overflow:hidden; border-radius:5px; display:block; }
 .mw-activity-photo img,.mw-progress-photo img { width:100%; height:100%; object-fit:cover; }
+/* Focus and pointer feedback move only the photo, never the task controls. */
+.halo-f-app[data-interface-motion=on] :is(.mw-activity-photo,.mw-progress-photo) img { transition:transform .65s cubic-bezier(.2,.65,.3,1),filter .65s ease; }
+.halo-f-app[data-interface-motion=on] :is(.mw-activity-cover,.mw-progress-item):focus-within :is(.mw-activity-photo,.mw-progress-photo) img { transform:scale(1.06) translateX(1.5%); filter:brightness(1.06); }
+@media(hover:hover) {
+  .halo-f-app[data-interface-motion=on] :is(.mw-activity-cover,.mw-progress-item):hover :is(.mw-activity-photo,.mw-progress-photo) img { transform:scale(1.06) translateX(1.5%); filter:brightness(1.06); }
+}
+@media(prefers-reduced-motion:reduce),(forced-colors:active) {
+  .halo-f-app :is(.mw-activity-photo,.mw-progress-photo) img { transition:none !important; transform:none !important; filter:none !important; }
+}
 .mw-activity-facts { margin:13px 0; display:grid; gap:8px; }
 .mw-activity-facts > div { display:grid; grid-template-columns:minmax(95px,.65fr) minmax(0,1fr); gap:12px; font-size:calc(.8rem * var(--halo-text-scale)); line-height:1.4; }
 .mw-activity-facts dt { color:var(--halo-secondary); }
