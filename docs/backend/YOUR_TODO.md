@@ -10,7 +10,8 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 - **Part 2 trial: done and passed**, on a throwaway Supabase project at Postgres 17.6, using `docs/backend/trial-schema-0001-0014.sql`. Applied 0015 and its three checks, seeded two households, applied 0016 (all nine columns true, backfill created 2 contexts and linked every reading), backed both out and verified, then re-applied and re-checked. The back-out blocks are therefore no longer PGlite-only.
 - **Backup:** free plan, no scheduled backups or PITR available. CSV exports taken instead. Note these two migrations modify no pre-existing column or row; the only data writes are inserts into the new `home_contexts` table and population of the new nullable `daily_scores.home_context_id`.
 - **0015 and 0016 are APPLIED to production.** Confirmed 2026-10-17 with the state query in 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present. They were applied after the 1.1 audit was captured, so `baseline-audit.deployed.json` holds the pre-migration catalog and should be re-captured.
-- **Still to do on production:** validate 0015's four checks (section 2.5; they are in place for new rows but `convalidated` is false, and your one `symptom_logs` row is already clean so it should pass). Re-run `baseline-audit.sql` afterwards to capture the post-migration catalog.
+- **0015's four checks are validated** (2026-10-17, `m15_validated` 4). 0015 and 0016 are therefore complete on production.
+- **Still to do on production:** apply 0017 and 0018 (sections 2.3 and 2.4), then re-run `baseline-audit.sql` to capture the post-migration catalog.
 
 Status right now:
 
@@ -374,9 +375,11 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every challenge in flight is deleted, so anyone part way through proving ownership of their address has to start again once it is reapplied. Nothing else is affected, and no account that was already recovered loses anything.
 
-### 2.5 Validate 0015's four checks (OUTSTANDING on production)
+### 2.5 Validate 0015's four checks
 
-0015 adds its four checks `NOT VALID`, so they constrain new rows but were never checked against existing ones. The state query in 2.6 reports this as `m15_checks` 4 with `m15_validated` 0, which is where production stands today.
+**Done on production, 2026-10-17** (`m15_validated` 4). Kept for the record and for any other project.
+
+0015 adds its four checks `NOT VALID`, so they constrain new rows but are not checked against existing ones until this runs. The state query in 2.6 reports the unvalidated state as `m15_checks` 4 with `m15_validated` 0.
 
 Only when the optional check in 2.1 step 2 returned no rows (fix or delete what it listed first). This turns the new checks into full constraints:
 
@@ -418,7 +421,7 @@ select
 
 Reading it: a migration is applied when all of its columns are true (`m15_checks` 4). `m15_validated` is 0 even after a correct 0015 apply, because those checks go in `NOT VALID`; 4 and 0 together mean 0015 is applied and 2.5 is still outstanding.
 
-Production on 2026-10-17 returned `true, 4, 0, true, true, true, true, false, false`: 0015 and 0016 applied, their checks not yet validated, 0017 and 0018 not applied.
+Production on 2026-10-17 returned `true, 4, 4, true, true, true, true, false, false`: 0015 and 0016 applied and validated, 0017 and 0018 not applied. An earlier reading the same day returned `m15_validated` 0, before section 2.5 was run.
 
 ---
 
