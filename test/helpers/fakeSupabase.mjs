@@ -247,6 +247,11 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
       if (!user) return { error: 'user_not_found' };
       if (typeof email !== 'string' || !email.includes('@')) return { error: 'validation_failed' };
       const wanted = email.toLowerCase();
+      // The provider only stages a change when the address differs from the one
+      // the identity already carries. Asking for the same address is accepted
+      // and does nothing: no pending change, and no message sent. Reachable
+      // straight after remove-recovery, which leaves the address in place.
+      if (wanted === (user.email ?? '').toLowerCase()) return { user: adminUser(user), staged: false };
       const held = (other) => other.id !== id && typeof other.email === 'string' && other.email.toLowerCase() === wanted;
       if ([...users.values()].some(held)) return { error: 'email_exists' };
       const next = { ...user, newEmail: email, emailChangeSentAt: new Date().toISOString() };

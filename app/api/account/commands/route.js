@@ -92,25 +92,40 @@ import {
  * writes it directly then this route behaves exactly as the admin path did, and
  * the squatting exposure the user-scoped call is meant to close is still open.
  *
+ * Taken from the provider's documented behaviour rather than checked here: a
+ * change is only staged when the requested address differs from the one the
+ * identity already carries, which is why asking for an address that is already
+ * on the identity is refused below instead of becoming a challenge nobody can
+ * settle.
+ *
  * How a collision is detected, and why that way. An address that already
  * belongs to another identity must fail explicitly and must never be merged
  * (BE-334). The detection is the provider's own refusal, because
  * `auth.users.email` is unique and that constraint is the only authority that
  * can decide atomically; searching first (`listUsers`) and then writing would
  * leave a window in which the other identity could claim it. There are two
- * points at which the refusal can arrive, and both are handled:
+ * points at which the refusal can arrive, and each has an ending that is not a
+ * wait:
  *
  *   request time      the provider refuses the change outright
  *                     (`email_exists`), before any challenge row is written.
  *   confirmation time the address was free when the change was staged and
  *                     taken by the time the person opened the link, so the
- *                     promotion fails and the pending change is dropped.
- *                     `check-recovery` then sees an address that is neither
- *                     pending nor confirmed, and reports a terminal failure.
+ *                     promotion fails.
  *
- * The provider does not tell us why a pending change is gone, so the second
- * receipt does not claim a reason. It says the address could not be added and
- * that nothing was merged, which is all that is both true and safe to say.
+ * What the provider does to the pending change after refusing a promotion is
+ * ANOTHER THING NOT VERIFIED here: it may clear it, or leave it in place so the
+ * person can retry. Both shapes are handled, and neither leaves a challenge
+ * that can never settle. If it is cleared, `check-recovery` sees an address
+ * that is neither pending nor confirmed and ends the challenge at once. If it
+ * is left in place, the address stays pending for as long as the other
+ * household holds it, so the challenge's own expiry is the bound: past it there
+ * is nothing this challenge can still settle, and it is ended rather than
+ * answered with a wait that has no end.
+ *
+ * The provider does not tell us why a promotion did not happen, so neither
+ * receipt claims a reason. They say the address could not be added, or that the
+ * request expired, which is all that is both true and safe to say.
  *
  * The capability is off unless its flag is on (BE-351). While it is off this
  * handler reads nothing and writes nothing, and the refusal is a terminal
@@ -164,10 +179,14 @@ const MESSAGES = Object.freeze({
   throttled: 'Verification for this account was requested a moment ago. Please wait a minute and try again.',
   challengeMissing: 'That verification request was not found.',
   changeGone: 'That address could not be added. Nothing was merged. You can try a different address.',
+  expired: 'That request expired before the address was confirmed. Ask for a new confirmation message.',
+  sameAddress:
+    'That address is already on your account, so no new confirmation can be sent to it. Use a different address.',
   confirmed: 'That address is confirmed, and can now recover your account.',
   notConfirmed: 'That address is not confirmed yet. Nothing has changed.',
-  cancelled: 'That verification request was cancelled. No address was added.',
-  removed: 'That address is no longer used to recover your account.',
+  cancelled:
+    'That verification request was cancelled. We cannot recall the confirmation message already sent, so if you open the link in it, that address will still be added.',
+  removed: 'That address can no longer recover your account. It stays on your account record until you add a different one.',
   nothingToRemove: 'There is no recovery address to remove.',
   conflict: 'This information changed. Please review it again.',
   mismatch: 'That request was already made with different details. Please try again.',
@@ -312,13 +331,19 @@ const addressDigest = (value) => {
 async function requestRecovery(supabase, { request, userId, operationId, email }) {
   // The ledger is the throttle: it is append-only, so this cannot be reset by
   // cancelling a challenge. The current operation's own row is already claimed,
-  // hence excluded.
+  // hence excluded. Only attempts that got as far as asking the provider count:
+  // a refused one sent nothing, so counting it would refuse the corrected
+  // attempt with a message that is false. 'pending' counts because a request
+  // still running may already have sent, and 'failed' does not because the only
+  // failure after a successful send is a database error, which is a 500 the
+  // person is not being asked to wait out.
   const { count, error: recentError } = await supabase
     .from('operations')
     .select('operation_id', { count: 'exact', head: true })
     .eq('profile_id', userId)
     .eq('domain', 'account')
     .eq('kind', 'account.request-recovery')
+    .in('status', ['pending', 'succeeded'])
     .neq('operation_id', operationId)
     .gte('created_at', new Date(Date.now() - RESEND_WINDOW_MS).toISOString());
   if (recentError) throw recentError;
@@ -338,6 +363,13 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
   // two deliberate steps, which is also all the interface offers.
   if (method) return refused(MESSAGES.removeFirst);
 
+  // The provider only stages a change when the address differs from the one the
+  // identity already carries, so asking for that same address would send
+  // nothing, and opening a challenge for it would be asking the person to wait
+  // for a message that is never coming. Reachable straight after
+  // remove-recovery, which leaves the address in place unconfirmed.
+  if (current === email) return refused(MESSAGES.sameAddress);
+
   // The caller's own email change, every time: asking again is a re-send, which
   // is what the throttle above exists to bound.
   const link = await linkCallerEmail(request, email);
@@ -348,6 +380,17 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
     // than writing a challenge for an address that was never accepted.
     throw new Error(`account link refused by the provider: ${link.reason}${link.detail ? ` (${link.detail})` : ''}`);
   }
+
+  // One address is in flight at a time, because the provider holds one pending
+  // change, so this request closes whatever the household had open. Without it
+  // a superseded challenge outlives the request that replaced it and the next
+  // read reports it as an open verification, masked as the address now in
+  // flight rather than its own.
+  const { error: supersedeError } = await supabase
+    .from('recovery_challenges')
+    .delete()
+    .eq('profile_id', userId);
+  if (supersedeError) throw supersedeError;
 
   const { error: challengeError } = await supabase.from('recovery_challenges').insert({
     profile_id: userId,
@@ -375,12 +418,15 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
  *   confirmed    the address is the identity's own and verified. The challenge
  *                has nothing left to ask, so it goes.
  *   in flight    the provider is holding it as a pending change, or has written
- *                it unconfirmed onto the identity. Nothing changes; the person
- *                can check again.
- *   gone         neither. The provider is no longer working on it, which is
- *                where a collision discovered at confirmation time arrives. The
- *                challenge is closed with a terminal failure that claims no
- *                reason, because the provider does not give one.
+ *                it unconfirmed onto the identity, and this challenge has not
+ *                expired. Nothing changes; the person can check again. Past the
+ *                expiry the challenge is ended instead, because a pending
+ *                change the provider will not promote would otherwise be a wait
+ *                with no end.
+ *   gone         neither. The provider is no longer working on it, which is one
+ *                of the two shapes a collision discovered at confirmation time
+ *                can take. The challenge is closed with a terminal failure that
+ *                claims no reason, because the provider does not give one.
  *
  * A closed challenge is deleted rather than relabelled. Migration 0018 cannot
  * record either ending truthfully: `verified` requires a restore token hash,
@@ -394,7 +440,7 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
 async function checkRecovery(supabase, { userId, challengeId }) {
   const { data: row, error } = await supabase
     .from('recovery_challenges')
-    .select('id, email_hash')
+    .select('id, email_hash, expires_at')
     .eq('profile_id', userId)
     .eq('id', challengeId)
     .maybeSingle();
@@ -417,7 +463,15 @@ async function checkRecovery(supabase, { userId, challengeId }) {
   const pending = addressDigest(user?.new_email);
   const unconfirmed = method ? null : addressDigest(user?.email);
   if (pending === row.email_hash || unconfirmed === row.email_hash) {
-    return applied(supabase, userId, MESSAGES.notConfirmed);
+    // Still in flight, but only worth waiting on while this challenge is live.
+    // Past its expiry there is nothing it can settle, whether the provider is
+    // still holding the pending change or not.
+    const expiry = Date.parse(row.expires_at);
+    if (Number.isFinite(expiry) && expiry > Date.now()) {
+      return applied(supabase, userId, MESSAGES.notConfirmed);
+    }
+    await closeChallenge(supabase, { userId, challengeId });
+    return refused(MESSAGES.expired);
   }
 
   await closeChallenge(supabase, { userId, challengeId });

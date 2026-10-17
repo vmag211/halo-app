@@ -184,6 +184,19 @@ function command(h, who, body, { env = ON, headers = {}, url, fetch } = {}) {
   return h.call(ROUTE, 'POST', { as: who, body: full, env, headers: sent, url, fetch });
 }
 
+/**
+ * Ages this household's recorded request so the next one is outside the resend
+ * window. The window is read from the ledger, so this is the honest way to move
+ * past it without sleeping.
+ */
+async function pastTheWindow(h, operationId) {
+  const { error } = await h.db
+    .from('operations')
+    .update({ created_at: ago(5 * 60 * 1000) })
+    .eq('operation_id', operationId);
+  assert.equal(error, null);
+}
+
 /** The receipt of a successful command, with the contract checked. */
 async function succeed(h, who, body, options) {
   const response = await command(h, who, body, options);
@@ -461,6 +474,51 @@ test('a second request a moment later is throttled, and does not send or store a
   assert.equal(h.provider.length, 1, 'and the provider was asked to send only the first one');
 });
 
+test('a refused request does not consume the send window, because nothing was sent', async () => {
+  // The collision path. Nothing was requested of the provider and no message
+  // went anywhere, so telling the person to wait a minute before correcting
+  // their typo would be false.
+  const h = harness();
+  const collided = await (await command(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: TAKEN },
+    expectedRevision: 0,
+    operationId: op(1),
+  })).json();
+  assert.equal(collided.status, 'failed');
+
+  const corrected = await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 1,
+    operationId: op(2),
+  });
+  assert.ok(corrected.snapshot.recovery.challenge, 'the corrected address is accepted straight away');
+  assert.equal(h.db.rows('recovery_challenges').length, 1);
+});
+
+test('a conflict does not consume the send window either, so the re-read and retry works', async () => {
+  // What the contract tells the client to do after a 409: re-read, then retry
+  // with a fresh revision and a new operation id. A first ever attempt must not
+  // come back refused as a re-send.
+  const h = harness();
+  const stale = await command(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 7,
+    operationId: op(1),
+  });
+  assert.equal(stale.status, 409);
+  const retried = await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 1,
+    operationId: op(2),
+  });
+  assert.ok(retried.snapshot.recovery.challenge, 'the retry is a first request, not a re-send');
+  assert.equal(h.provider.length, 1);
+});
+
 test('the throttle is read from the ledger, so a request outside the window is allowed again', async () => {
   const h = harness({
     operations: [
@@ -482,6 +540,67 @@ test('the throttle is read from the ledger, so a request outside the window is a
   assert.equal(h.db.rows('recovery_challenges').length, 1, 'an old attempt does not block a new one');
 });
 
+test('a new request supersedes the household\'s earlier challenge, so a settled link leaves no phantom', async () => {
+  // The typo scenario. A challenge nobody can settle any more must not outlive
+  // the request that replaced it: the provider holds one pending address, so
+  // there is one verification to report, and the newest row is only the right
+  // answer if the older ones are gone.
+  const h = harness();
+  await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: 'typo@example.test' },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+  const first = h.db.rows('recovery_challenges')[0];
+  await pastTheWindow(h, op(1));
+
+  const corrected = await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 1,
+    operationId: op(2),
+  });
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 1, 'the superseded challenge is closed, not kept');
+  assert.notEqual(rows[0].id, first.id);
+  assert.equal(rows[0].email_hash, sha256(FRESH), 'and the one that is left is for the address asked for');
+  assert.equal(corrected.snapshot.recovery.challenge.id, rows[0].id);
+
+  // Confirming the corrected address closes its challenge, and because the
+  // earlier one is gone the account is not left showing an open verification
+  // for an address that is already verified, masked as the wrong address.
+  assert.equal(h.db.confirmEmailChange(h.identities.alice.id).error, undefined);
+  const settled = await succeed(h, 'alice', {
+    action: 'check-recovery',
+    payload: { challengeId: rows[0].id },
+    expectedRevision: 2,
+    operationId: op(3),
+  });
+  assert.ok(settled.snapshot.recovery.method, 'the address is verified');
+  assert.equal(settled.snapshot.recovery.challenge, null, 'and nothing is still being verified');
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+});
+
+test('a plain resend of the same address does not accumulate challenges either', async () => {
+  const h = harness();
+  await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+  await pastTheWindow(h, op(1));
+  await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 1,
+    operationId: op(2),
+  });
+  assert.equal(h.db.rows('recovery_challenges').length, 1, 'one address in flight is one challenge');
+  assert.equal(h.provider.length, 2, 'the confirmation was sent again');
+});
+
 test('asking again for an address whose change is still pending re-sends it and opens a new challenge', async () => {
   const h = harness({
     identities: {
@@ -497,14 +616,41 @@ test('asking again for an address whose change is still pending re-sends it and 
     expectedRevision: 0,
     operationId: op(1),
   });
-  assert.equal(h.db.rows('recovery_challenges').length, 2, 'the expired one is not reused');
-  assert.notEqual(receipt.snapshot.recovery.challenge.id, CHALLENGE, 'the newest challenge is the live one');
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 1, 'the expired one is closed rather than left behind');
+  assert.notEqual(rows[0].id, CHALLENGE, 'and the live challenge is the new one');
+  assert.equal(receipt.snapshot.recovery.challenge.id, rows[0].id);
   assert.equal(receipt.snapshot.recovery.challenge.status, 'pending');
   assert.equal(h.provider.length, 1, 'the confirmation is sent again, which is what the throttle guards');
   const user = h.db.identities.get(h.identities.alice.id);
   assert.equal(user.newEmail, FRESH, 'the pending address does not change');
   assert.equal(user.email ?? null, null, 'and asking again still does not occupy the address');
   assert.equal(user.emailConfirmedAt ?? null, null, 'nor confirm it');
+});
+
+test('an address already on the identity is refused, not turned into a challenge nothing can settle', async () => {
+  // The provider only stages a change when the address differs from the one the
+  // identity already carries, so asking for that same address sends nothing. The
+  // state is reachable straight after remove-recovery, which leaves the address
+  // in place with its confirmation cleared.
+  const h = harness({
+    identities: {
+      alice: { email: FRESH, emailConfirmedAt: null },
+      bob: { email: null, isAnonymous: true },
+      carol: { email: TAKEN, emailConfirmedAt: VERIFIED_AT },
+    },
+  });
+  const id = op(1);
+  const receipt = await (await command(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 0,
+    operationId: id,
+  })).json();
+  assertAccountReceipt(receipt, id);
+  assert.equal(receipt.status, 'failed', 'a request that cannot send anything is not a success');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'and opens no challenge to wait on');
+  assert.ok(!JSON.stringify(receipt).includes(FRESH), 'the address is not echoed back');
 });
 
 // ---------------------------------------------------------------------------
@@ -655,6 +801,11 @@ test('cancel-recovery leaves no open challenge and no linked method', async () =
     expectedRevision: 0,
     operationId: op(1),
   });
+  // The copy has to admit the one thing the server cannot do: a confirmation
+  // message that is already out cannot be recalled, and opening its link still
+  // adds the address.
+  assert.match(receipt.message, /cannot recall/i, 'cancelling does not promise a final state');
+  assert.match(receipt.message, /will still be added/i);
   assert.equal(receipt.snapshot.recovery.challenge, null);
   assert.equal(receipt.snapshot.recovery.method, null);
   assert.equal(h.db.rows('recovery_challenges').length, 0);
@@ -665,13 +816,16 @@ test('cancel-recovery leaves no open challenge and no linked method', async () =
 
 test('cancelling leaves a confirmed address alone', async () => {
   const h = linked();
-  const receipt = await succeed(h, 'alice', {
+  const id = op(1);
+  const receipt = await (await command(h, 'alice', {
     action: 'cancel-recovery',
     payload: { challengeId: CHALLENGE },
     expectedRevision: 0,
-    operationId: op(1),
-  }).catch(() => null);
-  assert.equal(receipt, null, 'there is no challenge to cancel, so it is a failure');
+    operationId: id,
+  })).json();
+  assertAccountReceipt(receipt, id);
+  assert.equal(receipt.status, 'failed', 'there is no challenge to cancel');
+  assert.equal(receipt.snapshot, undefined);
   const user = h.db.identities.get(h.identities.alice.id);
   assert.equal(user.email, FRESH, 'and the verified address is untouched');
   assert.equal(user.emailConfirmedAt, VERIFIED_AT);
@@ -702,6 +856,9 @@ test('remove-recovery unlinks the method, and the revision advances rather than 
   });
   assert.equal(receipt.snapshot.recovery.method, null, 'the method is gone');
   assert.equal(receipt.snapshot.revision, 1, 'unlinking advances the revision, as If-Match needs');
+  // Honesty: the address is not erased from the account, so the copy says so
+  // rather than implying it was.
+  assert.match(receipt.message, /stays on your account/i);
   const user = h.db.identities.get(h.identities.alice.id);
   assert.equal(user.emailConfirmedAt ?? null, null, 'the address is no longer a confirmed credential');
   assert.equal(user.id, h.identities.alice.id, 'and it is still the same identity');
@@ -1227,7 +1384,37 @@ test('a refusal we do not recognise is never read as a collision, and never as a
   assert.equal(h.db.rows('recovery_challenges').length, 0);
 });
 
-test('an expired challenge is reported as expired, and checking it is still answered', async () => {
+test('a challenge still in flight when it expires is ended, not left waiting forever', async () => {
+  // The provider may leave a pending change in place after refusing to promote
+  // it, so that the person can retry. Then the address stays pending for as
+  // long as the other household holds it, and "not confirmed yet" would be a
+  // wait with no end. The challenge's own expiry is the bound: past it there is
+  // nothing this challenge can still settle, so it is ended and the person is
+  // sent back to asking for a new one.
+  const h = harness({
+    identities: {
+      alice: { email: null, newEmail: FRESH, isAnonymous: true, emailChangeSentAt: ago(60 * 60 * 1000) },
+      bob: { email: null, isAnonymous: true },
+      carol: { email: TAKEN, emailConfirmedAt: VERIFIED_AT },
+    },
+    challenges: [{ id: CHALLENGE, status: 'pending', expires_at: past() }],
+  });
+  const id = op(1);
+  const receipt = await (await command(h, 'alice', {
+    action: 'check-recovery',
+    payload: { challengeId: CHALLENGE },
+    expectedRevision: 0,
+    operationId: id,
+  })).json();
+  assertAccountReceipt(receipt, id);
+  assert.equal(receipt.status, 'failed', 'an expired request is finished, whatever the provider still holds');
+  assert.match(receipt.message, /expired/i, 'and says so, so the person asks for a new one');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'the row is closed rather than left to be re-checked');
+  const user = h.db.identities.get(h.identities.alice.id);
+  assert.equal(user.email ?? null, null, 'nothing was linked by giving up on it');
+});
+
+test('an address written straight to the identity is also only waited on while the challenge is live', async () => {
   const h = harness({
     identities: {
       alice: { email: FRESH, emailConfirmedAt: null },
@@ -1236,11 +1423,13 @@ test('an expired challenge is reported as expired, and checking it is still answ
     },
     challenges: [{ id: CHALLENGE, status: 'pending', expires_at: past() }],
   });
-  const receipt = await succeed(h, 'alice', {
+  const id = op(1);
+  const receipt = await (await command(h, 'alice', {
     action: 'check-recovery',
     payload: { challengeId: CHALLENGE },
     expectedRevision: 0,
-    operationId: op(1),
-  });
-  assert.equal(receipt.snapshot.recovery.challenge.status, 'expired', 'the clock decides, not the stored word');
+    operationId: id,
+  })).json();
+  assert.equal(receipt.status, 'failed');
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
 });
