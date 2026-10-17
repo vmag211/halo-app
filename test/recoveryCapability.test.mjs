@@ -1,5 +1,6 @@
 /**
- * Capability proof for the recovery session ruling (B02 plan, Task 1).
+ * Capability proof for the provider calls B02 depends on: the recovery session
+ * ruling (Task 1) and, added by Task 4, the link intent's two admin calls.
  *
  * `POST /api/recovery/complete` (Task 8) must return a real
  * `{ identityId, accessToken, refreshToken }` triple bound to the recovered
@@ -34,8 +35,21 @@ import { createClient } from '@supabase/supabase-js';
  */
 const RULED_VERSION = '2.110.7';
 
-/** The two calls Task 8 will depend on, as paths from the client object. */
-const REQUIRED = ['auth.admin.generateLink', 'auth.verifyOtp'];
+/**
+ * The provider calls this package depends on, as paths from the client object.
+ * The first two are Task 8's session minting; the last two are Task 4's link
+ * intent, which attaches an address to the signed-in identity
+ * (`updateUserById`) and then asks whether the provider has confirmed it
+ * (`getUserById`). Both are checked here for the same reason: a route that
+ * cannot be exercised against a real project must at least not be built on a
+ * method the installed client does not have.
+ */
+const REQUIRED = [
+  'auth.admin.generateLink',
+  'auth.verifyOtp',
+  'auth.admin.updateUserById',
+  'auth.admin.getUserById',
+];
 
 /** A fake project: createClient does not contact it, and no real key is read. */
 const client = () => createClient('https://example.invalid', 'not-a-real-key');
@@ -56,7 +70,7 @@ test('the installed @supabase/supabase-js is the version the session-minting rul
   );
 });
 
-test('both calls the recovery session path needs are present on the installed client', () => {
+test('every provider call this package depends on is present on the installed client', () => {
   const supabase = client();
   for (const path of REQUIRED) {
     assert.equal(typeof resolve(supabase, path), 'function', `the installed client exposes ${path}`);
@@ -77,4 +91,12 @@ test('generateLink and verifyOtp each take the single options object the two-ste
   // accepts these arguments: that is the unverified end-to-end exchange above.
   assert.equal(supabase.auth.admin.generateLink.length, 1, 'generateLink takes one options argument');
   assert.equal(supabase.auth.verifyOtp.length, 1, 'verifyOtp takes one options argument');
+});
+
+test('the link intent calls updateUserById the way the route does: an id and an attributes object', () => {
+  const supabase = client();
+  // The id is a separate argument, which is the whole point: the link intent
+  // changes the address on the identity it was given and cannot create another.
+  assert.equal(supabase.auth.admin.updateUserById.length, 2, 'updateUserById takes the id and the attributes');
+  assert.equal(supabase.auth.admin.getUserById.length, 1, 'getUserById takes the id');
 });

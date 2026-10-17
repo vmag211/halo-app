@@ -51,6 +51,7 @@ const ROUTE_COVERAGE = {
   'POST /api/journal/retrospective': 'isolation: read only, body profile_id ignored, only the caller\'s days',
   'GET /api/journal/summary': 'isolation: read matrix (day counts would pool)',
   'GET /api/account': 'routesAccountRead: the challenge and unresolved operations are read for the caller only; a profile_id in the query changes nothing; off by the flag nothing is read at all',
+  'POST /api/account/commands': 'routesAccountCommands: every statement is scoped to the caller, another household\'s challenge id is the identical failure to a missing one, a body naming another profile is refused and a query naming one is ignored; a collision fails without merging and discloses nothing about the other identity',
   'GET /api/learn': 'isolation: read matrix (household note from the caller\'s composition)',
   'GET /api/map': 'isolation: read matrix (no household data)',
   'GET /api/notifications': 'isolation: read matrix',

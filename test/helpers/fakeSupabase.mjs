@@ -124,6 +124,58 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
           };
         },
 
+        /**
+         * Changes one user, as `auth.admin.updateUserById(id, attributes)` does.
+         * Only the attributes the link intent uses are modelled: `email` and
+         * `email_confirm`.
+         *
+         * Two provider rules this reproduces, because the route depends on both:
+         *
+         *   1. `auth.users.email` is unique. An address another identity already
+         *      holds is refused with `email_exists`, which is how a collision is
+         *      detected: the constraint decides, not a search. The real client's
+         *      error carries that code (auth-js AuthApiError, status 422).
+         *   2. An address is confirmed only when `email_confirm` says so. Setting
+         *      a different address without it leaves the address unconfirmed,
+         *      because an admin write is not proof that anyone owns the address.
+         *
+         * The id never changes: there is no path here that creates a second
+         * identity or moves rows between them (BE-050, BE-334).
+         */
+        updateUserById: async (id, attributes = {}) => {
+          const user = users.get(id);
+          if (!user) {
+            return { data: { user: null }, error: authError(404, 'User not found', { code: 'user_not_found' }) };
+          }
+          const next = { ...user };
+          if (Object.hasOwn(attributes, 'email')) {
+            const email = String(attributes.email).toLowerCase();
+            const taken = [...users.values()].some(
+              (other) => other.id !== id && typeof other.email === 'string' && other.email.toLowerCase() === email,
+            );
+            if (taken) {
+              return {
+                data: { user: null },
+                error: authError(422, 'A user with this email address has already been registered', {
+                  code: 'email_exists',
+                }),
+              };
+            }
+            if (email !== (user.email ?? '').toLowerCase()) next.emailConfirmedAt = null;
+            next.email = attributes.email;
+          }
+          if (Object.hasOwn(attributes, 'email_confirm')) {
+            next.emailConfirmedAt = attributes.email_confirm
+              ? next.emailConfirmedAt ?? new Date().toISOString()
+              : null;
+          }
+          users.set(id, next);
+          return {
+            data: { user: { ...publicUser(next), email_confirmed_at: next.emailConfirmedAt ?? null } },
+            error: null,
+          };
+        },
+
         /** Removes the user and cascades to every table declaring an ownerColumn. */
         deleteUser: async (id) => {
           if (!users.delete(id)) {
