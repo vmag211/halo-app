@@ -266,7 +266,10 @@ test('POST /api/assistant sends the caller\'s own context to the model and never
   quiet(t);
   const sent = [];
   const ctx = setup({
-    env: { ASSISTANT_MODEL_KEY: 'test-model-key' },
+    // Household context is opt-in (ASSISTANT_SEND_HOUSEHOLD_CONTEXT must be
+    // exactly 'true'). This test is about isolation BETWEEN households once it
+    // is on, so it turns it on deliberately.
+    env: { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true' },
     provider: ({ url, body }) => {
       sent.push({ url, body });
       if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(1536).fill(0.01) }] });

@@ -1,7 +1,15 @@
 # Backend: what you (Vibhav) need to do
 
-Updated 2026-10-11, after the B01 work on `vmag211/backend` was resumed in a later session and given its final review fixes.
-No database changes were applied by this continuation. Production remains unaudited here.
+Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passed. Production has NOT been migrated yet.
+
+**2026-10-17 progress:**
+
+- **1.1 audit: done.** Findings in `docs/backend/baseline-audit.deployed.json`. `ucmr5_utilities` is healthy (RLS on, one public SELECT policy), so the guarded remedy was NOT needed and was NOT run. The remedy's policy name was wrong and has been corrected here and in the baseline. Production is **PostgreSQL 17.6**, not the 18 the test suite runs on.
+- **1.2 old push subscriptions: done.** No rows.
+- **1.3 direct browser writes: done** on this branch. Five hits, all server-side service-role code, none on the four locked tables. Still needs confirming against whatever is actually deployed, which is Yogi's.
+- **Part 2 trial: done and passed**, on a throwaway Supabase project at Postgres 17.6, using `docs/backend/trial-schema-0001-0014.sql`. Applied 0015 and its three checks, seeded two households, applied 0016 (all nine columns true, backfill created 2 contexts and linked every reading), backed both out and verified, then re-applied and re-checked. The back-out blocks are therefore no longer PGlite-only.
+- **Backup:** free plan, no scheduled backups or PITR available. CSV exports taken instead. Note these two migrations modify no pre-existing column or row; the only data writes are inserts into the new `home_contexts` table and population of the new nullable `daily_scores.home_context_id`.
+- **Still to do on production:** apply 0015 (then validate the four constraints immediately, since the single `symptom_logs` row is already clean), then 0016, then `notify pgrst, 'reload schema';`.
 
 Status right now:
 
@@ -43,8 +51,8 @@ Why it is safe: the only thing that writes this table is `uploadData.js`, which 
 <!-- remedy-ucmr5 -->
 ```sql
 alter table public.ucmr5_utilities enable row level security;
-drop policy if exists "Enable read access for all users" on public.ucmr5_utilities;
-create policy "Enable read access for all users" on public.ucmr5_utilities
+drop policy if exists "Allow public read access on ucmr5_utilities" on public.ucmr5_utilities;
+create policy "Allow public read access on ucmr5_utilities" on public.ucmr5_utilities
   for select using (true);
 revoke insert, update, delete on public.ucmr5_utilities from anon, authenticated;
 ```

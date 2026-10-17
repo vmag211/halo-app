@@ -8,7 +8,11 @@ import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
 const { DISCLAIMER, DIAGNOSTIC_REFUSAL, NO_SOURCE } = await import('../lib/assistant.js');
 const chr = (code) => String.fromCharCode(code);
 const OWNED = Object.keys(OWNED_TABLES);
-const KEY = { ASSISTANT_MODEL_KEY: 'test-model-key' };
+// Household context is opt-in: the route sends it only when
+// ASSISTANT_SEND_HOUSEHOLD_CONTEXT is exactly 'true'. These tests exercise the
+// full pipeline, so they turn it on explicitly. The default (unset) is covered
+// by the household-context gate tests at the end of this file.
+const KEY = { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true' };
 const ASK_FIRST = 'Ask a question to get started.';
 
 const model = ({ url }) => {
@@ -296,4 +300,59 @@ test('account: auth failures use the envelope and echo a client request id; ids 
   const broken = setup();
   broken.h.db.auth.admin.deleteUser = async () => ({ data: null, error: { message: 'x' } });
   assert.equal(id(await erase(broken, { confirm: 'DELETE' }, { headers })), 'client-trace-0002');
+});
+
+// ------------------------------------- assistant: household-context gate
+// Free models may log prompts, so household readings and symptom names leave
+// this app only when ASSISTANT_SEND_HOUSEHOLD_CONTEXT is exactly 'true'. An
+// environment nobody configured must not leak them, so anything else, the
+// variable being unset included, sends only the question and public sources.
+
+/** Asks one question with the gate set to `value` ('' means the variable is unset). */
+async function gated(value) {
+  const env = { ASSISTANT_MODEL_KEY: 'test-model-key' };
+  if (value !== '') env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT = value;
+  const ctx = setup({ env, provider: model });
+  ctx.h.db.registerRpc('match_assistant_corpus', () => []);
+  const res = await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'How is my air today?' } });
+  assert.equal(res.status, 200);
+  return (await res.json()).uses_household_data;
+}
+
+test('household-context gate: only the exact string true sends household data', async () => {
+  assert.equal(await gated('true'), true, "'true' sends it");
+  for (const value of ['', 'false', 'TRUE', 'True', '1', 'yes', 'on', ' true', 'true ']) {
+    assert.equal(await gated(value), false, `${JSON.stringify(value)} must not send household data`);
+  }
+});
+
+/** One retrieved passage, so the pipeline reaches the model instead of declining for want of a source. */
+const sourced = (env) => {
+  const ctx = setup({
+    env,
+    provider: ({ url }) => {
+      if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(1536).fill(0.01) }] });
+      if (url.includes('/chat/completions')) return Response.json({ choices: [{ message: { content: 'Ozone is higher in the afternoon [1].' } }] });
+      return null;
+    },
+  });
+  ctx.h.db.registerRpc('match_assistant_corpus', () => [
+    { id: '00000000-0000-4000-8000-000000000001', source_label: 'EPA', source_url: 'https://epa.gov/x', retrieved: '2026-01-01', passage: 'Ozone peaks in the afternoon.', similarity: 0.9 },
+  ]);
+  return ctx;
+};
+
+test('household-context gate: with the gate off the question reaches the model but the household block does not', async () => {
+  const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key' });
+  assert.equal((await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'How is my air today?' } })).status, 200);
+  const sent = prompt(ctx);
+  assert.ok(sent.includes('How is my air today?'), 'the question still reaches the model');
+  assert.ok(sent.includes('EPA'), 'and so does the public source');
+  assert.equal(sent.includes('HOUSEHOLD CONTEXT'), false, 'but no household block is built into the prompt');
+});
+
+test('household-context gate: with the gate on the household block is built into the prompt', async () => {
+  const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true' });
+  assert.equal((await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'How is my air today?' } })).status, 200);
+  assert.ok(prompt(ctx).includes('HOUSEHOLD CONTEXT'), 'the household block is present when explicitly enabled');
 });

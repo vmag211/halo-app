@@ -109,7 +109,7 @@ test('the ucmr5 remedy turns an open table into public read only, and is safe to
   await db.pg.transaction(async (tx) => {
     // The case the audit would flag: row level security off, no policy, the default grants.
     await tx.exec(`alter table public.ucmr5_utilities disable row level security;
-      drop policy if exists "Enable read access for all users" on public.ucmr5_utilities;
+      drop policy if exists "Allow public read access on ucmr5_utilities" on public.ucmr5_utilities;
       insert into public.ucmr5_utilities (pwsid, pws_name) values ('NC0000001', 'Synthetic Utility');`);
     assert.equal(
       (await tx.query(`select has_table_privilege('anon', 'public.ucmr5_utilities', 'INSERT') as open`)).rows[0].open,

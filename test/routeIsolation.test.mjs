@@ -506,7 +506,7 @@ test('every route and method under app/api has isolation coverage listed in ROUT
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.name === 'route.js') {
-        const route = `/${path.relative(path.join(REPO_ROOT, 'app'), path.dirname(full))}`;
+        const route = `/${path.relative(path.join(REPO_ROOT, 'app'), path.dirname(full)).split(path.sep).join('/')}`;
         for (const match of readFileSync(full, 'utf8').matchAll(/^export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b/gm)) {
           found.push(`${match[1]} ${route}`);
         }

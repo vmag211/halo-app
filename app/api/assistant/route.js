@@ -135,10 +135,12 @@ export async function POST(request) {
     try {
       // The household's own readings, home assessment and journal, built from
       // the verified session and weighted by the page (item 15). Best-effort.
-      // ASSISTANT_SEND_HOUSEHOLD_CONTEXT=false keeps household data out of the
-      // model call entirely (only the question + public agency sources are sent)
-      // — the default for free models, which may log prompts.
-      const sendContext = process.env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT !== 'false';
+      // Household data is sent only when ASSISTANT_SEND_HOUSEHOLD_CONTEXT is
+      // exactly 'true'. Any other value, including the variable being unset,
+      // sends only the question and the public agency sources. Free models may
+      // log prompts, so an environment nobody configured must not leak
+      // household readings or symptom names by default.
+      const sendContext = process.env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT === 'true';
       const context = sendContext
         ? await gatherHouseholdContext(supabaseAdmin, userId, page).catch(() => null)
         : null;

@@ -195,6 +195,9 @@ create table if not exists public.ucmr5_utilities (
 
 alter table public.ucmr5_utilities enable row level security;
 
-drop policy if exists "Enable read access for all users" on public.ucmr5_utilities;
-create policy "Enable read access for all users" on public.ucmr5_utilities
+-- Name confirmed against the deployed database by the 2026-10-17 catalog audit
+-- (docs/backend/baseline-audit.deployed.json). It was previously guessed as
+-- "Enable read access for all users", which no deployed policy ever had.
+drop policy if exists "Allow public read access on ucmr5_utilities" on public.ucmr5_utilities;
+create policy "Allow public read access on ucmr5_utilities" on public.ucmr5_utilities
   for select using (true);
