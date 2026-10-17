@@ -17,10 +17,11 @@ Status right now:
 - Task 10 is committed at `d492e9e`: rejected writes no longer replace identity or replay; recovery options and a complete privacy inventory are documented. Neither decision is approved.
 - Task 11: executable API contracts, synthetic fixtures, handler conformance, requirements tracker and current checkpoint are written. Final test counts and commit evidence are in `docs/backend/checkpoint.md`.
 - Branch and push state: `vmag211/backend` is the working branch, and the controller pushes it after each reviewed task. Run `git log origin/vmag211/backend..HEAD` to see which commits are not pushed yet (an empty list means everything is pushed). Nothing was merged to main.
-- Migrations 0015 and 0016 are written and locally tested but NOT applied anywhere (not to production, and not to any staging or disposable project by this work).
-- Their "If you need to back out" blocks (Part 2) and the guarded `ucmr5_utilities` remedy (1.1) are tested only on the local PGlite copy (`test/migrationBackout.test.mjs`), not on Supabase.
+- Migrations 0015, 0016, 0017 and 0018 are written and locally tested but NOT applied anywhere (not to production, and not to any staging or disposable project by this work).
+- Back-out blocks: the 0015 and 0016 blocks passed the throwaway-project trial above. The **0017 and 0018 blocks, and the guarded `ucmr5_utilities` remedy (1.1), are tested only on the local PGlite copy** (`test/migrationBackout.test.mjs`), not on Supabase. Each is a single `drop table`, so there is less to get wrong, but that is not the same as having been run there.
+- 0017 (operation ledger) and 0018 (recovery challenges) are new in B02. Applying 0018 does not turn recovery on: it stays behind a server-enforced flag that is off, and the Turnstile key, backup coverage and retention decisions are all still open.
 - `docs/backend-progress.md` is an older September status; use the checkpoint for B01.
-- Your next actions are still the read-only audit, disposable-project migration verification, recovery/privacy decisions and supplying the missing full spec. The instructions below remain the manual checklist.
+- Your next actions are the disposable-project verification for 0017 and 0018, and the recovery/privacy decisions. **The full spec is no longer missing:** it is in this repository at `docs/product/ai/HALO_BACKEND_WORKING_SPEC.md` on `origin/codex/october15-review-refinement`, 521,027 bytes, sha256 `fc1fec4b...415be86`, verified 2026-10-17 against the figure in Yogi's wiring packet. The instructions below remain the manual checklist.
 
 The sections below are in the order to do them. Part 1 can be done today and is read only, with ONE exception: the guarded `ucmr5_utilities` fix in 1.1 changes your database, and you run it only if the audit says to. Part 2 changes your database, so do it only when you are ready.
 
@@ -318,7 +319,57 @@ What this does NOT restore or undo:
 - A reading deleted by a move (the old home's reading for the day of the move) stays deleted.
 - What the routes saved to `profiles` through the functions (address, county, state, utility, water source, year built, and the cleared `zip`) stays as saved.
 
-### 2.3 Later, once the old rows are clean
+### 2.3 Apply 0017 (operation ledger)
+
+Needs 0016 first. This one is quiet: it creates one new table and its indexes and does not read or write any existing table, so nothing else is blocked while it runs. Creating its foreign key takes a brief SHARE ROW EXCLUSIVE on `profiles`, so a new anonymous sign-up could wait a moment.
+
+What it is for: the new frontend sends an `Idempotency-Key` on every mutation and treats a lost response as "unknown" rather than failure, then asks `GET /api/operations` what actually happened. The table is that answer.
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0017_operations_ledger.sql` and run it. Safe to re-run.
+2. Run the verification query in the comment at the end of that file. Expect one row, all five columns true. `no_client_access` false is the one that matters: it means the browser roles can still reach the table, and you should send Claude the row rather than leaving it.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, every route that records an operation answers 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the new operation routes report the feature as unavailable. The existing app does not use the ledger and is unaffected.
+
+#### If you need to back out 0017
+
+The operation routes go back to answering 503 `feature_unavailable`, exactly as before it was applied, so this disables them rather than breaking the existing app. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0017 -->
+```sql
+drop table if exists public.operations;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every recorded outcome is deleted for good. A client still holding an `operationId` for an operation whose response it lost can no longer find out what happened to it; it is told the feature is unavailable rather than given a stale answer. The effects those operations already applied stay applied.
+
+### 2.4 Apply 0018 (account recovery challenges)
+
+Needs 0017 first. Quiet in the same way: one new table and its indexes, no existing table read or written, a brief SHARE ROW EXCLUSIVE on `profiles` for the foreign key.
+
+What it is for: one row per attempt to prove ownership of an email that is already linked to an identity, for the Restore access flow. Only hashes are stored, never the address, the client nonce or the restore token.
+
+**Applying this does not turn recovery on.** The capability stays behind a server-enforced feature flag that is off by default (BE-351), and three things are still open before it ships: the Turnstile site key does not exist in any environment, backup and restore coverage does not exist on the current Supabase plan, and no retention period for these rows has been approved. Applying it early is still useful: the routes stop reporting the feature as missing schema, and the audit below proves the privileges are closed.
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0018_identity_recovery.sql` and run it. Safe to re-run.
+2. Run the verification query in the comment at the end of that file. Expect one row, all five columns true. This table is the one place where `no_client_access` false would be serious: these rows are the only thing between a stranger and someone's household, so if it comes back false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+
+#### If you need to back out 0018
+
+The recovery routes go back to answering 503 `feature_unavailable`. No owned household record is touched: nothing outside this table references it. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0018 -->
+```sql
+drop table if exists public.recovery_challenges;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every challenge in flight is deleted, so anyone part way through proving ownership of their address has to start again once it is reapplied. Nothing else is affected, and no account that was already recovered loses anything.
+
+### 2.5 Later, once the old rows are clean
 
 Only when the optional check in 2.1 step 2 returned no rows (fix or delete what it listed first). This turns the new checks into full constraints:
 
@@ -337,7 +388,7 @@ If one of them fails, an old row still breaks that rule. Fix or delete the rows 
 ## Part 3. Decisions only you can make
 
 1. **Merging to main.** Claude will not merge. When B01 is finished it will tell you, and nothing reaches main until you say so explicitly. The branch `vmag211/backend` is the working branch and the controller pushes it after each reviewed task, so `git log origin/vmag211/backend..HEAD` shows what is not pushed yet.
-2. **The rest of the spec.** The spec you pasted is cut off partway through BE-032 (`/api/journal/retrospective`); BE-033 onward was not received. Missing: the rest of BE-032 and of the route inventory, the field and relationship tables (BE-033 on), security, retention and rollout sections, plus DS, MP, UI, AC, ST, WF, AG, MA, VR and every feature packet. B01 is fully covered. B02 is only partly covered. B03 to B12 cannot start without them. Fix: save the full Markdown as a file under `docs/product/` or paste the next sections into the chat.
+2. **The rest of the spec: resolved, nothing needed from you.** The copy at `docs/product/HALO_BACKEND_WORKING_SPEC.partial.md` is cut off partway through BE-032, but the complete 521,027-byte spec is already in this repository at `docs/product/ai/HALO_BACKEND_WORKING_SPEC.md` on `origin/codex/october15-review-refinement` (sha256 `fc1fec4b...415be86`, verified 2026-10-17 against Yogi's wiring packet manifest). B02 is planned from it. B03 to B12 are no longer blocked on a missing document; they are blocked only on being planned in dependency order.
 3. **Account recovery (HO-153, the gate).** Task 10 wrote `docs/backend/decisions/B01-optional-recovery.md`, status "Proposed, awaiting Vibhav's decision". The options:
    - A: anonymous only, no recovery. Losing the device loses the household. This is how it works today.
    - B: optional upgrade of the SAME anonymous user to email or phone, keeping the user id so every record and permission is kept. Claude recommends B, optional, never required for onboarding.

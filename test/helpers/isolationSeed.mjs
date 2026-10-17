@@ -21,6 +21,7 @@ export const entryId = (who, n) => `${PREFIX[who]}-0000-4000-8000-${hex12(n)}`;
 export const alertId = (who, n) => `${PREFIX[who]}-1111-4000-8000-${hex12(n)}`;
 export const contextId = (who, n) => `${PREFIX[who]}-2222-4000-8000-${hex12(n)}`;
 export const operationId = (who, n) => `${PREFIX[who]}-3333-4000-8000-${hex12(n)}`;
+export const challengeId = (who, n) => `${PREFIX[who]}-4444-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
 // On the Web Push hosts the subscribe route accepts (lib/pushInput.js), so a test can re-register them.
@@ -57,6 +58,17 @@ const UTILITY = {
   bob: { pwsid: 'NC9990002', pws_name: 'BOB WATER SYSTEM MARKER', ppt: 7.7, date: '6/1/2024' },
 };
 
+/**
+ * Hashes for the seeded recovery challenges. Migration 0018 accepts 64 lowercase
+ * hex characters and nothing else, so these cannot be readable markers; each
+ * household's digests start with its own nibbles instead and differ from each
+ * other, which is what an isolation or cascade check needs.
+ */
+const HASH_MARKER = {
+  alice: { email: 'a11ce'.padEnd(64, '0'), nonce: 'a11ce'.padEnd(64, '1') },
+  bob: { email: 'b0b'.padEnd(64, '0'), nonce: 'b0b'.padEnd(64, '1') },
+};
+
 /** Free-text values that only one household has, plus the numbers and ids that locate it. */
 export function markersOf(who, identity) {
   const upper = who.toUpperCase();
@@ -80,7 +92,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -107,6 +119,17 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       operation_id: operationId(who, 1), profile_id: id, domain: 'settings', kind: 'settings.save',
       status: 'succeeded', request_hash: `${upper}-REQUEST-HASH-MARKER`,
       result: { operationId: operationId(who, 1), status: 'succeeded', note: `${upper}-RECEIPT-MARKER` },
+      created_at: `${day(1)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
+    });
+    // One live recovery challenge each (migration 0018), so a cascade or
+    // isolation check on it cannot pass vacuously. Hashes only: the columns
+    // accept nothing but 64 hex characters, so the marker is carried in the
+    // digest's own leading bytes rather than in readable text.
+    rows.recovery_challenges.push({
+      id: challengeId(who, 1), profile_id: id,
+      email_hash: HASH_MARKER[who].email, nonce_hash: HASH_MARKER[who].nonce,
+      status: 'pending', attempts: 0,
+      expires_at: `${day(-1)}T12:00:00Z`,
       created_at: `${day(1)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
     });
     rows.ucmr5_utilities.push({

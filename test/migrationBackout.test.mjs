@@ -3,6 +3,8 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0018   undoes 0018 (recovery challenges)
+ *   backout-0017   undoes 0017 (operation ledger)
  *   backout-0016   undoes 0016 (home contexts)
  *   backout-0015   undoes 0015 (household transaction, journal checks, revoke)
  *   remedy-ucmr5   only if the audit shows ucmr5_utilities writable by the API roles
@@ -58,6 +60,8 @@ let db;
 let audit14;
 let audit15;
 let audit16;
+let audit17;
+let audit18;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -101,7 +105,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -220,4 +224,70 @@ test('after both back-outs, 0015 and 0016 apply again and give exactly the schem
     [ALICE],
   );
   assert.deepEqual(rows, [{ origin: 'legacy_migration' }]);
+});
+
+// ---- 0017 and 0018: the two B02 tables. Both are a single `drop table`, and
+// neither is referenced by anything outside itself, so the back-outs are
+// independent of each other and of 0015/0016. The tests above leave the
+// database at the 0016 schema, which is where these pick up.
+
+test('0017 and 0018 apply on top of 0016 and each adds exactly its own table', async () => {
+  await db.applyMigration(migration(17));
+  audit17 = await runAudit(db);
+  await db.applyMigration(migration(18));
+  audit18 = await runAudit(db);
+
+  assert.equal(await exists(`to_regclass('public.operations') is not null`), true, 'the ledger exists');
+  assert.equal(await exists(`to_regclass('public.recovery_challenges') is not null`), true, 'the challenge table exists');
+  // Something to lose: one settled receipt and one live challenge for alice.
+  await db.exec(
+    `insert into public.operations (operation_id, profile_id, domain, kind, status, result)
+       values ('00000000-0000-4000-8000-00000000f001', '${ALICE}', 'actions', 'actions.commit', 'succeeded', '{"status":"succeeded"}');
+     insert into public.recovery_challenges (profile_id, email_hash, nonce_hash, expires_at)
+       values ('${ALICE}', repeat('a', 64), repeat('b', 64), '2026-10-18T00:00:00Z');`,
+  );
+});
+
+test('backing out 0018 removes the challenge table and leaves the 0001..0017 schema exactly', async () => {
+  await db.exec(docBlock('backout-0018'));
+
+  assert.equal(await exists(`to_regclass('public.recovery_challenges') is not null`), false, 'the challenge table is gone');
+  // The ledger and every owned record are untouched: nothing outside the table referenced it.
+  assert.equal(await exists(`to_regclass('public.operations') is not null`), true, 'the ledger stays');
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.deepEqual(await runAudit(db), audit17);
+});
+
+test('backing out 0018 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0018'));
+  assert.deepEqual(await runAudit(db), audit17);
+});
+
+test('backing out 0017 removes the ledger and leaves the 0001..0016 schema exactly', async () => {
+  assert.equal(
+    await exists(`exists (select 1 from public.operations where operation_id = '00000000-0000-4000-8000-00000000f001')`),
+    true,
+    'the receipt is there to lose',
+  );
+  await db.exec(docBlock('backout-0017'));
+
+  assert.equal(await exists(`to_regclass('public.operations') is not null`), false, 'the ledger is gone');
+  // The effects those operations applied stay applied; only the receipts go.
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.deepEqual(await runAudit(db), audit16);
+});
+
+test('backing out 0017 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0017'));
+  assert.deepEqual(await runAudit(db), audit16);
+});
+
+test('after both back-outs, 0017 and 0018 apply again and give exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(17));
+  assert.deepEqual(await runAudit(db), audit17);
+  await db.applyMigration(migration(18));
+  assert.deepEqual(await runAudit(db), audit18);
+  // Reapplied empty: the receipts and challenges really were deleted, not hidden.
+  assert.deepEqual((await db.query(`select count(*)::int as n from public.operations`)).rows, [{ n: 0 }]);
+  assert.deepEqual((await db.query(`select count(*)::int as n from public.recovery_challenges`)).rows, [{ n: 0 }]);
 });

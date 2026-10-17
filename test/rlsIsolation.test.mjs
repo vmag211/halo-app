@@ -37,6 +37,7 @@ const OWNED_TABLES = {
   push_subscriptions: 'profile_id', // 0010
   home_contexts: 'profile_id',      // 0016
   operations: 'profile_id',         // 0017 (nullable only for the unauthenticated 'recovery' domain)
+  recovery_challenges: 'profile_id', // 0018
 };
 
 /**
@@ -58,6 +59,7 @@ const OWNER_DIRECT_ACCESS = {
   push_subscriptions: ['select'], // 0010: written with the service role only
   home_contexts: ['select'],      // 0016: written through its two service-role functions only; anon may not even select
   operations: [],                 // 0017: no policy at all. Receipts are read back only through GET /api/operations, which uses the service role.
+  recovery_challenges: [],        // 0018: no policy at all. The caller is not signed in while a challenge is live, and the owner has no reason to read it either: status comes from POST /api/recovery/status, which checks the client nonce first.
 };
 
 /**
@@ -71,6 +73,7 @@ const OWNER_DIRECT_ACCESS = {
  */
 const SERVICE_ONLY_OWNED = new Set([
   'operations', // 0017: receipts are replayed through GET /api/operations only
+  'recovery_challenges', // 0018: hashes of an unauthenticated ownership proof; the service role is the only reader
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -132,6 +135,13 @@ const OWNED_ROW = {
     kind: 'actions.commit',
     status: 'pending',
   }),
+  // 0018: hashes only, and the columns accept nothing but 64 hex characters.
+  recovery_challenges: (owner, n) => ({
+    profile_id: owner,
+    email_hash: `${n}`.repeat(1).padEnd(64, 'a'),
+    nonce_hash: `${n}`.repeat(1).padEnd(64, 'b'),
+    expires_at: '2026-10-18T00:00:00Z',
+  }),
 };
 
 /** A valid row for each reference table; `n` varies the key (seeds use 0, attempts use 1). */
@@ -160,6 +170,7 @@ const PROBE_COLUMN = {
   push_subscriptions: 'p256dh',
   home_contexts: 'water_source',
   operations: 'request_hash',
+  recovery_challenges: 'attempts',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

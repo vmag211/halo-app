@@ -53,6 +53,7 @@ const ROUTE_COVERAGE = {
   'GET /api/learn': 'isolation: read matrix (household note from the caller\'s composition)',
   'GET /api/map': 'isolation: read matrix (no household data)',
   'GET /api/notifications': 'isolation: read matrix',
+  'GET /api/operations': 'routesOperations: another household\'s operation id is the identical 404, recovery is not readable here, stale pending reads as unknown',
   'PUT /api/notifications': 'isolation: only the caller\'s preferences change; smuggled profile_id rejected',
   'POST /api/onboard': 'isolation: 403 for a foreign profile_id; flows: move, backfill, lookup failure touch only the caller, with and without the 0016 function',
   'GET /api/profile': 'isolation: read matrix, identity-from-token',

@@ -120,6 +120,16 @@ export const HALO_TABLES = {
     defaults: { status: 'pending', created_at: now, updated_at: now },
   },
 
+  // 0018: one attempt to prove ownership of a linked email. Only hashes are
+  // stored, and the row belongs to the identity being recovered, so it cascades
+  // like any other owned table. The restore token is single use: consumed_at
+  // records when it was spent.
+  recovery_challenges: {
+    primaryKey: 'id',
+    ownerColumn: 'profile_id',
+    defaults: { id: uuid, status: 'pending', attempts: 0, created_at: now, updated_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },
