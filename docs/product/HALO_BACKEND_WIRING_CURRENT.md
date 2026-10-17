@@ -8,14 +8,14 @@ Prepared October 16, 2026 for Vibhav. Download this whole file from branch `code
 
 Embedded documents retain their original prose, headings, source paths and relative links. Resolve a relative link against its named source document in the repository. Repeated appendix/control IDs are scoped to that document and audit date. The final three parts are the fresh current control/type/source inventory; older inventory is retained as historical evidence.
 
-Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive baseline requirements, 72 new runtime operations; 1,800 current control declarations across 170 JSX files. Static declarations are not a guarantee of runtime completeness.
+Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive baseline requirements, 72 new runtime operations; 1,800 current control declarations across 172 JSX files. Static declarations are not a guarantee of runtime completeness.
 
 ## Included sources
 
 | Part | Repository source | Normalized UTF-8 bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| 1 | docs/continuation/FRONTEND_WIRING_CLOSEOUT.md | 15557 | 62ce755ff30be3fb976d962d23c2a260ef4e469db6108fcd42144548e475cc17 |
-| 2 | docs/continuation/FRONTEND_WIRING_VERIFICATION.md | 10594 | 9b35e0b4297b516d13dace85b67199ae2f89e8f6bd00eb7aaea212a7b5d41e1d |
+| 1 | docs/continuation/FRONTEND_WIRING_CLOSEOUT.md | 16205 | c929c4cddcfc7a79097417c977189afd4de62404ae0ad7552ca87318433fead5 |
+| 2 | docs/continuation/FRONTEND_WIRING_VERIFICATION.md | 13741 | 4b83b0080b316a7425c6fdf747bdf35a25265b3f0e7e2f76f8ce97308ea54137 |
 | 3 | tmp/frontend-wiring-closeout/operations.md | 6756 | 685083ad09176ece7b47a40fdd9b1e0cf83527cfaab9c2f05dc366f6e0365ef0 |
 | 4 | docs/continuation/FRONTEND_INTEGRATION_READY.md | 17818 | 36a0ec90c0c520c55c0b631b7250ee51f536f553f608bf061fea4a192d585c85 |
 | 5 | docs/continuation/HOME_ACCOUNT_PRODUCTION_INTEGRATION.md | 24663 | 31ba5a2d589a4ed62950df9e9b7b41753ce427f2b981496b8ee065b179e25ea3 |
@@ -30,9 +30,9 @@ Coverage: 45 feature groups, 25 integration journeys, 1,630 named substantive ba
 | 14 | docs/foundation/WIREFRAME_COMPLETION_MATRIX.md | 9946 | 84b02d188426a66f66fee136f46812cdb6f20ac07fa454a7775e8e42dd3ca6de |
 | 15 | docs/product/HALO_COMPLETE_BACKEND_HANDOFF.md | 601277 | 33abef338e35149c650856d0788ec7fd238a09b6c0b16e894adfcd2e2f0d481e |
 | 16 | docs/product/ai/HALO_BACKEND_WORKING_SPEC.md | 521027 | fc1fec4b180dc5057b2edf1c2203143d85535b43364502e674d34e04d415be86 |
-| 17 | tmp/backend-handoff-wrap/interface-ledger.md | 288084 | 75f3fef724f405502e20b397a63883e28add8706a391512393895a6f7c333a08 |
+| 17 | tmp/backend-handoff-wrap/interface-ledger.md | 288200 | 0879c5d6dd3e1c95a613cccdd9a7d40934e7c31f1cd310c17a579180d17c61b4 |
 | 18 | tmp/backend-handoff-wrap/type-register.md | 60979 | 07d06dfac47de0028157dfa34b1a8f3049cc903751b6694ec8a4abdac9415428 |
-| 19 | tmp/backend-handoff-wrap/source-register.md | 27066 | 3810f4991e0cfe8d93fe4c4e701c50d44588b018b40fc86973e7f8efe12eda74 |
+| 19 | tmp/backend-handoff-wrap/source-register.md | 27254 | dd5d7c48ddfa8b0a47cad5401bb9fb99d63d1fa7795452ada59d801eabd55910 |
 
 
 ---
@@ -45,6 +45,8 @@ Source: `docs/continuation/FRONTEND_WIRING_CLOSEOUT.md`.
 # HALO frontend wiring closeout
 
 Current as of October 16, 2026. Frontend branch: `codex/october15-review-refinement`. This is an integration handoff, not a declaration that the backend, providers or production deployment are complete.
+
+October 17 presentation update: shared loading visuals now cover startup, core reading/resource loads, Homeguard, projects, opportunities, Luna, settings, alerts, Journal/history/forecasts and the map. The short arrival animation does not delay ready content. Homeguard preserves independent collection-loading feedback instead of presenting pending test records as an empty result when an auxiliary collection arrives first. These changes use the existing pending/availability, cancellation, error and receipt contracts; no new backend endpoints or fields are required. See the appended loading verification in `FRONTEND_WIRING_VERIFICATION.md`.
 
 ## Start here, Vibhav
 
@@ -218,6 +220,18 @@ All 20 focused browser scenarios have passing results: 11 existing week ambience
 Six relevant scene/crop/water unit checks, main TypeScript, scoped lint and the 24-page static export build passed. The current source/control fingerprints and assembled wiring packet were refreshed. The pre-existing local waterline and unrelated documentation edits remain outside this update. Existing backend wiring requirements are unchanged.
 
 Static preview version 58 published successfully on the existing HALO Site, from Site source commit `fd8a53a7543ad2e934dff8c94ea5bba8dc8c3791`. The `/app` and `/tools` links remain valid.
+
+## October 17 loading refinement
+
+The shared orbital loading mark uses the approved HALO logo, palette-aware arcs, a quiet indeterminate horizon and skeleton shimmer. Startup and route fallbacks, production readings/explanations, home resources and record saves, project generation, opportunity discovery, Luna, settings, alerts, Journal/history/forecast and map loading use shared visuals or the upgraded existing spinner. Luna keeps its finite wave-to-hexagon gesture while the surrounding orbit continues for a genuinely pending request. Device/app reduction and forced colors retain a still readable status. The 520ms page-arrival flourish is decorative, does not block interaction and does not force a service delay or fabricate progress. No request timeout, save receipt, error, cancellation, revision or unknown-outcome authority is replaced by an animation timer.
+
+Controlled slow-service testing found a real existing Homeguard issue: a ready auxiliary collection could suppress the main loading state while test records were still pending. Pending tests now stay in loading, and partial collection loading has an inline indicator while ready records remain usable. This requires no new API, backend field or provider operation.
+
+Verification has passing evidence for **42 distinct focused browser cases**: 14 final static loading/Luna/navigation/palette checks, three final controlled-service pending/error/retry/partial-data checks, five production settings cases, and 20 Explore/settings regressions. The generation motion test now selects the replacement orbit instead of the removed leaf illustration. Initial production test setup used a superseded route and a build from before the accessible-name addition; these were corrected rather than skipped. A subsequent held-request test exposed the Homeguard issue above, which was fixed and covered with separate independent-collection tests. Evidence: `test-results-loading-final/`, `test-results-loading-home-release/`, `test-results-loading-production-final/`, `test-results-loading-regression/` and `test-results-loading-cancel/`.
+
+The final isolated production build (42 generated pages/routes) and static export (24 pages) passed compilation and TypeScript. Scoped lint passed. The two immutable archives remain unchanged (204 onboarding and 146 foundation files). The staged interface inventory remains 1,800 controls and 248 exported types, now across 172 JSX files and 250 fingerprinted files. The current complete wiring packet and manifest are regenerated from staged frontend source; unrelated local documentation and waterline edits are excluded. Controlled services, desktop Chromium and a published static preview do not establish live backend/provider or physical-device acceptance. Existing release gates remain in force.
+
+Static preview **version 59** published successfully on the existing HALO Site, from verified Site source commit `e32f41675b668294d3ea7aded6aee0f2640e1d6a`, retaining the public audience and clean `/app` and developer `/tools` entries. Both frontend and Site source commits use YogiBearstc attribution. No backend branch was merged or messaged.
 
 <!-- HALO-SOURCE-END docs/continuation/FRONTEND_WIRING_VERIFICATION.md -->
 
@@ -10594,7 +10608,7 @@ Source: `tmp/backend-handoff-wrap/interface-ledger.md`.
 
 Generated from tracked current components and route JSX using the TypeScript parser. Every statically declared native control and every JSX element with an event callback, navigation target, form action or download is listed. Repeated data-driven rows are represented by their source control; runtime records are covered by the corresponding domain contract. This is a traceability index, not proof that callbacks already call production services. Labels and handlers are source expressions, not replacement product copy. Review-only controls and local presentation actions are intentionally visible here so they cannot accidentally become production service requirements. Consult the named owner function for complex inline closures.
 
-Scanned 170 JSX source files; found 1800 control declarations. Native browser interactions and global effects are covered by shared contracts and the source-file register.
+Scanned 172 JSX source files; found 1800 control declarations. Native browser interactions and global effects are covered by shared contracts and the source-file register.
 
 ### app/OnboardingScreen.tsx
 
@@ -10702,18 +10716,18 @@ Contract family: X03.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0066 :41 | button / AlertCenter | Retry or check status | onClick={()=&gt;void inbox.retry()} |
-| UI0067 :42 | button / AlertCenter | {c.all} | onClick={()=&gt;setUnreadOnly(false)} |
-| UI0068 :42 | button / AlertCenter | {c.unread} | onClick={()=&gt;setUnreadOnly(true)} |
-| UI0069 :42 | button / AlertCenter | {c.markAll} | onClick={inbox.all} |
-| UI0070 :43 | select / AlertCenter | {c.filterOptions.map(s=&gt;&lt;option key={s}&gt;{s}&lt;/option&gt;)} | onChange={e=&gt;setFilter(e.target.value)} |
-| UI0071 :44 | button / AlertCenter | {item.title} | onClick={()=&gt;setExpanded(expanded===item.id?null:item.id)} |
-| UI0072 :44 | a / AlertCenter | {item.source.title} | href={item.source.url} |
-| UI0073 :44 | button / AlertCenter | {c.openRelated} | onClick={()=&gt;onOpen(item)} |
-| UI0074 :44 | button / AlertCenter | {'${c.markRead}: ${item.title}'} | onClick={()=&gt;inbox.read(item)} |
-| UI0075 :44 | button / AlertCenter | {'${c.dismiss}: ${item.title}'} | onClick={()=&gt;inbox.dismiss(item)} |
-| UI0076 :46 | button / AlertCenter | {c.undo} | onClick={inbox.restore} |
-| UI0077 :47 | button / AlertCenter | (child/component label) | onClick={onSettings} |
+| UI0066 :42 | button / AlertCenter | Retry or check status | onClick={()=&gt;void inbox.retry()} |
+| UI0067 :43 | button / AlertCenter | {c.all} | onClick={()=&gt;setUnreadOnly(false)} |
+| UI0068 :43 | button / AlertCenter | {c.unread} | onClick={()=&gt;setUnreadOnly(true)} |
+| UI0069 :43 | button / AlertCenter | {c.markAll} | onClick={inbox.all} |
+| UI0070 :44 | select / AlertCenter | {c.filterOptions.map(s=&gt;&lt;option key={s}&gt;{s}&lt;/option&gt;)} | onChange={e=&gt;setFilter(e.target.value)} |
+| UI0071 :45 | button / AlertCenter | {item.title} | onClick={()=&gt;setExpanded(expanded===item.id?null:item.id)} |
+| UI0072 :45 | a / AlertCenter | {item.source.title} | href={item.source.url} |
+| UI0073 :45 | button / AlertCenter | {c.openRelated} | onClick={()=&gt;onOpen(item)} |
+| UI0074 :45 | button / AlertCenter | {'${c.markRead}: ${item.title}'} | onClick={()=&gt;inbox.read(item)} |
+| UI0075 :45 | button / AlertCenter | {'${c.dismiss}: ${item.title}'} | onClick={()=&gt;inbox.dismiss(item)} |
+| UI0076 :47 | button / AlertCenter | {c.undo} | onClick={inbox.restore} |
+| UI0077 :48 | button / AlertCenter | (child/component label) | onClick={onSettings} |
 
 ### components/expanded/ExpandedConnections.tsx
 
@@ -10893,29 +10907,29 @@ Contract family: A01-A06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0201 :31 | button / GetInvolvedPreview | "Get involved: find local volunteering and organizations" | onClick={() =&gt; go('opportunities')} |
-| UI0202 :57 | OpportunityDetail / ExploreOpportunities | (child/component label) | href={href} |
-| UI0203 :61 | input / ExploreOpportunities | "Trees, cleanups, gardening..." | onChange={event =&gt; setFilters({ ...filters, search: event.target.value })} |
-| UI0204 :62 | select / ExploreOpportunities | {['All interests', 'Cleanup', 'Trees & habitat', 'Gardening', 'Community learning'].map(value =&gt; &lt;option key={value}&gt;{value}&lt;/option&gt;)} | onChange={event =&gt; setFilters({ ...filters, interest: event.target.value })} |
-| UI0205 :62 | select / ExploreOpportunities | (child/component label) | onChange={event =&gt; setTiming(event.target.value)} |
-| UI0206 :63 | button / ExploreOpportunities | {refreshing\|\|live.loading ? 'Checking...' : 'Refresh listings'} | onClick={() =&gt; {if(runtime){setCursor(null);live.retry();return;}setRefreshing(true); setNotice(''); timer.current = setTimeout(() =&gt; { timer.current = null; setRefreshing(false); setNotice('Listings refreshed. Confirm availability with the organizer.'); }, 850); }} |
-| UI0207 :64 | summary / ExploreOpportunities | Location and source coverage | (native form/control behavior) |
-| UI0208 :64 | select / ExploreOpportunities | (child/component label) | onChange={event =&gt; setFilters({ ...filters, scope: event.target.value })} |
-| UI0209 :67 | button / ExploreOpportunities | (child/component label) | onClick={() =&gt; setSelected(item.id)} |
-| UI0210 :69 | button / ExploreOpportunities | Clear interest and date filters | onClick={() =&gt; {setCursor(null); setTiming('all'); setFilters({ ...filters, interest: 'All interests', search: '' }); }} |
-| UI0211 :70 | button / ExploreOpportunities | Next listings | onClick={()=&gt;{setSelected('');setCursor(result.nextCursor);}} |
-| UI0212 :70 | button / ExploreOpportunities | Back to first listings | onClick={()=&gt;setCursor(null)} |
-| UI0213 :71 | summary / ExploreOpportunities | Organizations and other ways to help | (native form/control behavior) |
-| UI0214 :91 | button / OpportunityDetail | All opportunities | onClick={back} |
-| UI0215 :99 | a / OpportunityDetail | {available ? 'Check details & registration' : 'Open official organizer page'} | href={item.url} |
-| UI0216 :101 | summary / OpportunityDetail | Preparation and access details | (native form/control behavior) |
-| UI0217 :102 | button / OpportunityDetail | Plan my participation | onClick={() =&gt; hasParticipationDraft(draft) ? setReplace(true) : prepare()} |
-| UI0218 :102 | button / OpportunityDetail | Check outdoor conditions | onClick={() =&gt; { setOutdoorHandoff(opportunityOutdoorHandoff(item)); router.push(href('plan', 'outdoors')); }} |
-| UI0219 :103 | button / OpportunityDetail | Open my existing draft | onClick={() =&gt; go('opportunities', 'new')} |
-| UI0220 :103 | button / OpportunityDetail | Replace unfinished draft with this opportunity | onClick={prepare} |
-| UI0221 :103 | button / OpportunityDetail | Cancel | onClick={() =&gt; setReplace(false)} |
-| UI0222 :104 | summary / OpportunityDetail | Source and availability | (native form/control behavior) |
-| UI0223 :104 | a / OpportunityDetail | Original source | href={item.url} |
+| UI0201 :32 | button / GetInvolvedPreview | "Get involved: find local volunteering and organizations" | onClick={() =&gt; go('opportunities')} |
+| UI0202 :58 | OpportunityDetail / ExploreOpportunities | (child/component label) | href={href} |
+| UI0203 :62 | input / ExploreOpportunities | "Trees, cleanups, gardening..." | onChange={event =&gt; setFilters({ ...filters, search: event.target.value })} |
+| UI0204 :63 | select / ExploreOpportunities | {['All interests', 'Cleanup', 'Trees & habitat', 'Gardening', 'Community learning'].map(value =&gt; &lt;option key={value}&gt;{value}&lt;/option&gt;)} | onChange={event =&gt; setFilters({ ...filters, interest: event.target.value })} |
+| UI0205 :63 | select / ExploreOpportunities | (child/component label) | onChange={event =&gt; setTiming(event.target.value)} |
+| UI0206 :64 | button / ExploreOpportunities | {refreshing\|\|live.loading ? 'Checking...' : 'Refresh listings'} | onClick={() =&gt; {if(runtime){setCursor(null);live.retry();return;}setRefreshing(true); setNotice(''); timer.current = setTimeout(() =&gt; { timer.current = null; setRefreshing(false); setNotice('Listings refreshed. Confirm availability with the organizer.'); }, 850); }} |
+| UI0207 :65 | summary / ExploreOpportunities | Location and source coverage | (native form/control behavior) |
+| UI0208 :65 | select / ExploreOpportunities | (child/component label) | onChange={event =&gt; setFilters({ ...filters, scope: event.target.value })} |
+| UI0209 :68 | button / ExploreOpportunities | (child/component label) | onClick={() =&gt; setSelected(item.id)} |
+| UI0210 :70 | button / ExploreOpportunities | Clear interest and date filters | onClick={() =&gt; {setCursor(null); setTiming('all'); setFilters({ ...filters, interest: 'All interests', search: '' }); }} |
+| UI0211 :71 | button / ExploreOpportunities | Next listings | onClick={()=&gt;{setSelected('');setCursor(result.nextCursor);}} |
+| UI0212 :71 | button / ExploreOpportunities | Back to first listings | onClick={()=&gt;setCursor(null)} |
+| UI0213 :72 | summary / ExploreOpportunities | Organizations and other ways to help | (native form/control behavior) |
+| UI0214 :92 | button / OpportunityDetail | All opportunities | onClick={back} |
+| UI0215 :100 | a / OpportunityDetail | {available ? 'Check details & registration' : 'Open official organizer page'} | href={item.url} |
+| UI0216 :102 | summary / OpportunityDetail | Preparation and access details | (native form/control behavior) |
+| UI0217 :103 | button / OpportunityDetail | Plan my participation | onClick={() =&gt; hasParticipationDraft(draft) ? setReplace(true) : prepare()} |
+| UI0218 :103 | button / OpportunityDetail | Check outdoor conditions | onClick={() =&gt; { setOutdoorHandoff(opportunityOutdoorHandoff(item)); router.push(href('plan', 'outdoors')); }} |
+| UI0219 :104 | button / OpportunityDetail | Open my existing draft | onClick={() =&gt; go('opportunities', 'new')} |
+| UI0220 :104 | button / OpportunityDetail | Replace unfinished draft with this opportunity | onClick={prepare} |
+| UI0221 :104 | button / OpportunityDetail | Cancel | onClick={() =&gt; setReplace(false)} |
+| UI0222 :105 | summary / OpportunityDetail | Source and availability | (native form/control behavior) |
+| UI0223 :105 | a / OpportunityDetail | Original source | href={item.url} |
 
 ### components/expanded/ExploreOutcome.tsx
 
@@ -10978,55 +10992,55 @@ Contract family: A01-A06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0265 :65 | summary / ExploreProjects | My projects ( {collection.records.length} ) | (native form/control behavior) |
-| UI0266 :65 | button / ExploreProjects | {item.title} · {item.status} | onClick={() =&gt; go('projects', 'detail', item.id)} |
-| UI0267 :66 | input / ExploreProjects | "Find an idea in this set" | onChange={event =&gt; setQuery(event.target.value)} |
-| UI0268 :66 | select / ExploreProjects | {projectGuideCauses.map(item =&gt; &lt;option key={item}&gt;{item}&lt;/option&gt;)} | onChange={event =&gt; setCause(event.target.value)} |
-| UI0269 :66 | button / ExploreProjects | Refresh ideas | onClick={() =&gt; generation.regenerate()} |
-| UI0270 :69 | button / ExploreProjects | Clear project filters | onClick={() =&gt; { setQuery(''); setCause('All projects'); }} |
-| UI0271 :74 | button / ExploreProjects | Try again | onClick={guideRead.retry} |
-| UI0272 :74 | button / ExploreProjects | All projects | onClick={() =&gt; go('projects')} |
-| UI0273 :100 | button / ExploreProjects | All projects | onClick={() =&gt; go('projects')} |
-| UI0274 :102 | summary / ExploreProjects | Purpose and fit | (native form/control behavior) |
-| UI0275 :103 | button / ExploreProjects | {starting?'Starting project...':startAttempt?'Check project start':'Start my project workspace'} | onClick={()=&gt;void startProject()} |
-| UI0276 :103 | button / ExploreProjects | {paused ? &lt;Play size={16} aria-hidden="true" /&gt; : &lt;Pause size={16} aria-hidden="true" /&gt;} {paused ? 'Resume project' : 'Pause project'} | onClick={() =&gt; collection.save({ ...record, status: paused ? 'Active' : 'Paused', history: [...record.history, { status: paused ? 'Active' : 'Paused', note: paused ? 'I resumed my project.' : 'I paused my project.' }] })} |
-| UI0277 :106 | summary / ExploreProjects | Materials, permissions and safety | (native form/control behavior) |
-| UI0278 :108 | summary / ExploreProjects | {project.buildPlan.title} | (native form/control behavior) |
-| UI0279 :108 | a / ExploreProjects | Open the measured source diagrams | href={project.sources.find(item =&gt; item.id === project.buildPlan?.sourceId)?.url} |
-| UI0280 :110 | button / ExploreProjects | {item.title} | onClick={() =&gt; openStep(index)} |
-| UI0281 :115 | a / ExploreProjects | {item.publisher} : {item.title} | href={item.url} |
-| UI0282 :116 | button / ExploreProjects | "Previous project step" | onClick={() =&gt; openStep(current - 1)} |
-| UI0283 :116 | button / ExploreProjects | "Next project step" | onClick={() =&gt; openStep(current + 1)} |
-| UI0284 :118 | button / ExploreProjects | {action.state === 'completed' ? 'Reopen this step' : 'Mark this step completed'} | onClick={async () =&gt; await state?.changeState(action.id, action.state === 'completed' ? 'saved' : 'completed')} |
-| UI0285 :118 | button / ExploreProjects | {action.state === 'waiting' ? 'Resume saved step' : 'Mark this step waiting'} | onClick={async () =&gt; await state?.changeState(action.id, action.state === 'waiting' ? 'saved' : 'waiting')} |
-| UI0286 :119 | summary / ExploreProjects | Add a step note | (native form/control behavior) |
-| UI0287 :119 | textarea / ExploreProjects | What I did or learned at this step | onChange={event =&gt; setNotes({ ...notes, [stepNoteKey]: event.target.value })} |
-| UI0288 :119 | button / ExploreProjects | Save this step note | onClick={() =&gt; collection.save({ ...record, stepNotes: { ...record.stepNotes, [stepNoteKey]: notes[stepNoteKey] ?? record.stepNotes[stepNoteKey] ?? '' } })} |
-| UI0289 :122 | summary / ExploreProjects | Read the whole guide | (native form/control behavior) |
-| UI0290 :122 | button / ExploreProjects | Work on step {index + 1} | onClick={() =&gt; { openStep(index); document.querySelector('.ex-guide-current-step')?.scrollIntoView({ block: 'start', behavior: 'instant' }); }} |
-| UI0291 :123 | summary / ExploreProjects | Choose steps for My Week | (native form/control behavior) |
-| UI0292 :123 | input / ExploreProjects | (child/component label) | onChange={event =&gt; setSelected(event.target.checked ? [...validSelected, index].sort((a, b) =&gt; a - b) : validSelected.filter(item =&gt; item !== index))} |
-| UI0293 :123 | DateInput / ExploreProjects | Initial check-back date (optional) | onChange={event =&gt; setSchedule(event.target.value)} |
-| UI0294 :123 | button / ExploreProjects | Review selected steps for My Week | onClick={() =&gt; { if (schedule && !validDay(schedule)) { setError('Choose a valid check-back date.'); return; } setError(''); setConfirmBundle(true); }} |
-| UI0295 :125 | summary / ExploreProjects | Record the result and follow-up | (native form/control behavior) |
-| UI0296 :125 | textarea / ExploreProjects | My project result | onChange={event =&gt; { setOutcome(event.target.value); setResultError(null); }} |
-| UI0297 :125 | button / ExploreProjects | Record project completion | onClick={recordCompletion} |
-| UI0298 :126 | summary / ExploreProjects | My project history | (native form/control behavior) |
-| UI0299 :128 | summary / ExploreProjects | Related actions | (native form/control behavior) |
-| UI0300 :128 | Link / ExploreProjects | {project.cause === 'Air' ? 'Open air and outdoor readings' : project.cause === 'Water' ? 'Continue into tests and home records' : 'Open Food and Garden in Homeguard'} | href={project.cause === 'Air' ? href('today') : href('home', project.cause === 'Water' ? 'tests' : 'food')} |
-| UI0301 :128 | button / ExploreProjects | Prepare a question for a qualified resource | onClick={() =&gt; go('outreach')} |
-| UI0302 :128 | button / ExploreProjects | Keep a project observation | onClick={() =&gt; go('observations', 'new')} |
-| UI0303 :128 | button / ExploreProjects | Find an organizer | onClick={() =&gt; go('opportunities')} |
-| UI0304 :129 | Confirm / ExploreProjects | "Add these steps to My Week?" | onCancel={() =&gt; setConfirmBundle(false)}; onConfirm={async () =&gt; { if (disabled \|\| paused \|\| ['save-error', 'conflict'].includes(workspace.scenario) \|\| !await state?.addActions(seeds, schedule)) { setError('Could not save the plan. Your choices are kept.'); setConfirmBundle(false); return; } setConfirmBundle(false); setError('Selected steps are in My Week. Existing actions were kept unchanged.'); }} |
-| UI0305 :134 | summary / GuideSources | Sources and guide limits | (native form/control behavior) |
-| UI0306 :134 | a / GuideSources | {item.publisher} : {item.title} | href={item.url} |
-| UI0307 :189 | button / PersonalizedProjectsPreview | {generation.batch.items.length ? 'Projects for you: see all ${generation.batch.items.length}' : 'Projects for you: find ideas'} | onClick={() =&gt; go('projects')} |
-| UI0308 :196 | button / SuggestedProject | (child/component label) | onClick={() =&gt; go('projects', 'detail', item.id)} |
-| UI0309 :197 | summary / SuggestedProject | Why this idea? | (native form/control behavior) |
-| UI0310 :203 | form / ProjectInterestInput | (child/component label) | onSubmit={event =&gt; { event.preventDefault(); if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); else generation.regenerate(); }} |
-| UI0311 :204 | textarea / ProjectInterestInput | "A solar experiment, native plants, or something to try with friends..." | onChange={event =&gt; setRequest(event.target.value)} |
-| UI0312 :205 | button / ProjectInterestInput | {request.trim() ? 'Generate a few ideas' : 'Generate project ideas'} | (native form/control behavior) |
-| UI0313 :205 | button / ProjectInterestInput | Preferences | onClick={() =&gt; generation.setFitOpen(true)} |
+| UI0265 :66 | summary / ExploreProjects | My projects ( {collection.records.length} ) | (native form/control behavior) |
+| UI0266 :66 | button / ExploreProjects | {item.title} · {item.status} | onClick={() =&gt; go('projects', 'detail', item.id)} |
+| UI0267 :67 | input / ExploreProjects | "Find an idea in this set" | onChange={event =&gt; setQuery(event.target.value)} |
+| UI0268 :67 | select / ExploreProjects | {projectGuideCauses.map(item =&gt; &lt;option key={item}&gt;{item}&lt;/option&gt;)} | onChange={event =&gt; setCause(event.target.value)} |
+| UI0269 :67 | button / ExploreProjects | Refresh ideas | onClick={() =&gt; generation.regenerate()} |
+| UI0270 :70 | button / ExploreProjects | Clear project filters | onClick={() =&gt; { setQuery(''); setCause('All projects'); }} |
+| UI0271 :75 | button / ExploreProjects | Try again | onClick={guideRead.retry} |
+| UI0272 :75 | button / ExploreProjects | All projects | onClick={() =&gt; go('projects')} |
+| UI0273 :101 | button / ExploreProjects | All projects | onClick={() =&gt; go('projects')} |
+| UI0274 :103 | summary / ExploreProjects | Purpose and fit | (native form/control behavior) |
+| UI0275 :104 | button / ExploreProjects | {starting?'Starting project...':startAttempt?'Check project start':'Start my project workspace'} | onClick={()=&gt;void startProject()} |
+| UI0276 :104 | button / ExploreProjects | {paused ? &lt;Play size={16} aria-hidden="true" /&gt; : &lt;Pause size={16} aria-hidden="true" /&gt;} {paused ? 'Resume project' : 'Pause project'} | onClick={() =&gt; collection.save({ ...record, status: paused ? 'Active' : 'Paused', history: [...record.history, { status: paused ? 'Active' : 'Paused', note: paused ? 'I resumed my project.' : 'I paused my project.' }] })} |
+| UI0277 :107 | summary / ExploreProjects | Materials, permissions and safety | (native form/control behavior) |
+| UI0278 :109 | summary / ExploreProjects | {project.buildPlan.title} | (native form/control behavior) |
+| UI0279 :109 | a / ExploreProjects | Open the measured source diagrams | href={project.sources.find(item =&gt; item.id === project.buildPlan?.sourceId)?.url} |
+| UI0280 :111 | button / ExploreProjects | {item.title} | onClick={() =&gt; openStep(index)} |
+| UI0281 :116 | a / ExploreProjects | {item.publisher} : {item.title} | href={item.url} |
+| UI0282 :117 | button / ExploreProjects | "Previous project step" | onClick={() =&gt; openStep(current - 1)} |
+| UI0283 :117 | button / ExploreProjects | "Next project step" | onClick={() =&gt; openStep(current + 1)} |
+| UI0284 :119 | button / ExploreProjects | {action.state === 'completed' ? 'Reopen this step' : 'Mark this step completed'} | onClick={async () =&gt; await state?.changeState(action.id, action.state === 'completed' ? 'saved' : 'completed')} |
+| UI0285 :119 | button / ExploreProjects | {action.state === 'waiting' ? 'Resume saved step' : 'Mark this step waiting'} | onClick={async () =&gt; await state?.changeState(action.id, action.state === 'waiting' ? 'saved' : 'waiting')} |
+| UI0286 :120 | summary / ExploreProjects | Add a step note | (native form/control behavior) |
+| UI0287 :120 | textarea / ExploreProjects | What I did or learned at this step | onChange={event =&gt; setNotes({ ...notes, [stepNoteKey]: event.target.value })} |
+| UI0288 :120 | button / ExploreProjects | Save this step note | onClick={() =&gt; collection.save({ ...record, stepNotes: { ...record.stepNotes, [stepNoteKey]: notes[stepNoteKey] ?? record.stepNotes[stepNoteKey] ?? '' } })} |
+| UI0289 :123 | summary / ExploreProjects | Read the whole guide | (native form/control behavior) |
+| UI0290 :123 | button / ExploreProjects | Work on step {index + 1} | onClick={() =&gt; { openStep(index); document.querySelector('.ex-guide-current-step')?.scrollIntoView({ block: 'start', behavior: 'instant' }); }} |
+| UI0291 :124 | summary / ExploreProjects | Choose steps for My Week | (native form/control behavior) |
+| UI0292 :124 | input / ExploreProjects | (child/component label) | onChange={event =&gt; setSelected(event.target.checked ? [...validSelected, index].sort((a, b) =&gt; a - b) : validSelected.filter(item =&gt; item !== index))} |
+| UI0293 :124 | DateInput / ExploreProjects | Initial check-back date (optional) | onChange={event =&gt; setSchedule(event.target.value)} |
+| UI0294 :124 | button / ExploreProjects | Review selected steps for My Week | onClick={() =&gt; { if (schedule && !validDay(schedule)) { setError('Choose a valid check-back date.'); return; } setError(''); setConfirmBundle(true); }} |
+| UI0295 :126 | summary / ExploreProjects | Record the result and follow-up | (native form/control behavior) |
+| UI0296 :126 | textarea / ExploreProjects | My project result | onChange={event =&gt; { setOutcome(event.target.value); setResultError(null); }} |
+| UI0297 :126 | button / ExploreProjects | Record project completion | onClick={recordCompletion} |
+| UI0298 :127 | summary / ExploreProjects | My project history | (native form/control behavior) |
+| UI0299 :129 | summary / ExploreProjects | Related actions | (native form/control behavior) |
+| UI0300 :129 | Link / ExploreProjects | {project.cause === 'Air' ? 'Open air and outdoor readings' : project.cause === 'Water' ? 'Continue into tests and home records' : 'Open Food and Garden in Homeguard'} | href={project.cause === 'Air' ? href('today') : href('home', project.cause === 'Water' ? 'tests' : 'food')} |
+| UI0301 :129 | button / ExploreProjects | Prepare a question for a qualified resource | onClick={() =&gt; go('outreach')} |
+| UI0302 :129 | button / ExploreProjects | Keep a project observation | onClick={() =&gt; go('observations', 'new')} |
+| UI0303 :129 | button / ExploreProjects | Find an organizer | onClick={() =&gt; go('opportunities')} |
+| UI0304 :130 | Confirm / ExploreProjects | "Add these steps to My Week?" | onCancel={() =&gt; setConfirmBundle(false)}; onConfirm={async () =&gt; { if (disabled \|\| paused \|\| ['save-error', 'conflict'].includes(workspace.scenario) \|\| !await state?.addActions(seeds, schedule)) { setError('Could not save the plan. Your choices are kept.'); setConfirmBundle(false); return; } setConfirmBundle(false); setError('Selected steps are in My Week. Existing actions were kept unchanged.'); }} |
+| UI0305 :135 | summary / GuideSources | Sources and guide limits | (native form/control behavior) |
+| UI0306 :135 | a / GuideSources | {item.publisher} : {item.title} | href={item.url} |
+| UI0307 :190 | button / PersonalizedProjectsPreview | {generation.batch.items.length ? 'Projects for you: see all ${generation.batch.items.length}' : 'Projects for you: find ideas'} | onClick={() =&gt; go('projects')} |
+| UI0308 :197 | button / SuggestedProject | (child/component label) | onClick={() =&gt; go('projects', 'detail', item.id)} |
+| UI0309 :198 | summary / SuggestedProject | Why this idea? | (native form/control behavior) |
+| UI0310 :204 | form / ProjectInterestInput | (child/component label) | onSubmit={event =&gt; { event.preventDefault(); if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); else generation.regenerate(); }} |
+| UI0311 :205 | textarea / ProjectInterestInput | "A solar experiment, native plants, or something to try with friends..." | onChange={event =&gt; setRequest(event.target.value)} |
+| UI0312 :206 | button / ProjectInterestInput | {request.trim() ? 'Generate a few ideas' : 'Generate project ideas'} | (native form/control behavior) |
+| UI0313 :206 | button / ProjectInterestInput | Preferences | onClick={() =&gt; generation.setFitOpen(true)} |
 | UI0314 :212 | button / ProjectGenerationStatus | Cancel generation | onClick={generation.cancel} |
 | UI0315 :214 | button / ProjectGenerationStatus | {generation.pendingGeneration?'Check existing generation':'Retry generation'} | onClick={generation.retry} |
 | UI0316 :214 | button / ProjectGenerationStatus | Cancel generation | onClick={generation.cancel} |
@@ -11599,19 +11613,19 @@ Contract family: X04-X05.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0739 :101 | button / SettingsWorkspace | {drafts[key]&&&lt;span className="hp-dirty-dot" aria-label="Unsaved changes"/&gt;} | onClick={()=&gt;panel!==key&&enter(key,true)} |
-| UI0740 :103 | input / SettingsWorkspace | {c.searchHint} | onChange={e=&gt;setQuery(e.target.value)} |
-| UI0741 :103 | button / SettingsWorkspace | {c.clearSearch} | onClick={()=&gt;setQuery('')} |
-| UI0742 :103 | button / SettingsWorkspace | {drafts[key]?&lt;span className="hp-dirty-dot" aria-hidden="true"/&gt;:&lt;ChevronRight size={17} aria-hidden="true"/&gt;} | onClick={()=&gt;enter(key)} |
-| UI0743 :104 | button / SettingsWorkspace | {c.back} | onClick={leave} |
-| UI0744 :105 | button / SettingsWorkspace | {production.unknown?'Check save status':c.retry} | onClick={()=&gt;production.unknown?void production.reconcile():production.retry()} |
-| UI0745 :106 | button / SettingsWorkspace | {c.retry} | onClick={()=&gt;production?production.retry():workspace.setScenario('ready')} |
-| UI0746 :108 | SettingsNotifications / SettingsWorkspace | (child/component label) | href={props.href}; onAlerts={props.onAlerts} |
-| UI0747 :109 | SettingsDisplay / SettingsWorkspace | (child/component label) | onDisplay={display=&gt;updateEdit({display})}; onCalendar={calendar=&gt;updateEdit({calendar})}; onAppearance={appearance=&gt;updateEdit({appearance})}; onAmbient={ambient=&gt;updateEdit({ambient})} |
-| UI0748 :111 | SettingsPrivacy / SettingsWorkspace | (child/component label) | href={props.href} |
-| UI0749 :113 | button / SettingsWorkspace | {c.reload} | onClick={rebase} |
-| UI0750 :113 | button / SettingsWorkspace | {c.save} | onClick={()=&gt;void save()} |
-| UI0751 :113 | button / SettingsWorkspace | {c.cancel} | onClick={()=&gt;{clearDraft();if(panel==='home')preview.setHouseholdDraft(null);setBaseline(snapshot());setMessage('');}} |
+| UI0739 :102 | button / SettingsWorkspace | {drafts[key]&&&lt;span className="hp-dirty-dot" aria-label="Unsaved changes"/&gt;} | onClick={()=&gt;panel!==key&&enter(key,true)} |
+| UI0740 :104 | input / SettingsWorkspace | {c.searchHint} | onChange={e=&gt;setQuery(e.target.value)} |
+| UI0741 :104 | button / SettingsWorkspace | {c.clearSearch} | onClick={()=&gt;setQuery('')} |
+| UI0742 :104 | button / SettingsWorkspace | {drafts[key]?&lt;span className="hp-dirty-dot" aria-hidden="true"/&gt;:&lt;ChevronRight size={17} aria-hidden="true"/&gt;} | onClick={()=&gt;enter(key)} |
+| UI0743 :105 | button / SettingsWorkspace | {c.back} | onClick={leave} |
+| UI0744 :106 | button / SettingsWorkspace | {production.unknown?'Check save status':c.retry} | onClick={()=&gt;production.unknown?void production.reconcile():production.retry()} |
+| UI0745 :107 | button / SettingsWorkspace | {c.retry} | onClick={()=&gt;production?production.retry():workspace.setScenario('ready')} |
+| UI0746 :109 | SettingsNotifications / SettingsWorkspace | (child/component label) | href={props.href}; onAlerts={props.onAlerts} |
+| UI0747 :110 | SettingsDisplay / SettingsWorkspace | (child/component label) | onDisplay={display=&gt;updateEdit({display})}; onCalendar={calendar=&gt;updateEdit({calendar})}; onAppearance={appearance=&gt;updateEdit({appearance})}; onAmbient={ambient=&gt;updateEdit({ambient})} |
+| UI0748 :112 | SettingsPrivacy / SettingsWorkspace | (child/component label) | href={props.href} |
+| UI0749 :114 | button / SettingsWorkspace | {c.reload} | onClick={rebase} |
+| UI0750 :114 | button / SettingsWorkspace | {pending&&&lt;span className="halo-spinner" aria-hidden="true"/&gt;} {c.save} | onClick={()=&gt;void save()} |
+| UI0751 :114 | button / SettingsWorkspace | {c.cancel} | onClick={()=&gt;{clearDraft();if(panel==='home')preview.setHouseholdDraft(null);setBaseline(snapshot());setMessage('');}} |
 
 ### components/expanded/SourceOperationsReview.tsx
 
@@ -11691,41 +11705,41 @@ Contract family: P01-P06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0782 :20 (review control) | select / WeekEvidenceReviewControls | {['unavailable','populated','sparse','no-pattern','changed','loading','error'].map(v=&gt;&lt;option key={v}&gt;{v}&lt;/option&gt;)} | onChange={e=&gt;setReview({...review,history:e.target.value as EvidenceScenario})} |
-| UI0783 :20 (review control) | select / WeekEvidenceReviewControls | {['unavailable','current','partial','changed','expired','loading','error'].map(v=&gt;&lt;option key={v}&gt;{v}&lt;/option&gt;)} | onChange={e=&gt;setReview({...review,forecast:e.target.value as ForecastScenario})} |
-| UI0784 :20 (review control) | button / WeekEvidenceReviewControls | Load illustrative check-ins and history | onClick={async()=&gt;{let added=0,kept=0,failed=0;for(const entry of fixtureCheckins(lunaCalendarAnchor())){if(entries.records.some(e=&gt;e.id===entry.id)){kept++;continue;}if(await entries.save(entry))added++;else failed++;}setReview({...review,history:'populated'});setMessage('${added} illustrative check-ins loaded, ${kept} existing entries kept, ${failed} not saved. No provider data or account writes.');}} |
-| UI0785 :22 | select / GroupSelect | {['household',...homeMemberKeys].map(g=&gt;&lt;option value={g} key={g}&gt;{g==='household'?'Household':memberCatalog[g as typeof homeMemberKeys[number]].label}&lt;/option&gt;)} | onChange={e=&gt;onChange(e.target.value)} |
-| UI0786 :23 | summary / SourceDetails | Sources and method | (native form/control behavior) |
-| UI0787 :26 | button / Trend | {v} | onClick={()=&gt;setView(v)} |
-| UI0788 :26 | button / Trend | {dayLabel(r.date)} | onClick={()=&gt;onDay(r.date)} |
-| UI0789 :32 | GroupSelect / WeekPatterns | (child/component label) | onChange={setGroup} |
-| UI0790 :32 | select / WeekPatterns | {['Air','UV','Pollen','Outdoor mold'].map(f=&gt;&lt;option key={f}&gt;{f}&lt;/option&gt;)} | onChange={e=&gt;setFactor(e.target.value as HistoryFactor)} |
-| UI0791 :32 | button / WeekPatterns | {v} | onClick={()=&gt;setGridView(v)} |
-| UI0792 :33 | button / WeekPatterns | {'${dayLabel(date)}, ${e?e.fine?'Felt fine':'Symptoms logged':'Not logged'}, ${readingLabel(r)}${e?.recalled?', recalled':''}${e?.illness?', possible illness':''}'} | onClick={()=&gt;setSelected(date)} |
-| UI0793 :34 | button / WeekPatterns | {entry?'Edit this day':'Log this day'} | onClick={()=&gt;onEdit(selected,group)} |
-| UI0794 :35 | select / WeekPatterns | (child/component label) | onChange={e=&gt;setRange(Number(e.target.value))} |
-| UI0795 :36 | button / WeekPatterns | {!live.production&&review.history==='loading'?'Cancel loading':'Retry history'} | onClick={()=&gt;live.production?live.retry():setReview({...review,history:review.history==='loading'?'unavailable':'populated'})} |
-| UI0796 :36 | Trend / WeekPatterns | (child/component label) | onDay={setSelected} |
-| UI0797 :37 | summary / WeekPatterns | Coverage and exclusions | (native form/control behavior) |
-| UI0798 :38 | button / WeekPatterns | Export this range, without private notes | onClick={()=&gt;downloadWeekFile('halo-patterns.json',JSON.stringify({from,to:today,group,factor,source:readings.length?[...new Set(readings.map(row=&gt;row.source))].join(', '):'Unavailable',method:copy.method,entries:visibleEntries.filter(e=&gt;e.band===group&&e.date&gt;=from&&e.date&lt;=today).map(e=&gt;Object.fromEntries(Object.entries(e).filter(([key])=&gt;key!=='note'))),readings:report.rows,counts:{logged:report.logged,history:report.history,comparable:report.comparable,recalled:report.re |
-| UI0799 :43 | button / WeekSeason | Retry | onClick={live.retry} |
-| UI0800 :43 | select / WeekSeason | {['Spring','Summer','Fall','Winter'].map(s=&gt;&lt;option key={s}&gt;{s}&lt;/option&gt;)} | onChange={e=&gt;setSeason(e.target.value)} |
-| UI0801 :43 | select / WeekSeason | {Array.from({length:6},(_,i)=&gt;String(Number(today.slice(0,4))+1-i)).map(y=&gt;&lt;option key={y}&gt;{y}&lt;/option&gt;)} | onChange={e=&gt;setYear(e.target.value)} |
-| UI0802 :43 | GroupSelect / WeekSeason | (child/component label) | onChange={setGroup} |
-| UI0803 :43 | select / WeekSeason | {['Air','UV','Pollen','Outdoor mold'].map(f=&gt;&lt;option key={f}&gt;{f}&lt;/option&gt;)} | onChange={e=&gt;setFactor(e.target.value as HistoryFactor)} |
-| UI0804 :44 | summary / WeekSeason | {actions.length} completed actions | (native form/control behavior) |
-| UI0805 :44 | Link / WeekSeason | {a.title} | href={'${href('plan')}&weekTask=${encodeURIComponent(a.id)}'} |
-| UI0806 :44 | summary / WeekSeason | {pending.length} planned or waiting actions | (native form/control behavior) |
-| UI0807 :44 | Link / WeekSeason | {a.title} | href={'${href('plan')}&weekTask=${encodeURIComponent(a.id)}'} |
-| UI0808 :44 | summary / WeekSeason | {recordedTests.length} tests with recorded reports | (native form/control behavior) |
-| UI0809 :44 | Link / WeekSeason | {t.title} | href={'${href('home','tests')}&homeView=detail&record=${encodeURIComponent(t.id)}'} |
-| UI0810 :44 | summary / WeekSeason | {participation.length} recorded community activities | (native form/control behavior) |
-| UI0811 :44 | Link / WeekSeason | {e.title} | href={'${href('act','opportunities')}&exploreView=detail&exploreRecord=${encodeURIComponent(e.id)}'} |
-| UI0812 :45 | summary / WeekSeason | Coverage and exclusions | (native form/control behavior) |
-| UI0813 :45 | Link / WeekSeason | Review My Week | href={href('plan')} |
-| UI0814 :45 | button / WeekSeason | Plan next review | onClick={async ()=&gt;{if(!state\|\|workspace.pending\|\|['offline','error','loading','save-error','conflict'].includes(workspace.scenario)\|\|!navigator.onLine){setMessage('Could not save. Your review choice is kept.');return;}const date=dayAdd(today,7);if(await state.addActions([{key:'season-review:${seasonKey}',title:'Review my ${season.toLowerCase()} follow-through',origin:'Season review',reason:'Review ${bounds.start} to ${bounds.end}. Recorded activity is separate from measured outcomes.'} |
-| UI0815 :45 | button / WeekSeason | Dismiss for this season | onClick={async()=&gt;{if(state?.production){if(!await state.reviseActions([],{preferences:{'week:season-dismissals':[...dismissed,seasonKey]}}))setMessage('The dismissal could not be saved.');}else setDismissed([...dismissed,seasonKey]);}} |
-| UI0816 :45 | button / WeekSeason | Export season overview | onClick={()=&gt;downloadWeekFile('halo-season.json',JSON.stringify({season,year,...bounds,through,group,factor,method:copy.method,source:readings.length?[...new Set(readings.map(row=&gt;row.source))].join(', '):'Unavailable',coverage:{elapsedDays:periodDays,logged:report.logged,history:report.history,comparable:report.comparable,recalled:report.recalled,illness:report.illness},readings:report.rows,completed:actions.map(a=&gt;({title:a.title,completedOn:metas[a.key]?.completedOn})),pending:pendin |
+| UI0782 :21 (review control) | select / WeekEvidenceReviewControls | {['unavailable','populated','sparse','no-pattern','changed','loading','error'].map(v=&gt;&lt;option key={v}&gt;{v}&lt;/option&gt;)} | onChange={e=&gt;setReview({...review,history:e.target.value as EvidenceScenario})} |
+| UI0783 :21 (review control) | select / WeekEvidenceReviewControls | {['unavailable','current','partial','changed','expired','loading','error'].map(v=&gt;&lt;option key={v}&gt;{v}&lt;/option&gt;)} | onChange={e=&gt;setReview({...review,forecast:e.target.value as ForecastScenario})} |
+| UI0784 :21 (review control) | button / WeekEvidenceReviewControls | Load illustrative check-ins and history | onClick={async()=&gt;{let added=0,kept=0,failed=0;for(const entry of fixtureCheckins(lunaCalendarAnchor())){if(entries.records.some(e=&gt;e.id===entry.id)){kept++;continue;}if(await entries.save(entry))added++;else failed++;}setReview({...review,history:'populated'});setMessage('${added} illustrative check-ins loaded, ${kept} existing entries kept, ${failed} not saved. No provider data or account writes.');}} |
+| UI0785 :23 | select / GroupSelect | {['household',...homeMemberKeys].map(g=&gt;&lt;option value={g} key={g}&gt;{g==='household'?'Household':memberCatalog[g as typeof homeMemberKeys[number]].label}&lt;/option&gt;)} | onChange={e=&gt;onChange(e.target.value)} |
+| UI0786 :24 | summary / SourceDetails | Sources and method | (native form/control behavior) |
+| UI0787 :27 | button / Trend | {v} | onClick={()=&gt;setView(v)} |
+| UI0788 :27 | button / Trend | {dayLabel(r.date)} | onClick={()=&gt;onDay(r.date)} |
+| UI0789 :33 | GroupSelect / WeekPatterns | (child/component label) | onChange={setGroup} |
+| UI0790 :33 | select / WeekPatterns | {['Air','UV','Pollen','Outdoor mold'].map(f=&gt;&lt;option key={f}&gt;{f}&lt;/option&gt;)} | onChange={e=&gt;setFactor(e.target.value as HistoryFactor)} |
+| UI0791 :33 | button / WeekPatterns | {v} | onClick={()=&gt;setGridView(v)} |
+| UI0792 :34 | button / WeekPatterns | {'${dayLabel(date)}, ${e?e.fine?'Felt fine':'Symptoms logged':'Not logged'}, ${readingLabel(r)}${e?.recalled?', recalled':''}${e?.illness?', possible illness':''}'} | onClick={()=&gt;setSelected(date)} |
+| UI0793 :35 | button / WeekPatterns | {entry?'Edit this day':'Log this day'} | onClick={()=&gt;onEdit(selected,group)} |
+| UI0794 :36 | select / WeekPatterns | (child/component label) | onChange={e=&gt;setRange(Number(e.target.value))} |
+| UI0795 :37 | button / WeekPatterns | {!live.production&&review.history==='loading'?'Cancel loading':'Retry history'} | onClick={()=&gt;live.production?live.retry():setReview({...review,history:review.history==='loading'?'unavailable':'populated'})} |
+| UI0796 :37 | Trend / WeekPatterns | (child/component label) | onDay={setSelected} |
+| UI0797 :38 | summary / WeekPatterns | Coverage and exclusions | (native form/control behavior) |
+| UI0798 :39 | button / WeekPatterns | Export this range, without private notes | onClick={()=&gt;downloadWeekFile('halo-patterns.json',JSON.stringify({from,to:today,group,factor,source:readings.length?[...new Set(readings.map(row=&gt;row.source))].join(', '):'Unavailable',method:copy.method,entries:visibleEntries.filter(e=&gt;e.band===group&&e.date&gt;=from&&e.date&lt;=today).map(e=&gt;Object.fromEntries(Object.entries(e).filter(([key])=&gt;key!=='note'))),readings:report.rows,counts:{logged:report.logged,history:report.history,comparable:report.comparable,recalled:report.re |
+| UI0799 :44 | button / WeekSeason | Retry | onClick={live.retry} |
+| UI0800 :44 | select / WeekSeason | {['Spring','Summer','Fall','Winter'].map(s=&gt;&lt;option key={s}&gt;{s}&lt;/option&gt;)} | onChange={e=&gt;setSeason(e.target.value)} |
+| UI0801 :44 | select / WeekSeason | {Array.from({length:6},(_,i)=&gt;String(Number(today.slice(0,4))+1-i)).map(y=&gt;&lt;option key={y}&gt;{y}&lt;/option&gt;)} | onChange={e=&gt;setYear(e.target.value)} |
+| UI0802 :44 | GroupSelect / WeekSeason | (child/component label) | onChange={setGroup} |
+| UI0803 :44 | select / WeekSeason | {['Air','UV','Pollen','Outdoor mold'].map(f=&gt;&lt;option key={f}&gt;{f}&lt;/option&gt;)} | onChange={e=&gt;setFactor(e.target.value as HistoryFactor)} |
+| UI0804 :45 | summary / WeekSeason | {actions.length} completed actions | (native form/control behavior) |
+| UI0805 :45 | Link / WeekSeason | {a.title} | href={'${href('plan')}&weekTask=${encodeURIComponent(a.id)}'} |
+| UI0806 :45 | summary / WeekSeason | {pending.length} planned or waiting actions | (native form/control behavior) |
+| UI0807 :45 | Link / WeekSeason | {a.title} | href={'${href('plan')}&weekTask=${encodeURIComponent(a.id)}'} |
+| UI0808 :45 | summary / WeekSeason | {recordedTests.length} tests with recorded reports | (native form/control behavior) |
+| UI0809 :45 | Link / WeekSeason | {t.title} | href={'${href('home','tests')}&homeView=detail&record=${encodeURIComponent(t.id)}'} |
+| UI0810 :45 | summary / WeekSeason | {participation.length} recorded community activities | (native form/control behavior) |
+| UI0811 :45 | Link / WeekSeason | {e.title} | href={'${href('act','opportunities')}&exploreView=detail&exploreRecord=${encodeURIComponent(e.id)}'} |
+| UI0812 :46 | summary / WeekSeason | Coverage and exclusions | (native form/control behavior) |
+| UI0813 :46 | Link / WeekSeason | Review My Week | href={href('plan')} |
+| UI0814 :46 | button / WeekSeason | Plan next review | onClick={async ()=&gt;{if(!state\|\|workspace.pending\|\|['offline','error','loading','save-error','conflict'].includes(workspace.scenario)\|\|!navigator.onLine){setMessage('Could not save. Your review choice is kept.');return;}const date=dayAdd(today,7);if(await state.addActions([{key:'season-review:${seasonKey}',title:'Review my ${season.toLowerCase()} follow-through',origin:'Season review',reason:'Review ${bounds.start} to ${bounds.end}. Recorded activity is separate from measured outcomes.'} |
+| UI0815 :46 | button / WeekSeason | Dismiss for this season | onClick={async()=&gt;{if(state?.production){if(!await state.reviseActions([],{preferences:{'week:season-dismissals':[...dismissed,seasonKey]}}))setMessage('The dismissal could not be saved.');}else setDismissed([...dismissed,seasonKey]);}} |
+| UI0816 :46 | button / WeekSeason | Export season overview | onClick={()=&gt;downloadWeekFile('halo-season.json',JSON.stringify({season,year,...bounds,through,group,factor,method:copy.method,source:readings.length?[...new Set(readings.map(row=&gt;row.source))].join(', '):'Unavailable',coverage:{elapsedDays:periodDays,logged:report.logged,history:report.history,comparable:report.comparable,recalled:report.recalled,illness:report.illness},readings:report.rows,completed:actions.map(a=&gt;({title:a.title,completedOn:metas[a.key]?.completedOn})),pending:pendin |
 
 ### components/expanded/WeekJournal.tsx
 
@@ -11733,30 +11747,30 @@ Contract family: P01-P06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0817 :34 | Link / WeekJournal | Back to My Week | href={href('plan')} |
-| UI0818 :35 | button / WeekJournal | {t} | onClick={()=&gt;setTab(t)} |
-| UI0819 :36 | button / WeekJournal | Try again | onClick={()=&gt;workspace.mode==='production'?collection.retry():workspace.setScenario('ready')} |
-| UI0820 :38 | summary / WeekJournal | New here? Remember earlier days | (native form/control behavior) |
-| UI0821 :38 | DateInput / WeekJournal | "Add a remembered date" | onChange={e=&gt;{const value=e.target.value;if(value&&validActionDate(value)&&value&gt;=dayAdd(today,-61)&&value&lt;=today)setBatch(old=&gt;old.includes(value)?old:old.length&lt;62?[...old,value]:old);}} |
-| UI0822 :38 | button / WeekJournal | {dayLabel(d)} × | onClick={()=&gt;setBatch(old=&gt;old.filter(x=&gt;x!==d))} |
-| UI0823 :38 | button / WeekJournal | Save remembered days | onClick={recall} |
-| UI0824 :38 | button / WeekJournal | Log today instead | onClick={()=&gt;choose(today)} |
-| UI0825 :39 | form / WeekJournal | {!draft.fine&&&lt;label&gt;Severity&lt;select value={draft.severity} onChange={e=&gt;setDraft({...draft,severity:e.target.value})}&gt;&lt;option value=""&gt;Choose severity&lt;/option&gt;&lt;option va | onSubmit={e=&gt;{e.preventDefault();void save();}} |
-| UI0826 :39 | DateInput / WeekJournal | Date | onChange={e=&gt;e.target.value&&choose(e.target.value)} |
-| UI0827 :39 | select / WeekJournal | {groups.map(g=&gt;&lt;option key={g} value={g}&gt;{g==='household'?'Household':memberCatalog[g as typeof homeMemberKeys[number]].label}&lt;/option&gt;)} | onChange={e=&gt;choose(draft.date,e.target.value)} |
-| UI0828 :39 | button / WeekJournal | Felt fine | onClick={()=&gt;setDraft({...draft,fine:!draft.fine,symptoms:[],severity:'',illness:false})} |
-| UI0829 :39 | button / WeekJournal | {s} | onClick={()=&gt;setDraft({...draft,fine:false,symptoms:draft.symptoms.includes(s)?draft.symptoms.filter(x=&gt;x!==s):[...draft.symptoms,s]})} |
-| UI0830 :39 | select / WeekJournal | (child/component label) | onChange={e=&gt;setDraft({...draft,severity:e.target.value})} |
-| UI0831 :39 | input / WeekJournal | Possibly an illness | onChange={e=&gt;setDraft({...draft,illness:e.target.checked})} |
-| UI0832 :39 | textarea / WeekJournal | Private note (optional) | onChange={e=&gt;setDraft({...draft,note:e.target.value})} |
-| UI0833 :39 | button / WeekJournal | {draft.revision?'Update check-in':'Save check-in'} | (native form/control behavior) |
-| UI0834 :39 | button / WeekJournal | Cancel changes | onClick={()=&gt;{clear();setError('');}} |
-| UI0835 :40 | button / WeekJournal | (child/component label) | onClick={()=&gt;choose(e.date,e.band,e)} |
-| UI0836 :40 | button / WeekJournal | {'Delete check-in ${e.date} ${e.band}'} | onClick={()=&gt;setRemove(e)} |
-| UI0837 :41 | button / WeekJournal | Undo delete | onClick={async()=&gt;{if(collection.records.some(e=&gt;e.id===deleted.id)){setError('A newer entry exists. Undo did not overwrite it.');return;}if(await collection.save({...deleted,revision:0}))setDeleted(null);}} |
-| UI0838 :42 | WeekPatterns / WeekJournal | (child/component label) | onEdit={(date,group)=&gt;{choose(date,group);setTab('Journal');}} |
-| UI0839 :42 | WeekSeason / WeekJournal | (child/component label) | href={href} |
-| UI0840 :44 | Confirm / WeekJournal | "Delete this check-in?" | onCancel={()=&gt;setRemove(null)}; onConfirm={async()=&gt;{if(await collection.remove(remove.id)){setDeleted(remove);setRemove(null);}}} |
+| UI0817 :35 | Link / WeekJournal | Back to My Week | href={href('plan')} |
+| UI0818 :36 | button / WeekJournal | {t} | onClick={()=&gt;setTab(t)} |
+| UI0819 :37 | button / WeekJournal | Try again | onClick={()=&gt;workspace.mode==='production'?collection.retry():workspace.setScenario('ready')} |
+| UI0820 :39 | summary / WeekJournal | New here? Remember earlier days | (native form/control behavior) |
+| UI0821 :39 | DateInput / WeekJournal | "Add a remembered date" | onChange={e=&gt;{const value=e.target.value;if(value&&validActionDate(value)&&value&gt;=dayAdd(today,-61)&&value&lt;=today)setBatch(old=&gt;old.includes(value)?old:old.length&lt;62?[...old,value]:old);}} |
+| UI0822 :39 | button / WeekJournal | {dayLabel(d)} × | onClick={()=&gt;setBatch(old=&gt;old.filter(x=&gt;x!==d))} |
+| UI0823 :39 | button / WeekJournal | Save remembered days | onClick={recall} |
+| UI0824 :39 | button / WeekJournal | Log today instead | onClick={()=&gt;choose(today)} |
+| UI0825 :40 | form / WeekJournal | {!draft.fine&&&lt;label&gt;Severity&lt;select value={draft.severity} onChange={e=&gt;setDraft({...draft,severity:e.target.value})}&gt;&lt;option value=""&gt;Choose severity&lt;/option&gt;&lt;option va | onSubmit={e=&gt;{e.preventDefault();void save();}} |
+| UI0826 :40 | DateInput / WeekJournal | Date | onChange={e=&gt;e.target.value&&choose(e.target.value)} |
+| UI0827 :40 | select / WeekJournal | {groups.map(g=&gt;&lt;option key={g} value={g}&gt;{g==='household'?'Household':memberCatalog[g as typeof homeMemberKeys[number]].label}&lt;/option&gt;)} | onChange={e=&gt;choose(draft.date,e.target.value)} |
+| UI0828 :40 | button / WeekJournal | Felt fine | onClick={()=&gt;setDraft({...draft,fine:!draft.fine,symptoms:[],severity:'',illness:false})} |
+| UI0829 :40 | button / WeekJournal | {s} | onClick={()=&gt;setDraft({...draft,fine:false,symptoms:draft.symptoms.includes(s)?draft.symptoms.filter(x=&gt;x!==s):[...draft.symptoms,s]})} |
+| UI0830 :40 | select / WeekJournal | (child/component label) | onChange={e=&gt;setDraft({...draft,severity:e.target.value})} |
+| UI0831 :40 | input / WeekJournal | Possibly an illness | onChange={e=&gt;setDraft({...draft,illness:e.target.checked})} |
+| UI0832 :40 | textarea / WeekJournal | Private note (optional) | onChange={e=&gt;setDraft({...draft,note:e.target.value})} |
+| UI0833 :40 | button / WeekJournal | {draft.revision?'Update check-in':'Save check-in'} | (native form/control behavior) |
+| UI0834 :40 | button / WeekJournal | Cancel changes | onClick={()=&gt;{clear();setError('');}} |
+| UI0835 :41 | button / WeekJournal | (child/component label) | onClick={()=&gt;choose(e.date,e.band,e)} |
+| UI0836 :41 | button / WeekJournal | {'Delete check-in ${e.date} ${e.band}'} | onClick={()=&gt;setRemove(e)} |
+| UI0837 :42 | button / WeekJournal | Undo delete | onClick={async()=&gt;{if(collection.records.some(e=&gt;e.id===deleted.id)){setError('A newer entry exists. Undo did not overwrite it.');return;}if(await collection.save({...deleted,revision:0}))setDeleted(null);}} |
+| UI0838 :43 | WeekPatterns / WeekJournal | (child/component label) | onEdit={(date,group)=&gt;{choose(date,group);setTab('Journal');}} |
+| UI0839 :43 | WeekSeason / WeekJournal | (child/component label) | href={href} |
+| UI0840 :45 | Confirm / WeekJournal | "Delete this check-in?" | onCancel={()=&gt;setRemove(null)}; onConfirm={async()=&gt;{if(await collection.remove(remove.id)){setDeleted(remove);setRemove(null);}}} |
 
 ### components/expanded/WeekOutdoors.tsx
 
@@ -11764,38 +11778,38 @@ Contract family: P01-P06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0841 :40 | Link / WeekOutdoors | Back to My Week | href={href('plan')} |
-| UI0842 :40 | button / WeekOutdoors | Use opportunity details | onClick={()=&gt;{setDraft({...draft,key:'outdoors:${crypto.randomUUID()}',activity:incoming.title.slice(0,160),place:incoming.place,needsPlaceReview:incoming.place.length&gt;100,date:incoming.date,watch:false,preparation:[],checkDate:'',opportunity:incoming});setError('');setAcknowledged('');clearIncoming();}} |
-| UI0843 :40 | button / WeekOutdoors | Keep current plan | onClick={clearIncoming} |
-| UI0844 :40 | summary / WeekOutdoors | Opportunity context | (native form/control behavior) |
-| UI0845 :40 | a / WeekOutdoors | Check organizer details | href={draft.opportunity.sourceUrl} |
-| UI0846 :40 | form / WeekOutdoors | {placeReview&&&lt;section className="we-notice" aria-label="Review planning area"&gt;&lt;p&gt;The organizer address is longer than this planner accepts. Enter a shorter area with its | onSubmit={e=&gt;{e.preventDefault();commit();}} |
-| UI0847 :41 | input / WeekOutdoors | "A walk, garden care, a cleanup..." | onChange={e=&gt;setDraft({...draft,activity:e.target.value})} |
-| UI0848 :41 | input / WeekOutdoors | "A park or neighborhood" | onChange={e=&gt;setDraft({...draft,place:e.target.value})} |
-| UI0849 :41 | button / WeekOutdoors | Use this planning area | onClick={()=&gt;{setDraft({...draft,place:draft.place.trim(),needsPlaceReview:false});setError('');setAcknowledged('');}} |
-| UI0850 :41 | DateInput / WeekOutdoors | Date | onChange={e=&gt;setDraft({...draft,date:e.target.value})} |
-| UI0851 :41 | input / WeekOutdoors | Minutes | onChange={e=&gt;setDraft({...draft,duration:Number(e.target.value)})} |
-| UI0852 :42 | select / WeekOutdoors | {homeMemberKeys.map(g=&gt;&lt;option key={g} value={g}&gt;{memberCatalog[g].label}&lt;/option&gt;)} | onChange={e=&gt;setDraft({...draft,group:e.target.value})} |
-| UI0853 :43 | button / WeekOutdoors | Retry forecast | onClick={live.retry} |
-| UI0854 :43 | button / WeekOutdoors | Refresh forecast | onClick={()=&gt;{if(live.production)live.retry();else setReview({...review,forecast:'current'});setAcknowledged('');}} |
-| UI0855 :43 | a / WeekOutdoors | Check official warnings | href="https://www.weather.gov/" |
-| UI0856 :43 | button / WeekOutdoors | {needsReview?'I reviewed these changes':'Changes reviewed'} | onClick={()=&gt;setAcknowledged(selectionSignature)} |
-| UI0857 :44 | input / WeekOutdoors | (child/component label) | onChange={e=&gt;setCompared(old=&gt;e.target.checked?[...old,p.name]:old.filter(x=&gt;x!==p.name))} |
-| UI0858 :44 | button / WeekOutdoors | {draft.period===p.name?'Selected':'Choose'} {p.name.toLowerCase()} | onClick={()=&gt;setDraft({...draft,period:p.name})} |
-| UI0859 :44 | button / WeekOutdoors | (child/component label) | onClick={()=&gt;setDraft({...draft,period:name})} |
-| UI0860 :44 | button / WeekOutdoors | Cancel forecast loading | onClick={()=&gt;setReview({...review,forecast:'unavailable'})} |
-| UI0861 :44 | button / WeekOutdoors | Retry forecast | onClick={()=&gt;setReview({...review,forecast:'current'})} |
-| UI0862 :44 | DateInput / WeekOutdoors | Check again on | onChange={e=&gt;setDraft({...draft,checkDate:e.target.value})} |
-| UI0863 :45 | summary / WeekOutdoors | Forecast coverage | (native form/control behavior) |
-| UI0864 :45 | a / WeekOutdoors | Check official weather | href="https://www.weather.gov/" |
-| UI0865 :45 | a / WeekOutdoors | Check AirNow | href="https://www.airnow.gov/" |
-| UI0866 :46 | summary / WeekOutdoors | Preparation | (native form/control behavior) |
-| UI0867 :46 | input / WeekOutdoors | {item} | onChange={e=&gt;setDraft({...draft,preparation:e.target.checked?[...(draft.preparation??[]),item]:(draft.preparation??[]).filter(i=&gt;i!==item)})} |
-| UI0868 :46 | input / WeekOutdoors | Request a material-change watch when connected | onChange={e=&gt;setDraft({...draft,watch:e.target.checked})} |
-| UI0869 :46 | button / WeekOutdoors | {existing?'Review plan changes':'Save outdoor plan'} | (native form/control behavior) |
-| UI0870 :47 | Link / WeekOutdoors | Open saved plan | href={'${href('plan')}&weekTask=${encodeURIComponent(existing.id)}'} |
-| UI0871 :47 | button / WeekOutdoors | Save forecast check | onClick={async ()=&gt;{const date=draft.checkDate\|\|dayAdd(draft.date,-2);if(blocked\|\|!navigator.onLine\|\|!date\|\|!validActionDate(date)\|\|date&lt;today\|\|date&gt;draft.date){setError('Choose a valid check date and reconnect before saving.');return;}if(await state?.addActions([{key:'${draft.key}:check-forecast',title:'Check conditions for ${draft.activity}',origin:'Outdoors',reason:'Recheck official conditions before ${draft.date}. No forecast or automatic alert is promised.'}],date))setE |
-| UI0872 :47 | Confirm / WeekOutdoors | "Update this outdoor plan?" | onCancel={()=&gt;{setChange(null);setError('');}}; onConfirm={()=&gt;commit(true)} |
+| UI0841 :41 | Link / WeekOutdoors | Back to My Week | href={href('plan')} |
+| UI0842 :41 | button / WeekOutdoors | Use opportunity details | onClick={()=&gt;{setDraft({...draft,key:'outdoors:${crypto.randomUUID()}',activity:incoming.title.slice(0,160),place:incoming.place,needsPlaceReview:incoming.place.length&gt;100,date:incoming.date,watch:false,preparation:[],checkDate:'',opportunity:incoming});setError('');setAcknowledged('');clearIncoming();}} |
+| UI0843 :41 | button / WeekOutdoors | Keep current plan | onClick={clearIncoming} |
+| UI0844 :41 | summary / WeekOutdoors | Opportunity context | (native form/control behavior) |
+| UI0845 :41 | a / WeekOutdoors | Check organizer details | href={draft.opportunity.sourceUrl} |
+| UI0846 :41 | form / WeekOutdoors | {placeReview&&&lt;section className="we-notice" aria-label="Review planning area"&gt;&lt;p&gt;The organizer address is longer than this planner accepts. Enter a shorter area with its | onSubmit={e=&gt;{e.preventDefault();commit();}} |
+| UI0847 :42 | input / WeekOutdoors | "A walk, garden care, a cleanup..." | onChange={e=&gt;setDraft({...draft,activity:e.target.value})} |
+| UI0848 :42 | input / WeekOutdoors | "A park or neighborhood" | onChange={e=&gt;setDraft({...draft,place:e.target.value})} |
+| UI0849 :42 | button / WeekOutdoors | Use this planning area | onClick={()=&gt;{setDraft({...draft,place:draft.place.trim(),needsPlaceReview:false});setError('');setAcknowledged('');}} |
+| UI0850 :42 | DateInput / WeekOutdoors | Date | onChange={e=&gt;setDraft({...draft,date:e.target.value})} |
+| UI0851 :42 | input / WeekOutdoors | Minutes | onChange={e=&gt;setDraft({...draft,duration:Number(e.target.value)})} |
+| UI0852 :43 | select / WeekOutdoors | {homeMemberKeys.map(g=&gt;&lt;option key={g} value={g}&gt;{memberCatalog[g].label}&lt;/option&gt;)} | onChange={e=&gt;setDraft({...draft,group:e.target.value})} |
+| UI0853 :44 | button / WeekOutdoors | Retry forecast | onClick={live.retry} |
+| UI0854 :44 | button / WeekOutdoors | Refresh forecast | onClick={()=&gt;{if(live.production)live.retry();else setReview({...review,forecast:'current'});setAcknowledged('');}} |
+| UI0855 :44 | a / WeekOutdoors | Check official warnings | href="https://www.weather.gov/" |
+| UI0856 :44 | button / WeekOutdoors | {needsReview?'I reviewed these changes':'Changes reviewed'} | onClick={()=&gt;setAcknowledged(selectionSignature)} |
+| UI0857 :45 | input / WeekOutdoors | (child/component label) | onChange={e=&gt;setCompared(old=&gt;e.target.checked?[...old,p.name]:old.filter(x=&gt;x!==p.name))} |
+| UI0858 :45 | button / WeekOutdoors | {draft.period===p.name?'Selected':'Choose'} {p.name.toLowerCase()} | onClick={()=&gt;setDraft({...draft,period:p.name})} |
+| UI0859 :45 | button / WeekOutdoors | (child/component label) | onClick={()=&gt;setDraft({...draft,period:name})} |
+| UI0860 :45 | button / WeekOutdoors | Cancel forecast loading | onClick={()=&gt;setReview({...review,forecast:'unavailable'})} |
+| UI0861 :45 | button / WeekOutdoors | Retry forecast | onClick={()=&gt;setReview({...review,forecast:'current'})} |
+| UI0862 :45 | DateInput / WeekOutdoors | Check again on | onChange={e=&gt;setDraft({...draft,checkDate:e.target.value})} |
+| UI0863 :46 | summary / WeekOutdoors | Forecast coverage | (native form/control behavior) |
+| UI0864 :46 | a / WeekOutdoors | Check official weather | href="https://www.weather.gov/" |
+| UI0865 :46 | a / WeekOutdoors | Check AirNow | href="https://www.airnow.gov/" |
+| UI0866 :47 | summary / WeekOutdoors | Preparation | (native form/control behavior) |
+| UI0867 :47 | input / WeekOutdoors | {item} | onChange={e=&gt;setDraft({...draft,preparation:e.target.checked?[...(draft.preparation??[]),item]:(draft.preparation??[]).filter(i=&gt;i!==item)})} |
+| UI0868 :47 | input / WeekOutdoors | Request a material-change watch when connected | onChange={e=&gt;setDraft({...draft,watch:e.target.checked})} |
+| UI0869 :47 | button / WeekOutdoors | {existing?'Review plan changes':'Save outdoor plan'} | (native form/control behavior) |
+| UI0870 :48 | Link / WeekOutdoors | Open saved plan | href={'${href('plan')}&weekTask=${encodeURIComponent(existing.id)}'} |
+| UI0871 :48 | button / WeekOutdoors | Save forecast check | onClick={async ()=&gt;{const date=draft.checkDate\|\|dayAdd(draft.date,-2);if(blocked\|\|!navigator.onLine\|\|!date\|\|!validActionDate(date)\|\|date&lt;today\|\|date&gt;draft.date){setError('Choose a valid check date and reconnect before saving.');return;}if(await state?.addActions([{key:'${draft.key}:check-forecast',title:'Check conditions for ${draft.activity}',origin:'Outdoors',reason:'Recheck official conditions before ${draft.date}. No forecast or automatic alert is promised.'}],date))setE |
+| UI0872 :48 | Confirm / WeekOutdoors | "Update this outdoor plan?" | onCancel={()=&gt;{setChange(null);setError('');}}; onConfirm={()=&gt;commit(true)} |
 
 ### components/expanded/WeekPlanningRail.tsx
 
@@ -11947,92 +11961,92 @@ Contract family: T01-T06 / H01-H05 / shared.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI0940 :95 | summary / FoundationPreview | {expanded ? 'Expanded app review · Not approved' : c.review} | (native form/control behavior) |
-| UI0941 :98 | select / FoundationPreview | {c.scenario} | onChange={e =&gt; changeScenario(e.target.value as FoundationScenario)} |
-| UI0942 :99 | select / FoundationPreview | {c.appearance} | onChange={e =&gt; setMode(e.target.value)} |
-| UI0943 :99 | select / FoundationPreview | {c.scale} | onChange={e =&gt; setScale(e.target.value)} |
-| UI0944 :100 | select / FoundationPreview | "Animation" | onChange={e =&gt; setMotion(e.target.value as MotionMode)} |
-| UI0945 :100 | select / FoundationPreview | "Scene lighting" | onChange={e =&gt; setTime(e.target.value as SceneTime)} |
-| UI0946 :101 | input / FoundationPreview | {c.contrast} | onChange={e =&gt; setContrast(e.target.checked)} |
-| UI0947 :101 | input / FoundationPreview | {c.motion} | onChange={e =&gt; setMotion(e.target.checked ? 'reduce' : 'system')} |
-| UI0948 :105 | Product / FoundationPreview | (child/component label) | onDisplay={next=&gt;{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=&gt;colorPalette(next.palette));}} |
-| UI0949 :278 | button / toastElement | {c.undo} | onClick={() =&gt; { toast.action?.(); setToast(null); }} |
-| UI0950 :279 | Readings / readingView | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })}; onSelect={expandFactor} |
-| UI0951 :279 | HomeOverviewWorkspace / readingView | (child/component label) | href={expandedHref} |
-| UI0952 :282 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
-| UI0953 :283 | EmptyState / Product | (child/component label) | action={current === 'empty' ? &lt;Button onClick={() =&gt; navigate('journal')}&gt;{c.continue}&lt;/Button&gt; : undefined} |
-| UI0954 :283 | Button / Product | {c.continue} | onClick={() =&gt; navigate('journal')} |
-| UI0955 :284 | EmptyState / Product | (child/component label) | action={expanded?&lt;div className="hc-flow"&gt;&lt;Link className="hp-primary" href="/onboarding/preview/?design=mobile"&gt;{c.setup}&lt;/Link&gt;&lt;Link href="/foundation/preview/expanded/?access=public"&gt;Browse without a home&lt;/Link&gt;&lt;/div&gt;:&lt;Button onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} busy={busy}&gt;{c.setup}&lt;/Button&gt;} |
-| UI0956 :284 | Link / Product | {c.setup} | href="/onboarding/preview/?design=mobile" |
-| UI0957 :284 | Link / Product | Browse without a home | href="/foundation/preview/expanded/?access=public" |
-| UI0958 :284 | Button / Product | {c.setup} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
-| UI0959 :285 | EmptyState / Product | (child/component label) | action={&lt;Button onClick={() =&gt; setResolved(true)}&gt;{c.goToday}&lt;/Button&gt;} |
-| UI0960 :285 | Button / Product | {c.goToday} | onClick={() =&gt; setResolved(true)} |
-| UI0961 :288 | Bars / Product | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
-| UI0962 :289 | Button / Product | {c.save} | onClick={() =&gt; mockRequest(() =&gt; showToast(c.saved))} |
-| UI0963 :289 | Button / Product | {c.continue} | onClick={() =&gt; showToast(c.saved)} |
-| UI0964 :289 | Button / Product | {c.cancel} | onClick={() =&gt; showToast(c.saved)} |
-| UI0965 :289 | Button / Product | {c.destructive} | onClick={removeEntry} |
-| UI0966 :289 | button / Product | {c.labels.settingsExample} | onClick={() =&gt; navigate('settings')} |
-| UI0967 :292 | SwipeRow / Product | (child/component label) | onAction={removeEntry} |
-| UI0968 :292 | Button / Product | {c.replaceToast} | onClick={() =&gt; showToast(c.saved)} |
-| UI0969 :293 | Button / Product | {c.standard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
-| UI0970 :293 | Button / Product | {c.tall} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
-| UI0971 :293 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
-| UI0972 :295 | Card / Product | {c.labels.tappableCard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
-| UI0973 :296 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
-| UI0974 :297 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
-| UI0975 :301 | ExpandedSettings / Product | (child/component label) | href={expandedHref}; onAlerts={()=&gt;openSheet({type:'alerts',height:'tall'})}; onDisplay={onDisplay} |
-| UI0976 :303 | ExpandedDestinationPage / Product | (child/component label) | href={expandedHref} |
-| UI0977 :303 | ExpandedAct / Product | (child/component label) | href={expandedHref} |
-| UI0978 :303 | ExpandedPlan / Product | (child/component label) | href={expandedHref} |
-| UI0979 :305 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
-| UI0980 :311 | a / Product | Skip to content | href="#halo-main-content" |
-| UI0981 :311 | AppSidebar / Product | (child/component label) | onCollapse={()=&gt;setSidebarCollapsed(!sidebarCollapsed)}; href={previewHref}; onNavigate={navigate} |
-| UI0982 :314 | button / Product | {c.unread(unread)} | onClick={()=&gt;openSheet({type:"alerts",height:"standard"})} |
-| UI0983 :314 | Link / Product | {'Back to ${routeTitles[backTab]}'} | href={previewHref(backTab)} |
-| UI0984 :314 | button / Product | {c.labels.back} | onClick={backFromSettings} |
-| UI0985 :314 | button / Product | {c.labels.assistant} | onClick={()=&gt;openSheet({type:"assistant",height:"tall"})} |
-| UI0986 :314 | button / Product | {c.unread(unread)} | onClick={() =&gt; openSheet({ type: 'alerts', height: 'standard' })} |
-| UI0987 :314 | button / Product | {c.labels.settings} | onClick={() =&gt; navigate('settings')} |
-| UI0988 :316 | button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
-| UI0989 :317 | AppNavigation / Product | (child/component label) | href={previewHref}; onNavigate={navigate} |
-| UI0990 :317 | a / Product | (child/component label) | href={previewHref(tab)}; onClick={e =&gt; { e.preventDefault(); if (route !== tab \|\| inDetail) navigate(tab); }} |
-| UI0991 :317 | button / Product | {c.labels.assistant} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
-| UI0992 :320 | ExpandedLunaPreview / Product | (child/component label) | onClose={closeSheet} |
-| UI0993 :328 | LunaAssistant / Product | (child/component label) | onClose={closeSheet} |
-| UI0994 :329 | BottomSheet / Product | "foundation-sheet" | onClose={closeSheet} |
-| UI0995 :332 | AlertCenter / Product | (child/component label) | onSettings={()=&gt;navigate('settings',true)}; onOpen={item=&gt;{const url=new URL(location.href);url.searchParams.delete('sheet');history.replaceState({...history.state,_foundationSheet:false},'',url);sheetEntry.current=false;setSheet(null);router.push(expandedHref(item.target.tab,item.target.destination));}} |
-| UI0996 :332 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setSheet({ ...sheet, state: undefined }))} |
-| UI0997 :333 | SwipeRow / Product | (child/component label) | onAction={() =&gt; { const previous = unread; setUnread(Math.max(0, unread - 1)); showToast(c.dismissConfirm, () =&gt; setUnread(previous)); }} |
-| UI0998 :333 | button / Product | {c.markRead} | onClick={() =&gt; setUnread(Math.max(0, unread - 1))} |
-| UI0999 :333 | Button / Product | {c.markAll} | onClick={() =&gt; setUnread(0)} |
-| UI1000 :333 | Button / Product | {c.replaceSheet} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
-| UI1001 :333 | Button / Product | {c.goToday} | onClick={() =&gt; navigate('today', true)} |
-| UI1002 :352 | ContributionBar / Readings | (child/component label) | onSelect={onSelect} |
-| UI1003 :353 | ExpandableCard / Readings | {factor.key} | onOpenChange={open =&gt; setExpanded(open ? factor.key : null)} |
-| UI1004 :354 | button / Readings | {c.learn} | onClick={onLearn} |
-| UI1005 :371 | SegmentedControl / Controls | {c.labels.journalMode} | onChange={setMode} |
-| UI1006 :371 | SegmentedControl / Controls | {c.labels.tenure} | onChange={setRenting} |
-| UI1007 :371 | SegmentedControl / Controls | {c.labels.filter} | onChange={value =&gt; setMode(value === 'All' ? 'Log' : 'Trends')} |
-| UI1008 :373 | AccordionRow / Controls | "household-options" | onToggle={() =&gt; setOpen(open === 'household' ? null : 'household')} |
-| UI1009 :373 | ToggleChip / Controls | {group} | onToggle={() =&gt; toggle(group)} |
-| UI1010 :373 | ToggleChip / Controls | {c.unavailable} | onToggle={() =&gt; {}} |
-| UI1011 :374 | AccordionRow / Controls | "accessibility-options" | onToggle={() =&gt; setOpen(open === 'accessibility' ? null : 'accessibility')} |
-| UI1012 :374 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
-| UI1013 :374 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
-| UI1014 :375 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
-| UI1015 :375 | Switch / Controls | {c.labels.enabledSwitch} | onChange={value =&gt; setReduce(!value)} |
-| UI1016 :375 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
-| UI1017 :396 | form / Form | (child/component label) | onSubmit={e =&gt; { e.preventDefault(); const next = { address: validation('address', address), year: validation('year', year), water: validation('water', water) }; setErrors(next); if (Object.values(next).some(Boolean)) return; setBusy(true); timer.current = setTimeout(() =&gt; { setBusy(false); setSaveError(scenario === 'form-error'); if (scenario !== 'form-error') showToast(c.saved); }, 650); }} |
-| UI1018 :397 | input / Form | {c.address} {errors.address && &lt;span id="address-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.address}&lt;/span&gt;} | onChange={e =&gt; { setAddress(e.target.value); clearValid('address', e.target.value); }}; onBlur={() =&gt; validate('address', address)} |
-| UI1019 :398 | input / Form | {c.year} {errors.year && &lt;span id="year-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.year}&lt;/span&gt;} | onChange={e =&gt; { const value = e.target.value.replace(/\D/g, ''); setYear(value); clearValid('year', value); }}; onBlur={() =&gt; validate('year', year)} |
-| UI1020 :399 | select / Form | {c.waterOptions.map((value, i) =&gt; &lt;option key={value} value={i ? value : ''}&gt;{value}&lt;/option&gt;)} | onChange={e =&gt; { setWater(e.target.value); clearValid('water', e.target.value); }}; onBlur={() =&gt; validate('water', water)} |
-| UI1021 :400 | textarea / Form | {c.note} {note.length &gt; 400 && &lt;span className="halo-f-meta" role="status"&gt;{note.length}/500&lt;/span&gt;} | onChange={e =&gt; setNote(e.target.value)} |
-| UI1022 :401 | input / Form | {c.checkbox} | onChange={e =&gt; setIllness(e.target.checked)} |
-| UI1023 :402 | input / Form | {c.slider} : {size} % | onChange={e =&gt; setSize(Number(e.target.value))} |
-| UI1024 :404 | ExpandableCard / Form | "long" | onOpenChange={setLongOpen} |
-| UI1025 :409 | button / Bars | {'${row.name}, ${row.value}, ${row.ratio} times the limit. ${row.ratio &gt; 2 ? 'Continues past the chart. ' : ''}${c.pfas}'} | onClick={onLearn} |
+| UI0940 :96 | summary / FoundationPreview | {expanded ? 'Expanded app review · Not approved' : c.review} | (native form/control behavior) |
+| UI0941 :99 | select / FoundationPreview | {c.scenario} | onChange={e =&gt; changeScenario(e.target.value as FoundationScenario)} |
+| UI0942 :100 | select / FoundationPreview | {c.appearance} | onChange={e =&gt; setMode(e.target.value)} |
+| UI0943 :100 | select / FoundationPreview | {c.scale} | onChange={e =&gt; setScale(e.target.value)} |
+| UI0944 :101 | select / FoundationPreview | "Animation" | onChange={e =&gt; setMotion(e.target.value as MotionMode)} |
+| UI0945 :101 | select / FoundationPreview | "Scene lighting" | onChange={e =&gt; setTime(e.target.value as SceneTime)} |
+| UI0946 :102 | input / FoundationPreview | {c.contrast} | onChange={e =&gt; setContrast(e.target.checked)} |
+| UI0947 :102 | input / FoundationPreview | {c.motion} | onChange={e =&gt; setMotion(e.target.checked ? 'reduce' : 'system')} |
+| UI0948 :106 | Product / FoundationPreview | (child/component label) | onDisplay={next=&gt;{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=&gt;colorPalette(next.palette));}} |
+| UI0949 :279 | button / toastElement | {c.undo} | onClick={() =&gt; { toast.action?.(); setToast(null); }} |
+| UI0950 :280 | Readings / readingView | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })}; onSelect={expandFactor} |
+| UI0951 :280 | HomeOverviewWorkspace / readingView | (child/component label) | href={expandedHref} |
+| UI0952 :283 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
+| UI0953 :284 | EmptyState / Product | (child/component label) | action={current === 'empty' ? &lt;Button onClick={() =&gt; navigate('journal')}&gt;{c.continue}&lt;/Button&gt; : undefined} |
+| UI0954 :284 | Button / Product | {c.continue} | onClick={() =&gt; navigate('journal')} |
+| UI0955 :285 | EmptyState / Product | (child/component label) | action={expanded?&lt;div className="hc-flow"&gt;&lt;Link className="hp-primary" href="/onboarding/preview/?design=mobile"&gt;{c.setup}&lt;/Link&gt;&lt;Link href="/foundation/preview/expanded/?access=public"&gt;Browse without a home&lt;/Link&gt;&lt;/div&gt;:&lt;Button onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} busy={busy}&gt;{c.setup}&lt;/Button&gt;} |
+| UI0956 :285 | Link / Product | {c.setup} | href="/onboarding/preview/?design=mobile" |
+| UI0957 :285 | Link / Product | Browse without a home | href="/foundation/preview/expanded/?access=public" |
+| UI0958 :285 | Button / Product | {c.setup} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
+| UI0959 :286 | EmptyState / Product | (child/component label) | action={&lt;Button onClick={() =&gt; setResolved(true)}&gt;{c.goToday}&lt;/Button&gt;} |
+| UI0960 :286 | Button / Product | {c.goToday} | onClick={() =&gt; setResolved(true)} |
+| UI0961 :289 | Bars / Product | (child/component label) | onLearn={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
+| UI0962 :290 | Button / Product | {c.save} | onClick={() =&gt; mockRequest(() =&gt; showToast(c.saved))} |
+| UI0963 :290 | Button / Product | {c.continue} | onClick={() =&gt; showToast(c.saved)} |
+| UI0964 :290 | Button / Product | {c.cancel} | onClick={() =&gt; showToast(c.saved)} |
+| UI0965 :290 | Button / Product | {c.destructive} | onClick={removeEntry} |
+| UI0966 :290 | button / Product | {c.labels.settingsExample} | onClick={() =&gt; navigate('settings')} |
+| UI0967 :293 | SwipeRow / Product | (child/component label) | onAction={removeEntry} |
+| UI0968 :293 | Button / Product | {c.replaceToast} | onClick={() =&gt; showToast(c.saved)} |
+| UI0969 :294 | Button / Product | {c.standard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
+| UI0970 :294 | Button / Product | {c.tall} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
+| UI0971 :294 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
+| UI0972 :296 | Card / Product | {c.labels.tappableCard} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'air' })} |
+| UI0973 :297 | Button / Product | {c.compact} | onClick={() =&gt; openSheet({ type: 'map', height: 'content' })} |
+| UI0974 :298 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
+| UI0975 :302 | ExpandedSettings / Product | (child/component label) | href={expandedHref}; onAlerts={()=&gt;openSheet({type:'alerts',height:'tall'})}; onDisplay={onDisplay} |
+| UI0976 :304 | ExpandedDestinationPage / Product | (child/component label) | href={expandedHref} |
+| UI0977 :304 | ExpandedAct / Product | (child/component label) | href={expandedHref} |
+| UI0978 :304 | ExpandedPlan / Product | (child/component label) | href={expandedHref} |
+| UI0979 :306 | ExpandedConnections / Product | (child/component label) | href={expandedHref} |
+| UI0980 :312 | a / Product | Skip to content | href="#halo-main-content" |
+| UI0981 :312 | AppSidebar / Product | (child/component label) | onCollapse={()=&gt;setSidebarCollapsed(!sidebarCollapsed)}; href={previewHref}; onNavigate={navigate} |
+| UI0982 :315 | button / Product | {c.unread(unread)} | onClick={()=&gt;openSheet({type:"alerts",height:"standard"})} |
+| UI0983 :315 | Link / Product | {'Back to ${routeTitles[backTab]}'} | href={previewHref(backTab)} |
+| UI0984 :315 | button / Product | {c.labels.back} | onClick={backFromSettings} |
+| UI0985 :315 | button / Product | {c.labels.assistant} | onClick={()=&gt;openSheet({type:"assistant",height:"tall"})} |
+| UI0986 :315 | button / Product | {c.unread(unread)} | onClick={() =&gt; openSheet({ type: 'alerts', height: 'standard' })} |
+| UI0987 :315 | button / Product | {c.labels.settings} | onClick={() =&gt; navigate('settings')} |
+| UI0988 :317 | button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setResolved(true))} |
+| UI0989 :318 | AppNavigation / Product | (child/component label) | href={previewHref}; onNavigate={navigate} |
+| UI0990 :318 | a / Product | (child/component label) | href={previewHref(tab)}; onClick={e =&gt; { e.preventDefault(); if (route !== tab \|\| inDetail) navigate(tab); }} |
+| UI0991 :318 | button / Product | {c.labels.assistant} | onClick={() =&gt; openSheet({ type: 'assistant', height: 'tall' })} |
+| UI0992 :321 | ExpandedLunaPreview / Product | (child/component label) | onClose={closeSheet} |
+| UI0993 :329 | LunaAssistant / Product | (child/component label) | onClose={closeSheet} |
+| UI0994 :330 | BottomSheet / Product | "foundation-sheet" | onClose={closeSheet} |
+| UI0995 :333 | AlertCenter / Product | (child/component label) | onSettings={()=&gt;navigate('settings',true)}; onOpen={item=&gt;{const url=new URL(location.href);url.searchParams.delete('sheet');history.replaceState({...history.state,_foundationSheet:false},'',url);sheetEntry.current=false;setSheet(null);router.push(expandedHref(item.target.tab,item.target.destination));}} |
+| UI0996 :333 | Button / Product | {c.retry} | onClick={() =&gt; mockRequest(() =&gt; setSheet({ ...sheet, state: undefined }))} |
+| UI0997 :334 | SwipeRow / Product | (child/component label) | onAction={() =&gt; { const previous = unread; setUnread(Math.max(0, unread - 1)); showToast(c.dismissConfirm, () =&gt; setUnread(previous)); }} |
+| UI0998 :334 | button / Product | {c.markRead} | onClick={() =&gt; setUnread(Math.max(0, unread - 1))} |
+| UI0999 :334 | Button / Product | {c.markAll} | onClick={() =&gt; setUnread(0)} |
+| UI1000 :334 | Button / Product | {c.replaceSheet} | onClick={() =&gt; openSheet({ type: 'learn', height: 'standard', topic: 'pfas', generic: true })} |
+| UI1001 :334 | Button / Product | {c.goToday} | onClick={() =&gt; navigate('today', true)} |
+| UI1002 :353 | ContributionBar / Readings | (child/component label) | onSelect={onSelect} |
+| UI1003 :354 | ExpandableCard / Readings | {factor.key} | onOpenChange={open =&gt; setExpanded(open ? factor.key : null)} |
+| UI1004 :355 | button / Readings | {c.learn} | onClick={onLearn} |
+| UI1005 :372 | SegmentedControl / Controls | {c.labels.journalMode} | onChange={setMode} |
+| UI1006 :372 | SegmentedControl / Controls | {c.labels.tenure} | onChange={setRenting} |
+| UI1007 :372 | SegmentedControl / Controls | {c.labels.filter} | onChange={value =&gt; setMode(value === 'All' ? 'Log' : 'Trends')} |
+| UI1008 :374 | AccordionRow / Controls | "household-options" | onToggle={() =&gt; setOpen(open === 'household' ? null : 'household')} |
+| UI1009 :374 | ToggleChip / Controls | {group} | onToggle={() =&gt; toggle(group)} |
+| UI1010 :374 | ToggleChip / Controls | {c.unavailable} | onToggle={() =&gt; {}} |
+| UI1011 :375 | AccordionRow / Controls | "accessibility-options" | onToggle={() =&gt; setOpen(open === 'accessibility' ? null : 'accessibility')} |
+| UI1012 :375 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
+| UI1013 :375 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
+| UI1014 :376 | Switch / Controls | {c.switchLabel} | onChange={setReduce} |
+| UI1015 :376 | Switch / Controls | {c.labels.enabledSwitch} | onChange={value =&gt; setReduce(!value)} |
+| UI1016 :376 | Switch / Controls | {c.disabledSwitch} | onChange={() =&gt; {}} |
+| UI1017 :397 | form / Form | (child/component label) | onSubmit={e =&gt; { e.preventDefault(); const next = { address: validation('address', address), year: validation('year', year), water: validation('water', water) }; setErrors(next); if (Object.values(next).some(Boolean)) return; setBusy(true); timer.current = setTimeout(() =&gt; { setBusy(false); setSaveError(scenario === 'form-error'); if (scenario !== 'form-error') showToast(c.saved); }, 650); }} |
+| UI1018 :398 | input / Form | {c.address} {errors.address && &lt;span id="address-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.address}&lt;/span&gt;} | onChange={e =&gt; { setAddress(e.target.value); clearValid('address', e.target.value); }}; onBlur={() =&gt; validate('address', address)} |
+| UI1019 :399 | input / Form | {c.year} {errors.year && &lt;span id="year-error" className="halo-error"&gt;&lt;Info size={16} aria-hidden="true" /&gt;{errors.year}&lt;/span&gt;} | onChange={e =&gt; { const value = e.target.value.replace(/\D/g, ''); setYear(value); clearValid('year', value); }}; onBlur={() =&gt; validate('year', year)} |
+| UI1020 :400 | select / Form | {c.waterOptions.map((value, i) =&gt; &lt;option key={value} value={i ? value : ''}&gt;{value}&lt;/option&gt;)} | onChange={e =&gt; { setWater(e.target.value); clearValid('water', e.target.value); }}; onBlur={() =&gt; validate('water', water)} |
+| UI1021 :401 | textarea / Form | {c.note} {note.length &gt; 400 && &lt;span className="halo-f-meta" role="status"&gt;{note.length}/500&lt;/span&gt;} | onChange={e =&gt; setNote(e.target.value)} |
+| UI1022 :402 | input / Form | {c.checkbox} | onChange={e =&gt; setIllness(e.target.checked)} |
+| UI1023 :403 | input / Form | {c.slider} : {size} % | onChange={e =&gt; setSize(Number(e.target.value))} |
+| UI1024 :405 | ExpandableCard / Form | "long" | onOpenChange={setLongOpen} |
+| UI1025 :410 | button / Bars | {'${row.name}, ${row.value}, ${row.ratio} times the limit. ${row.ratio &gt; 2 ? 'Continues past the chart. ' : ''}${c.pfas}'} | onClick={onLearn} |
 
 ### components/foundation/HomeHousehold.tsx
 
@@ -12420,7 +12434,7 @@ Contract family: H01-H08 / F01-F06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1294 :32 | button / HomeResourceFeedback | Try again | onClick={retry} |
+| UI1294 :33 | button / HomeResourceFeedback | Try again | onClick={retry} |
 
 ### components/homeguard/HomeWorkspaceState.tsx
 
@@ -12438,20 +12452,20 @@ Contract family: H01-H08 / F01-F06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1298 :18 | button / link | {artwork ? &lt;WorkspaceArtwork kind={artwork} compact /&gt; : icon && &lt;span className="hg-link-icon" aria-hidden="true"&gt;{icon}&lt;/span&gt;} | onClick={onClick} |
-| UI1299 :25 | DeleteButton / DeletableRecord | {'Delete ${title}'} | onClick={() =&gt; setConfirming({ title, deletion })} |
-| UI1300 :25 | Confirm / DeletableRecord | "Are you sure?" | onCancel={() =&gt; setConfirming(null)}; onConfirm={async () =&gt; { // The row and its opener disappear together. Let modal cleanup focus the // surviving heading, rather than racing cleanup with an animation frame. deletionFocus.current = row.current?.closest('.hg-workspace, .halo-explore')?.querySelector&lt;HTMLElement&gt;('[data-home-heading], h2[tabindex]') ?? null; if (await confirming.deletion.remove()) { setConfirming(null); } }} |
-| UI1301 :47 | form / RecordForm | {scenario === 'offline' && &lt;p className="hg-meta"&gt;Offline. Your draft is kept here, but changes are not queued.&lt;/p&gt;} | onChangeCapture={() =&gt; setDirty(true)}; onSubmit={async event =&gt; { event.preventDefault(); if (disabled \|\| unknownOperations.length) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }} |
-| UI1302 :47 | button / RecordForm | {disabled ? 'Saving...' : submitLabel} | (native form/control behavior) |
-| UI1303 :47 | button / RecordForm | Cancel | onClick={() =&gt; dirty ? setCancel(true) : onCancel()} |
-| UI1304 :47 | Confirm / RecordForm | "Leave this form?" | onCancel={() =&gt; setCancel(false)}; onConfirm={() =&gt; { setCancel(false); onCancel?.(); }} |
-| UI1305 :51 | button / DeleteButton | {label} | onClick={onClick} |
-| UI1306 :58 | BottomSheet / Confirm | {'home-confirm-${id}'} | onClose={() =&gt; { if (!busy) onCancel(); }} |
-| UI1307 :58 | button / Confirm | {unknownRecovery.label} | onClick={() =&gt; void unknownRecovery.check()} |
-| UI1308 :58 | button / Confirm | Check save status | onClick={() =&gt; void workspace.reconcile(item.operationId)} |
-| UI1309 :58 | button / Confirm | {busy ? 'Working...' : confirmLabel ?? (danger ? 'Yes, delete' : 'Confirm')} | onClick={async () =&gt; { if (busy \|\| changed \|\| workspace.unknownOperations.length) return; setBusy(true); setAttempted(true); setError(''); workspace.clearMessage(); try { await onConfirm(); } catch { setError('This change could not be completed. Your record is still here. Please try again.'); } finally { setBusy(false); } }} |
-| UI1310 :58 | button / Confirm | {cancelLabel ?? (danger ? 'No, keep it' : 'Keep editing')} | onClick={onCancel} |
-| UI1311 :64 | button / ActionButton | {exists ? &lt;Check size={17} aria-hidden="true" /&gt; : &lt;CalendarPlus size={17} aria-hidden="true" /&gt;} {exists ? buttonLabel ? 'Open ${buttonLabel.toLowerCase()}' : 'Open save | onClick={() =&gt; state?.open({ key, title, reason, origin: factor, date })} |
+| UI1298 :19 | button / link | {artwork ? &lt;WorkspaceArtwork kind={artwork} compact /&gt; : icon && &lt;span className="hg-link-icon" aria-hidden="true"&gt;{icon}&lt;/span&gt;} | onClick={onClick} |
+| UI1299 :26 | DeleteButton / DeletableRecord | {'Delete ${title}'} | onClick={() =&gt; setConfirming({ title, deletion })} |
+| UI1300 :26 | Confirm / DeletableRecord | "Are you sure?" | onCancel={() =&gt; setConfirming(null)}; onConfirm={async () =&gt; { // The row and its opener disappear together. Let modal cleanup focus the // surviving heading, rather than racing cleanup with an animation frame. deletionFocus.current = row.current?.closest('.hg-workspace, .halo-explore')?.querySelector&lt;HTMLElement&gt;('[data-home-heading], h2[tabindex]') ?? null; if (await confirming.deletion.remove()) { setConfirming(null); } }} |
+| UI1301 :48 | form / RecordForm | {scenario === 'offline' && &lt;p className="hg-meta"&gt;Offline. Your draft is kept here, but changes are not queued.&lt;/p&gt;} | onChangeCapture={() =&gt; setDirty(true)}; onSubmit={async event =&gt; { event.preventDefault(); if (disabled \|\| unknownOperations.length) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }} |
+| UI1302 :48 | button / RecordForm | {disabled && &lt;LoadingSymbol small /&gt;} {disabled ? 'Saving...' : submitLabel} | (native form/control behavior) |
+| UI1303 :48 | button / RecordForm | Cancel | onClick={() =&gt; dirty ? setCancel(true) : onCancel()} |
+| UI1304 :48 | Confirm / RecordForm | "Leave this form?" | onCancel={() =&gt; setCancel(false)}; onConfirm={() =&gt; { setCancel(false); onCancel?.(); }} |
+| UI1305 :52 | button / DeleteButton | {label} | onClick={onClick} |
+| UI1306 :59 | BottomSheet / Confirm | {'home-confirm-${id}'} | onClose={() =&gt; { if (!busy) onCancel(); }} |
+| UI1307 :59 | button / Confirm | {unknownRecovery.label} | onClick={() =&gt; void unknownRecovery.check()} |
+| UI1308 :59 | button / Confirm | Check save status | onClick={() =&gt; void workspace.reconcile(item.operationId)} |
+| UI1309 :59 | button / Confirm | {busy ? 'Working...' : confirmLabel ?? (danger ? 'Yes, delete' : 'Confirm')} | onClick={async () =&gt; { if (busy \|\| changed \|\| workspace.unknownOperations.length) return; setBusy(true); setAttempted(true); setError(''); workspace.clearMessage(); try { await onConfirm(); } catch { setError('This change could not be completed. Your record is still here. Please try again.'); } finally { setBusy(false); } }} |
+| UI1310 :59 | button / Confirm | {cancelLabel ?? (danger ? 'No, keep it' : 'Keep editing')} | onClick={onCancel} |
+| UI1311 :65 | button / ActionButton | {exists ? &lt;Check size={17} aria-hidden="true" /&gt; : &lt;CalendarPlus size={17} aria-hidden="true" /&gt;} {exists ? buttonLabel ? 'Open ${buttonLabel.toLowerCase()}' : 'Open save | onClick={() =&gt; state?.open({ key, title, reason, origin: factor, date })} |
 
 ### components/homeguard/HomeguardWorkspace.tsx
 
@@ -12459,12 +12473,12 @@ Contract family: H01-H08 / F01-F06.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1312 :63 | Link / HomeguardWorkspace | Back to Homeguard | href={href('home')} |
-| UI1313 :64 | select / HomeguardWorkspace | {(Object.keys(sections) as HomeSection[]).map(key =&gt; &lt;option value={key} key={key}&gt;{sections[key].name}&lt;/option&gt;)} | onChange={event =&gt; go(event.target.value as HomeSection)} |
-| UI1314 :65 | button / HomeguardWorkspace | Workspace overview | onClick={() =&gt; go(section)} |
-| UI1315 :67 | button / HomeguardWorkspace | Try again | onClick={() =&gt; void state.retry(productionFailure)} |
-| UI1316 :71 | button / HomeguardWorkspace | Try again | onClick={() =&gt; state.setScenario('ready')} |
-| UI1317 :71 | button / HomeguardWorkspace | Try again | onClick={() =&gt; state.setScenario('ready')} |
+| UI1312 :67 | Link / HomeguardWorkspace | Back to Homeguard | href={href('home')} |
+| UI1313 :68 | select / HomeguardWorkspace | {(Object.keys(sections) as HomeSection[]).map(key =&gt; &lt;option value={key} key={key}&gt;{sections[key].name}&lt;/option&gt;)} | onChange={event =&gt; go(event.target.value as HomeSection)} |
+| UI1314 :69 | button / HomeguardWorkspace | Workspace overview | onClick={() =&gt; go(section)} |
+| UI1315 :71 | button / HomeguardWorkspace | Try again | onClick={() =&gt; void state.retry(productionFailure)} |
+| UI1316 :76 | button / HomeguardWorkspace | Try again | onClick={() =&gt; state.setScenario('ready')} |
+| UI1317 :76 | button / HomeguardWorkspace | Try again | onClick={() =&gt; state.setScenario('ready')} |
 
 ### components/homeguard/MaintenanceWorkspace.tsx
 
@@ -12806,70 +12820,70 @@ Contract family: M01-M05.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1561 :85 | summary / MapPreview | Map design review · Not approved | (native form/control behavior) |
-| UI1562 :87 | select / MapPreview | "Review state" | onChange={e=&gt;changeScenario(e.target.value as MapScenario)} |
-| UI1563 :88 | select / MapPreview | {comparisonCases.map(([key,label])=&gt;&lt;option key={key} value={key}&gt;{label}&lt;/option&gt;)} | onChange={e=&gt;setComparisonCase(e.target.value as ComparisonCase)} |
-| UI1564 :89 | select / MapPreview | (child/component label) | onChange={e=&gt;setAppearance(e.target.value)} |
-| UI1565 :89 | select / MapPreview | {['100','115','130','150'].map(n=&gt;&lt;option key={n} value={n}&gt;{n}%&lt;/option&gt;)} | onChange={e=&gt;setScale(e.target.value)} |
-| UI1566 :90 | input / MapPreview | Reduce motion | onChange={e=&gt;setMotion(e.target.checked)} |
-| UI1567 :90 | input / MapPreview | Higher contrast | onChange={e=&gt;setContrast(e.target.checked)} |
-| UI1568 :268 | Link / MapExperience | {publicMode?comparisonCopy.publicBack:'Back to Explore'} | href={runtime&&publicMode?'/learn':foundationHref(publicMode?'plan':'act')} |
-| UI1569 :268 | button / MapExperience | "Open Luna" | onClick={()=&gt;openSheet({kind:'assistant'})} |
-| UI1570 :268 | button / MapExperience | "About this map" | onClick={()=&gt;openSheet({kind:'about'})} |
-| UI1571 :268 | Link / MapExperience | "Settings" | href={foundationHref('settings')} |
-| UI1572 :269 | button / MapExperience | Try again | onClick={retry} |
-| UI1573 :273 | Button / MapExperience | {comparisonCopy.browse} | onClick={()=&gt;openSheet({kind:'results'})} |
-| UI1574 :273 | DistrictPanel / MapExperience | (child/component label) | onRetry={retry} |
-| UI1575 :273 | Button / MapExperience | Try the map again | onClick={retry} |
-| UI1576 :276 | button / MapExperience | (child/component label) | onClick={()=&gt;setMapLayer(key)}; onKeyDown={e=&gt;{const direction=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(direction){e.preventDefault();const n=(index+direction+4)%4;setMapLayer(mapLayers[n]);e.currentTarget.parentElement?.querySelectorAll&lt;HTMLButtonElement&gt;('button')[n].focus();}}} |
-| UI1577 :277 | select / MapExperience | "Water comparison" | onChange={e=&gt;setMapCompound(e.target.value as Compound)} |
-| UI1578 :277 | button / MapExperience | "Standard change information" | onClick={()=&gt;openSheet({kind:'legend'})} |
-| UI1579 :280 | button / MapExperience | (child/component label) | onClick={()=&gt;openSheet({kind:'results'})} |
-| UI1580 :281 | button / MapExperience | (child/component label) | onClick={fitLayer} |
-| UI1581 :282 | button / MapExperience | "Previous view" | onClick={()=&gt;{if(previousView){changeView(previousView);setPreviousView(null);setFocusedId(null);setNotice('Returned to the previous map view.');}}} |
-| UI1582 :283 | button / MapExperience | "Show map labels" | onClick={()=&gt;setLabels(value=&gt;!value)} |
-| UI1583 :286 | button / MapExperience | "Locate your home" | onClick={()=&gt;{navigateView({lng:sampleHome.lng,lat:sampleHome.lat,zoom:8});setNotice('Centered on your approximate home.');}} |
-| UI1584 :286 | button / MapExperience | "Zoom in" | onClick={()=&gt;navigateView({...view,zoom:view.zoom+1})} |
-| UI1585 :286 | button / MapExperience | "Zoom out" | onClick={()=&gt;navigateView({...view,zoom:view.zoom-1})} |
-| UI1586 :287 | button / MapExperience | {value?'Patterns':'Locations'} | onClick={()=&gt;{setPatterns(value);const url=new URL(location.href);url.searchParams.set('presentation',value?'patterns':'locations');history.replaceState(history.state,'',url);}} |
-| UI1587 :287 | button / MapExperience | List | onClick={()=&gt;openSheet({kind:'results'})} |
-| UI1588 :288 | MapCanvas / MapExperience | (child/component label) | onNavigationStart={rememberView}; onViewChange={changeView}; onSelect={id=&gt;openSheet({kind:'feature',id})}; onReady={setReady}; onUnavailable={()=&gt;setRendererFailed(true)}; onVisibleCountChange={setVisibleCount}; onVisibleIdsChange={setVisibleIds} |
-| UI1589 :289 | button / MapExperience | Try again | onClick={retry} |
-| UI1590 :290 | Button / MapExperience | Try again | onClick={retry} |
-| UI1591 :291 | button / MapExperience | {quarterEmpty?'Return to Latest':'Zoom out'} | onClick={()=&gt;{if(quarterEmpty)loadQuarter('latest');else{setResolved(true);changeView({...defaultView,zoom:6});}}} |
-| UI1592 :293 | MapKey / MapExperience | (child/component label) | onOpen={()=&gt;openSheet({kind:'legend'})} |
-| UI1593 :294 | button / MapExperience | {!experience.motion?'Paused by your motion settings':undefined} | onClick={()=&gt;setPatternMotion(value=&gt;!value)} |
-| UI1594 :296 | button / MapExperience | Try again | onClick={retry} |
-| UI1595 :297 | MapInsightCard / MapExperience | (child/component label) | onOpen={()=&gt;openSheet({kind:'brief'})} |
-| UI1596 :298 | button / MapExperience | "Return to latest samples" | onClick={()=&gt;loadQuarter('latest')} |
-| UI1597 :298 | input / MapExperience | "Water sample quarter" | onPointerDown={()=&gt;{draggingQuarter.current=true;}}; onChange={e=&gt;{const q=quarters[Number(e.target.value)]??'latest';setDraftQuarter(q);if(keyTimer.current)clearTimeout(keyTimer.current);if(!draggingQuarter.current)keyTimer.current=setTimeout(()=&gt;loadQuarter(q),250);}}; onPointerUp={e=&gt;{draggingQuarter.current=false;loadQuarter(quarters[Number(e.currentTarget.value)]??'latest');}}; onPointerCancel={()=&gt;{draggingQuarter.current=false;setDraftQuarter(quarter);}} |
-| UI1598 :299 | button / MapExperience | (child/component label) | onClick={()=&gt;openSheet({kind:'district'})}; onTouchStart={e=&gt;{e.currentTarget.dataset.start=String(e.touches[0].clientY);}}; onTouchEnd={e=&gt;{if(Number(e.currentTarget.dataset.start)-e.changedTouches[0].clientY&gt;30)openSheet({kind:'district'});}} |
-| UI1599 :303 | AppNavigation / MapExperience | {offline&&&lt;div className="halo-map-offline" role="status"&gt;&lt;WifiOff size={16}/&gt;&lt;span&gt;{noSaved?'This layer is not saved on this device.':'Showing saved map data from Oct 1, | href={foundationHref} |
-| UI1600 :304 | ExpandedLunaPreview / MapExperience | (child/component label) | onClose={closeSheet} |
-| UI1601 :309 | BottomSheet / MapExperience | "halo-map-sheet" | onClose={closeSheet} |
-| UI1602 :310 | AreaBrief / MapExperience | (child/component label) | onSelect={id=&gt;openSheet({kind:'feature',id})} |
-| UI1603 :311 | DistrictPanel / MapExperience | (child/component label) | onRetry={offline?undefined:retry}; onCountySelect={name=&gt;{const point=radonPoints.find(p=&gt;p.id===name);if(!point)return;setLayer('radon');setCompound('overall');setQuarter('latest');changeView({lat:point.lat,lng:point.lng,zoom:8});const url=urlForFilters('radon','overall','latest');url.searchParams.delete('panel');url.searchParams.set('system',name);history.replaceState(history.state,'',url);setSheet({kind:'feature',id:name});}} |
-| UI1604 :313 | a / MapExperience | U.S. Census boundary source | href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html" |
-| UI1605 :313 | button / MapExperience | Browse locations as a list | onClick={()=&gt;openSheet({kind:'results'})} |
-| UI1606 :314 | MapResults / MapExperience | (child/component label) | onQuery={setFilter}; onSelect={id=&gt;openSheet({kind:'feature',id})} |
-| UI1607 :314 | button / MapExperience | {moreLoading?'Loading more locations…':'Load more locations'} | onClick={()=&gt;void loadMore()} |
-| UI1608 :315 | LiveMapComparison / MapExperience | (child/component label) | onSelect={(id,second)=&gt;openSheet({kind:'compare',id,second})}; onCompound={setMapCompound}; onBack={()=&gt;openSheet({kind:'feature',id:sheet.id})}; onClear={closeSheet}; onRetry={retry} |
-| UI1609 :315 | MapComparison / MapExperience | (child/component label) | onSelect={(id,second)=&gt;openSheet({kind:'compare',id,second})}; onCompound={setMapCompound}; onBack={()=&gt;openSheet({kind:'feature',id:sheet.id})}; onClear={closeSheet}; onRetry={()=&gt;{resetComparisonCase();retry();}} |
-| UI1610 :317 | Button / MapExperience | Try again | onClick={retry} |
-| UI1611 :317 | FeatureDetails / MapExperience | {sheet.id} | onLearn={topic=&gt;openSheet({kind:'learn',topic,id:sheet.id})} |
-| UI1612 :318 | button / MapExperience | {comparisonCopy.entry} | onClick={()=&gt;openSheet({kind:'compare',id:sheet.id})} |
-| UI1613 :319 | button / MapExperience | Focus on map | onClick={()=&gt;focusRecord(sheet.id)} |
-| UI1614 :320 | MapRecordToExplore / MapExperience | (child/component label) | href={foundationHref('act')+'&destination=observations&exploreView=new'} |
-| UI1615 :321 | MapLearn / MapExperience | (child/component label) | onBack={()=&gt;openSheet({kind:'feature',id:sheet.id})}; href={publicMode?undefined:factorHref(sheet.topic)} |
-| UI1616 :344 | Link / FeatureDetails | Go to Today | href={todayHref} |
-| UI1617 :348 | button / FeatureDetails | Understand these water results | onClick={()=&gt;onLearn('pfas')} |
-| UI1618 :349 | button / FeatureDetails | Understand this radon zone | onClick={()=&gt;onLearn('radon')} |
-| UI1619 :350 | a / FeatureDetails | About EPA ECHO data | href="https://echo.epa.gov/" |
-| UI1620 :351 | a / FeatureDetails | About AirNow observations | href="https://www.airnow.gov/" |
-| UI1621 :357 | button / MapLearn | Back to location | onClick={onBack} |
-| UI1622 :357 | summary / MapLearn | What this information cannot tell you | (native form/control behavior) |
-| UI1623 :357 | Link / MapLearn | Explore the {topic==='pfas'?'water':'radon'} guide | href={href} |
-| UI1624 :357 | a / MapLearn | EPA background information | href={topic==='pfas'?'https://www.epa.gov/pfas':'https://www.epa.gov/radon'} |
+| UI1561 :86 | summary / MapPreview | Map design review · Not approved | (native form/control behavior) |
+| UI1562 :88 | select / MapPreview | "Review state" | onChange={e=&gt;changeScenario(e.target.value as MapScenario)} |
+| UI1563 :89 | select / MapPreview | {comparisonCases.map(([key,label])=&gt;&lt;option key={key} value={key}&gt;{label}&lt;/option&gt;)} | onChange={e=&gt;setComparisonCase(e.target.value as ComparisonCase)} |
+| UI1564 :90 | select / MapPreview | (child/component label) | onChange={e=&gt;setAppearance(e.target.value)} |
+| UI1565 :90 | select / MapPreview | {['100','115','130','150'].map(n=&gt;&lt;option key={n} value={n}&gt;{n}%&lt;/option&gt;)} | onChange={e=&gt;setScale(e.target.value)} |
+| UI1566 :91 | input / MapPreview | Reduce motion | onChange={e=&gt;setMotion(e.target.checked)} |
+| UI1567 :91 | input / MapPreview | Higher contrast | onChange={e=&gt;setContrast(e.target.checked)} |
+| UI1568 :269 | Link / MapExperience | {publicMode?comparisonCopy.publicBack:'Back to Explore'} | href={runtime&&publicMode?'/learn':foundationHref(publicMode?'plan':'act')} |
+| UI1569 :269 | button / MapExperience | "Open Luna" | onClick={()=&gt;openSheet({kind:'assistant'})} |
+| UI1570 :269 | button / MapExperience | "About this map" | onClick={()=&gt;openSheet({kind:'about'})} |
+| UI1571 :269 | Link / MapExperience | "Settings" | href={foundationHref('settings')} |
+| UI1572 :270 | button / MapExperience | Try again | onClick={retry} |
+| UI1573 :274 | Button / MapExperience | {comparisonCopy.browse} | onClick={()=&gt;openSheet({kind:'results'})} |
+| UI1574 :274 | DistrictPanel / MapExperience | (child/component label) | onRetry={retry} |
+| UI1575 :274 | Button / MapExperience | Try the map again | onClick={retry} |
+| UI1576 :277 | button / MapExperience | (child/component label) | onClick={()=&gt;setMapLayer(key)}; onKeyDown={e=&gt;{const direction=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(direction){e.preventDefault();const n=(index+direction+4)%4;setMapLayer(mapLayers[n]);e.currentTarget.parentElement?.querySelectorAll&lt;HTMLButtonElement&gt;('button')[n].focus();}}} |
+| UI1577 :278 | select / MapExperience | "Water comparison" | onChange={e=&gt;setMapCompound(e.target.value as Compound)} |
+| UI1578 :278 | button / MapExperience | "Standard change information" | onClick={()=&gt;openSheet({kind:'legend'})} |
+| UI1579 :281 | button / MapExperience | (child/component label) | onClick={()=&gt;openSheet({kind:'results'})} |
+| UI1580 :282 | button / MapExperience | (child/component label) | onClick={fitLayer} |
+| UI1581 :283 | button / MapExperience | "Previous view" | onClick={()=&gt;{if(previousView){changeView(previousView);setPreviousView(null);setFocusedId(null);setNotice('Returned to the previous map view.');}}} |
+| UI1582 :284 | button / MapExperience | "Show map labels" | onClick={()=&gt;setLabels(value=&gt;!value)} |
+| UI1583 :287 | button / MapExperience | "Locate your home" | onClick={()=&gt;{navigateView({lng:sampleHome.lng,lat:sampleHome.lat,zoom:8});setNotice('Centered on your approximate home.');}} |
+| UI1584 :287 | button / MapExperience | "Zoom in" | onClick={()=&gt;navigateView({...view,zoom:view.zoom+1})} |
+| UI1585 :287 | button / MapExperience | "Zoom out" | onClick={()=&gt;navigateView({...view,zoom:view.zoom-1})} |
+| UI1586 :288 | button / MapExperience | {value?'Patterns':'Locations'} | onClick={()=&gt;{setPatterns(value);const url=new URL(location.href);url.searchParams.set('presentation',value?'patterns':'locations');history.replaceState(history.state,'',url);}} |
+| UI1587 :288 | button / MapExperience | List | onClick={()=&gt;openSheet({kind:'results'})} |
+| UI1588 :289 | MapCanvas / MapExperience | (child/component label) | onNavigationStart={rememberView}; onViewChange={changeView}; onSelect={id=&gt;openSheet({kind:'feature',id})}; onReady={setReady}; onUnavailable={()=&gt;setRendererFailed(true)}; onVisibleCountChange={setVisibleCount}; onVisibleIdsChange={setVisibleIds} |
+| UI1589 :290 | button / MapExperience | Try again | onClick={retry} |
+| UI1590 :291 | Button / MapExperience | Try again | onClick={retry} |
+| UI1591 :292 | button / MapExperience | {quarterEmpty?'Return to Latest':'Zoom out'} | onClick={()=&gt;{if(quarterEmpty)loadQuarter('latest');else{setResolved(true);changeView({...defaultView,zoom:6});}}} |
+| UI1592 :294 | MapKey / MapExperience | (child/component label) | onOpen={()=&gt;openSheet({kind:'legend'})} |
+| UI1593 :295 | button / MapExperience | {!experience.motion?'Paused by your motion settings':undefined} | onClick={()=&gt;setPatternMotion(value=&gt;!value)} |
+| UI1594 :297 | button / MapExperience | Try again | onClick={retry} |
+| UI1595 :298 | MapInsightCard / MapExperience | (child/component label) | onOpen={()=&gt;openSheet({kind:'brief'})} |
+| UI1596 :299 | button / MapExperience | "Return to latest samples" | onClick={()=&gt;loadQuarter('latest')} |
+| UI1597 :299 | input / MapExperience | "Water sample quarter" | onPointerDown={()=&gt;{draggingQuarter.current=true;}}; onChange={e=&gt;{const q=quarters[Number(e.target.value)]??'latest';setDraftQuarter(q);if(keyTimer.current)clearTimeout(keyTimer.current);if(!draggingQuarter.current)keyTimer.current=setTimeout(()=&gt;loadQuarter(q),250);}}; onPointerUp={e=&gt;{draggingQuarter.current=false;loadQuarter(quarters[Number(e.currentTarget.value)]??'latest');}}; onPointerCancel={()=&gt;{draggingQuarter.current=false;setDraftQuarter(quarter);}} |
+| UI1598 :300 | button / MapExperience | (child/component label) | onClick={()=&gt;openSheet({kind:'district'})}; onTouchStart={e=&gt;{e.currentTarget.dataset.start=String(e.touches[0].clientY);}}; onTouchEnd={e=&gt;{if(Number(e.currentTarget.dataset.start)-e.changedTouches[0].clientY&gt;30)openSheet({kind:'district'});}} |
+| UI1599 :304 | AppNavigation / MapExperience | {offline&&&lt;div className="halo-map-offline" role="status"&gt;&lt;WifiOff size={16}/&gt;&lt;span&gt;{noSaved?'This layer is not saved on this device.':'Showing saved map data from Oct 1, | href={foundationHref} |
+| UI1600 :305 | ExpandedLunaPreview / MapExperience | (child/component label) | onClose={closeSheet} |
+| UI1601 :310 | BottomSheet / MapExperience | "halo-map-sheet" | onClose={closeSheet} |
+| UI1602 :311 | AreaBrief / MapExperience | (child/component label) | onSelect={id=&gt;openSheet({kind:'feature',id})} |
+| UI1603 :312 | DistrictPanel / MapExperience | (child/component label) | onRetry={offline?undefined:retry}; onCountySelect={name=&gt;{const point=radonPoints.find(p=&gt;p.id===name);if(!point)return;setLayer('radon');setCompound('overall');setQuarter('latest');changeView({lat:point.lat,lng:point.lng,zoom:8});const url=urlForFilters('radon','overall','latest');url.searchParams.delete('panel');url.searchParams.set('system',name);history.replaceState(history.state,'',url);setSheet({kind:'feature',id:name});}} |
+| UI1604 :314 | a / MapExperience | U.S. Census boundary source | href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html" |
+| UI1605 :314 | button / MapExperience | Browse locations as a list | onClick={()=&gt;openSheet({kind:'results'})} |
+| UI1606 :315 | MapResults / MapExperience | (child/component label) | onQuery={setFilter}; onSelect={id=&gt;openSheet({kind:'feature',id})} |
+| UI1607 :315 | button / MapExperience | {moreLoading?'Loading more locations…':'Load more locations'} | onClick={()=&gt;void loadMore()} |
+| UI1608 :316 | LiveMapComparison / MapExperience | (child/component label) | onSelect={(id,second)=&gt;openSheet({kind:'compare',id,second})}; onCompound={setMapCompound}; onBack={()=&gt;openSheet({kind:'feature',id:sheet.id})}; onClear={closeSheet}; onRetry={retry} |
+| UI1609 :316 | MapComparison / MapExperience | (child/component label) | onSelect={(id,second)=&gt;openSheet({kind:'compare',id,second})}; onCompound={setMapCompound}; onBack={()=&gt;openSheet({kind:'feature',id:sheet.id})}; onClear={closeSheet}; onRetry={()=&gt;{resetComparisonCase();retry();}} |
+| UI1610 :318 | Button / MapExperience | Try again | onClick={retry} |
+| UI1611 :318 | FeatureDetails / MapExperience | {sheet.id} | onLearn={topic=&gt;openSheet({kind:'learn',topic,id:sheet.id})} |
+| UI1612 :319 | button / MapExperience | {comparisonCopy.entry} | onClick={()=&gt;openSheet({kind:'compare',id:sheet.id})} |
+| UI1613 :320 | button / MapExperience | Focus on map | onClick={()=&gt;focusRecord(sheet.id)} |
+| UI1614 :321 | MapRecordToExplore / MapExperience | (child/component label) | href={foundationHref('act')+'&destination=observations&exploreView=new'} |
+| UI1615 :322 | MapLearn / MapExperience | (child/component label) | onBack={()=&gt;openSheet({kind:'feature',id:sheet.id})}; href={publicMode?undefined:factorHref(sheet.topic)} |
+| UI1616 :345 | Link / FeatureDetails | Go to Today | href={todayHref} |
+| UI1617 :349 | button / FeatureDetails | Understand these water results | onClick={()=&gt;onLearn('pfas')} |
+| UI1618 :350 | button / FeatureDetails | Understand this radon zone | onClick={()=&gt;onLearn('radon')} |
+| UI1619 :351 | a / FeatureDetails | About EPA ECHO data | href="https://echo.epa.gov/" |
+| UI1620 :352 | a / FeatureDetails | About AirNow observations | href="https://www.airnow.gov/" |
+| UI1621 :358 | button / MapLearn | Back to location | onClick={onBack} |
+| UI1622 :358 | summary / MapLearn | What this information cannot tell you | (native form/control behavior) |
+| UI1623 :358 | Link / MapLearn | Explore the {topic==='pfas'?'water':'radon'} guide | href={href} |
+| UI1624 :358 | a / MapLearn | EPA background information | href={topic==='pfas'?'https://www.epa.gov/pfas':'https://www.epa.gov/radon'} |
 
 ### components/map-preview/MapPublicBrief.tsx
 
@@ -12978,8 +12992,8 @@ Contract family: G01 / X01-X06 / shared.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1677 :32 | button / SessionBoundary | Try again | onClick={()=&gt;{setIdentityError(false);void session.restart();}} |
-| UI1678 :32 | Link / SessionBoundary | Browse public information | href="/learn" |
+| UI1677 :33 | button / SessionBoundary | Try again | onClick={()=&gt;{setIdentityError(false);void session.restart();}} |
+| UI1678 :33 | Link / SessionBoundary | Browse public information | href="/learn" |
 
 ### components/production/ProductionLearnSheet.tsx
 
@@ -12987,11 +13001,11 @@ Contract family: X01.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1679 :12 | Link / ProductionLearnSheet | Open full map | href={mapHref} |
-| UI1680 :13 | button / ProductionLearnSheet | Try again | onClick={()=&gt;setAttempt(value=&gt;value+1)} |
-| UI1681 :13 | summary / ProductionLearnSheet | Sources | (native form/control behavior) |
-| UI1682 :13 | a / ProductionLearnSheet | {source.label} | href={source.url} |
-| UI1683 :13 | Link / ProductionLearnSheet | Open full factor details | href={'/factors/${key}'} |
+| UI1679 :13 | Link / ProductionLearnSheet | Open full map | href={mapHref} |
+| UI1680 :14 | button / ProductionLearnSheet | Try again | onClick={()=&gt;setAttempt(value=&gt;value+1)} |
+| UI1681 :14 | summary / ProductionLearnSheet | Sources | (native form/control behavior) |
+| UI1682 :14 | a / ProductionLearnSheet | {source.label} | href={source.url} |
+| UI1683 :14 | Link / ProductionLearnSheet | Open full factor details | href={'/factors/${key}'} |
 
 ### components/production/ProductionPrivacy.tsx
 
@@ -13018,8 +13032,8 @@ Contract family: G01 / X01-X06 / shared.
 
 | ID / line | Control / owner | Label or role expression | Callback or navigation binding |
 | --- | --- | --- | --- |
-| UI1696 :12 | button / ProductionReadingStatus | Reconnect | onClick={()=&gt;void session.refreshProfile()} |
-| UI1697 :15 | button / ProductionReadingStatus | {seconds&gt;0?'Try again in ${seconds}s':'Refresh readings'} | onClick={()=&gt;void session.refresh(true)} |
+| UI1696 :13 | button / ProductionReadingStatus | Reconnect | onClick={()=&gt;void session.refreshProfile()} |
+| UI1697 :16 | button / ProductionReadingStatus | {seconds&gt;0?'Try again in ${seconds}s':'Refresh readings'} | onClick={()=&gt;void session.refresh(true)} |
 
 ### components/production/ProductionRestoreAccessFlow.tsx
 
@@ -14686,12 +14700,12 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | app/(halo)/home/page.tsx | 2e96e78956f6e47bfb172c38c5c6fcd2db8490b4d2007405871439807766d9d5 |
 | app/(halo)/household/[member]/page.tsx | 8c63f3aa9afcc2e2f336b9ef71d6a7cded48a84d303097aa575e7dc2d0635b98 |
 | app/(halo)/layout.tsx | f3577650e11506451cf3bbfa94f134efb20c36a894e7e873a3266b4f48928d1c |
-| app/(halo)/loading.tsx | ad2e19d602a8d853fd11867fbbe66db65477692cf116f8f93cf41c8623040725 |
+| app/(halo)/loading.tsx | 66c44a654fd7460732b6ac1ce3e84ca1924c549cb1fbe8b5f40b05605924e5c7 |
 | app/(halo)/plan/page.tsx | 6d5c132ffb03709dd184f0bf10e9390b295f1ab7f177e09c9bf6590625d0cafb |
 | app/(halo)/settings/page.tsx | 1d09d398a05e1af51fb544456b17294e0e62f69cde16dc425f4904cc62a61b66 |
 | app/(halo)/today/page.tsx | 1e366263a75f0f6c60c2ce81f5e2de85c8a6ba5070422af788b0a0b9fb1471a4 |
 | app/(public)/layout.tsx | f4435b09ecff0bff9a7d2c8b418a1db6b18cc5b4065008a2e3732de6c991fc0c |
-| app/(public)/learn/page.tsx | bd9a715b8995f564d5766656f0b98de6da3dc8f277e0bc313df0675414f5aafc |
+| app/(public)/learn/page.tsx | e461e6c95d4d1e7a17ea5c3fd27082a264536f45569115f479e08f675cc75b8c |
 | app/(public)/map/page.tsx | 6dcf42c860f8297a573be6f556d79bf6e77c7468b27a96aa7d2ebe61296935e9 |
 | app/OnboardingScreen.tsx | 7c17417be68225adb83fdfdce77ab0da9970d0d7f43591bece1d9d35c960f279 |
 | app/dev/preview/page.tsx | d54ece3efb5f0b9d9225d98af0c65d3647a82bbda7b0a748638514633d04f4ed |
@@ -14704,6 +14718,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | app/foundation/preview/map/page.tsx | cd5174e1f111ba90b86399d271a6ff14c10259d76ced7023ec59d721f68799c5 |
 | app/foundation/preview/page.tsx | 3c655cf4607503823e06b30a8bde3a2220550df60d7f4357cf4f8ec03ccc1120 |
 | app/layout.tsx | ef042257790991d5fd336930e4415d6a595b267b1431b5dc5638b161313997b8 |
+| app/loading.tsx | b2851a838586a8f489cea6a3c1005e8a9d4a296626928358a04a8aefe5bb2cdf |
 | app/not-found.tsx | 9a7af18fdd5fccff55d0e8913f54d4abc17375c333b5b8ef50a412e1d2e3017b |
 | app/onboarding/page.tsx | a7a53e248ac9dd5273236f75f743b3d1738d770f56267aef257b68e02f6c112a |
 | app/onboarding/preview/page.tsx | 6e35794288d1801fcdb1afd637b4fbbaebd77d1edc2c880cd1b166aefc5b45f6 |
@@ -14711,7 +14726,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | app/page.tsx | 47ce0bbaa31163a0df73317845fc5204bb6a6ad18bffe779621d4db9ce8d83b6 |
 | components/AuthInitializer.jsx | 58aa7c10bc65a1401bc215a76948ffe8ff4f1e67db821355c5d49bc022086412 |
 | components/expanded/AccountWorkflows.tsx | 8f5eba2496f68f53bff958f97da4afd825980e02b44d7841cdf065f56e9b49d5 |
-| components/expanded/AlertCenter.tsx | 1cd38475c7ad8c1eb19a3f5e43d4716a8f2257ce562143f14f413bded2c06408 |
+| components/expanded/AlertCenter.tsx | 1347809135acb2d8ba73893dce2a5de921ed54f67d5b4b53b4b50eba7c7dab2f |
 | components/expanded/ExpandedConnections.tsx | 5fb0d1b6b2ae6427b9cbecc2f6c18963e3b1bf6a815bc342be250efbe00fa6f2 |
 | components/expanded/ExpandedLunaPreview.tsx | 048ae96cb955783169b78a02f3dd08cd26d2139acf7260196d4b13835a532af0 |
 | components/expanded/ExpandedPreviewState.tsx | eda6a71fe6d5c3d3e6c8c1b7b23eef4d968fe1079bc11030e59426dd30171aa4 |
@@ -14719,10 +14734,10 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/expanded/ExploreDiscovery.tsx | 3831b7850d134b6212a901014f1753687e612371dccfa4f5050c16b22a3db89d |
 | components/expanded/ExploreMapPreview.tsx | baba2336d0671450d360aaf72a9e4bd0ec66b71414fd67ad734a9161a04d10cf |
 | components/expanded/ExploreNotes.tsx | a4e8bf1e3d10105be66dffd511a07772a7f6f39d7636aa3f03b0e37d6cdf5414 |
-| components/expanded/ExploreOpportunities.tsx | 907f27c44830fa8477495ac9fa6c8bdab334d0e1dc47bc5e2ca2ae8331ac8cd4 |
+| components/expanded/ExploreOpportunities.tsx | 0ef3eb6e062fb8f70bc9597a57ad13fd1188f878f49121a3cd770f1aa9e5a675 |
 | components/expanded/ExploreOutcome.tsx | 413cae5206a099457a6c5f39dc77aefea146469eb120a72f98efeb7353ec09c3 |
 | components/expanded/ExploreOutreach.tsx | deb4eb5836a7be4615c0a9020ed9b0dc545a54c5a232e3fd1788a114112c78fc |
-| components/expanded/ExploreProjects.tsx | 7d7d5b48ccfe909508fc488910b5000bef6cdd66b2cb56ac3b653e7d20456d9d |
+| components/expanded/ExploreProjects.tsx | f59971c5df57a356b6761ee9dfef4006ce7c10c4786df014235e1f09eaca8416 |
 | components/expanded/ExploreShared.tsx | aadec7d7c1ba7d3bb99cf0e4729455c31047f8ad7a17bceefece25e312d7816a |
 | components/expanded/ExploreVisuals.tsx | 1e61b3f281d6c6232e718f2ec970bb6fcd0ac989a44b4dc129789c108999fe95 |
 | components/expanded/ExploreVolunteer.tsx | 72269f08401319efd531cc05f4b9244c290ba25340d908ba3f55fecf91dd205c |
@@ -14734,7 +14749,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/expanded/LunaActionReviewControls.tsx | 306a489b6998e1ba21423139c10e1c01b81ab823467154e5d9e15fa67fcaa04b |
 | components/expanded/LunaAnswer.tsx | 32cfcafe8f6898ca9ea7b417b8583abd7d6d2fa865f4c78b4ab73d9bae131b4a |
 | components/expanded/LunaConversation.tsx | 17fde04cdbef80db42067c4a9cfc8bf194f868fa5725466096691f3584c81188 |
-| components/expanded/LunaLoading.tsx | aa5dd12a51987eb7aa94c0c4442969a01718be1d5fe16231860abcc285116639 |
+| components/expanded/LunaLoading.tsx | 00b51cd0e23dd552f986bda20b71d1c28fdcf23b691ab6ce348cde6402f895ad |
 | components/expanded/MapRecordToExplore.tsx | 946f423fb6c7090a85e3281b9d8cf5a13e6999576b8bab4d365ab0fd1dd69c34 |
 | components/expanded/MyWeekWorkspace.tsx | e7eae8b3c519d9571f4366631c93e5d18b29294f860a40e9d9c966bd57aa7096 |
 | components/expanded/NoteHandoff.tsx | 7b98e993daede387b4ccfd791f163fc1948fca1e5a89da862e92b2f5cf149284 |
@@ -14748,16 +14763,16 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/expanded/RecoveryFlowBoundary.tsx | bfb5cff0acc48a9033f21155a944cbd697fb35b5c81259c3a5f5a2c13b315c11 |
 | components/expanded/SettingsPanels.tsx | ce71d01af2c0e45248752cb584538796f668f5f5470ae1f99c438c961df966e5 |
 | components/expanded/SettingsPrivacy.tsx | 98170ef564425d0ec4da1a0bb3bf17591da749cf10295e1aa1d6207a3d1e8208 |
-| components/expanded/SettingsWorkspace.tsx | 655cdc30972a55a2e1c66e2bb2a1ba2d8a65e1b528802bba1cd0206e6873a45f |
+| components/expanded/SettingsWorkspace.tsx | 6ece0f90ea657f61f8b6b431b4ff94875647cbe4d1df29fd2e36c995cb5d1dba |
 | components/expanded/SourceOperationsReview.tsx | 2d41915a906a027acd45d13cbb22498e6f8b0ef1996c4ac26a7d6165a14f19c8 |
 | components/expanded/WeekActivityDetails.tsx | 0ed1a4308ecd55fd91790bc3221dc4b19962a1e848fa9ffd2c38ef8cd70e5ca3 |
 | components/expanded/WeekAmbience.tsx | af1a7408f1498ed33c7273a6180de523f18356a4a8e7315d7aa0a8e69f7dae75 |
 | components/expanded/WeekConnectedExamples.tsx | d3c9b390561093a027fc74834d1721539499989828a227ee3ef2875d188f1bcc |
 | components/expanded/WeekDashboardOverview.tsx | 484141602d71c9a154f9ed8d8ea9df5bd8840233ee648131b74db701fd50a0eb |
 | components/expanded/WeekDashboardSummary.tsx | 22c09c2c770f55327541f7bcd6707a37e4b3bdee36b04aa0658124394e25d9be |
-| components/expanded/WeekEvidence.tsx | f1a5a28810a13eca63bf67016745283347326ff42f2fb0d6b1a9b833ca11267a |
-| components/expanded/WeekJournal.tsx | 6ae8e5e4d0c84070cff9d91c3825420f0bcc202a783b163f7e90c0755312d7f0 |
-| components/expanded/WeekOutdoors.tsx | 971510c3a5aa012c0269252a8719b1a982014ada9bbe513123402122c07fa355 |
+| components/expanded/WeekEvidence.tsx | f6d0490e6369107e15e4387d123c51bd0cfab92807d097141fb53f0dc4abbed3 |
+| components/expanded/WeekJournal.tsx | baabe422e5acceb0d20f1341cde9783b0597ae67ba4b3ec775f336c3c8a726d3 |
+| components/expanded/WeekOutdoors.tsx | 9753faa5d17cd95a7c20d72b6c0a670619713407defdf37f41a62c2e7b432b8a |
 | components/expanded/WeekPlanningRail.tsx | 8425ee4af525aa334af82fcf97eb038a8bb6996b3dac7fba4bad974974b36134 |
 | components/expanded/WeekProgress.tsx | c613787d431e80bd44dec267e6dc738a7adda53c94d5fd7d3b79139d5f45ed7d |
 | components/expanded/WeekReviewPlanner.tsx | a4cf624281983be2ae291f7569fdce10b0c4e455cb092509b49c04ce8d180dc7 |
@@ -14772,7 +14787,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/foundation/FactorSteps.tsx | a586a238f0c0a5fde9560c1f4be895ec92e7a3ec21f68780d869cdc03de2f3e2 |
 | components/foundation/FactorTrend.tsx | 134b1946ee0d2ef4671e0d56908a47912800ba953ac8ac6c534c44459af4c18e |
 | components/foundation/FamilyGuidance.tsx | 4eeab0c1102d475f99ef3f4f5b9e79d9827f75121c8b25a03ea4611ed961890f |
-| components/foundation/FoundationPreview.tsx | 3ce6898b82d3f47a9a47b45090c1d2c2e41cb59f8953d8bfe66d74d9b424be64 |
+| components/foundation/FoundationPreview.tsx | 181bac0ca3dec78f230bf2d8fd8235b206983752c2f7c9b61b6673adc5073b60 |
 | components/foundation/HomeHousehold.tsx | 5410f2a6f895f11e8540962f32a83a400dceb498452510f6d30af3f7db6d4cf5 |
 | components/foundation/LunaAssistant.tsx | e1e2c185d79cb2f640ce11ba01fc1e6087caa1c1f25af9fb3aa45e48e6e4b46d |
 | components/foundation/LunaMark.tsx | 6315e469419d46c2307663a6eb621a2692e2b809c1cbee26860cbdfd62dac6fe |
@@ -14795,11 +14810,11 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/homeguard/FoodShared.tsx | 67d8b754d1e2c9a30041598a136e3c82da7047890b70095a7fe760e38dbffcee |
 | components/homeguard/FoodVisuals.tsx | a1b63f636c74b16aa85a0508c0b7a8a089bab3ad6319543675965ce191387f1c |
 | components/homeguard/FoodWater.tsx | 6a6bab47dfec4dfefc648c350683e12f45d4dc24dfa8297893ec1cc35ffc56ef |
-| components/homeguard/HomeResource.tsx | bf76a0300aa261a52ccd352c3fd99832f31e307be5de123e06167b169005961a |
+| components/homeguard/HomeResource.tsx | cad29e0ef2e55b816ebdda97be411a6e6d97f3ab900712a600e62b87ca4010e4 |
 | components/homeguard/HomeWorkspaceScene.tsx | 207ed620974765de37d9293c95d3b2bd444c4325419ef0f47695a809093d4e58 |
 | components/homeguard/HomeWorkspaceState.tsx | 2401c12d8508cac79a5eac31076e58faa4f18663a8c97ec1ed8c126cf54f75a9 |
-| components/homeguard/HomeWorkspaceUI.tsx | 53830e0eb23d140b71f83b3c0ee1b5b3a3922b6cb67a89e05dfd3bc8e660bce9 |
-| components/homeguard/HomeguardWorkspace.tsx | 50e0cf5818dd2b9f808cc5660e9ad81736f6c4740df9f694a14830fa59e5d315 |
+| components/homeguard/HomeWorkspaceUI.tsx | be423e1426d9b660d15e1d4c5cde0680e8478feae401393b478c31d535020ded |
+| components/homeguard/HomeguardWorkspace.tsx | 2d168eb2634afdf0552d39f02fbae59bd899c31fce18e1d287d43e80fb3b12d8 |
 | components/homeguard/MaintenanceWorkspace.tsx | 0539dcdbaf5314e9f6beaaa3d8c938ad37024ecffc1a9c9ffb44be5b600fabb1 |
 | components/homeguard/PrivateAttachments.tsx | 85fa336b72b00c4fa2ab2dfb2cafa8e01ee481b17b5dfc2d7292e95032768987 |
 | components/homeguard/PublishedFoodEvidence.tsx | 4992f83ed97bca8c8354a845169f64e616d1de11bf86ef32630a968385a71b4c |
@@ -14814,7 +14829,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/map-preview/MapCanvas.tsx | 08e1bbee2e78fef0c6f9f73c54c3a4b1205cff8c72596dcfa9bd6b681ac9a601 |
 | components/map-preview/MapComparison.tsx | d516fdede41795557ea5ac3bb916546c063954119f746b727e604dd8381d32f8 |
 | components/map-preview/MapInsights.tsx | 37f6c3a99c21bd9e133a03f893730bd565c77aa3e84ab26cc31c781ebea1833d |
-| components/map-preview/MapPreview.tsx | e14f544b8a593ff2cf5292259fa4957ed0c043df4d541ba9b0dc29ee695cad36 |
+| components/map-preview/MapPreview.tsx | 407f9950f2a715258765daa27215b7a1491332cde3608913303f25c36e90e131 |
 | components/map-preview/MapPublicBrief.tsx | 89812aa4e09db8e179f1e7464ab3cc4b21421befb7c9224300deb8c45a046a5e |
 | components/map-preview/MapResults.tsx | dadcb95d55e6185eb342509562b831a58a188fb3872ad50d3de961b9dcd0c500 |
 | components/map-preview/MapSymbol.tsx | 3676f4e26ceb9ee996413bf10f14a1f370b0ae48b8d842cffe141d1ec7700907 |
@@ -14826,12 +14841,12 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/production/OperatorAccess.tsx | f7ffb495b7f72e3624a77a1ad7f4fdf4d4fe95c814da4036bf4c7c7b485a41c1 |
 | components/production/ProductionAccountFlows.tsx | 5f2e2f45d26311f0962ba86152adace2385ffc14bd93ccaa75941540fa3dc0db |
 | components/production/ProductionAlerts.tsx | 7ea60f1efa8cb2578fcb61183f74663c32fbbbb91566363e71bc7eaee193e3fe |
-| components/production/ProductionApp.tsx | 700fcbc136c48830766330b8bdeb54223bf760577eb1c5cde42938fc43204488 |
+| components/production/ProductionApp.tsx | f0450887e78bc9fde89f65cd3e268ef2621e041f6403a6400b775862592e166e |
 | components/production/ProductionContext.tsx | 4143670fe97a7eb85be15a72caf8542f080dd44612e39e14e23c51d0f0999225 |
-| components/production/ProductionLearnSheet.tsx | f1c61f4f3c4cca8241406431e648ac7ab926fad82710ea6d4f118adbcdd88ae8 |
+| components/production/ProductionLearnSheet.tsx | f7e069016b73c4454f070fbbd07a59271f286ccd74d270195fa419b76b3d9d70 |
 | components/production/ProductionPreferences.tsx | 8d2387695e0b6d19c129cd0fbaf7423f3ca4cc486a11e4812a8e19af7cd0702d |
 | components/production/ProductionPrivacy.tsx | 6b7d98f75c1664ac065068996df6b631f158bf83d8d0d2078657d1ab1cee161b |
-| components/production/ProductionReadingStatus.tsx | 2bdbbe9a8b561570595d0a6cd0d570062ad08d7a7a69ddf0b44aebff16ffe775 |
+| components/production/ProductionReadingStatus.tsx | 4502b58c6f41379cafd242136edfc7bff7814c59cee8b395df4b82b80b5a3d18 |
 | components/production/ProductionRestoreAccessFlow.tsx | 2fbd9e94fc56f29bb60b24a540d04e99811a7814525eb485c70dcb10ccc9e88c |
 | components/production/ProductionSourceOperations.tsx | c9318d3540c8b465e0ef95fbbea6e102791ae7fad4b678f697c6bd88ea732d21 |
 | components/production/PublicFrontend.tsx | d9c33290eea8917ece6d6bfa0214fb51fab73378eb94d6fd841e8ced3f4192fe |
@@ -14848,6 +14863,7 @@ SHA-256 of the staged Git index bytes at audit time. The pinned Git commits loca
 | components/ui/ErrorCallout.tsx | 49cff0d73a9aa85ae5932078c3282d157dfbee4942c42506b82d69667d085af0 |
 | components/ui/FieldError.tsx | b641d917f612d90aced65d58881cbac245dd4706171ce0c985094e6e16e9635f |
 | components/ui/Foundation.tsx | 5bf4771cccf7680eae210923ce877aab3305a8760a00df872f7c78b7bfd2121d |
+| components/ui/HaloLoading.tsx | 4bf37b656be8a786915a6ad14ec14c3d02f5d29b106fd88f171b99b1becd6858 |
 | components/ui/SeverityPill.tsx | 4cb27bd3385c8fd25ffe7647c882f16bfc5503970c05acf19139598912d7601c |
 | lib/frontend/account-review.ts | 3c11ec22b44dffd40fa62d42e41a1fba0491c4fb3f312b0d9cc7a86863debd2c |
 | lib/frontend/api.ts | f47d585c692f44377f26895c4e79110fd97a981f2d7ddf85c6e58917419eb902 |

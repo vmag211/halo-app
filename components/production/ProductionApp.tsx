@@ -8,6 +8,7 @@ import {HomeWorkspaceProvider} from '@/components/homeguard/HomeWorkspaceState';
 import {ExpandedPreviewProvider} from '@/components/expanded/ExpandedPreviewState';
 import {ProductionContext} from './ProductionContext';
 import ProductionPreferences from './ProductionPreferences';
+import HaloLoading from '@/components/ui/HaloLoading';
 import {createProductionRuntime} from '@/lib/frontend/production/runtime';
 import {createHomeAdapter,createActionAdapter} from '@/lib/frontend/production/adapters';
 import {deliveredStagePath} from '@/lib/frontend/navigation';
@@ -30,7 +31,7 @@ function SessionBoundary({children}:{children:ReactNode}){
   return()=>{active=false;clearTimeout(timer);};
  },[session.gate,session.api]);
  if(session.gate==='error'||identityError)return <div className="halo-app halo-f-app"><main className="halo-f-main"><h1>Let’s reconnect</h1><p>Your account could not be loaded.</p><button className="hp-primary" onClick={()=>{setIdentityError(false);void session.restart();}}>Try again</button><Link href="/learn">Browse public information</Link></main></div>;
- if(session.gate==='loading'||!identity)return <div className="halo-app halo-f-app"><main aria-busy="true" className="halo-f-main"><p role="status">Opening HALO…</p></main></div>;
+ if(session.gate==='loading'||!identity)return <div className="halo-app halo-f-app"><main className="halo-f-main"><HaloLoading layout="screen" label="Opening HALO" detail="Getting your workspace ready" /></main></div>;
  return <ConnectedApp key={`${identity}:${session.profile?.home_context?.id??session.profile?.profile?.home_context_id??'none'}:${session.profile?.home_context?.revision??session.profile?.profile?.context_revision??0}`} identityId={identity!}>{children}</ConnectedApp>;
 }
 function ConnectedApp({identityId,children}:{identityId:string;children:ReactNode}){

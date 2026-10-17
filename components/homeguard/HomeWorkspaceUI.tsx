@@ -7,6 +7,7 @@ import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import { useHomeWorkspace } from './HomeWorkspaceState';
 import { WorkspaceArtwork, type WorkspaceArtworkKind } from './WorkspaceArtwork';
+import { LoadingSymbol } from '@/components/ui/HaloLoading';
 
 export type HomeSection = 'tests' | 'maintenance' | 'food' | 'summary';
 export type WorkspaceProps = { view: string; recordId?: string; navigate: (view: string, recordId?: string) => void; go: (section: HomeSection, view?: string, recordId?: string) => void; factor?: FactorKey };
@@ -44,7 +45,7 @@ export function RecordForm({ onSubmit, children, submitLabel = 'Save record', on
   const [dirty, setDirty] = useState(false);
   const { scenario, pending, unknownOperations } = useHomeWorkspace();
   const disabled = saving || !!busy || pending;
-  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled || unknownOperations.length) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" disabled={disabled || unknownOperations.length > 0 || scenario === 'offline'}>{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
+  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled || unknownOperations.length) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" aria-busy={disabled || undefined} disabled={disabled || unknownOperations.length > 0 || scenario === 'offline'}>{disabled && <LoadingSymbol small />}{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
 }
 export function DeleteButton({ label, onClick, disabled, compact = false }: { label: string; onClick: () => void; disabled?: boolean; compact?: boolean }) {
   const { pending, scenario } = useHomeWorkspace();

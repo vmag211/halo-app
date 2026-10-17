@@ -61,7 +61,7 @@ test('slow generation is cancellable and its animation respects reduced motion',
   await page.getByLabel('What interests you right now?').fill('native plants');
   await page.getByRole('button', { name: 'Generate a few ideas' }).click();
   await expect(page.locator('.ex-project-generating')).toBeVisible();
-  expect(await page.locator('.ex-generation-leaf').first().evaluate(element => getComputedStyle(element).animationName)).toBe('none');
+  expect(await page.locator('.ex-project-generating .halo-loading-orbit').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
   await expect(page.getByRole('button', { name: 'Preferences', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Cancel generation', exact: true }).click();
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);

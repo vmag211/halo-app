@@ -1,5 +1,6 @@
 'use client';
 import DateInput from '@/components/ui/DateInput';
+import HaloLoading from '@/components/ui/HaloLoading';
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -207,9 +208,8 @@ function ProjectInterestInput({ generation }: { generation: Generation }) {
 }
 
 function ProjectGenerationStatus({ generation }: { generation: Generation }) {
-  if (generation.busy) return <div className="ex-project-generating" role="status">
-    <svg viewBox="0 0 180 58" aria-hidden="true" focusable="false"><path className="ex-generation-thread" d="M8 43C33 45 38 15 65 25s35 31 61 11 33-13 48-18" />{[35,70,105,140].map((x, index) => <path className="ex-generation-leaf" key={x} style={{ animationDelay: `${index * .18}s` }} d={`M${x} 29c-8-20 9-25 9-25s8 16-9 25Z`} />)}</svg>
-    <div><strong>Ideas taking shape</strong></div><button className="ex-text-button" onClick={generation.cancel}>Cancel generation</button>
+  if (generation.busy) return <div className="ex-project-generating">
+    <HaloLoading label="Ideas taking shape" detail="Using your interests and available context" /><button className="ex-text-button" onClick={generation.cancel}>Cancel generation</button>
   </div>;
   return generation.message ? <div className="ex-generation-message" role={/failed|could not|changed|no source-backed/.test(generation.message) ? 'alert' : 'status'}><p>{generation.message}</p>{(generation.canRetry||/failed|could not|changed|cancelled|Reconnect/.test(generation.message)) && <button className="ex-text-button" onClick={generation.retry}>{generation.pendingGeneration?'Check existing generation':'Retry generation'}</button>}{generation.pendingGeneration&&<button className="ex-text-button" onClick={generation.cancel}>Cancel generation</button>}</div> : null;
 }

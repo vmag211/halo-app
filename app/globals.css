@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../components/ui/halo-loading.css";
 
 :root {
   color-scheme: light dark;

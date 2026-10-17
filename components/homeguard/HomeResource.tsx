@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import HaloLoading from '@/components/ui/HaloLoading';
 import { useHomeWorkspace } from './HomeWorkspaceState';
 
 export function useHomeResource<T>(resource: string, query: Record<string, string>, preview: T, validate: (value: unknown) => value is T) {
@@ -29,5 +30,5 @@ export function useHomeResource<T>(resource: string, query: Record<string, strin
 
 export function HomeResourceFeedback({ status, error, retry }: { status: string; error: string; retry: () => void }) {
   if (status === 'ready') return null;
-  return <div className={status === 'error' ? 'hg-error' : 'hg-meta'} role={status === 'error' ? 'alert' : 'status'}>{status === 'loading' ? <p>Loading source information...</p> : <><p>{error}</p><button type="button" className="hg-button-secondary" onClick={retry}>Try again</button></>}</div>;
+  return <div className={status === 'error' ? 'hg-error' : 'hg-meta'} role={status === 'error' ? 'alert' : undefined}>{status === 'loading' ? <HaloLoading label="Loading source information" /> : <><p>{error}</p><button type="button" className="hg-button-secondary" onClick={retry}>Try again</button></>}</div>;
 }

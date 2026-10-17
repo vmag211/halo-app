@@ -143,12 +143,12 @@
 .ex-project-interest > div { display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between; }
 .ex-project-interest > div > small { font-size:calc(.73rem * var(--halo-text-scale)); }
 .ex-project-interest .ex-button { min-height:44px; padding:10px 13px; font-size:calc(.78rem * var(--halo-text-scale)); }
-.ex-project-generating { display:grid; grid-template-columns:90px minmax(0,1fr); gap:7px 12px; align-items:center; padding-block:12px; border-block:1px solid var(--halo-border); }
+.ex-project-generating { display:flex; flex-wrap:wrap; gap:7px 16px; align-items:center; padding-block:12px; border-block:1px solid var(--halo-border); }
 .ex-project-generating > svg { width:90px; color:var(--halo-primary); }
-.ex-project-generating > div { display:grid; gap:5px; }
+.ex-project-generating > .halo-loading { display:flex; flex:1 1 220px; gap:12px; }
 .ex-project-generating strong { font-size:calc(.85rem * var(--halo-text-scale)); }
 .ex-project-generating small { font-size:calc(.73rem * var(--halo-text-scale)); }
-.ex-project-generating > button { grid-column:2; justify-self:start; font-size:calc(.74rem * var(--halo-text-scale)); }
+.ex-project-generating > button { flex-shrink:0; font-size:calc(.74rem * var(--halo-text-scale)); }
 .ex-generation-thread { stroke:currentColor; stroke-width:2; fill:none; stroke-dasharray:220; animation:ex-thread-form 2s ease-in-out infinite; }
 .ex-generation-leaf { stroke:currentColor; stroke-width:1.5; fill:currentColor; transform-origin:center; animation:ex-leaf-form 1.6s ease-in-out infinite alternate; }
 @keyframes ex-thread-form { 0% { stroke-dashoffset:210; opacity:.3; } 60%,100% { stroke-dashoffset:0; opacity:.9; } }

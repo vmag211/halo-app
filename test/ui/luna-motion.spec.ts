@@ -26,7 +26,7 @@ async function pendingReply(page: Page) {
   await dialog.getByRole('button', { name: 'Send message', exact: true }).click();
   const loading = dialog.locator('.halo-luna-loading');
   await expect(loading).toBeVisible();
-  await expect(loading.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  await expect(loading.locator('.halo-loading-symbol')).toHaveAttribute('aria-hidden', 'true');
   return { dialog, loading };
 }
 
@@ -58,7 +58,7 @@ test('Pending Luna reply releases into waves and reconstructs once without imply
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto(root);
   const { dialog, loading } = await pendingReply(page);
-  const mark = loading.locator('svg');
+  const mark = loading.locator('.halo-luna-mark');
   await expect(mark).toHaveAttribute('data-loading', 'true');
   await expect(mark.locator('.halo-luna-facets path')).toHaveCount(5);
   await expect(mark.locator('.halo-luna-wave')).toHaveCount(3);
@@ -83,7 +83,7 @@ for (const scenario of ['device', 'app'] as const) {
     expect(await launcher.locator('svg').evaluate(node => getComputedStyle(node).animationName)).toBe('none');
     const { loading } = await pendingReply(page);
     await expect(loading).toHaveAttribute('role', 'status');
-    expect(await loading.locator('svg').evaluate(node => node.getAnimations({ subtree: true }).length)).toBe(0);
+    expect(await loading.locator('.halo-loading-symbol').evaluate(node => node.getAnimations({ subtree: true }).length)).toBe(0);
     expect(await loading.locator('.halo-luna-facets').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
     expect(await loading.locator('.halo-luna-waves').evaluate(node => getComputedStyle(node).opacity)).toBe('0');
   });

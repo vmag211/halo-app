@@ -10,6 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # HALO frontend decisions
 
+- October 17 loading refinement: use the shared `components/ui/HaloLoading.tsx` orbital logo, persistent real-pending indicators and quiet skeleton shimmer. The 520ms page-arrival flourish is decorative and non-blocking, never a simulated request or forced delay. Actual requests, save receipts, errors, cancellation and unknown-outcome reconciliation retain their existing authority. Respect device/app reduced motion and forced colors. No new backend fields or services are required for this presentation change.
+
 - October 17 image motion: Today and Homeguard use a wider 12-second one-way camera sweep. All five My Week landscapes pan as a single image/water-mask layer, retaining 30-second eligible rotation and pause controls. Editorial art uses a gentler camera movement, with photo-only hover/focus feedback on week activity images. Preserve device reduction, hidden/offscreen pauses and restriction behavior. This is frontend decoration with no new backend contract or image assets.
 
 - Hosted preview links: use `/app` for the clean static preview and `/tools` for developer controls. The Sites-only wrapper templates in `scripts/hosted-preview/` keep their providers shared with legacy specialist routes. These aliases do not replace the authenticated production `/app` routes. Existing long review links remain supported.

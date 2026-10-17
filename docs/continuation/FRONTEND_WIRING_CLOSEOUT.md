@@ -2,6 +2,8 @@
 
 Current as of October 16, 2026. Frontend branch: `codex/october15-review-refinement`. This is an integration handoff, not a declaration that the backend, providers or production deployment are complete.
 
+October 17 presentation update: shared loading visuals now cover startup, core reading/resource loads, Homeguard, projects, opportunities, Luna, settings, alerts, Journal/history/forecasts and the map. The short arrival animation does not delay ready content. Homeguard preserves independent collection-loading feedback instead of presenting pending test records as an empty result when an auxiliary collection arrives first. These changes use the existing pending/availability, cancellation, error and receipt contracts; no new backend endpoints or fields are required. See the appended loading verification in `FRONTEND_WIRING_VERIFICATION.md`.
+
 ## Start here, Vibhav
 
 Use **`docs/product/HALO_BACKEND_WIRING_CURRENT.md` from this frontend branch**. Download the complete file from GitHub; do not rely on a pasted excerpt. It contains the current contracts, the complete original 45-feature handoff, the complete 1,630 named baseline requirements, and a fresh source/control/type audit. Its last line is `HALO-WIRING-PACKET-END`. The generated manifest records the included files, sizes and hashes. The original packet remains intact as historical evidence.

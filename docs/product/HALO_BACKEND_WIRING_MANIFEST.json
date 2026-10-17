@@ -11,21 +11,21 @@
     "journeys": 25,
     "requirements": 1630,
     "operations": 72,
-    "jsxFiles": 170,
+    "jsxFiles": 172,
     "controls": 1800,
     "exportedTypes": 248,
-    "fingerprintedFiles": 248
+    "fingerprintedFiles": 250
   },
   "sources": [
     {
       "source": "docs/continuation/FRONTEND_WIRING_CLOSEOUT.md",
-      "bytes": 15557,
-      "sha256": "62ce755ff30be3fb976d962d23c2a260ef4e469db6108fcd42144548e475cc17"
+      "bytes": 16205,
+      "sha256": "c929c4cddcfc7a79097417c977189afd4de62404ae0ad7552ca87318433fead5"
     },
     {
       "source": "docs/continuation/FRONTEND_WIRING_VERIFICATION.md",
-      "bytes": 10594,
-      "sha256": "9b35e0b4297b516d13dace85b67199ae2f89e8f6bd00eb7aaea212a7b5d41e1d"
+      "bytes": 13741,
+      "sha256": "4b83b0080b316a7425c6fdf747bdf35a25265b3f0e7e2f76f8ce97308ea54137"
     },
     {
       "source": "tmp/frontend-wiring-closeout/operations.md",
@@ -99,8 +99,8 @@
     },
     {
       "source": "tmp/backend-handoff-wrap/interface-ledger.md",
-      "bytes": 288084,
-      "sha256": "75f3fef724f405502e20b397a63883e28add8706a391512393895a6f7c333a08"
+      "bytes": 288200,
+      "sha256": "0879c5d6dd3e1c95a613cccdd9a7d40934e7c31f1cd310c17a579180d17c61b4"
     },
     {
       "source": "tmp/backend-handoff-wrap/type-register.md",
@@ -109,13 +109,13 @@
     },
     {
       "source": "tmp/backend-handoff-wrap/source-register.md",
-      "bytes": 27066,
-      "sha256": "3810f4991e0cfe8d93fe4c4e701c50d44588b018b40fc86973e7f8efe12eda74"
+      "bytes": 27254,
+      "sha256": "dd5d7c48ddfa8b0a47cad5401bb9fb99d63d1fa7795452ada59d801eabd55910"
     }
   ],
   "packet": {
     "path": "docs/product/HALO_BACKEND_WIRING_CURRENT.md",
-    "bytes": 1746148,
-    "sha256": "2fb9facaa9ab620998bcab337e2c4ea1cb62f933b1537990a205704374ce7448"
+    "bytes": 1750247,
+    "sha256": "22153a73abdf646e0fa56cd676fb54eba8f2008f4042c4bed4ef9e8098808ff1"
   }
 }

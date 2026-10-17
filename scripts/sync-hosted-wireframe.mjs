@@ -54,6 +54,7 @@ for (const path of ['app/globals.css', 'app/onboarding.css', 'app/onboarding-mob
 // Static-only short entries. Production /app and its authentication are not copied.
 for (const [template,destination] of [
   ['PreviewShell.tsx.txt','components/PreviewShell.tsx'],
+  ['PreviewEntry.tsx.txt','components/PreviewEntry.tsx'],
   ['app-page.tsx.txt','app/app/page.tsx'],
   ['tools-page.tsx.txt','app/tools/page.tsx'],
   ['legacy-layout.tsx.txt','app/foundation/preview/layout.tsx'],
