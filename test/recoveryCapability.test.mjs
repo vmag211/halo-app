@@ -37,16 +37,18 @@ const RULED_VERSION = '2.110.7';
 
 /**
  * The provider calls this package depends on, as paths from the client object.
- * The first two are Task 8's session minting; the last two are Task 4's link
- * intent, which attaches an address to the signed-in identity
- * (`updateUserById`) and then asks whether the provider has confirmed it
- * (`getUserById`). Both are checked here for the same reason: a route that
- * cannot be exercised against a real project must at least not be built on a
- * method the installed client does not have.
+ * The first two are Task 8's session minting. The rest are Task 4's: the
+ * caller's own `updateUser` is the link (Ruling 10), `getUserById` asks whether
+ * the provider has confirmed the address, and `admin.updateUserById` is how
+ * `remove-recovery` marks a confirmed address unconfirmed. All of them are
+ * checked for the same reason: a route that cannot be exercised against a real
+ * project must at least not be built on a method the installed client does not
+ * have.
  */
 const REQUIRED = [
   'auth.admin.generateLink',
   'auth.verifyOtp',
+  'auth.updateUser',
   'auth.admin.updateUserById',
   'auth.admin.getUserById',
 ];
@@ -93,10 +95,54 @@ test('generateLink and verifyOtp each take the single options object the two-ste
   assert.equal(supabase.auth.verifyOtp.length, 1, 'verifyOtp takes one options argument');
 });
 
-test('the link intent calls updateUserById the way the route does: an id and an attributes object', () => {
+test('the admin calls take the id separately, so they can only ever touch the identity named', () => {
   const supabase = client();
-  // The id is a separate argument, which is the whole point: the link intent
-  // changes the address on the identity it was given and cannot create another.
+  // `remove-recovery` uses updateUserById and every read uses getUserById. The
+  // id is a separate argument, which is the point: neither can create another
+  // identity or act on one it was not given.
   assert.equal(supabase.auth.admin.updateUserById.length, 2, 'updateUserById takes the id and the attributes');
   assert.equal(supabase.auth.admin.getUserById.length, 1, 'getUserById takes the id');
+});
+
+// ---------------------------------------------------------------------------
+// Task 4's link intent, after Ruling 10: the user-scoped email change
+// ---------------------------------------------------------------------------
+
+/**
+ * Ruling 10 requires the link to be the caller's own `auth.updateUser({ email })`
+ * rather than the service role's `admin.updateUserById`, so that the address is
+ * staged by the provider instead of occupying the unique `auth.users.email`
+ * before anyone has proved it.
+ *
+ * These three tests are why the route sends that method's HTTP request itself
+ * instead of calling the method. `updateUser` reads the session from the
+ * client's own storage, and a server holding only the caller's bearer access
+ * token cannot put one there: `setSession` refuses without a refresh token (which
+ * a server must never be sent), and an Authorization header on the client does
+ * not stand in for a session. All three facts are checked here, offline and with
+ * no network call, so an SDK change that removes the obstacle fails loudly and
+ * the route can go back to the method.
+ */
+test('the user-scoped email change exists on the installed client', () => {
+  const supabase = client();
+  assert.equal(typeof supabase.auth.updateUser, 'function');
+  assert.equal(supabase.auth.updateUser.length, 1, 'updateUser takes one attributes argument');
+});
+
+test('updateUser needs a stored session, which a bearer token alone cannot provide', async () => {
+  const supabase = client();
+  const { data, error } = await supabase.auth.updateUser({ email: 'someone@example.test' });
+  assert.equal(data.user, null);
+  assert.equal(error?.name, 'AuthSessionMissingError', 'it refuses before it would reach the network');
+});
+
+test('neither setSession without a refresh token nor an Authorization header stands in for one', async () => {
+  const refused = await client().auth.setSession({ access_token: 'header.payload.signature' });
+  assert.equal(refused.error?.name, 'AuthSessionMissingError', 'a server is never sent a refresh token');
+  const withHeader = createClient('https://example.invalid', 'not-a-real-key', {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: 'Bearer header.payload.signature' } },
+  });
+  const stillRefused = await withHeader.auth.updateUser({ email: 'someone@example.test' });
+  assert.equal(stillRefused.error?.name, 'AuthSessionMissingError', 'the header is not a session');
 });

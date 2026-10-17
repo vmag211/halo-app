@@ -356,7 +356,7 @@ function declaration(source, name) {
 
 test('drift: the serverAuth stub exports exactly what lib/serverAuth.js exports', async () => {
   const real = exportedNames(read('lib/serverAuth.js'));
-  assert.deepEqual(real, ['AuthError', 'assertProfileMatches', 'authErrorResponse', 'requireUser', 'supabaseAdmin']);
+  assert.deepEqual(real, ['AuthError', 'assertProfileMatches', 'authErrorResponse', 'linkCallerEmail', 'requireUser', 'supabaseAdmin']);
   const stub = await import('./helpers/stubs/serverAuth.mjs');
   assert.deepEqual(Object.keys(stub).sort(), real);
   assert.deepEqual(exportedNames(read('test/helpers/stubs/serverAuth.mjs')), real);
@@ -371,7 +371,7 @@ test('drift: AuthError statuses and messages in the stub match the real file', (
 test('drift: the stub\'s logic is a verbatim copy of the real functions', () => {
   const real = read('lib/serverAuth.js');
   const stub = read('test/helpers/stubs/serverAuth.mjs');
-  for (const name of ['AuthError', 'requireUser', 'assertProfileMatches', 'authErrorResponse']) {
+  for (const name of ['AuthError', 'requireUser', 'assertProfileMatches', 'authErrorResponse', 'linkCallerEmail']) {
     assert.equal(declaration(stub, name), declaration(real, name), `${name} drifted from lib/serverAuth.js`);
   }
   const helper = (source) => /function readBearerToken[\s\S]*?\n}\n/.exec(withoutComments(source))?.[0].replace(/\s+/g, ' ');

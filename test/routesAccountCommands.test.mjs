@@ -15,6 +15,11 @@
  *    `profiles.id` and every owned row exactly as they were (BE-050), and an
  *    address that already belongs to someone else is an explicit failure, never
  *    a merge (BE-334). Both are asserted on real rows, not on a provider call.
+ *    The link itself is the caller's own email change and not the service
+ *    role's (Ruling 10), which the request it sends is what proves: the fake
+ *    models the provider's two steps, staging an address nobody has proved yet
+ *    and promoting it once they have, so a collision can be tested at either
+ *    point.
  * 2. One effect per operation id. The ledger from Task 2 is the only
  *    idempotency mechanism here: a replay returns the first outcome and does
  *    not act twice.
@@ -35,8 +40,18 @@ const ROUTE = '/api/account/commands';
 const OWNED = ['profiles', 'daily_scores', 'household_bands', 'symptom_logs', 'alerts', 'home_contexts'];
 const TABLES = haloTables('operations', 'recovery_challenges', ...OWNED);
 
-/** The flag that turns the capability on, off unless a test sets it. */
-const ON = { HALO_FEATURE_RECOVERY: 'on' };
+/**
+ * The flag that turns the capability on (off unless a test sets it), and the
+ * provider the link call is sent to. Both Supabase variables are scrubbed by the
+ * sandbox, so a test that wants the link to work has to say so.
+ */
+const PROVIDER_URL = 'https://provider.example.invalid';
+const ANON_KEY = 'test-anon-key';
+const ON = {
+  HALO_FEATURE_RECOVERY: 'on',
+  NEXT_PUBLIC_SUPABASE_URL: PROVIDER_URL,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
+};
 
 /** carol already holds this address, so asking for it is the collision case. */
 const TAKEN = 'taken@example.test';
@@ -55,13 +70,56 @@ const past = () => new Date(Date.now() - 30 * 60 * 1000).toISOString();
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
 
 /**
+ * The provider's `PUT /auth/v1/user`, which is the request
+ * `auth.updateUser({ email })` sends. It is modelled through the injected fetch
+ * rather than on the fake client on purpose: this is the one call the route
+ * makes as the CALLER rather than as the service role, and the request itself
+ * (whose bearer token it carries, and that the key is the anon key) is what
+ * proves it. A call made with the service role would carry no caller token and
+ * is refused here, the way the provider would refuse it.
+ *
+ * The staged state lives in the fake's identity table, so the provider's two
+ * steps, staging and promotion, are modelled in one place (see
+ * `stageEmailChange` and `confirmEmailChange` in helpers/fakeSupabase.mjs).
+ */
+function providerFetch(get, calls) {
+  const answer = (body, status) => new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return async (target, options = {}) => {
+    const headers = new Headers(options.headers ?? {});
+    const bearer = (headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const body = options.body ? JSON.parse(options.body) : {};
+    calls.push({ url: String(target), method: options.method, bearer, apikey: headers.get('apikey'), body });
+
+    if (String(target) !== `${PROVIDER_URL}/auth/v1/user` || options.method !== 'PUT') {
+      return answer({ code: 404, error_code: 'not_found', msg: 'no such endpoint' }, 404);
+    }
+    const h = get();
+    const name = bearer.startsWith('test-token:') ? bearer.slice('test-token:'.length) : null;
+    const identity = name ? h.identities[name] : null;
+    if (!identity) return answer({ code: 401, error_code: 'bad_jwt', msg: 'invalid claim: missing sub' }, 401);
+
+    const staged = h.db.stageEmailChange(identity.id, body.email);
+    if (staged.error) {
+      return answer({ code: 422, error_code: staged.error, msg: 'A user with this email address has already been registered' }, 422);
+    }
+    return answer(staged.user, 200);
+  };
+}
+
+/**
  * alice is a signed-in anonymous household, bob is another one, and carol holds
  * TAKEN. `identities` replaces all three; `challenges` and `operations` default
  * to empty so each test seeds only what it is about, with `owner` naming the
  * household (alice unless given).
  */
 function harness({ challenges = [], operations = [], household = false, identities, tables = TABLES } = {}) {
-  return createRouteHarness({
+  const calls = [];
+  let h;
+  h = createRouteHarness({
+    fetch: providerFetch(() => h, calls),
     tables,
     identities: identities ?? {
       alice: { email: null, isAnonymous: true },
@@ -96,6 +154,9 @@ function harness({ challenges = [], operations = [], household = false, identiti
       return rows;
     },
   });
+  // Every request the route sent to the provider, in order.
+  h.provider = calls;
+  return h;
 }
 
 /** Household rows that must survive a link untouched, for the identity-preservation proof. */
@@ -111,7 +172,7 @@ const householdSeed = (id) => ({
  * One command, sent the way the real client sends it: the operation id also in
  * `Idempotency-Key` and the expected revision also in `If-Match`.
  */
-function command(h, who, body, { env = ON, headers = {}, url } = {}) {
+function command(h, who, body, { env = ON, headers = {}, url, fetch } = {}) {
   const full = { feature: 'recovery', ...body };
   const sent = { ...headers };
   if (full.operationId !== undefined && !('Idempotency-Key' in sent)) {
@@ -120,7 +181,7 @@ function command(h, who, body, { env = ON, headers = {}, url } = {}) {
   if (full.expectedRevision !== undefined && !('If-Match' in sent)) {
     sent['If-Match'] = String(full.expectedRevision);
   }
-  return h.call(ROUTE, 'POST', { as: who, body: full, env, headers: sent, url });
+  return h.call(ROUTE, 'POST', { as: who, body: full, env, headers: sent, url, fetch });
 }
 
 /** The receipt of a successful command, with the contract checked. */
@@ -205,6 +266,14 @@ test('request-recovery links the address, creates exactly one challenge and repo
   assert.equal(snapshot.recovery.challenge.maskedAddress, 'n***@example.test', 'masked, never the address');
   assert.ok(Date.parse(snapshot.recovery.challenge.expiresAt) > Date.now(), 'the challenge is still live');
 
+  // The link is one request, made as the caller and not as the service role.
+  assert.equal(h.provider.length, 1, 'exactly one provider call');
+  assert.deepEqual(
+    [h.provider[0].method, h.provider[0].url, h.provider[0].bearer, h.provider[0].apikey, h.provider[0].body],
+    ['PUT', `${PROVIDER_URL}/auth/v1/user`, 'test-token:alice', ANON_KEY, { email: FRESH }],
+    "the caller's own token and the anon key, never the service role",
+  );
+
   const rows = h.db.rows('recovery_challenges');
   assert.equal(rows.length, 1, 'exactly one challenge');
   assert.equal(rows[0].profile_id, h.identities.alice.id, 'owned by the caller');
@@ -219,7 +288,10 @@ test('request-recovery links the address, creates exactly one challenge and repo
   assert.ok(!JSON.stringify(receipt).includes(FRESH), 'and none reaches the response');
 });
 
-test('the address is linked to the account but left unconfirmed, because nobody has proved it yet', async () => {
+test('the address is staged as a pending change, so the unique slot is not taken before proof', async () => {
+  // Ruling 10. The admin path wrote `auth.users.email` straight away, which let
+  // any signed-in identity occupy any unregistered address and deny it to its
+  // real owner. The caller's own email change stages it instead.
   const h = harness();
   await succeed(h, 'alice', {
     action: 'request-recovery',
@@ -228,8 +300,10 @@ test('the address is linked to the account but left unconfirmed, because nobody 
     operationId: op(1),
   });
   const user = h.db.identities.get(h.identities.alice.id);
-  assert.equal(user.email, FRESH, 'the address is attached to the same identity');
+  assert.equal(user.newEmail, FRESH, 'the address is pending on the same identity');
+  assert.equal(user.email ?? null, null, 'and the unique address column is still empty');
   assert.equal(user.emailConfirmedAt ?? null, null, 'an unproved address must not count as verified');
+  assert.ok(user.emailChangeSentAt, 'the provider recorded that it sent the confirmation');
 });
 
 test('linking preserves the identity: the user id, the profile row and every owned row are unchanged', async () => {
@@ -246,6 +320,7 @@ test('linking preserves the identity: the user id, the profile row and every own
 
   assert.equal(h.db.identities.get(id).id, id, 'auth.users.id is the same identity, not a replacement');
   assert.equal(h.db.identities.size, 3, 'no second identity was created');
+  assert.equal(h.provider.length, 1, 'one email change on the identity we already had');
   for (const table of OWNED) {
     assert.deepEqual(h.db.rows(table), before[table], `${table} is untouched by linking`);
   }
@@ -260,7 +335,8 @@ test('a mixed case address is normalized once, so the stored digest and the prov
     expectedRevision: 0,
     operationId: op(1),
   });
-  assert.equal(h.db.identities.get(h.identities.alice.id).email, FRESH);
+  assert.equal(h.provider[0].body.email, FRESH, 'the provider is sent the normalized address');
+  assert.equal(h.db.identities.get(h.identities.alice.id).newEmail, FRESH);
   assert.equal(h.db.rows('recovery_challenges')[0].email_hash, sha256(FRESH));
   assert.equal(receipt.snapshot.recovery.challenge.maskedAddress, 'n***@example.test');
 });
@@ -290,7 +366,9 @@ test("an address that belongs to another identity fails, merges nothing and says
   assert.ok(!serialized.includes(TAKEN), 'the address is not echoed back');
 
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'no challenge is created for an address we cannot link');
-  assert.equal(h.db.identities.get(h.identities.alice.id).email ?? null, null, 'alice gains nothing');
+  const alice = h.db.identities.get(h.identities.alice.id);
+  assert.equal(alice.email ?? null, null, 'alice gains nothing');
+  assert.equal(alice.newEmail ?? null, null, 'not even a pending change');
   const carol = h.db.identities.get(h.identities.carol.id);
   assert.equal(carol.email, TAKEN, 'carol keeps her address');
   assert.equal(carol.emailConfirmedAt, VERIFIED_AT, 'and her verification');
@@ -330,6 +408,7 @@ test('an address already verified for this account is a no-op that creates no se
     operationId: op(1),
   });
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'nothing to prove, so nothing is created');
+  assert.equal(h.provider.length, 0, 'and the provider is not asked to send anything');
   assert.ok(receipt.snapshot.recovery.method, 'the method stays linked');
   assert.equal(receipt.snapshot.recovery.method.maskedAddress, 'n***@example.test');
   assert.equal(receipt.snapshot.recovery.challenge, null);
@@ -349,6 +428,7 @@ test('a different address is refused while one is verified, rather than silently
   assertAccountReceipt(receipt, id);
   assert.equal(receipt.status, 'failed');
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'nothing is opened');
+  assert.equal(h.provider.length, 0, 'and no confirmation is sent anywhere');
   const user = h.db.identities.get(h.identities.alice.id);
   assert.equal(user.email, FRESH, 'the verified address is still the one on the account');
   assert.equal(user.emailConfirmedAt, VERIFIED_AT, 'and it is still verified');
@@ -378,6 +458,7 @@ test('a second request a moment later is throttled, and does not send or store a
   assert.equal(receipt.status, 'failed', 'a re-send inside the window is refused');
   assert.match(receipt.message, /wait/i, 'and says so in words a person can act on');
   assert.equal(h.db.rows('recovery_challenges').length, 1, 'still exactly one challenge');
+  assert.equal(h.provider.length, 1, 'and the provider was asked to send only the first one');
 });
 
 test('the throttle is read from the ledger, so a request outside the window is allowed again', async () => {
@@ -401,10 +482,10 @@ test('the throttle is read from the ledger, so a request outside the window is a
   assert.equal(h.db.rows('recovery_challenges').length, 1, 'an old attempt does not block a new one');
 });
 
-test('asking again for an address already linked but unconfirmed opens a new challenge', async () => {
+test('asking again for an address whose change is still pending re-sends it and opens a new challenge', async () => {
   const h = harness({
     identities: {
-      alice: { email: FRESH, emailConfirmedAt: null },
+      alice: { email: null, newEmail: FRESH, isAnonymous: true, emailChangeSentAt: ago(60 * 60 * 1000) },
       bob: { email: null, isAnonymous: true },
       carol: { email: TAKEN, emailConfirmedAt: VERIFIED_AT },
     },
@@ -419,20 +500,29 @@ test('asking again for an address already linked but unconfirmed opens a new cha
   assert.equal(h.db.rows('recovery_challenges').length, 2, 'the expired one is not reused');
   assert.notEqual(receipt.snapshot.recovery.challenge.id, CHALLENGE, 'the newest challenge is the live one');
   assert.equal(receipt.snapshot.recovery.challenge.status, 'pending');
+  assert.equal(h.provider.length, 1, 'the confirmation is sent again, which is what the throttle guards');
   const user = h.db.identities.get(h.identities.alice.id);
-  assert.equal(user.email, FRESH, 'the address it is already linked to does not change');
-  assert.equal(user.emailConfirmedAt ?? null, null, 'and asking again does not confirm it');
+  assert.equal(user.newEmail, FRESH, 'the pending address does not change');
+  assert.equal(user.email ?? null, null, 'and asking again still does not occupy the address');
+  assert.equal(user.emailConfirmedAt ?? null, null, 'nor confirm it');
 });
 
 // ---------------------------------------------------------------------------
 // check-recovery
 // ---------------------------------------------------------------------------
 
-/** alice has linked FRESH and has a pending challenge for it; `confirmed` proves the address. */
+/**
+ * alice has asked for FRESH and has a pending challenge for it. `confirmed` is
+ * the state after the person opened the provider's link: the pending change has
+ * been promoted to the address itself. Unconfirmed is the staged state, where
+ * the address is only `new_email`.
+ */
 function pendingLink({ confirmed = false, emailHash } = {}) {
   return harness({
     identities: {
-      alice: { email: FRESH, emailConfirmedAt: confirmed ? VERIFIED_AT : null },
+      alice: confirmed
+        ? { email: FRESH, emailConfirmedAt: VERIFIED_AT }
+        : { email: null, newEmail: FRESH, isAnonymous: true, emailChangeSentAt: ago(1000) },
       bob: { email: null, isAnonymous: true },
       carol: { email: TAKEN, emailConfirmedAt: VERIFIED_AT },
     },
@@ -457,7 +547,7 @@ test('check-recovery on a confirmed address sets the recovery method and closes 
   assert.ok(!JSON.stringify(receipt).includes(FRESH), 'the address is never returned in full');
 });
 
-test('check-recovery on an unconfirmed address changes nothing and keeps the challenge open', async () => {
+test('check-recovery while the change is still pending changes nothing and keeps the challenge open', async () => {
   const h = pendingLink();
   const receipt = await succeed(h, 'alice', {
     action: 'check-recovery',
@@ -472,17 +562,85 @@ test('check-recovery on an unconfirmed address changes nothing and keeps the cha
 });
 
 test('a confirmed address that is not the challenge address does not verify that challenge', async () => {
-  // Without this the check would be "is anything confirmed", which would let an
-  // older verified address close a challenge raised for a different one.
+  // Without the digest comparison the check would be "is anything confirmed",
+  // which would let an address verified for something else close a challenge
+  // raised for a different one and report it as proved.
   const h = pendingLink({ confirmed: true, emailHash: sha256('someone.else@example.test') });
+  const id = op(1);
+  const receipt = await (await command(h, 'alice', {
+    action: 'check-recovery',
+    payload: { challengeId: CHALLENGE },
+    expectedRevision: 0,
+    operationId: id,
+  })).json();
+  assertAccountReceipt(receipt, id);
+  assert.equal(receipt.status, 'failed', 'the other address proves nothing about this challenge');
+  assert.notEqual(receipt.message, undefined);
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'and a challenge nothing can settle is closed');
+  // The address that IS verified stays verified: closing the challenge says
+  // nothing about it either way.
+  const user = h.db.identities.get(h.identities.alice.id);
+  assert.equal(user.email, FRESH);
+  assert.equal(user.emailConfirmedAt, VERIFIED_AT);
+});
+
+test('a pending change the provider could not complete is a terminal failure, and discloses nothing', async () => {
+  // The second place a collision can arrive. The address is free when the
+  // change is staged and taken by the time the person opens the link, so the
+  // provider refuses the promotion and drops the pending change. All we can see
+  // afterwards is that nothing is pending and nothing is confirmed, so the
+  // receipt says the address could not be added and says nothing about why or
+  // about whose it is.
+  const h = pendingLink();
+  const bob = h.identities.bob.id;
+  h.db.identities.set(bob, { ...h.db.identities.get(bob), email: FRESH, emailConfirmedAt: VERIFIED_AT });
+  const promotion = h.db.confirmEmailChange(h.identities.alice.id);
+  assert.equal(promotion.error, 'email_exists', 'the provider cannot promote an address someone else now holds');
+
+  const id = op(1);
+  const receipt = await (await command(h, 'alice', {
+    action: 'check-recovery',
+    payload: { challengeId: CHALLENGE },
+    expectedRevision: 0,
+    operationId: id,
+  })).json();
+  assertAccountReceipt(receipt, id);
+  assert.equal(receipt.status, 'failed', 'terminal: there is nothing left to wait for');
+  const serialized = JSON.stringify(receipt);
+  assert.ok(!serialized.includes(bob), 'nothing identifies the household that holds it');
+  assert.ok(!serialized.includes(FRESH), 'and the address is not echoed back');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'the challenge is closed, not left pending forever');
+
+  const alice = h.db.identities.get(h.identities.alice.id);
+  assert.equal(alice.email ?? null, null, 'alice gained nothing');
+  assert.equal(alice.id, h.identities.alice.id, 'and is still the same identity');
+  const taker = h.db.identities.get(bob);
+  assert.equal(taker.email, FRESH, 'the other household keeps its address');
+  assert.equal(taker.emailConfirmedAt, VERIFIED_AT, 'nothing was merged into it');
+});
+
+test('an address the provider wrote straight to the identity is still only pending until confirmed', async () => {
+  // The provider may not stage the change for an anonymous identity: it may set
+  // the address directly and leave it unconfirmed, which is what the admin path
+  // used to do. That must read as "waiting", not as a failure, so this path is
+  // no worse than before Ruling 10.
+  const h = harness({
+    identities: {
+      alice: { email: FRESH, emailConfirmedAt: null },
+      bob: { email: null, isAnonymous: true },
+      carol: { email: TAKEN, emailConfirmedAt: VERIFIED_AT },
+    },
+    challenges: [{ id: CHALLENGE, status: 'pending' }],
+  });
   const receipt = await succeed(h, 'alice', {
     action: 'check-recovery',
     payload: { challengeId: CHALLENGE },
     expectedRevision: 0,
     operationId: op(1),
   });
-  assert.equal(h.db.rows('recovery_challenges').length, 1, 'the challenge is untouched');
-  assert.equal(receipt.snapshot.recovery.challenge.id, CHALLENGE, 'and still open');
+  assert.equal(receipt.snapshot.recovery.method, null, 'unconfirmed is not a method');
+  assert.equal(receipt.snapshot.recovery.challenge.id, CHALLENGE, 'and the challenge is still open');
+  assert.equal(h.db.rows('recovery_challenges').length, 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -500,6 +658,23 @@ test('cancel-recovery leaves no open challenge and no linked method', async () =
   assert.equal(receipt.snapshot.recovery.challenge, null);
   assert.equal(receipt.snapshot.recovery.method, null);
   assert.equal(h.db.rows('recovery_challenges').length, 0);
+  // The point of Ruling 10: there was never a confirmed address to disturb, and
+  // the address the person changed their mind about was never occupied either.
+  assert.equal(h.db.identities.get(h.identities.alice.id).email ?? null, null);
+});
+
+test('cancelling leaves a confirmed address alone', async () => {
+  const h = linked();
+  const receipt = await succeed(h, 'alice', {
+    action: 'cancel-recovery',
+    payload: { challengeId: CHALLENGE },
+    expectedRevision: 0,
+    operationId: op(1),
+  }).catch(() => null);
+  assert.equal(receipt, null, 'there is no challenge to cancel, so it is a failure');
+  const user = h.db.identities.get(h.identities.alice.id);
+  assert.equal(user.email, FRESH, 'and the verified address is untouched');
+  assert.equal(user.emailConfirmedAt, VERIFIED_AT);
 });
 
 // ---------------------------------------------------------------------------
@@ -775,7 +950,8 @@ test('identity comes from the token: a profile_id in the body is refused, and in
   assert.equal(rows.length, 1);
   assert.equal(rows[0].profile_id, h.identities.alice.id, 'the caller owns it, whoever the query named');
   assert.equal(receipt.snapshot.revision, 1);
-  assert.equal(h.db.identities.get(h.identities.bob.id).email ?? null, null, 'bob is untouched');
+  assert.equal(h.provider.at(-1).bearer, 'test-token:alice', "the link carries the caller's own token");
+  assert.equal(h.db.identities.get(h.identities.bob.id).newEmail ?? null, null, 'bob is untouched');
 });
 
 test('a payload that names another household is refused rather than quietly ignored', async () => {
@@ -927,6 +1103,7 @@ test('with the capability off the command is refused here, and nothing is read o
   assert.ok(receipt.message.length > 0, 'and the refusal explains itself');
   assert.equal(receipt.snapshot, undefined, 'nothing about the account is disclosed');
   assert.deepEqual(h.db.queryLog, [], 'no table is read at all');
+  assert.equal(h.provider.length, 0, 'and the provider is never contacted');
   assert.equal(h.db.identities.get(h.identities.alice.id).email ?? null, null);
 });
 
@@ -939,7 +1116,8 @@ test('before migration 0018 the command is unavailable rather than a false succe
     operationId: op(1),
   });
   await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
-  assert.equal(h.db.identities.get(h.identities.alice.id).email ?? null, null, 'and the address is not linked');
+  assert.equal(h.db.identities.get(h.identities.alice.id).newEmail ?? null, null, 'and nothing was staged');
+  assert.equal(h.provider.length, 0, 'the provider was never asked to send anything');
   assert.equal(h.db.rows('operations').length, 0, 'nothing is recorded as attempted');
 });
 
@@ -986,6 +1164,66 @@ test('a session that cannot be verified is a 503, and no command runs on a guess
   assert.equal(response.status, 503, 'we cannot prove who they are, so nothing is attempted');
   assert.ok(logged.mock.callCount() > 0, 'the reason goes to the log, not to the person');
   assert.equal(h.db.rows('operations').length, 0);
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+});
+
+test('a provider that is not configured is our failure, and nothing is written or claimed', async (t) => {
+  // The two Supabase variables are scrubbed by the sandbox, so this is the
+  // shape of a deployment that forgot them. It must not look like a success.
+  const logged = muteConsoleError(t);
+  const h = harness();
+  const response = await command(
+    h,
+    'alice',
+    { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 0, operationId: op(1) },
+    { env: { HALO_FEATURE_RECOVERY: 'on' } },
+  );
+  await expectEnvelope(response, { status: 500, code: 'internal_error', retryable: true });
+  assert.ok(logged.mock.callCount() > 0, 'the reason goes to the log');
+  assert.equal(h.provider.length, 0, 'with no provider address there is nothing to call');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'and no challenge is opened');
+  const ledger = h.db.rows('operations');
+  assert.equal(ledger.length, 1, 'the attempt is recorded');
+  assert.equal(ledger[0].status, 'failed', 'as a failure, so reconciling it tells the truth');
+});
+
+test('a provider we cannot reach is our failure too, and still opens no challenge', async (t) => {
+  const logged = muteConsoleError(t);
+  const h = harness();
+  const response = await command(
+    h,
+    'alice',
+    { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 0, operationId: op(1) },
+    { fetch: async () => { throw new Error('getaddrinfo ENOTFOUND provider.example.invalid'); } },
+  );
+  await expectEnvelope(response, { status: 500, code: 'internal_error', retryable: true });
+  assert.ok(logged.mock.callCount() > 0);
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+  assert.equal(h.db.identities.get(h.identities.alice.id).newEmail ?? null, null);
+});
+
+test('a refusal we do not recognise is never read as a collision, and never as a success', async (t) => {
+  // Calling an unknown refusal a collision would tell the person their address
+  // belongs to someone else when it may not, and continuing would open a
+  // challenge for an address the provider never accepted. So it is a 500, and
+  // nothing from the provider reaches the person.
+  const logged = muteConsoleError(t);
+  const h = harness();
+  const response = await command(
+    h,
+    'alice',
+    { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 0, operationId: op(1) },
+    {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({ code: 400, error_code: 'validation_failed', msg: 'Unable to validate email address' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+    },
+  );
+  const body = await expectEnvelope(response, { status: 500, code: 'internal_error', retryable: true });
+  assert.ok(!JSON.stringify(body).includes('Unable to validate'), "the provider's words are not shown to anyone");
+  assert.ok(logged.mock.callCount() > 0);
   assert.equal(h.db.rows('recovery_challenges').length, 0);
 });
 

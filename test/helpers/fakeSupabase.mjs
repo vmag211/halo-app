@@ -40,7 +40,20 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   };
   for (const [name, declaration] of Object.entries(tables)) declare(name, declaration);
   for (const [name, rows] of Object.entries(seed)) declare(name).seed(rows);
-  for (const identity of identities) users.set(identity.id, { isAnonymous: false, email: null, emailConfirmedAt: null, ...identity });
+  // `newEmail` and `emailChangeSentAt` are the provider's staged email change:
+  // the address a person has asked for and not yet proved. It is deliberately
+  // separate from `email`, which is unique and only ever holds a confirmed
+  // address (see stageEmailChange and confirmEmailChange below).
+  for (const identity of identities) {
+    users.set(identity.id, {
+      isAnonymous: false,
+      email: null,
+      emailConfirmedAt: null,
+      newEmail: null,
+      emailChangeSentAt: null,
+      ...identity,
+    });
+  }
 
   const publicUser = (user) => ({
     id: user.id,
@@ -48,6 +61,18 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
     is_anonymous: user.isAnonymous === true,
     aud: 'authenticated',
     role: 'authenticated',
+  });
+
+  /**
+   * The Admin API's user payload: `email_confirmed_at` because that is how a
+   * verified address is reported, and `new_email` with `email_change_sent_at`
+   * because that is how an address awaiting confirmation is.
+   */
+  const adminUser = (user) => ({
+    ...publicUser(user),
+    email_confirmed_at: user.emailConfirmedAt ?? null,
+    new_email: user.newEmail ?? null,
+    email_change_sent_at: user.emailChangeSentAt ?? null,
   });
 
   const authError = (status, message, extra = {}) => ({
@@ -118,62 +143,42 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
           if (!user) {
             return { data: { user: null }, error: authError(404, 'User not found', { code: 'user_not_found' }) };
           }
-          return {
-            data: { user: { ...publicUser(user), email_confirmed_at: user.emailConfirmedAt ?? null } },
-            error: null,
-          };
+          return { data: { user: adminUser(user) }, error: null };
         },
 
         /**
          * Changes one user, as `auth.admin.updateUserById(id, attributes)` does.
-         * Only the attributes the link intent uses are modelled: `email` and
-         * `email_confirm`.
+         * Only `email_confirm` is modelled, which is what `remove-recovery`
+         * uses to make a confirmed address stop being a credential.
          *
-         * Two provider rules this reproduces, because the route depends on both:
-         *
-         *   1. `auth.users.email` is unique. An address another identity already
-         *      holds is refused with `email_exists`, which is how a collision is
-         *      detected: the constraint decides, not a search. The real client's
-         *      error carries that code (auth-js AuthApiError, status 422).
-         *   2. An address is confirmed only when `email_confirm` says so. Setting
-         *      a different address without it leaves the address unconfirmed,
-         *      because an admin write is not proof that anyone owns the address.
+         * Setting `email` through the admin API is deliberately NOT modelled and
+         * fails loudly: writing an address straight into the unique column
+         * before anyone has proved it lets any identity occupy any unregistered
+         * address, so linking goes through the caller's own email change
+         * (stageEmailChange) instead. A route reaching for the shortcut should
+         * break a test rather than pass one.
          *
          * The id never changes: there is no path here that creates a second
          * identity or moves rows between them (BE-050, BE-334).
          */
         updateUserById: async (id, attributes = {}) => {
+          if (Object.hasOwn(attributes, 'email')) {
+            throw new Error(
+              'fakeSupabase: linking an address must use the caller\'s own email change, not admin.updateUserById({ email })',
+            );
+          }
           const user = users.get(id);
           if (!user) {
             return { data: { user: null }, error: authError(404, 'User not found', { code: 'user_not_found' }) };
           }
           const next = { ...user };
-          if (Object.hasOwn(attributes, 'email')) {
-            const email = String(attributes.email).toLowerCase();
-            const taken = [...users.values()].some(
-              (other) => other.id !== id && typeof other.email === 'string' && other.email.toLowerCase() === email,
-            );
-            if (taken) {
-              return {
-                data: { user: null },
-                error: authError(422, 'A user with this email address has already been registered', {
-                  code: 'email_exists',
-                }),
-              };
-            }
-            if (email !== (user.email ?? '').toLowerCase()) next.emailConfirmedAt = null;
-            next.email = attributes.email;
-          }
           if (Object.hasOwn(attributes, 'email_confirm')) {
             next.emailConfirmedAt = attributes.email_confirm
               ? next.emailConfirmedAt ?? new Date().toISOString()
               : null;
           }
           users.set(id, next);
-          return {
-            data: { user: { ...publicUser(next), email_confirmed_at: next.emailConfirmedAt ?? null } },
-            error: null,
-          };
+          return { data: { user: adminUser(next) }, error: null };
         },
 
         /** Removes the user and cascades to every table declaring an ownerColumn. */
@@ -223,6 +228,63 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
 
     /** 'off' | 'returned' (auth-js returns a 5xx error) | 'thrown' (network failure). */
     setAuthOutage: (mode) => { authOutage = mode; },
+
+    /**
+     * The provider's half of a user-scoped email change, step one: what
+     * `PUT /auth/v1/user` with `{ email }` does. The address is recorded as
+     * pending and a confirmation is sent; `email` and `email_confirmed_at` are
+     * untouched, so the unique address column is not claimed by an address
+     * nobody has proved. An address another identity already holds is refused
+     * with `email_exists` before anything is staged, which is the provider's
+     * unique constraint answering and is how a collision is detected.
+     *
+     * Returns `{ user }` or `{ error }`. A test route reaches this through the
+     * fetch it injects, because the real call is HTTP rather than a client
+     * method the fake could expose.
+     */
+    stageEmailChange: (id, email) => {
+      const user = users.get(id);
+      if (!user) return { error: 'user_not_found' };
+      if (typeof email !== 'string' || !email.includes('@')) return { error: 'validation_failed' };
+      const wanted = email.toLowerCase();
+      const held = (other) => other.id !== id && typeof other.email === 'string' && other.email.toLowerCase() === wanted;
+      if ([...users.values()].some(held)) return { error: 'email_exists' };
+      const next = { ...user, newEmail: email, emailChangeSentAt: new Date().toISOString() };
+      users.set(id, next);
+      return { user: adminUser(next) };
+    },
+
+    /**
+     * Step two: what the provider does when the person opens the confirmation
+     * link. The pending address becomes the identity's own address, confirmed,
+     * and the identity stops being anonymous. The id does not change.
+     *
+     * If another identity has taken the address in the meantime the promotion
+     * is refused and the pending change is dropped, because there is nothing
+     * left to wait for. That is the second point at which a collision can
+     * arrive, and all a later reader can see is that nothing is pending and
+     * nothing is confirmed.
+     */
+    confirmEmailChange: (id) => {
+      const user = users.get(id);
+      if (!user?.newEmail) return { error: 'email_change_missing' };
+      const wanted = String(user.newEmail).toLowerCase();
+      const held = (other) => other.id !== id && typeof other.email === 'string' && other.email.toLowerCase() === wanted;
+      if ([...users.values()].some(held)) {
+        users.set(id, { ...user, newEmail: null, emailChangeSentAt: null });
+        return { error: 'email_exists' };
+      }
+      const next = {
+        ...user,
+        email: user.newEmail,
+        emailConfirmedAt: new Date().toISOString(),
+        newEmail: null,
+        emailChangeSentAt: null,
+        isAnonymous: false,
+      };
+      users.set(id, next);
+      return { user: adminUser(next) };
+    },
 
     identities: users,
   };

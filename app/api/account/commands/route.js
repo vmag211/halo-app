@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
-import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
+import { requireUser, authErrorResponse, linkCallerEmail, supabaseAdmin } from '@/lib/serverAuth';
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseBoundedInt, parseEnum, parseText, parseUuid } from '@/lib/validate';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
@@ -70,26 +70,47 @@ import {
  * guard each one then meets (the throttle, the collision refusal, the
  * owner-scoped lookup), not the revision.
  *
+ * The link is the CALLER's own email change, not the service role's
+ * (Ruling 10): `linkCallerEmail` in lib/serverAuth.js sends the request
+ * `auth.updateUser({ email })` sends, carrying the caller's verified token and
+ * the public anon key. Two things are meant to follow, and they are the reason
+ * it is done this way: the provider is expected to stage the address as a
+ * pending change rather than write it into the unique `auth.users.email`
+ * column, so an address nobody has proved is not occupied and thereby denied to
+ * its real owner, and the provider sends its own confirmation message, so
+ * nothing in HALO has to deliver mail for `check-recovery` to be satisfiable.
+ *
+ * The first of those is EXPECTED, not proved, and nothing here claims
+ * otherwise. Whether the installed GoTrue stages the address for an ANONYMOUS
+ * identity specifically, or writes `email` directly and leaves it unconfirmed,
+ * has not been checked against a real project, which the local-only boundary
+ * excludes; `auth.users` carrying the pending-change columns is evidence, not
+ * proof, and the test suite proves only what the fake models. The code is
+ * written so that either behaviour is correct here: `check-recovery` treats the
+ * challenge as still in flight when the challenge's address is either the
+ * pending change or an unconfirmed address on the identity. If the provider
+ * writes it directly then this route behaves exactly as the admin path did, and
+ * the squatting exposure the user-scoped call is meant to close is still open.
+ *
  * How a collision is detected, and why that way. An address that already
  * belongs to another identity must fail explicitly and must never be merged
- * (BE-334). The detection is the provider's own refusal: `updateUserById` is
- * attempted and `email_exists` means the address is taken, because
- * `auth.users.email` is unique and the constraint is the only authority that
- * can decide this atomically. Searching first (`listUsers`) and then writing
- * would be a race, and the window between the two is exactly when the other
- * identity could claim it. The refusal is also checked before the challenge is
- * written, so a collision leaves no challenge row behind.
+ * (BE-334). The detection is the provider's own refusal, because
+ * `auth.users.email` is unique and that constraint is the only authority that
+ * can decide atomically; searching first (`listUsers`) and then writing would
+ * leave a window in which the other identity could claim it. There are two
+ * points at which the refusal can arrive, and both are handled:
  *
- * What this route does NOT do: deliver the confirmation message. Linking sets
- * the address on the identity unconfirmed and records the challenge;
- * `check-recovery` then asks the provider whether it has been confirmed. No
- * verification email is sent from here, deliberately: `generateLink`'s usable
- * types are a signup link (which creates a user when none matches, the second
- * identity BE-334 forbids) or a magic link (which mints a session for whoever
- * opens it, and BE-227 requires the link and recover intents to stay separate
- * code paths). Delivery, its budget and the human-verification requirement
- * (BE-340) are all still open, and the capability flag is off until they are
- * settled, so no address can be confirmed through this route today.
+ *   request time      the provider refuses the change outright
+ *                     (`email_exists`), before any challenge row is written.
+ *   confirmation time the address was free when the change was staged and
+ *                     taken by the time the person opened the link, so the
+ *                     promotion fails and the pending change is dropped.
+ *                     `check-recovery` then sees an address that is neither
+ *                     pending nor confirmed, and reports a terminal failure.
+ *
+ * The provider does not tell us why a pending change is gone, so the second
+ * receipt does not claim a reason. It says the address could not be added and
+ * that nothing was merged, which is all that is both true and safe to say.
  *
  * The capability is off unless its flag is on (BE-351). While it is off this
  * handler reads nothing and writes nothing, and the refusal is a terminal
@@ -136,12 +157,13 @@ const CHALLENGE_TTL_MS = 30 * 60 * 1000;
 const RESEND_WINDOW_MS = 60 * 1000;
 
 const MESSAGES = Object.freeze({
-  linked: 'That address was added. It cannot recover your account until it is confirmed.',
+  linked: 'That address must be confirmed before it can recover your account. Check that address for a confirmation message.',
   alreadyVerified: 'That address is already verified for this account.',
   removeFirst: 'This account already has a verified address. Remove it before adding a different one.',
   collision: 'That address cannot be linked to this account. Please use a different address.',
   throttled: 'Verification for this account was requested a moment ago. Please wait a minute and try again.',
   challengeMissing: 'That verification request was not found.',
+  changeGone: 'That address could not be added. Nothing was merged. You can try a different address.',
   confirmed: 'That address is confirmed, and can now recover your account.',
   notConfirmed: 'That address is not confirmed yet. Nothing has changed.',
   cancelled: 'That verification request was cancelled. No address was added.',
@@ -269,31 +291,25 @@ const applied = async (supabase, userId, message) => ({
 /** The receipt body for a refusal the person can read and act on. */
 const refused = (message) => ({ status: 'failed', message });
 
-/** True when the provider is saying the address belongs to another identity. */
-function isAddressTaken(error) {
-  const code = typeof error?.code === 'string' ? error.code.toLowerCase() : '';
-  if (code === 'email_exists' || code === 'user_already_exists' || code === '23505') return true;
-  // Older GoTrue builds answer 400 or 422 with no code. The test is deliberately
-  // narrow: an error this does not recognise becomes a 500, which is the safe
-  // direction, because the alternative is calling an unknown failure a collision
-  // or, worse, continuing as if the address had been linked.
-  const message = String(error?.message ?? '').toLowerCase();
-  return (
-    [400, 409, 422].includes(error?.status) &&
-    /already (been )?registered|already exists|already in use|duplicate key/.test(message)
-  );
-}
+/** An address as it is compared and hashed everywhere here: trimmed and lowercased. */
+const normalizeAddress = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : null);
+
+/** The digest of an address the provider is reporting, or null when there is none. */
+const addressDigest = (value) => {
+  const address = normalizeAddress(value);
+  return address ? hashToken(address) : null;
+};
 
 /**
- * Link the address to this identity and open a challenge for it.
+ * Ask the provider to add the address to this identity, and open a challenge
+ * for it.
  *
- * The identity is never replaced: `updateUserById` changes the address on the
- * same `auth.users` row, so `profiles.id` and every owned row keep pointing at
- * it (BE-050). The address is written unconfirmed, because an admin write is
- * not proof that the person owns it; until the provider confirms it,
- * `linkedMethod` reports no method and nothing can be recovered with it.
+ * The identity is never replaced: the change is made on the caller's own
+ * `auth.users` row, so `profiles.id` and every owned row keep pointing at it
+ * (BE-050). Nothing is confirmed by asking, so `linkedMethod` reports no method
+ * and the address cannot recover anything until the person proves it.
  */
-async function requestRecovery(supabase, { userId, operationId, email }) {
+async function requestRecovery(supabase, { request, userId, operationId, email }) {
   // The ledger is the throttle: it is append-only, so this cannot be reset by
   // cancelling a challenge. The current operation's own row is already claimed,
   // hence excluded.
@@ -311,7 +327,7 @@ async function requestRecovery(supabase, { userId, operationId, email }) {
   const { data: account, error: accountError } = await supabase.auth.admin.getUserById(userId);
   if (accountError) throw new Error(accountError.message);
   const user = account?.user ?? null;
-  const current = typeof user?.email === 'string' ? user.email.trim().toLowerCase() : null;
+  const current = normalizeAddress(user?.email);
   const method = linkedMethod(user);
 
   // Already proved: there is nothing to verify, so no second challenge is made.
@@ -322,18 +338,15 @@ async function requestRecovery(supabase, { userId, operationId, email }) {
   // two deliberate steps, which is also all the interface offers.
   if (method) return refused(MESSAGES.removeFirst);
 
-  if (current !== email) {
-    const { error: linkError } = await supabase.auth.admin.updateUserById(userId, {
-      email,
-      // Stated rather than left to the provider's default: a confirmed address
-      // is a credential that can recover this household, and nothing has been
-      // proved yet.
-      email_confirm: false,
-    });
-    if (linkError) {
-      if (isAddressTaken(linkError)) return refused(MESSAGES.collision);
-      throw new Error(linkError.message);
-    }
+  // The caller's own email change, every time: asking again is a re-send, which
+  // is what the throttle above exists to bound.
+  const link = await linkCallerEmail(request, email);
+  if (!link.ok) {
+    if (link.reason === 'address_taken') return refused(MESSAGES.collision);
+    // Anything else is ours, not the person's: a misconfigured provider, an
+    // unreachable one, or a refusal we do not recognise. It fails loudly rather
+    // than writing a challenge for an address that was never accepted.
+    throw new Error(`account link refused by the provider: ${link.reason}${link.detail ? ` (${link.detail})` : ''}`);
   }
 
   const { error: challengeError } = await supabase.from('recovery_challenges').insert({
@@ -354,21 +367,29 @@ async function requestRecovery(supabase, { userId, operationId, email }) {
 }
 
 /**
- * Has the provider confirmed the challenge's address yet.
+ * What the provider now says about the challenge's address. One of three
+ * answers, and the digest comparison is what makes each of them about THIS
+ * challenge: without it the question would be "is any address confirmed", and
+ * an address confirmed earlier would close a challenge raised for another one.
  *
- * The provider's confirmation is the proof, so this reads it rather than
- * deciding anything itself. The digest comparison matters: without it the
- * question would be "is any address confirmed", and an address confirmed
- * earlier would close a challenge raised for a different one.
+ *   confirmed    the address is the identity's own and verified. The challenge
+ *                has nothing left to ask, so it goes.
+ *   in flight    the provider is holding it as a pending change, or has written
+ *                it unconfirmed onto the identity. Nothing changes; the person
+ *                can check again.
+ *   gone         neither. The provider is no longer working on it, which is
+ *                where a collision discovered at confirmation time arrives. The
+ *                challenge is closed with a terminal failure that claims no
+ *                reason, because the provider does not give one.
  *
- * A challenge whose address is confirmed is removed. Migration 0018 cannot
- * record what happened to it: `verified` requires a restore token hash, and
- * minting a restore token in the link intent would hand out a credential that
- * recovers the household, which belongs to the separate recover path (BE-227).
- * Leaving it open would be worse, because a stale pending row for an address
- * that is already confirmed is exactly what the unauthenticated recovery routes
- * look for by address digest. What happened is in the ledger, which is the
- * record of every command and is never deleted.
+ * A closed challenge is deleted rather than relabelled. Migration 0018 cannot
+ * record either ending truthfully: `verified` requires a restore token hash,
+ * and minting a restore token in the link intent would hand out a credential
+ * that recovers the household, which belongs to the separate recover path
+ * (BE-227). Leaving the row open would be worse, because a stale pending row
+ * for an address that is already settled is exactly what the unauthenticated
+ * recovery routes look for by address digest. What happened is in the ledger,
+ * which records every command and is never deleted.
  */
 async function checkRecovery(supabase, { userId, challengeId }) {
   const { data: row, error } = await supabase
@@ -383,26 +404,49 @@ async function checkRecovery(supabase, { userId, challengeId }) {
   const { data: account, error: accountError } = await supabase.auth.admin.getUserById(userId);
   if (accountError) throw new Error(accountError.message);
   const user = account?.user ?? null;
-  const confirmed = linkedMethod(user) ? hashToken(user.email.trim().toLowerCase()) : null;
-  if (confirmed !== row.email_hash) return applied(supabase, userId, MESSAGES.notConfirmed);
+  const method = linkedMethod(user);
+  if (method && addressDigest(user.email) === row.email_hash) {
+    await closeChallenge(supabase, { userId, challengeId });
+    return applied(supabase, userId, MESSAGES.confirmed);
+  }
 
-  const { error: deleteError } = await supabase
+  // Still in flight, either staged as a pending change or written unconfirmed
+  // onto the identity. The second case is the behaviour the provider may have
+  // for an anonymous identity, and it must read as waiting rather than as a
+  // failure (see the route's header).
+  const pending = addressDigest(user?.new_email);
+  const unconfirmed = method ? null : addressDigest(user?.email);
+  if (pending === row.email_hash || unconfirmed === row.email_hash) {
+    return applied(supabase, userId, MESSAGES.notConfirmed);
+  }
+
+  await closeChallenge(supabase, { userId, challengeId });
+  return refused(MESSAGES.changeGone);
+}
+
+/** Removes one of the caller's challenges. Owner scoped, so nobody else's can be reached. */
+async function closeChallenge(supabase, { userId, challengeId }) {
+  const { error } = await supabase
     .from('recovery_challenges')
     .delete()
     .eq('profile_id', userId)
     .eq('id', challengeId);
-  if (deleteError) throw deleteError;
-  return applied(supabase, userId, MESSAGES.confirmed);
+  if (error) throw error;
 }
 
 /**
  * Drop a pending challenge. The row is removed for the same reason as above:
  * 0018 has no word for "the person changed their mind", and a challenge nobody
  * is waiting on still holds a hashed address with no retention period approved
- * for it. Any address linked by the cancelled request stays on the identity
- * unconfirmed, where it is not a recovery method and is replaced by the next
- * request; the provider's admin API has no supported way to take an address off
- * an identity.
+ * for it.
+ *
+ * Nothing is asked of the provider. A confirmed address is untouched, which is
+ * the point: the address being cancelled was never written into the identity's
+ * own, so cancelling cannot cost the household a credential it already had. The
+ * provider's pending change is left to lapse, since there is no supported call
+ * to withdraw one; if the person opens the confirmation link afterwards the
+ * address does become theirs, which is the provider's state and the truth, and
+ * the next read reports it.
  */
 async function cancelRecovery(supabase, { userId, challengeId }) {
   const { data: row, error } = await supabase
@@ -414,12 +458,7 @@ async function cancelRecovery(supabase, { userId, challengeId }) {
   if (error) throw error;
   if (!row) return refused(MESSAGES.challengeMissing);
 
-  const { error: deleteError } = await supabase
-    .from('recovery_challenges')
-    .delete()
-    .eq('profile_id', userId)
-    .eq('id', challengeId);
-  if (deleteError) throw deleteError;
+  await closeChallenge(supabase, { userId, challengeId });
   return applied(supabase, userId, MESSAGES.cancelled);
 }
 
@@ -448,12 +487,12 @@ async function removeRecovery(supabase, { userId, methodId }) {
 }
 
 /** The one effect of one command, inside the operation the ledger has claimed. */
-async function perform(supabase, { action, userId, operationId, payload, expectedRevision, currentRevision }) {
+async function perform(supabase, { request, action, userId, operationId, payload, expectedRevision, currentRevision }) {
   // The precondition is checked here, not before the claim, so that a replay of
   // a lost response returns the first outcome instead of a conflict.
   if (currentRevision !== expectedRevision) throw new StaleRevisionError(currentRevision);
   if (action === 'request-recovery') {
-    return requestRecovery(supabase, { userId, operationId, email: payload.email });
+    return requestRecovery(supabase, { request, userId, operationId, email: payload.email });
   }
   if (action === 'check-recovery') return checkRecovery(supabase, { userId, challengeId: payload.challengeId });
   if (action === 'cancel-recovery') return cancelRecovery(supabase, { userId, challengeId: payload.challengeId });
@@ -563,6 +602,7 @@ export async function POST(request) {
       },
       () =>
         perform(supabaseAdmin, {
+          request,
           action: action.value,
           userId,
           operationId: operationId.value,
