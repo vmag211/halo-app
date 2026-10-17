@@ -111,6 +111,15 @@ export const HALO_TABLES = {
     },
   },
 
+  // 0017: the idempotency ledger. operation_id is the client's Idempotency-Key,
+  // so it has no default. profile_id is null only for the unauthenticated
+  // 'recovery' domain; every other domain is owner scoped and cascades.
+  operations: {
+    primaryKey: 'operation_id',
+    ownerColumn: 'profile_id',
+    defaults: { status: 'pending', created_at: now, updated_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },

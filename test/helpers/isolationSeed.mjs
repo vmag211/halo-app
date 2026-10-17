@@ -20,6 +20,7 @@ const hex12 = (n) => n.toString(16).padStart(12, '0');
 export const entryId = (who, n) => `${PREFIX[who]}-0000-4000-8000-${hex12(n)}`;
 export const alertId = (who, n) => `${PREFIX[who]}-1111-4000-8000-${hex12(n)}`;
 export const contextId = (who, n) => `${PREFIX[who]}-2222-4000-8000-${hex12(n)}`;
+export const operationId = (who, n) => `${PREFIX[who]}-3333-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
 // On the Web Push hosts the subscribe route accepts (lib/pushInput.js), so a test can re-register them.
@@ -79,7 +80,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -99,6 +100,15 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       effective_from: `${day(30)}T12:00:00Z`, effective_to: null, closed_reason: null,
     });
     rows.push_subscriptions.push({ profile_id: id, endpoint: ENDPOINT[who], p256dh: `${upper}-P256DH-MARKER`, auth: `${upper}-AUTH-MARKER` });
+    // One settled operation each (migration 0017), so the ledger is never
+    // empty for either household and a cascade or isolation check on it cannot
+    // pass vacuously.
+    rows.operations.push({
+      operation_id: operationId(who, 1), profile_id: id, domain: 'settings', kind: 'settings.save',
+      status: 'succeeded', request_hash: `${upper}-REQUEST-HASH-MARKER`,
+      result: { operationId: operationId(who, 1), status: 'succeeded', note: `${upper}-RECEIPT-MARKER` },
+      created_at: `${day(1)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
+    });
     rows.ucmr5_utilities.push({
       pwsid: UTILITY[who].pwsid,
       pws_name: UTILITY[who].pws_name,

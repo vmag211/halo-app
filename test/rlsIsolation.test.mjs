@@ -36,6 +36,7 @@ const OWNED_TABLES = {
   notification_prefs: 'profile_id', // 0010
   push_subscriptions: 'profile_id', // 0010
   home_contexts: 'profile_id',      // 0016
+  operations: 'profile_id',         // 0017 (nullable only for the unauthenticated 'recovery' domain)
 };
 
 /**
@@ -56,7 +57,21 @@ const OWNER_DIRECT_ACCESS = {
   notification_prefs: ['select'], // 0010 policies; 0015 revokes insert, update, delete
   push_subscriptions: ['select'], // 0010: written with the service role only
   home_contexts: ['select'],      // 0016: written through its two service-role functions only; anon may not even select
+  operations: [],                 // 0017: no policy at all. Receipts are read back only through GET /api/operations, which uses the service role.
 };
+
+/**
+ * Owned tables that deliberately carry NO policy, so not even their owner can
+ * reach them directly. This is stricter than a select-own policy, not weaker:
+ * the only reader is a route using the service role. A table may be listed here
+ * only with the migration that makes it service-only, and the invariant below
+ * still proves it has row level security on, zero policies and zero privileges
+ * for anon and authenticated. Anything not listed must have an auth.uid()
+ * scoped policy as before.
+ */
+const SERVICE_ONLY_OWNED = new Set([
+  'operations', // 0017: receipts are replayed through GET /api/operations only
+]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
 const PUBLIC_REFERENCE_TABLES = {
@@ -109,6 +124,14 @@ const OWNED_ROW = {
     lng: -80.58,
     ...(n === 0 ? {} : { effective_to: '2026-09-15T00:00:00Z', closed_reason: 'moved' }),
   }),
+  // 0017: operation_id has no default, so every sample supplies its own key.
+  operations: (owner) => ({
+    operation_id: crypto.randomUUID(),
+    profile_id: owner,
+    domain: 'actions',
+    kind: 'actions.commit',
+    status: 'pending',
+  }),
 };
 
 /** A valid row for each reference table; `n` varies the key (seeds use 0, attempts use 1). */
@@ -136,6 +159,7 @@ const PROBE_COLUMN = {
   notification_prefs: 'air_quality_change',
   push_subscriptions: 'p256dh',
   home_contexts: 'water_source',
+  operations: 'request_hash',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',
@@ -345,6 +369,21 @@ test('there are no views or materialized views in public', async () => {
 test('every owned table has policies, and each one is scoped to the caller by auth.uid()', async () => {
   for (const table of Object.keys(OWNED_TABLES)) {
     const policies = await policiesOf(table);
+    if (SERVICE_ONLY_OWNED.has(table)) {
+      // Declared service-only: prove it really is closed, rather than skipping it.
+      assert.equal(policies.length, 0, `public.${table} is declared SERVICE_ONLY_OWNED but has ${policies.length} policies`);
+      for (const role of ['anon', 'authenticated']) {
+        const { rows: [grant] } = await db.query(
+          `select has_any_column_privilege($1, $2, 'SELECT')
+               or has_any_column_privilege($1, $2, 'INSERT')
+               or has_any_column_privilege($1, $2, 'UPDATE')
+               or has_table_privilege($1, $2, 'DELETE') as any_access`,
+          [role, `public.${table}`],
+        );
+        assert.equal(grant.any_access, false, `public.${table} is service-only but ${role} still holds a privilege on it`);
+      }
+      continue;
+    }
     assert.ok(policies.length > 0, `public.${table} has no policy referencing auth.uid(), so its owner cannot read it`);
     for (const policy of policies) {
       for (const expression of [policy.qual, policy.with_check].filter(Boolean)) {
