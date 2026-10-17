@@ -11,7 +11,8 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 - **Backup:** free plan, no scheduled backups or PITR available. CSV exports taken instead. Note these two migrations modify no pre-existing column or row; the only data writes are inserts into the new `home_contexts` table and population of the new nullable `daily_scores.home_context_id`.
 - **0015 and 0016 are APPLIED to production.** Confirmed 2026-10-17 with the state query in 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present. They were applied after the 1.1 audit was captured, so `baseline-audit.deployed.json` holds the pre-migration catalog and should be re-captured.
 - **0015's four checks are validated** (2026-10-17, `m15_validated` 4). 0015 and 0016 are therefore complete on production.
-- **Still to do on production:** apply 0017 and 0018 (sections 2.3 and 2.4), then re-run `baseline-audit.sql` to capture the post-migration catalog.
+- **0017 is applied to production** (2026-10-17). Its verification returned all five columns true, including `no_client_access`, so the revoke closed `anon` and `authenticated` as intended.
+- **Still to do on production:** apply 0018 (section 2.4), then re-run `baseline-audit.sql` to capture the post-migration catalog.
 
 Status right now:
 
@@ -326,6 +327,8 @@ What this does NOT restore or undo:
 - What the routes saved to `profiles` through the functions (address, county, state, utility, water source, year built, and the cleared `zip`) stays as saved.
 
 ### 2.3 Apply 0017 (operation ledger)
+
+**Done on production, 2026-10-17**, verification all five columns true. Kept for the record and for the back-out block below.
 
 Needs 0016 first. This one is quiet: it creates one new table and its indexes and does not read or write any existing table, so nothing else is blocked while it runs. Creating its foreign key takes a brief SHARE ROW EXCLUSIVE on `profiles`, so a new anonymous sign-up could wait a moment.
 
