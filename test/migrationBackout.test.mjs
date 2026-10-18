@@ -65,6 +65,7 @@ let audit15;
 let audit16;
 let audit17;
 let audit18;
+let audit19;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -108,7 +109,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -293,6 +294,66 @@ test('after both back-outs, 0017 and 0018 apply again and give exactly the schem
   // Reapplied empty: the receipts and challenges really were deleted, not hidden.
   assert.deepEqual((await db.query(`select count(*)::int as n from public.operations`)).rows, [{ n: 0 }]);
   assert.deepEqual((await db.query(`select count(*)::int as n from public.recovery_challenges`)).rows, [{ n: 0 }]);
+});
+
+// ---- 0019: one additive column on the table 0018 created. It is not a table
+// of its own, so backing it out is a `drop column`, and what is lost is the
+// distinction between the two intents rather than any row. These pick up where
+// the 0017/0018 tests leave the database, at the 0018 schema.
+
+test('0019 applies on top of 0018 and adds exactly the intent column', async () => {
+  await db.applyMigration(migration(19));
+  audit19 = await runAudit(db);
+
+  assert.equal(
+    await exists(`exists (select 1 from pg_attribute where attrelid = 'public.recovery_challenges'::regclass and attname = 'intent' and not attisdropped)`),
+    true,
+    'the intent column exists',
+  );
+  // One challenge of each intent, so the back-out has the distinction to lose.
+  await db.exec(
+    `insert into public.recovery_challenges (profile_id, email_hash, nonce_hash, expires_at, intent)
+       values ('${ALICE}', repeat('a', 64), repeat('b', 64), '2026-10-18T00:00:00Z', 'link'),
+              ('${ALICE}', repeat('c', 64), repeat('d', 64), '2026-10-18T00:00:00Z', 'recover');`,
+  );
+});
+
+test('backing out 0019 removes the intent column and leaves the 0001..0018 schema exactly', async () => {
+  await db.exec(docBlock('backout-0019'));
+
+  assert.equal(
+    await exists(`exists (select 1 from pg_attribute where attrelid = 'public.recovery_challenges'::regclass and attname = 'intent' and not attisdropped)`),
+    false,
+    'the intent column is gone',
+  );
+  assert.equal(
+    await exists(`exists (select 1 from pg_constraint where conname = 'recovery_challenges_intent_check')`),
+    false,
+    'and so is its check',
+  );
+  // The challenges themselves stay; only which intent wrote them is lost.
+  assert.deepEqual(
+    (await db.query(`select count(*)::int as n from public.recovery_challenges where profile_id = $1`, [ALICE])).rows,
+    [{ n: 2 }],
+  );
+  assert.deepEqual(await runAudit(db), audit18);
+});
+
+test('backing out 0019 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0019'));
+  assert.deepEqual(await runAudit(db), audit18);
+});
+
+test('after the back-out, 0019 applies again and gives exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(19));
+  assert.deepEqual(await runAudit(db), audit19);
+  // Reapplied, every row that survived the back-out reads as a link row, which
+  // is the whole point of the default: nothing that already exists changes
+  // meaning, and the recover row that was there is no longer distinguishable.
+  assert.deepEqual(
+    (await db.query(`select intent, count(*)::int as n from public.recovery_challenges group by intent order by intent`)).rows,
+    [{ intent: 'link', n: 2 }],
+  );
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.

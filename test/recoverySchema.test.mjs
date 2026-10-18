@@ -266,3 +266,80 @@ test('running 0018 again changes nothing', async () => {
   await db.exec(MIGRATION.sql);
   assert.deepEqual(await shape(), first, 're-running the migration is a no-op');
 });
+
+// ---------------------------------------------------------------------------
+// 8. Migration 0019: the intent column (B02 Task 5, Ruling 15)
+//
+// Two different operations write this table. The signed-in link intent
+// (POST /api/account/commands) attaches an address to the caller's own
+// identity; the unauthenticated recover intent (POST /api/recovery/request)
+// proves ownership of an address that is already linked. 0018's columns cannot
+// tell them apart: a fresh row of either kind carries a nonce hash, a null
+// restore_token_hash and a null consumed_at, so the link intent's "supersede
+// whatever this household had open" delete would take an in-flight recovery
+// challenge with it. `intent` is what makes each statement name the rows it
+// means.
+//
+// It defaults to 'link' so any row that already exists keeps the meaning it
+// was written with. Nothing needs backfilling because the capability has never
+// been enabled, but the default is what makes that true rather than assumed.
+// ---------------------------------------------------------------------------
+
+const INTENT_MIGRATION = listMigrations().find((migration) => migration.number === 19);
+
+test('0019 exists, is named for what it adds and applies in order after 0018', () => {
+  assert.ok(INTENT_MIGRATION, 'supabase/migrations has a 0019 migration');
+  assert.match(basename(INTENT_MIGRATION.file), MIGRATION_FILE, 'the file name is four digits and a snake_case name');
+  assert.match(INTENT_MIGRATION.name, /intent/, 'the name says it is the challenge intent');
+});
+
+test('intent is not null and defaults to link, so a row written without one keeps the link meaning', async () => {
+  const { rows } = await db.query(
+    `select is_nullable as nullable, column_default as "default", data_type as type
+       from information_schema.columns
+      where table_schema = 'public' and table_name = $1 and column_name = 'intent'`,
+    [TABLE],
+  );
+  assert.equal(rows.length, 1, `${TABLE} has an intent column`);
+  assert.equal(rows[0].nullable, 'NO', 'every challenge says which intent wrote it');
+  assert.match(String(rows[0].default), /'link'/, "the default is 'link'");
+
+  const error = await insertChallenge(pendingRow(ALICE), { commit: true });
+  assert.equal(error, null);
+  const { rows: written } = await db.query(
+    `select intent from public.${TABLE} where profile_id = $1 order by created_at desc limit 1`,
+    [ALICE],
+  );
+  assert.equal(written[0].intent, 'link', 'a row written without an intent is a link row');
+});
+
+test('intent accepts link and recover and nothing else', async () => {
+  // ALICE rather than BOB: the cascade test above deleted bob's account.
+  for (const intent of ['link', 'recover']) {
+    const error = await insertChallenge(pendingRow(ALICE, { intent }));
+    assert.equal(error, null, `${intent} is a valid intent`);
+  }
+  for (const intent of ['Link', 'recovery', 'both', '']) {
+    const error = await insertChallenge(pendingRow(ALICE, { intent }));
+    assert.ok(error, `${JSON.stringify(intent)} is refused`);
+    assert.match(String(error.message), /intent/);
+  }
+});
+
+test('running 0019 again changes nothing', async () => {
+  const shape = async () => {
+    const { rows } = await db.query(
+      `select column_name, is_nullable, column_default from information_schema.columns
+        where table_schema = 'public' and table_name = $1 order by column_name`,
+      [TABLE],
+    );
+    const { rows: checks } = await db.query(
+      `select conname from pg_constraint where conrelid = ('public.' || $1)::regclass order by conname`,
+      [TABLE],
+    );
+    return { rows, checks };
+  };
+  const first = await shape();
+  await db.exec(INTENT_MIGRATION.sql);
+  assert.deepEqual(await shape(), first, 're-running the migration is a no-op');
+});

@@ -4,7 +4,13 @@ import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } f
 import { readJsonBody, parseEnum } from '@/lib/validate';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
 import { isOperationsUnavailable, operationsUnavailable } from '@/lib/operations';
-import { ACCOUNT_FEATURES, IMPLEMENTED_FEATURES, readRecoverySnapshot, recoverySnapshot } from '@/lib/account';
+import {
+  ACCOUNT_FEATURES,
+  IMPLEMENTED_FEATURES,
+  isRecoveryUnavailable,
+  readRecoverySnapshot,
+  recoverySnapshot,
+} from '@/lib/account';
 
 /**
  * GET /api/account?feature=<feature>
@@ -87,7 +93,7 @@ export async function GET(request) {
     // read publishes is exactly the one a later write checks.
     return NextResponse.json(await readRecoverySnapshot(supabaseAdmin, userId), { headers });
   } catch (err) {
-    if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
+    if (isOperationsUnavailable(err) || isRecoveryUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
     console.error(`account read failed (request ${requestId}):`, err);

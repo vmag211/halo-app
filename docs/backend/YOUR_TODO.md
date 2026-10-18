@@ -422,12 +422,14 @@ select
   exists (select 1 from pg_attribute where attrelid = 'public.daily_scores'::regclass
             and attname = 'home_context_id' and not attisdropped) as m16_column,
   to_regclass('public.operations') is not null as m17_table,
-  to_regclass('public.recovery_challenges') is not null as m18_table;
+  to_regclass('public.recovery_challenges') is not null as m18_table,
+  exists (select 1 from pg_attribute where attrelid = 'public.recovery_challenges'::regclass
+            and attname = 'intent' and not attisdropped) as m19_column;
 ```
 
 Reading it: a migration is applied when all of its columns are true (`m15_checks` 4). `m15_validated` is 0 even after a correct 0015 apply, because those checks go in `NOT VALID`; 4 and 0 together mean 0015 is applied and 2.5 is still outstanding.
 
-Production on 2026-10-17 ended the day with every column satisfied: 0015 and 0016 applied and validated, 0017 and 0018 applied, so the query now returns `true, 4, 4, true, true, true, true, true, true`. Two earlier readings the same day returned `m15_validated` 0 (before 2.5) and `m17_table`/`m18_table` false (before 2.3 and 2.4).
+Production on 2026-10-17 ended the day with every column satisfied except the last: 0015 and 0016 applied and validated, 0017 and 0018 applied, 0019 not written yet, so the query now returns `true, 4, 4, true, true, true, true, true, true, false`. Two earlier readings the same day returned `m15_validated` 0 (before 2.5) and `m17_table`/`m18_table` false (before 2.3 and 2.4). `m19_column` turns true once 2.8 is applied; it is the one column that discriminates 0019, and `m18_table` false with `m19_column` true is impossible, because the column lives on that table.
 
 ### 2.7 Close the TRUNCATE gap
 
@@ -465,6 +467,33 @@ select c.relname as table_name, r.rolname as role_name,
 What this does NOT change: the service role keeps every privilege, so no route is affected. Owners keep reading their own rows and the public reference tables stay readable. Tested in `test/migrationBackout.test.mjs`, which runs this exact block and checks the reads still work.
 
 Not done here, and your call whether it is worth it: the other tables still grant `anon` and `authenticated` INSERT, UPDATE and DELETE (`alerts`, `daily_scores`, `home_risks`, `push_subscriptions`, and the public reference tables). Those really are inert under RLS, which denies every one of those commands for lack of a policy. Revoking them would be belt and braces rather than a fix, and it is a wider change, so it is left as a separate decision.
+
+### 2.8 Apply 0019 (which intent wrote a recovery challenge)
+
+**Not applied yet.** Needs 0018 first.
+
+Quiet, and quieter than 2.3 and 2.4: it adds one column with a constant default and one check to `recovery_challenges`, a table nothing else references. Postgres records a constant default in the catalog instead of rewriting the table, so no existing row is scanned; the lock it takes on that one table is held for the moment the catalog is written. No other table is read or written, and no row changes.
+
+What it is for: two different operations write that table and 0018 cannot tell their rows apart. Signed in, `POST /api/account/commands` attaches an address to your own identity. Not signed in, `POST /api/recovery/request` proves ownership of an address that is already linked. A fresh row of either kind looks identical, and the signed-in one clears whatever the household had open before it writes, which would silently cancel a recovery that was in flight. The `intent` column is what lets each statement name the rows it means. It defaults to `link`, so any row that already exists keeps the meaning it was written with.
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0019_recovery_challenge_intent.sql` and run it. Safe to re-run.
+2. Run the verification query in the comment at the end of that file. Expect one row, all three columns true.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, `POST /api/recovery/request` and the account surface answer 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the recovery routes report the feature as unavailable, and so does `GET /api/account?feature=recovery` while the capability flag is on: without this column the account surface cannot tell a link challenge from a recovery one, so it says "unavailable" rather than guessing. With the flag off, which is how it ships, nothing changes for anyone. The rest of the app is unaffected.
+
+#### If you need to back out 0019
+
+The recovery routes and the account surface go back to answering 503 `feature_unavailable`, exactly as before it was applied, so this disables recovery rather than breaking the existing app. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0019 -->
+```sql
+alter table public.recovery_challenges drop column if exists intent;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: no challenge row is deleted, but which intent wrote each one is lost for good. If you reapply 0019 afterwards, every surviving row reads as a `link` row, because that is the only answer the column can give once the distinction is gone. In practice that means a recovery attempt that was in flight during the back-out can be superseded by the owner linking an address, which is exactly the problem the column exists to prevent, so prefer backing out 0018 (2.4) if you want recovery off altogether.
 
 ---
 

@@ -32,6 +32,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
+import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 
 const ROUTE = '/api/account/commands';
@@ -1262,6 +1263,139 @@ test('with the capability off the command is refused here, and nothing is read o
   assert.deepEqual(h.db.queryLog, [], 'no table is read at all');
   assert.equal(h.provider.length, 0, 'and the provider is never contacted');
   assert.equal(h.db.identities.get(h.identities.alice.id).email ?? null, null);
+});
+
+// ---------------------------------------------------------------------------
+// The two intents share one table (B02 Task 5, Ruling 15)
+// ---------------------------------------------------------------------------
+//
+// POST /api/recovery/request writes rows to recovery_challenges keyed by the
+// same profile_id as this route's link rows, and before migration 0019 nothing
+// told them apart: a fresh row of either intent carries a nonce hash, a null
+// restore_token_hash and a null consumed_at. This route supersedes whatever the
+// household had open before it inserts, so an unnarrowed delete would cancel an
+// in-flight recovery. Every statement here names `intent = 'link'`.
+
+test('linking writes a link row, so the intent is recorded rather than assumed', async () => {
+  const h = harness();
+  await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].intent, 'link', 'the row says which operation wrote it');
+});
+
+test('a recovery challenge survives the owner linking an address: the supersede delete is narrowed to the link intent', async () => {
+  // Ruling 15. The signed-in owner asking to link an address must not cancel an
+  // unauthenticated recovery attempt on the same identity, and the two rows are
+  // indistinguishable without the intent.
+  const h = harness({
+    challenges: [
+      { id: CHALLENGE, intent: 'recover', email_hash: sha256('recovering@example.test'), nonce_hash: hex('c3') },
+      { id: OTHER_CHALLENGE, intent: 'link', email_hash: sha256('typo@example.test') },
+    ],
+  });
+  await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+
+  const rows = h.db.rows('recovery_challenges');
+  const recovering = rows.filter((row) => row.intent === 'recover');
+  assert.equal(recovering.length, 1, 'the recovery challenge is still there');
+  assert.equal(recovering[0].id, CHALLENGE, 'and it is the same row, not a replacement');
+  assert.equal(recovering[0].nonce_hash, hex('c3'), 'with the nonce only that browser knows');
+  const linking = rows.filter((row) => row.intent === 'link');
+  assert.equal(linking.length, 1, 'the earlier link challenge is superseded as before');
+  assert.equal(linking[0].email_hash, sha256(FRESH));
+  assert.notEqual(linking[0].id, OTHER_CHALLENGE);
+
+  // Every statement this route ran on the table named the link intent: a read
+  // or a delete filters on it, an insert writes it. Nothing it does can reach,
+  // count or remove a row of the other intent.
+  const statements = h.db.queryLog.filter((item) => item.table === 'recovery_challenges');
+  assert.ok(statements.length >= 3, 'the probe, the supersede and the insert all ran');
+  for (const entry of statements) {
+    const named = `${JSON.stringify(entry.filters ?? [])}${JSON.stringify(entry.rows ?? [])}`.includes('"intent"');
+    assert.ok(named, `${entry.operation} on recovery_challenges did not name the intent`);
+  }
+});
+
+test('a recovery challenge is invisible to this route: its id is the identical failure to one that never existed', async () => {
+  const h = harness({
+    challenges: [{ id: CHALLENGE, intent: 'recover', nonce_hash: hex('c3') }],
+  });
+  const seen = [];
+  // Every command advances the revision by one, whether it succeeds or not.
+  let revision = 0;
+  let id = 0;
+  const ask = async (action, challengeId) => {
+    id += 1;
+    const response = await command(h, 'alice', {
+      action,
+      payload: { challengeId },
+      expectedRevision: revision,
+      operationId: op(id),
+    });
+    revision += 1;
+    assert.equal(response.status, 200);
+    const receipt = await response.json();
+    assertAccountReceipt(receipt, op(id));
+    return receipt;
+  };
+  for (const action of ['check-recovery', 'cancel-recovery']) {
+    const receipt = await ask(action, CHALLENGE);
+    assert.equal(receipt.status, 'failed');
+    seen.push(receipt.message);
+
+    const absent = await ask(action, OTHER_CHALLENGE);
+    assert.equal(receipt.message, absent.message, `${action}: a recovery challenge answers like a missing one`);
+  }
+  assert.equal(h.db.rows('recovery_challenges').length, 1, 'and nothing of the recovery attempt is touched');
+  assert.ok(seen.every((message) => !message.includes('recover')), 'the refusal says nothing about the other intent');
+});
+
+test('before migration 0019 the command is unavailable rather than acting on rows it cannot tell apart', async () => {
+  const h = harness();
+  const failed = withoutColumn(h.db, 'recovery_challenges', 'intent');
+  const response = await command(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+  await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
+  assert.ok(failed.length > 0, 'the missing column is what refused it');
+  assert.equal(h.db.identities.get(h.identities.alice.id).newEmail ?? null, null, 'nothing was staged');
+  assert.equal(h.provider.length, 0, 'the provider was never asked to send anything');
+  assert.equal(h.db.rows('operations').length, 0, 'nothing is recorded as attempted');
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+  failed.restore();
+});
+
+test('before migration 0019 every action is unavailable, with the Postgres code as well as the PostgREST one', async () => {
+  for (const code of ['PGRST204', '42703']) {
+    const h = harness({ challenges: [{ id: CHALLENGE }] });
+    const failed = withoutColumn(h.db, 'recovery_challenges', 'intent', code);
+    for (const [index, action] of ['check-recovery', 'cancel-recovery', 'remove-recovery'].entries()) {
+      const payload = action === 'remove-recovery' ? { id: 'email', revision: 0 } : { challengeId: CHALLENGE };
+      const response = await command(h, 'alice', {
+        action,
+        payload,
+        expectedRevision: 0,
+        operationId: op(index + 1),
+      });
+      await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
+    }
+    assert.ok(failed.length > 0, `${code} is recognised`);
+    failed.restore();
+  }
 });
 
 test('before migration 0018 the command is unavailable rather than a false success', async () => {

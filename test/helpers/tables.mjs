@@ -124,10 +124,14 @@ export const HALO_TABLES = {
   // stored, and the row belongs to the identity being recovered, so it cascades
   // like any other owned table. The restore token is single use: consumed_at
   // records when it was spent.
+  // 0019: `intent` says which operation wrote the row, 'link' (signed in,
+  // POST /api/account/commands) or 'recover' (not signed in,
+  // POST /api/recovery/request). It defaults to 'link' in the migration too, so
+  // a row written without one keeps the meaning it had before the column.
   recovery_challenges: {
     primaryKey: 'id',
     ownerColumn: 'profile_id',
-    defaults: { id: uuid, status: 'pending', attempts: 0, created_at: now, updated_at: now },
+    defaults: { id: uuid, status: 'pending', attempts: 0, intent: 'link', created_at: now, updated_at: now },
   },
 
   // Reference and system tables: no owner, nothing cascades.

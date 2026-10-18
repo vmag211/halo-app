@@ -25,6 +25,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRouteHarness } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
+import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 
 const ROUTE = '/api/account';
@@ -357,6 +358,47 @@ test('before migration 0018 the route reports the feature unavailable rather tha
   const h = createRouteHarness({ tables: haloTables('profiles', 'operations'), seed: ({ alice }) => ({ profiles: [{ id: alice.id }] }) });
   const response = await read(h, 'alice');
   await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
+});
+
+test('a recovery attempt on this identity is not reported as an open verification (0019, Ruling 15)', async () => {
+  // POST /api/recovery/request writes a row for the same profile_id. It is not
+  // a verification this person started, and its address is not the one the
+  // provider has in flight, so reporting it here would tell someone to wait for
+  // a message that was addressed to a different request. The challenge field is
+  // the link intent only.
+  const h = harness({
+    challenges: [
+      { id: CHALLENGE, intent: 'recover', status: 'pending', expires_at: future() },
+    ],
+  });
+  const body = await (await read(h, 'alice')).json();
+  assertRecoverySnapshot(body);
+  assert.equal(body.recovery.challenge, null, 'a recovery attempt is not an open link challenge');
+  assert.ok(!JSON.stringify(body).includes(CHALLENGE), 'and its id is nowhere in the response');
+  assert.equal(h.db.rows('recovery_challenges').length, 1, 'the read changes nothing');
+});
+
+test('the newest link challenge is reported even when a recovery attempt is newer', async () => {
+  const h = harness({
+    challenges: [
+      { id: OTHER_CHALLENGE, intent: 'link', status: 'pending', expires_at: future(), created_at: ago(2000) },
+      { id: CHALLENGE, intent: 'recover', status: 'pending', expires_at: future(), created_at: ago(1000) },
+    ],
+  });
+  const body = await (await read(h, 'alice')).json();
+  assertRecoverySnapshot(body);
+  assert.equal(body.recovery.challenge?.id, OTHER_CHALLENGE, 'the link row is the one with something to report');
+});
+
+test('before migration 0019 the route cannot tell the two intents apart, so the feature is unavailable', async () => {
+  for (const code of ['PGRST204', '42703']) {
+    const h = harness({ challenges: [{ id: CHALLENGE, status: 'pending', expires_at: future() }] });
+    const failed = withoutColumn(h.db, 'recovery_challenges', 'intent', code);
+    const response = await read(h, 'alice');
+    await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
+    assert.ok(failed.length > 0, `${code} is what refused it`);
+    failed.restore();
+  }
 });
 
 test('before migration 0017 the unresolved operation inventory cannot be answered either', async () => {

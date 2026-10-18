@@ -12,8 +12,10 @@ import {
 } from '@/lib/operations';
 import {
   ACCOUNT_FEATURES,
+  CHALLENGE_INTENT,
   IMPLEMENTED_FEATURES,
   hashToken,
+  isRecoveryUnavailable,
   linkedMethod,
   readRecoverySnapshot,
   recoveryRevision,
@@ -386,14 +388,23 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
   // a superseded challenge outlives the request that replaced it and the next
   // read reports it as an open verification, masked as the address now in
   // flight rather than its own.
+  //
+  // Narrowed to the link intent (0019, Ruling 15). The unauthenticated
+  // POST /api/recovery/request writes rows to this table for the same
+  // profile_id, and this delete used to be scoped to the owner alone, which
+  // would have made a signed-in owner linking an address cancel an in-flight
+  // recovery attempt. Their rows are not this operation's to close: the only
+  // thing that can settle one is the browser that holds its nonce.
   const { error: supersedeError } = await supabase
     .from('recovery_challenges')
     .delete()
-    .eq('profile_id', userId);
+    .eq('profile_id', userId)
+    .eq('intent', CHALLENGE_INTENT.LINK);
   if (supersedeError) throw supersedeError;
 
   const { error: challengeError } = await supabase.from('recovery_challenges').insert({
     profile_id: userId,
+    intent: CHALLENGE_INTENT.LINK,
     email_hash: hashToken(email),
     // There is no client nonce in the link intent: the caller already holds a
     // verified session, which binds this request more strongly than a nonce
@@ -442,6 +453,7 @@ async function checkRecovery(supabase, { userId, challengeId }) {
     .from('recovery_challenges')
     .select('id, email_hash, expires_at')
     .eq('profile_id', userId)
+    .eq('intent', CHALLENGE_INTENT.LINK)
     .eq('id', challengeId)
     .maybeSingle();
   if (error) throw error;
@@ -478,12 +490,17 @@ async function checkRecovery(supabase, { userId, challengeId }) {
   return refused(MESSAGES.changeGone);
 }
 
-/** Removes one of the caller's challenges. Owner scoped, so nobody else's can be reached. */
+/**
+ * Removes one of the caller's link challenges. Scoped to the owner AND to the
+ * link intent, so neither another household's row nor a recovery attempt on
+ * this one can be reached by naming its id.
+ */
 async function closeChallenge(supabase, { userId, challengeId }) {
   const { error } = await supabase
     .from('recovery_challenges')
     .delete()
     .eq('profile_id', userId)
+    .eq('intent', CHALLENGE_INTENT.LINK)
     .eq('id', challengeId);
   if (error) throw error;
 }
@@ -507,6 +524,7 @@ async function cancelRecovery(supabase, { userId, challengeId }) {
     .from('recovery_challenges')
     .select('id')
     .eq('profile_id', userId)
+    .eq('intent', CHALLENGE_INTENT.LINK)
     .eq('id', challengeId)
     .maybeSingle();
   if (error) throw error;
@@ -554,16 +572,21 @@ async function perform(supabase, { request, action, userId, operationId, payload
 }
 
 /**
- * Proves migration 0018 is applied before anything is written, scoped to the
- * caller like every other statement here. Without it a missing table would be
- * discovered after the address had been linked, and the 503's "nothing was
- * changed" would be false.
+ * Proves migrations 0018 and 0019 are applied before anything is written,
+ * scoped to the caller like every other statement here. Without it a missing
+ * table or column would be discovered after the address had been linked, and
+ * the 503's "nothing was changed" would be false. `intent` is named, rather
+ * than only selected, for two reasons: a filter on a column that does not exist
+ * is the same error as selecting one, and it keeps the rule that every statement
+ * this route makes on the table is narrowed to its own intent, so none of them
+ * can see or count a recovery attempt.
  */
 async function requireChallengeTable(supabase, profileId) {
   const { error } = await supabase
     .from('recovery_challenges')
     .select('id', { count: 'exact', head: true })
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('intent', CHALLENGE_INTENT.LINK);
   if (error) throw error;
 }
 
@@ -674,7 +697,7 @@ export async function POST(request) {
   } catch (err) {
     if (err instanceof StaleRevisionError) return revisionConflict(err.revision, requestId);
     if (err?.message === OPERATION_INPUT_MISMATCH) return operationMismatch(requestId);
-    if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
+    if (isOperationsUnavailable(err) || isRecoveryUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
     // The detail goes to the log: a provider or database message is not for the person.
