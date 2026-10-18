@@ -2,9 +2,11 @@
  * GET /api/luna/capabilities (B03 plan, Task 2c, Ruling L7).
  *
  * This is the route that makes the whole package honest. Luna answers and
- * cites; Luna does not act. Five of the ten registry operations are the tool
- * half and are deliberately not built, and this route has to say so in the
- * contract's own vocabulary without the UI appearing broken.
+ * cites; Luna does not act. The registry holds ten operations, six built and
+ * four not, and the four unbuilt ones are the tool half; the `proposal`
+ * payload that drives their controls is a field this release never emits. This
+ * route has to say that in the contract's own vocabulary without the UI
+ * appearing broken.
  *
  * THE TRAP, and it is the reason this file exists. `available: false` looks
  * like the obvious way to report "no tools". It is wrong. `available` is a
@@ -36,6 +38,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
+import { auditOwnerScope } from './helpers/isolationKit.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 
@@ -237,13 +240,24 @@ test('a profile_id in the query changes nothing, and two households get the iden
   assert.deepEqual(theirs, mine);
 });
 
-test('no conversation, turn or run is read to answer what the deployment can do', async () => {
+test('no turn and no run is read to answer what the deployment can do, and its one query is scoped to the caller', async () => {
   const h = harness();
   await read(h, 'alice');
   const reads = h.db.queryLog.filter((entry) => entry.table === 'luna_turns' || entry.table === 'luna_runs');
   assert.deepEqual(reads, [], 'answering "what can Luna do" needs nobody\'s conversation');
   const writes = h.db.queryLog.filter((entry) => entry.operation !== 'select');
   assert.deepEqual(writes, [], 'a read route writes nothing');
+
+  // The schema probe is the only statement this route makes, and it is scoped
+  // to the caller on the query itself rather than only in route logic. Asserted
+  // rather than described, because ROUTE_COVERAGE claims it: a probe that lost
+  // its profile_id filter would ask about every household's rows to answer a
+  // question that is about no household. What the query log records is the
+  // table, the operation and the filters; `head: true` and the count mode are
+  // NOT recorded, which is why no coverage line claims the probe reads no rows.
+  const probes = h.db.queryLog.filter((entry) => entry.table === 'luna_conversations');
+  assert.equal(probes.length, 1, 'one probe for the answer, not one per field in it');
+  auditOwnerScope(probes, h.identities.alice.id, 'GET /api/luna/capabilities');
 });
 
 // ---------------------------------------------------------------------------

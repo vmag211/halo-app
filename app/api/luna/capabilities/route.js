@@ -15,10 +15,13 @@ import { LUNA_FEATURE, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
  * that misses one is discarded whole.
  *
  * THIS IS THE ROUTE THAT MAKES THE PACKAGE HONEST. Luna answers and cites;
- * Luna does not act. Five of the ten Luna operations are the tool half
- * (`luna.confirm`, `luna.proposal.edit`, `luna.proposal.cancel`,
- * `luna.operation`, and the proposals that drive them) and are deliberately
- * not built. This route says so in the contract's own vocabulary.
+ * Luna does not act. The registry at runtime.ts:58-67 holds TEN operations:
+ * six are built and four are not, and the four are the tool half
+ * (`luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm` and
+ * `luna.operation`). The `proposal` payload that drives every one of their
+ * controls is a FIELD this release never emits rather than an operation it did
+ * not build, which is why the action surface disappears rather than breaking.
+ * This route says all of that in the contract's own vocabulary.
  *
  * HOW, and why not the obvious way (Ruling L7). `available: true` with
  * `tools: []`:

@@ -2,7 +2,7 @@
 
 One document per build package, each covering only the operations that package changed. `b01.openapi.json` is version `b01-1` (six B01 operations) and `b03.openapi.json` is version `b03-1` (the six Luna operations B03 built). Both are OpenAPI 3.1 with the same shape: a `paths` map whose statuses are the ones the handlers can actually produce, synthetic `{ operationId, status, body }` fixtures under `fixtures/<package>/`, and an Ajv 2020 conformance suite that runs the real handlers through the isolated route harness. Neither certifies a deployment, a provider right or a source's meaning.
 
-# B03 Luna contract
+## B03 Luna contract
 
 `b03.openapi.json`, version `b03-1`, documents `lunaCapabilities`, `lunaConversation`, `lunaClear`, `lunaMessage`, `lunaRunStatus` and `lunaRunCancel`. `test/contractsB03.test.mjs` is its conformance suite, and it does three things B01's does not.
 
@@ -18,7 +18,7 @@ Fixtures use reserved `example.test` hosts and obviously synthetic ids, and a te
 
 Run `node --test test/contractsB03.test.mjs`. The capability flag is off in every environment and migration 0020 is applied nowhere, so nothing in this contract has run against a real model or a real Supabase project.
 
-# B01 executable API contract
+## B01 executable API contract
 
 `b01.openapi.json` is OpenAPI 3.1, contract version `b01-1`. It documents six operations changed by B01, not the whole HALO API. Existing approved frontend types remain handwritten and unchanged; `test/contractsB01.test.mjs` checks actual handler responses against the executable schemas with Ajv 2020 and format validation. Types have not been generated or proven exhaustive against this document.
 

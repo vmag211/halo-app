@@ -46,6 +46,10 @@ import addFormats from 'ajv-formats';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 
+// The run model, to reach `generating`: no route sets it, the scheduled
+// generation does, by claiming a queued run.
+const luna = await import('../lib/luna.js');
+
 const contract = JSON.parse(await readFile(new URL('../docs/backend/contracts/b03.openapi.json', import.meta.url), 'utf8'));
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -175,7 +179,7 @@ const object = (value) => !!value && typeof value === 'object' && !Array.isArray
 const text = (value, max = 16000) =>
   typeof value === 'string' && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
 
-/** `parseCalendarDate` (date-input.ts:2-8), which `sourceInstant` calls. */
+/** `parseCalendarDate` (date-input.ts:2-10), which `sourceInstant` calls. */
 function parseCalendarDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split('-').map(Number);
@@ -366,6 +370,53 @@ test('the transcribed validators reject what the client rejects, in both directi
   assert.equal(validLunaProposal({ id: 'p1', revision: 0, title: 't', summary: 's', destructive: false, expiresAt: '2026-10-19T00:00:00Z', status: 'review', changes: [] }), false);
   assert.equal(validLunaOperation({ id: 'o1', status: 'unknown' }), true);
   assert.equal(validLunaOperation({ operationId: 'o1', status: 'succeeded' }), false, 'the receipt id must be `id`');
+});
+
+/** The validator each operation's 200 body is checked with by the client. */
+const VALIDATOR = Object.freeze({
+  lunaCapabilities: validLunaCapabilities,
+  lunaConversation: validLunaConversation,
+  lunaClear: validLunaConversation,
+  lunaMessage: validLunaRun,
+  lunaRunStatus: validLunaRun,
+  lunaRunCancel: validLunaRun,
+});
+
+test('every success fixture is a payload the client would actually accept, not only one the document allows', () => {
+  // The fixtures above are checked against the OpenAPI schemas, which is a
+  // different and weaker thing: the document is ours, and a fixture that
+  // satisfies it could still be discarded by the client. A fixture is supposed
+  // to be an example a reader can trust, so each success body goes through the
+  // transcribed validator too.
+  const checked = [];
+  for (const fixture of fixtures) {
+    if (fixture.status !== 200) {
+      // An error body is never validated by the client: runtime.ts discards it
+      // and shows its own canned sentence. What must stay true is that one
+      // could not be mistaken for a payload by a caller that forgot to look at
+      // the status.
+      assert.equal(
+        VALIDATOR[fixture.operationId](fixture.body),
+        false,
+        `${fixture.name}: an error envelope must not validate as a Luna payload`,
+      );
+      continue;
+    }
+    checked.push(fixture.name);
+    const absent = Object.hasOwn(fixture.body, 'conversation') && fixture.body.conversation === null;
+    if (absent) {
+      // The one documented 200 that is deliberately not a valid conversation.
+      assert.equal(fixture.operationId, 'lunaConversation', `${fixture.name}: only the read has an absent shape`);
+      assert.equal(validLunaConversation(fixture.body), false, `${fixture.name}: the absent shape is not a conversation`);
+      continue;
+    }
+    assert.equal(
+      VALIDATOR[fixture.operationId](fixture.body),
+      true,
+      `${fixture.name}: the client would discard this fixture`,
+    );
+  }
+  assert.ok(checked.length >= 12, `every success fixture was checked, got ${checked.length}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -658,6 +709,27 @@ test('B03 handler conformance: runs/status reports every state, and an id with n
   assert.equal(unknown.status, 'failed');
   assert.ok(unknown.message, 'and the sentence says the question is kept');
 
+  // `generating` is documented and fixtured, and no ROUTE sets it: the
+  // scheduled generation does, by claiming its own queued run. Claimed here
+  // through the same function the generation uses, so a handler-produced
+  // `generating` body really goes through the validator rather than only a
+  // fixture of one. The client renders it exactly like `queued`, which is why
+  // this status is easy to document and never actually produce.
+  //
+  // On a second run deliberately: `claimRun` is a compare and set from
+  // 'queued', so claiming the first run would have made its own scheduled
+  // generation exit quietly and the completed checks above would never have
+  // happened. That is the mechanism working, not a test artefact.
+  const { body: second } = await ask(h, messageBody({ id: uuid(2), conversationId: done.conversation.id }));
+  assert.ok(
+    await luna.claimRun(h.db, { profileId: h.identities.alice.id, runId: second.id }),
+    'a queued run can be claimed, which is what moves it to generating',
+  );
+  const { body: generating } = await runStatus(h, second.id);
+  acceptable(validLunaRun, generating, 'runs/status, generating');
+  assert.equal(generating.status, 'generating');
+  assert.equal('conversation' in generating, false, 'still not terminal, so still no transcript');
+
   await runStatus(h, 'x'.repeat(201), { expected: 400 });
   await runStatus(h, queued.id, { as: null, expected: 401 });
   await runStatus(h, queued.id, { env: {}, expected: 503 });
@@ -848,6 +920,20 @@ test('the two run routes answer the same run with the same shape, and apply the 
   const { body: stopped } = await stop(h, queued.id);
   const { body: after } = await runStatus(h, queued.id);
   assert.deepEqual(after, stopped, 'runs/status and runs/cancel agree on a settled run, field for field');
+
+  // Again with ANOTHER RUN OPEN, which is a weaker-looking case that covers a
+  // real gap. The comparison above runs when nothing is in flight, so
+  // `pendingRequest` is null on both answers and a route passing a different
+  // `staleAfterMs` into `conversationPayload` would still agree. With a second
+  // run queued, `pendingRequest` is what that window decides, so the two
+  // routes now have something to disagree about.
+  assert.ok(after.conversation, 'the settled run carries the conversation');
+  assert.equal(after.conversation.pendingRequest, null, 'and with nothing in flight there is nothing pending');
+  const { body: open } = await ask(h, messageBody({ id: uuid(2), conversationId: after.conversation.id }));
+  const { body: polledAgain } = await runStatus(h, queued.id);
+  const { body: stoppedAgain } = await stop(h, queued.id);
+  assert.equal(polledAgain.conversation.pendingRequest?.runId, open.id, 'the open run is what pends');
+  assert.deepEqual(stoppedAgain, polledAgain, 'and the two routes still agree, with a run in flight');
 
   // And an id with no run gets the same answer from both.
   const missing = uuid(703);

@@ -997,9 +997,10 @@ test('the app-wide ceiling fails CLOSED too, because an anonymous id is cheap to
  * replaced its `fallback` half: the stub ignores the limiter OBJECT, so binding
  * the wrong limiter to the right key (the app-wide ceiling used with a
  * per-household key, say) would change which window a budget really spends
- * from and break no behavioural test. The order the three are consulted in is
- * proved behaviourally above; what is left here is which limiter sits at each
- * call site.
+ * from and break no behavioural test. What is left here is therefore which
+ * limiter sits at each call site. The array position still pins the order too,
+ * which is deliberate redundancy rather than the only proof of it: the order
+ * the three keys are consulted in is already proved behaviourally above.
  */
 const sourceOf = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), 'utf8');
 
@@ -1027,7 +1028,7 @@ test('Ruling L15: the thread budget is a daily window, large enough that only a 
   assert.ok(thread.limit * 5 < 450, `a thread must not be able to take the day: ${thread.limit} of 450`);
 });
 
-test('each budget spends from the limiter it was sized against, at its own call site', () => {
+test('each budget spends from the limiter it was sized against, at its own call site and in that order', () => {
   const route = sourceOf('app/api/luna/messages/route.js');
   const asked = [...route.matchAll(/checkLimit\(\s*(\w+),/g)].map((found) => found[1]);
   assert.deepEqual(asked, [
