@@ -108,6 +108,16 @@ export async function GET(request) {
 
     // See "WHEN THE CONVERSATION IS ATTACHED" above. The same rule is applied
     // by POST /api/luna/runs/cancel, whose outcomes are all terminal.
+    //
+    // B03 task 3 considered hoisting these three lines into lib/luna.js, which
+    // owns every piece of them, and decided against it: POST /api/luna/messages
+    // is the third route that returns a LunaRun and it deliberately attaches
+    // the conversation on EVERY status (Ruling L12), so a shared helper would
+    // serve two of the three and would read as the house rule rather than as
+    // the choice these two made. What the duplication risks is the two routes
+    // drifting apart, and that is pinned behaviourally instead:
+    // test/contractsB03.test.mjs asserts this route and runs/cancel answer with
+    // the same shape for the same run, terminal and non-terminal.
     const status = effectiveRunStatus(row);
     const conversation = TERMINAL.includes(status) ? await conversationPayload(supabaseAdmin, { profileId: userId }) : null;
     return NextResponse.json(runBody({ row, conversation }), { headers });

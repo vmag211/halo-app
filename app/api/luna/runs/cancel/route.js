@@ -137,6 +137,12 @@ async function requireLunaSchema(supabase, profileId) {
  * requires it, and for `cancelled` and `failed` it is what puts the person's
  * kept question back on their screen (`:64` applies it before it reads the
  * status). The same rule is applied by GET /api/luna/runs/status.
+ *
+ * Still duplicated after B03 task 3 read all six Luna routes together, and
+ * deliberately so: the reasoning is in the matching comment in
+ * app/api/luna/runs/status/route.js, and what the duplication risks, the two
+ * routes drifting apart, is pinned behaviourally by test/contractsB03.test.mjs
+ * rather than by sharing this code.
  */
 async function currentRun(supabase, { profileId, id }) {
   const row = await findRun(supabase, { profileId, id });

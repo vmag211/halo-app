@@ -49,7 +49,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
+import { createRouteHarness, muteConsoleError, LIMITER_UNAVAILABLE } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { auditOwnerScope } from './helpers/isolationKit.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
@@ -912,15 +912,94 @@ test('the per-conversation budget is one thread\'s, so another household\'s thre
 });
 
 /**
+ * What a limiter outage does to each of the three budgets.
+ *
+ * This is the half of these three decisions a test can now reach, and it could
+ * not when this file was written: the harness's stub discarded `checkLimit`'s
+ * `opts`, so `fallback` was unfalsifiable and the direction each budget fails
+ * in was pinned from the route's source instead. B02 task 7 added the
+ * `LIMITER_UNAVAILABLE` sentinel, which follows the real `checkLimit` through
+ * an outage and returns the call site's own `fallback`, so B03 task 3 replaced
+ * those source assertions with these three.
+ *
+ * Getting a direction backwards is silent otherwise: a spend bound that fails
+ * open stops being a bound exactly when the limiter is down, and the critical
+ * path failing closed means a limiter hiccup stops a household asking at all.
+ * One decide per test, unavailable for one key and allowing the others, so each
+ * budget's direction is proved on its own rather than by whichever check
+ * happens to run first.
+ */
+const outage = (unreachable) => (key) => (unreachable(key) ? LIMITER_UNAVAILABLE : true);
+/** The per-household key: `assistant:<profile id>`, which is every `assistant:` key but the ceiling. */
+const PER_HOUSEHOLD = (key) => key.startsWith('assistant:') && key !== 'assistant:global';
+
+test('the household\'s hourly bound fails OPEN: a limiter outage must not stop somebody asking', async (t) => {
+  const logged = muteConsoleError(t);
+  const h = harness({ rateLimit: outage(PER_HOUSEHOLD) });
+  const body = assertLunaRun(await (await send(h, 'alice', message())).json());
+
+  assert.equal(body.status, 'queued', 'the question went through while the limiter was unreachable');
+  assert.equal(h.db.rows('luna_runs').length, 1);
+  assert.match(
+    logged.mock.calls.map((call) => String(call.arguments[0])).join('\n'),
+    /luna limiter unavailable \(limiter unreachable\); allowing the call\./,
+    'and the outage is logged as an allowance, at this call site, by name',
+  );
+});
+
+test('Ruling L15: the thread\'s daily budget fails CLOSED, so an outage pauses Luna rather than unbounding it', async (t) => {
+  const logged = muteConsoleError(t);
+  let down = false;
+  const h = harness({ rateLimit: (key) => (down && key.startsWith('luna:conversation:') ? LIMITER_UNAVAILABLE : true) });
+  const first = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(1) }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  const before = h.db.rows('luna_turns').length;
+
+  // Turn two is the first one a thread is charged for, so it is the first one
+  // an outage on that budget can refuse.
+  down = true;
+  const res = await send(h, 'alice', message({ id: uuid(2), conversationId: first.conversation.id }));
+
+  const envelope = await expectEnvelope(res, { status: 429, code: 'rate_limited' });
+  assert.equal(/limit/i.test(envelope.message), true, 'the same calm sentence, not an error');
+  assert.equal(h.db.rows('luna_turns').length, before, 'and the refused turn stored nothing');
+  assert.equal(h.db.rows('luna_runs').length, 1, 'never a false run');
+  assert.match(
+    logged.mock.calls.map((call) => String(call.arguments[0])).join('\n'),
+    /luna conversation limiter unavailable \(limiter unreachable\); skipping the call\./,
+    'logged as a refusal, at this call site, by name',
+  );
+});
+
+test('the app-wide ceiling fails CLOSED too, because an anonymous id is cheap to mint', async (t) => {
+  const logged = muteConsoleError(t);
+  const h = harness({ rateLimit: outage((key) => key === 'assistant:global') });
+  const res = await send(h, 'alice', message());
+
+  await expectEnvelope(res, { status: 429, code: 'rate_limited' });
+  assert.deepEqual(h.db.rows('luna_runs'), [], 'nothing was created');
+  assert.deepEqual(h.db.rows('operations'), []);
+  assert.deepEqual(h.provider.calls, [], 'and no model was asked');
+  assert.match(
+    logged.mock.calls.map((call) => String(call.arguments[0])).join('\n'),
+    /luna global limiter unavailable \(limiter unreachable\); skipping the call\./,
+    'logged as a refusal, at this call site, by name',
+  );
+});
+
+/**
  * Two things the route depends on that NO route test can observe, so they are
  * pinned from the source instead.
  *
- * The harness's limiter stand-in answers by key and ignores both the limiter
- * object and `checkLimit`'s `fallback`, so a window length and the direction a
- * budget fails in during an Upstash outage are invisible through `h.call`.
- * They are still decisions, and getting either backwards is silent: a budget
- * that fails open stops being a bound exactly when the limiter is down, and an
- * hourly thread window could never bite at all.
+ * A sliding window's length is invisible through `h.call`: the stub answers by
+ * key and never consults the limiter it was handed. The same blindness is why
+ * the second test is still here after the behavioural outage tests above
+ * replaced its `fallback` half: the stub ignores the limiter OBJECT, so binding
+ * the wrong limiter to the right key (the app-wide ceiling used with a
+ * per-household key, say) would change which window a budget really spends
+ * from and break no behavioural test. The order the three are consulted in is
+ * proved behaviourally above; what is left here is which limiter sits at each
+ * call site.
  */
 const sourceOf = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), 'utf8');
 
@@ -948,15 +1027,17 @@ test('Ruling L15: the thread budget is a daily window, large enough that only a 
   assert.ok(thread.limit * 5 < 450, `a thread must not be able to take the day: ${thread.limit} of 450`);
 });
 
-test('each budget fails in the direction it was chosen for, and they are consulted in that order', () => {
+test('each budget spends from the limiter it was sized against, at its own call site', () => {
   const route = sourceOf('app/api/luna/messages/route.js');
-  const asked = [...route.matchAll(/checkLimit\(\s*(\w+),[\s\S]*?fallback:\s*(true|false)/g)].map((found) => [found[1], found[2] === 'true']);
+  const asked = [...route.matchAll(/checkLimit\(\s*(\w+),/g)].map((found) => found[1]);
   assert.deepEqual(asked, [
-    // Critical path: a limiter hiccup must not block a household from asking.
-    ['assistantLimiter', true],
-    // Spend bounds: during an outage a paused Luna beats an unbounded one.
-    ['lunaConversationLimiter', false],
-    ['assistantGlobalLimiter', false],
+    // The critical path, on /api/assistant's own key, because both surfaces
+    // spend from one provider quota.
+    'assistantLimiter',
+    // The thread's own daily window, which only this route has.
+    'lunaConversationLimiter',
+    // The app-wide ceiling, shared with /api/assistant.
+    'assistantGlobalLimiter',
   ]);
 });
 
