@@ -13,7 +13,7 @@ The B01 checkpoint follows this section unchanged and is still the handoff for e
 | 3. `GET /api/account`, recovery feature | Complete locally at `44d0b72` |
 | 4. Link intent via `POST /api/account/commands` | Not started |
 | 5. `POST /api/recovery/request` | Not started |
-| 6. Turnstile verification | Blocked: no site key in any environment |
+| 6. Turnstile verification | Built and reviewed, acceptance blocked on three things, not one: the site key, the SECRET key, and the frontend sending the token field. BE-340's accessible fallback is separately NOT met and needs a product and ops decision no key supplies |
 | 7. `POST /api/recovery/status` | Not started |
 | 8. `POST /api/recovery/complete` | Not started |
 | 9. Device listing and revocation | Not started |
