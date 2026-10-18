@@ -344,6 +344,68 @@ async function started(supabase, owner, text = 'What is radon?') {
   return { conversation, turn, run };
 }
 
+test('a run the server has no record of is answered, not left spinning', () => {
+  // A question refused before a run existed (rate limited, for instance) still
+  // leaves the client polling runs/status with its own message id, and it only
+  // stops polling for a terminal status. A 404 would map to "unavailable" and
+  // park the attempt for ever, so the honest answer is that nothing is coming.
+  const body = luna.unknownRunBody('33333333-3333-4333-8333-333333333333');
+  assert.deepEqual(body, {
+    id: '33333333-3333-4333-8333-333333333333',
+    status: 'failed',
+    message: luna.LUNA_RUN_FAILED_MESSAGE,
+  });
+  assert.equal(luna.unknownRunBody(''), null, 'an id the client never sent is not a run at all');
+  assert.equal(luna.unknownRunBody('x'.repeat(300)), null);
+});
+
+test('an answer and its settlement go together: a cancelled run keeps no answer', async () => {
+  const supabase = db();
+  const { conversation, run } = await started(supabase, ALICE);
+  await luna.claimRun(supabase, { profileId: ALICE, runId: run.id });
+
+  const written = await luna.recordAnswer(supabase, {
+    profileId: ALICE,
+    conversationId: conversation.id,
+    runId: run.id,
+    text: 'Radon is a gas.',
+    sources: [{ title: 'EPA', url: 'https://epa.gov/radon' }],
+    evidence: [{ kind: 'fact', text: 'Radon is a gas.', sourceIndexes: [0] }],
+  });
+  assert.equal(written.settled, true);
+  assert.equal(written.run.status, 'completed');
+  const payload = await luna.conversationPayload(supabase, { profileId: ALICE });
+  assert.deepEqual(payload.messages.map((item) => item.role), ['user', 'assistant']);
+
+  // Now the race the client guards against: the person cancelled while the
+  // model was still writing, and the answer arrives afterwards.
+  const second = await started(supabase, BOB);
+  await luna.cancelRun(supabase, { profileId: BOB, id: second.run.id });
+  const late = await luna.recordAnswer(supabase, {
+    profileId: BOB,
+    conversationId: second.conversation.id,
+    runId: second.run.id,
+    text: 'An answer nobody is waiting for.',
+  });
+  assert.equal(late.settled, false, 'the run stays cancelled');
+  assert.equal(late.run.status, 'cancelled');
+  const bobs = await luna.conversationPayload(supabase, { profileId: BOB });
+  assert.deepEqual(bobs.messages.map((item) => item.role), ['user'], 'and the answer is not left in the transcript');
+});
+
+test('the generation gives itself a deadline, so it settles the run instead of being killed', async () => {
+  assert.ok(luna.LUNA_RUN_DEADLINE_MS > 0);
+  const slow = luna.deadlineFetch(async (url, init) => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { aborted: init.signal.aborted, url: String(url) };
+  }, 1);
+  const first = await slow('https://provider.example.test/v1/embeddings');
+  assert.equal(first.aborted, true, 'the call is cut off at the deadline rather than running to the ceiling');
+
+  const quick = luna.deadlineFetch(async (url, init) => ({ aborted: init.signal.aborted }));
+  assert.equal((await quick('https://provider.example.test/v1/embeddings')).aborted, false);
+});
+
 // ---------------------------------------------------------------------------
 // The conversation the client is given back
 // ---------------------------------------------------------------------------
