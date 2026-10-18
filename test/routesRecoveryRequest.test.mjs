@@ -42,7 +42,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
+import { createRouteHarness, muteConsoleError, LIMITER_UNAVAILABLE } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope, loggedText } from './helpers/envelope.mjs';
@@ -689,6 +689,24 @@ test('a client that spends its budget is refused even though the address has bud
   const refused = await ask(h, attempt(3, UNLINKED));
   await expectEnvelope(refused, { status: 429, code: 'rate_limited' });
   assert.equal(limiter.used.get(`recovery:client:${sha256(CLIENT_IP)}`), 3, 'the client window is what refused it');
+});
+
+test('a limiter that cannot answer shuts this route, rather than making it an open mail relay', async (t) => {
+  // Both recovery limiters here are `fallback: false`, which was unfalsifiable
+  // while the harness's stub discarded `opts`. The stub now follows the real
+  // `checkLimit` through a thrown decide, so the choice is pinned, and pinning
+  // it matters because POST /api/recovery/status deliberately makes the
+  // OPPOSITE choice: it fails open, since it writes nothing and sends nothing
+  // and must stay answerable. Two limiters with opposite fallbacks is only
+  // safe if each one's direction is a tested fact.
+  const logged = muteConsoleError(t);
+  const h = harness({ rateLimit: () => LIMITER_UNAVAILABLE });
+  const response = await ask(h, attempt(1, LINKED));
+  await expectEnvelope(response, { status: 429, code: 'rate_limited' });
+  await h.runAfter();
+  assert.equal(h.db.generatedLinks.length, 0, 'during a limiter outage nothing is sent to anybody');
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+  assert.match(loggedText(logged), /skipping the call/, 'and the outage is logged as a refusal, not as an allowance');
 });
 
 test('being rate limited does not reveal whether the address exists', async () => {
