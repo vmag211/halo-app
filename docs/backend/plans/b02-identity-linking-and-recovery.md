@@ -115,11 +115,46 @@ Requires `confirmAccountSwitch: true`, a matching `challengeId`, the single-use 
 
 Populate `recovery.devices[]` and support revoking a session by id with a revision. BE-227 requires revocation support and available records.
 
+### Task 11 (ADDED 2026-10-18, a defect in this plan found during Task 7): the verification step
+
+**This plan never assigned the step that marks a recovery challenge verified, and without it recovery
+cannot complete end to end.** Task 7's implementer found it by grepping rather than assuming: nothing in
+`app/` or `lib/` writes `status = 'verified'` or a `restore_token_hash` to a `recover` row. Task 5 sends
+through `generateLink({ type: 'magiclink', email })` with no redirect target, so clicking the emailed
+link signs the person in on the clicking device through Supabase's own flow and HALO never learns it
+happened. The plan went from `/request` straight to `/status` as though verification happened by itself.
+
+Not built in this package. Specified here so it is not rediscovered a third time:
+
+- The likely shape avoids HALO needing its own email provider. `generateLink` accepts a redirect target,
+  so the emailed link can return through a HALO landing route carrying an opaque reference to the
+  challenge; that route marks the challenge verified. The deployment must allowlist the redirect URL in
+  Supabase, which is configuration, not code.
+- The alternative is HALO sending its own mail with its own link, which needs an email provider that
+  does not exist today and which task 5 already records as unverified.
+- Whichever is chosen, the landing route is the only thing permitted to move a challenge to `verified`,
+  and it must not itself become a way to verify a challenge without proving control of the mailbox.
+
+Until this exists, `/status` can return `verified` only for a row seeded in a test, and the capability
+flag could not honestly be turned on even if the Turnstile keys, the frontend token field, the backup
+coverage and the retention decision all arrived.
+
 ### Task 10: Contracts, fixtures, tracker, checkpoint
 
 Extend `docs/backend/contracts/` with the recovery and account operations and synthetic fixtures, conformance-test the real handlers through the isolated harness against `validRecoveryStatus` and the account validators, update `requirements-tracker.md` for every BE id above, and write the B02 checkpoint.
 
 ---
+
+## Rulings made during execution, continued
+
+- **Ruling 28, 2026-10-18:** the restore token is DERIVED, not stored:
+  `HMAC-SHA256(HALO_RECOVERY_TOKEN_KEY, challengeId + nonce_hash)`. Migration 0018 stores only a hash and
+  its own comment says a leaked row must not be replayable, so there is nowhere for a plaintext token to
+  live, and `/status` must not write. Deriving it needs no schema change and keeps that property. A
+  missing key shuts recovery, exactly as the Turnstile secret does. Task 8 verifies with the same
+  function and a constant-time comparison. Cost if wrong: rotating the key invalidates every live
+  restore token, which for a flag-off capability with no live challenges costs nothing today and should
+  be written down before it does.
 
 ## Out of scope
 
