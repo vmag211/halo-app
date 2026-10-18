@@ -514,10 +514,27 @@ What this does NOT restore or undo: no challenge row is deleted, but which inten
    - A geocoder result with no usable coordinates is now a 404 "could not find coordinates", not a 500.
    - A stale edit of a home context returns 409 with the current revision.
    If you disagree with any, say so and Claude changes it.
-7. **The assistant sends household context by default (this was already true before B01, and B01 did not change it).** `app/api/assistant/route.js` sends the household's readings and symptom names to the free-tier model unless the environment variable `ASSISTANT_SEND_HOUSEHOLD_CONTEXT` is exactly `false`. If the variable is unset, it SENDS. Your September status note says production is `false`; Claude has not verified the live value (it never reads `.env*` or your Vercel settings). Pick one:
+7. **The assistant's household context is now fail-safe, and this item is mostly closed.** It used to send the household's readings and symptom names to the free-tier model unless `ASSISTANT_SEND_HOUSEHOLD_CONTEXT` was exactly `false`, so any unconfigured environment leaked them by default. Fixed in `bae920c`: `app/api/assistant/route.js:143` now sends only when the value is exactly the string `true`, so unset means NOT sent. What is left for you is the positive decision, not a leak to stop. Your September status note says production is `false`; Claude has not verified the live value (it never reads `.env*` or your Vercel settings). Pick one:
    - Confirm in Vercel that `ASSISTANT_SEND_HOUSEHOLD_CONTEXT` is set to `false` in EVERY environment (Production, Preview and Development), or
    - Tell Claude to change the check so it sends only when the value is exactly `true` (fails closed, with a test). With that change an unset variable means "do not send".
    `docs/backend/privacy-and-retention.md` lists exactly what leaves when it sends.
+
+### Decided 2026-10-18 by Vibhav
+
+- **No app store, no native build.** HALO ships as a responsive web app for phone and laptop only. Any
+  work that existed only to satisfy store submission or native packaging is out of scope. Note that
+  almost nothing in this document was store-driven, so this removes very little: the spec requirements,
+  the retention and backup decisions, the scientific review and the source licensing all stand.
+  `capacitor.config.json` is a dead leftover (no dependency, no code references it) and can be deleted.
+- **Push notifications on Apple devices: accepted as a pending feature.** Web push on iOS works only for
+  a web app the person has added to their Home Screen, and there is no install flow, so iOS users get no
+  push. Android browsers do get it. The built push stack (migration 0010, `/api/push/subscribe`,
+  `web-push`, VAPID, the daily job's delivery step) stays and serves Android. Consequence to design
+  around rather than ignore: on iOS the in-app alert surface (`/api/notifications`) is the ONLY way an
+  alert reaches someone, so no alert may be designed as if a push will arrive. Worth confirming against
+  the iOS version you are targeting, since browser capabilities move.
+
+---
 
 ## Part 4. For Yogi (frontend), when convenient
 
