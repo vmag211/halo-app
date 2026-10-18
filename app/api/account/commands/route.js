@@ -39,7 +39,7 @@ import {
  * `revoke-device` is RECOGNISED here, not implemented. Ruling 27 found that
  * the installed admin API (@supabase/supabase-js 2.110.7, enumerated off the
  * client object rather than trusted from documentation, and proved in
- * test/recoveryCapability.test.mjs) has nothing matching /session/i, and that
+ * test/recoveryCapability.test.mjs) has nothing matching /session|device/i, and that
  * `auth.admin.signOut` takes only the JWT of the CURRENT caller, which a
  * server never holds for a device other than the one making this request.
  * PostgREST exposes only the `public` schema, so `auth.sessions` is not
@@ -214,7 +214,7 @@ const MESSAGES = Object.freeze({
   nothingToRemove: 'There is no recovery address to remove.',
   conflict: 'This information changed. Please review it again.',
   mismatch: 'That request was already made with different details. Please try again.',
-  deviceRevocationUnavailable: 'Revoking a specific device is not available yet. Nothing was changed.',
+  deviceRevocationUnavailable: 'Revoking a specific device is not available. Nothing was changed.',
 });
 
 /** Thrown inside the operation when `expectedRevision` is not the current revision. */
@@ -325,7 +325,10 @@ function parsePayload(action, raw) {
     // registry to check the id against, because there is no capability to
     // populate one from (Ruling 27, see revokeDevice below): only the shape
     // is enforced here, and the action is refused the same way regardless of
-    // what id is sent.
+    // what id is sent. The bound is wider than remove-recovery's 40, because
+    // that id is always the fixed method id "email" while this one would
+    // name an actual device or session (a hashed fingerprint, say), which is
+    // plausibly a longer opaque value; it is still shape only and never read.
     const id = parseText(raw.id, { maxLength: 128, required: true, rejectControl: true });
     if (!id.ok) return { ok: false, fieldErrors: asField('payload.id', id) };
     const revision = parseBoundedInt(raw.revision, { min: 0, max: Number.MAX_SAFE_INTEGER });

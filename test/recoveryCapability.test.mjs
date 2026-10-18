@@ -224,16 +224,25 @@ function adminMethodNames(object) {
   return names;
 }
 
-test('Ruling 27: the admin API has no method that could list another identity\'s sessions', () => {
+/**
+ * The vocabulary a method for listing another identity's sessions or devices
+ * would use. Supabase's own naming is session-shaped (every real name found
+ * on the installed admin API is checked against this), but BE-227 is about
+ * the device capability, not the word "session" specifically, so a future
+ * method named the other way, for example `listDevices`, must be caught too.
+ */
+const SESSION_OR_DEVICE_SHAPED = /session|device/i;
+
+test('Ruling 27: the admin API has no method that could list another identity\'s sessions or devices', () => {
   const supabase = client();
   const names = adminMethodNames(supabase.auth.admin);
-  const sessionLike = names.filter((name) => /session/i.test(name));
+  const matches = names.filter((name) => SESSION_OR_DEVICE_SHAPED.test(name));
   assert.deepEqual(
-    sessionLike,
+    matches,
     [],
-    sessionLike.length
-      ? `found a session-shaped method on the installed admin API: ${sessionLike.join(', ')}. BE-227's device ` +
-        'listing may now be buildable; see docs/backend/requirements-tracker.md and re-open Task 9.'
+    matches.length
+      ? `found a session- or device-shaped method on the installed admin API: ${matches.join(', ')}. BE-227's ` +
+        'device listing may now be buildable; see docs/backend/requirements-tracker.md and re-open Task 9.'
       : undefined,
   );
 });
@@ -248,19 +257,21 @@ test('Ruling 27: admin.signOut takes one JWT, the caller\'s own, not a device or
   );
 });
 
-test('the probe discriminates: a session-shaped method is caught when one exists', () => {
+test('the probe discriminates: a session-shaped or device-shaped method is caught when one exists', () => {
   // Without this, the two tests above would also pass against a client that
-  // had grown a session-listing method anywhere in its surface, because the
-  // walk or the regex could be silently broken rather than genuinely finding
-  // nothing. This checks both against an object built to have exactly that.
+  // had grown a session- or device-listing method anywhere in its surface,
+  // because the walk or the regex could be silently broken rather than
+  // genuinely finding nothing. This checks both vocabularies, and both
+  // against an object built to have exactly that.
   const fakeAdmin = {
     listUsers() {},
     oauth: { revokeSession() {} },
+    mfa: { listDevices() {} },
     passkey: { nested: { listActiveSessions() {} } },
   };
   const names = adminMethodNames(fakeAdmin);
-  const sessionLike = names.filter((name) => /session/i.test(name)).sort();
-  assert.deepEqual(sessionLike, ['oauth.revokeSession'], 'one level deep is found');
+  const matches = names.filter((name) => SESSION_OR_DEVICE_SHAPED.test(name)).sort();
+  assert.deepEqual(matches, ['mfa.listDevices', 'oauth.revokeSession'], 'both vocabularies are found one level deep');
   assert.ok(
     !names.includes('passkey.nested.listActiveSessions') && !names.includes('passkey.nested'),
     'sanity: two levels deep is past the bound this probe checks, which matches the real admin object (no namespace nests inside another)',

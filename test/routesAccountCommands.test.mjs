@@ -1176,7 +1176,13 @@ test('revoke-device is a recognised action, refused with a terminal receipt rath
   const receipt = await response.json();
   assertAccountReceipt(receipt, id);
   assert.equal(receipt.status, 'failed');
-  assert.match(receipt.message, /not available/i);
+  // Ruling 29: pinned exactly, not just /not available/i, because that looser
+  // match would also have passed the earlier wording this replaced ("is not
+  // available YET"). Ruling 27 leaves open that Vibhav declines both named
+  // alternatives, which would make this permanent, so the message must not
+  // imply a timeline nobody has committed to.
+  assert.equal(receipt.message, 'Revoking a specific device is not available. Nothing was changed.');
+  assert.doesNotMatch(receipt.message, /\byet\b/i, 'no implied timeline');
   assert.equal(receipt.snapshot, undefined, 'a refusal carries no snapshot');
 
   const rows = h.db.rows('operations');
