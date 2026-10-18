@@ -269,7 +269,9 @@ test('POST /api/assistant sends the caller\'s own context to the model and never
     // Household context is opt-in (ASSISTANT_SEND_HOUSEHOLD_CONTEXT must be
     // exactly 'true'). This test is about isolation BETWEEN households once it
     // is on, so it turns it on deliberately.
-    env: { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true' },
+    // The model ids are named because an unset one now fails loudly instead
+    // of selecting a paid default (B03 Ruling L1).
+    env: { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true', ASSISTANT_EMBED_MODEL: 'test-embed-model', ASSISTANT_CHAT_MODEL: 'test-chat-model' },
     provider: ({ url, body }) => {
       sent.push({ url, body });
       if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(1536).fill(0.01) }] });

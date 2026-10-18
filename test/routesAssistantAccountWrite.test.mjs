@@ -12,7 +12,11 @@ const OWNED = Object.keys(OWNED_TABLES);
 // ASSISTANT_SEND_HOUSEHOLD_CONTEXT is exactly 'true'. These tests exercise the
 // full pipeline, so they turn it on explicitly. The default (unset) is covered
 // by the household-context gate tests at the end of this file.
-const KEY = { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true' };
+// The model ids are named explicitly because an unset one now fails loudly
+// rather than quietly selecting a paid OpenAI default (B03 Ruling L1), which
+// is what a deployment has to do too.
+const MODELS = { ASSISTANT_EMBED_MODEL: 'test-embed-model', ASSISTANT_CHAT_MODEL: 'test-chat-model' };
+const KEY = { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true', ...MODELS };
 const ASK_FIRST = 'Ask a question to get started.';
 
 const model = ({ url }) => {
@@ -79,6 +83,22 @@ test('assistant legacy request: a diagnostic question is declined, and with no m
   const body = await none.json();
   assert.deepEqual(Object.keys(body).sort(), ['answer', 'citations', 'configured', 'disclaimer', 'message', 'note', 'reason']);
   assert.deepEqual([body.answer, body.configured, body.reason, body.message], [null, false, 'no_source', NO_SOURCE]);
+});
+
+test('assistant legacy request: with a key but no model id configured, nothing is sent and the answer says unavailable', async (t) => {
+  quiet(t);
+  // B03 Ruling L1: an unset ASSISTANT_EMBED_MODEL used to mean
+  // text-embedding-3-small, a paid OpenAI model, in any environment nobody had
+  // configured. It now fails loudly, which the route turns into its existing
+  // soft "unavailable" answer, and crucially spends nothing.
+  const ctx = setup({ env: { ASSISTANT_MODEL_KEY: 'test-model-key' }, provider: model });
+  ctx.h.db.registerRpc('match_assistant_corpus', () => []);
+  const res = await ask(ctx, { question: 'What is PFOS?' });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual([body.answer, body.configured, body.reason], [null, true, 'unavailable']);
+  assert.deepEqual(ctx.outbound, [], 'no provider was called, so no paid model could be billed');
+  assert.deepEqual(ctx.h.db.rpcCalls, [], 'and nothing was retrieved');
 });
 
 test('assistant legacy request: a page that is unknown or not text is ignored, not an error', async (t) => {
@@ -310,7 +330,7 @@ test('account: auth failures use the envelope and echo a client request id; ids 
 
 /** Asks one question with the gate set to `value` ('' means the variable is unset). */
 async function gated(value) {
-  const env = { ASSISTANT_MODEL_KEY: 'test-model-key' };
+  const env = { ASSISTANT_MODEL_KEY: 'test-model-key', ...MODELS };
   if (value !== '') env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT = value;
   const ctx = setup({ env, provider: model });
   ctx.h.db.registerRpc('match_assistant_corpus', () => []);
@@ -343,7 +363,7 @@ const sourced = (env) => {
 };
 
 test('household-context gate: with the gate off the question reaches the model but the household block does not', async () => {
-  const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key' });
+  const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key', ...MODELS });
   assert.equal((await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'How is my air today?' } })).status, 200);
   const sent = prompt(ctx);
   assert.ok(sent.includes('How is my air today?'), 'the question still reaches the model');
@@ -352,7 +372,7 @@ test('household-context gate: with the gate off the question reaches the model b
 });
 
 test('household-context gate: with the gate on the household block is built into the prompt', async () => {
-  const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true' });
+  const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true', ...MODELS });
   assert.equal((await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'How is my air today?' } })).status, 200);
   assert.ok(prompt(ctx).includes('HOUSEHOLD CONTEXT'), 'the household block is present when explicitly enabled');
 });
