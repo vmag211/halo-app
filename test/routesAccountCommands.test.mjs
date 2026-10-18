@@ -1139,9 +1139,9 @@ test('an unauthenticated command is refused', async () => {
 // Input: the server is the authority, never the client
 // ---------------------------------------------------------------------------
 
-test('only the four recovery actions are accepted, and revoke-device is not one of them yet', async () => {
+test('only the five recovery actions are accepted', async () => {
   const h = harness();
-  for (const action of ['revoke-device', 'resolve-home', 'nonsense', '', null]) {
+  for (const action of ['resolve-home', 'nonsense', '', null]) {
     const response = await command(h, 'alice', {
       action,
       payload: {},
@@ -1152,6 +1152,103 @@ test('only the four recovery actions are accepted, and revoke-device is not one 
     assert.equal(body.field_errors[0].field, 'action', `${action} is not a recovery action`);
   }
   assert.equal(h.db.rows('operations').length, 0, 'an action we do not have claims no operation id');
+});
+
+// ---------------------------------------------------------------------------
+// revoke-device: recognised, refused (Ruling 27). Neither half of the real
+// feature is buildable against the installed client (see
+// test/recoveryCapability.test.mjs), so the action is answered with a
+// terminal failed receipt rather than the generic "unknown action" a
+// mistyped action name gets above. The two must not look the same: one is a
+// client bug, the other is an honest gap.
+// ---------------------------------------------------------------------------
+
+test('revoke-device is a recognised action, refused with a terminal receipt rather than treated as unknown', async () => {
+  const h = harness();
+  const id = op(1);
+  const response = await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { id: 'some-device-id', revision: 0 },
+    expectedRevision: 0,
+    operationId: id,
+  });
+  assert.equal(response.status, 200, 'recognised, not a 400 validation error');
+  const receipt = await response.json();
+  assertAccountReceipt(receipt, id);
+  assert.equal(receipt.status, 'failed');
+  assert.match(receipt.message, /not available/i);
+  assert.equal(receipt.snapshot, undefined, 'a refusal carries no snapshot');
+
+  const rows = h.db.rows('operations');
+  assert.equal(rows.length, 1, 'the attempt is still recorded in the ledger');
+  assert.equal(rows[0].kind, 'account.revoke-device');
+  assert.equal(rows[0].status, 'failed');
+});
+
+test('revoke-device changes nothing: the household record is untouched by the refusal', async () => {
+  const h = linked();
+  const before = { ...h.db.identities.get(h.identities.alice.id) };
+  const response = await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { id: 'some-device-id', revision: 0 },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+  const receipt = await response.json();
+  assert.equal(receipt.status, 'failed');
+  const after = h.db.identities.get(h.identities.alice.id);
+  assert.deepEqual(after, before, 'the refusal reads and writes nothing about the identity');
+});
+
+test('revoke-device still enforces the payload shape: unknown keys and a missing id or revision are refused', async () => {
+  const h = harness();
+  const extra = await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { id: 'some-device-id', revision: 0, label: 'my phone' },
+    expectedRevision: 0,
+    operationId: op(1),
+  });
+  const extraBody = await expectEnvelope(extra, { status: 400, code: 'validation_failed', retryable: false });
+  assert.equal(extraBody.field_errors[0].field, 'payload.label');
+
+  const missingId = await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { revision: 0 },
+    expectedRevision: 0,
+    operationId: op(2),
+  });
+  const missingIdBody = await expectEnvelope(missingId, { status: 400, code: 'validation_failed', retryable: false });
+  assert.equal(missingIdBody.field_errors[0].field, 'payload.id');
+
+  const missingRevision = await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { id: 'some-device-id' },
+    expectedRevision: 0,
+    operationId: op(3),
+  });
+  const missingRevisionBody = await expectEnvelope(missingRevision, { status: 400, code: 'validation_failed', retryable: false });
+  assert.equal(missingRevisionBody.field_errors[0].field, 'payload.revision');
+
+  assert.equal(h.db.rows('operations').length, 0, 'a payload that fails shape validation claims no operation id');
+});
+
+test('revoke-device is refused the same way whatever id or revision is sent, since there is no registry to check it against', async () => {
+  const h = harness();
+  const first = await (await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { id: 'device-one', revision: 0 },
+    expectedRevision: 0,
+    operationId: op(1),
+  })).json();
+  const second = await (await command(h, 'alice', {
+    action: 'revoke-device',
+    payload: { id: 'a-completely-different-id', revision: 0 },
+    expectedRevision: 1,
+    operationId: op(2),
+  })).json();
+  assert.equal(first.status, 'failed');
+  assert.equal(second.status, 'failed');
+  assert.equal(second.message, first.message, 'no id teaches the caller anything, because none is checked');
 });
 
 test('the feature must be one the contract names, and one this package has built', async () => {

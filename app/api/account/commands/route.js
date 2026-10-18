@@ -26,19 +26,31 @@ import {
  *
  *   { feature, action, payload, expectedRevision, operationId }  ->  AccountReceipt
  *
- * The write half of the account surface. `feature` is `recovery` here; the four
- * actions are the ones the real interface sends for a recovery method
+ * The write half of the account surface. `feature` is `recovery` here; the
+ * five actions are the ones the real interface sends for a recovery method
  * (components/production/ProductionAccountFlows.tsx):
  *
  *   request-recovery  { email }                  link an address and open a challenge
  *   check-recovery    { challengeId }            has the provider confirmed it yet
  *   cancel-recovery   { challengeId }            drop the pending challenge
  *   remove-recovery   { id, revision }           unlink the verified address
+ *   revoke-device     { id, revision }           refused: no capability exists (Ruling 27)
  *
- * `revoke-device` is the fifth action the same interface sends and is NOT
- * implemented here (task 9): it is refused as a validation error, so a client
- * is told its button does nothing yet rather than being answered as if the
- * device had been revoked.
+ * `revoke-device` is RECOGNISED here, not implemented. Ruling 27 found that
+ * the installed admin API (@supabase/supabase-js 2.110.7, enumerated off the
+ * client object rather than trusted from documentation, and proved in
+ * test/recoveryCapability.test.mjs) has nothing matching /session/i, and that
+ * `auth.admin.signOut` takes only the JWT of the CURRENT caller, which a
+ * server never holds for a device other than the one making this request.
+ * PostgREST exposes only the `public` schema, so `auth.sessions` is not
+ * reachable either. There is no session list to show a household and nothing
+ * to revoke one by, so this action answers with a terminal `failed` receipt
+ * that says so, rather than falling through to "unknown action": a capability
+ * that does not exist and a client that mistyped the action name are
+ * different facts, and a person reading the receipt, or a developer reading
+ * this file, must not be told the same thing for both. See BE-227 in
+ * docs/backend/requirements-tracker.md for the two alternatives that were
+ * named and not chosen, and who decides between them.
  *
  * The answer is `AccountReceipt`: `{ operationId, status, snapshot?, message? }`
  * with status `succeeded`, `pending`, `unknown` or `failed`, which
@@ -143,8 +155,17 @@ import {
 /** The body is five fields; the largest is a 254 character address. */
 const MAX_BYTES = 2048;
 
-/** The actions this task implements. `revoke-device` is task 9's. */
-const RECOVERY_ACTIONS = Object.freeze(['request-recovery', 'check-recovery', 'cancel-recovery', 'remove-recovery']);
+/**
+ * The five actions the interface sends for a recovery method. `revoke-device`
+ * is recognised but refused (Ruling 27): see `revokeDevice` below.
+ */
+const RECOVERY_ACTIONS = Object.freeze([
+  'request-recovery',
+  'check-recovery',
+  'cancel-recovery',
+  'remove-recovery',
+  'revoke-device',
+]);
 
 /** The only keys the body may carry; anything else is a client that is confused about this endpoint. */
 const BODY_KEYS = Object.freeze(['feature', 'action', 'payload', 'expectedRevision', 'operationId']);
@@ -155,6 +176,7 @@ const PAYLOAD_KEYS = Object.freeze({
   'check-recovery': ['challengeId'],
   'cancel-recovery': ['challengeId'],
   'remove-recovery': ['id', 'revision'],
+  'revoke-device': ['id', 'revision'],
 });
 
 /** The client's own rule (lib/frontend/account-review.ts), enforced here because the client is not authority. */
@@ -192,6 +214,7 @@ const MESSAGES = Object.freeze({
   nothingToRemove: 'There is no recovery address to remove.',
   conflict: 'This information changed. Please review it again.',
   mismatch: 'That request was already made with different details. Please try again.',
+  deviceRevocationUnavailable: 'Revoking a specific device is not available yet. Nothing was changed.',
 });
 
 /** Thrown inside the operation when `expectedRevision` is not the current revision. */
@@ -295,6 +318,19 @@ function parsePayload(action, raw) {
     const revision = parseBoundedInt(raw.revision, { min: 0, max: Number.MAX_SAFE_INTEGER });
     if (!revision.ok) return { ok: false, fieldErrors: asField('payload.revision', revision) };
     return { ok: true, value: { id: id.value } };
+  }
+  if (action === 'revoke-device') {
+    // The shape the interface sends (ProductionAccountFlows.tsx) is the same
+    // { id, revision } pair remove-recovery takes. There is no device
+    // registry to check the id against, because there is no capability to
+    // populate one from (Ruling 27, see revokeDevice below): only the shape
+    // is enforced here, and the action is refused the same way regardless of
+    // what id is sent.
+    const id = parseText(raw.id, { maxLength: 128, required: true, rejectControl: true });
+    if (!id.ok) return { ok: false, fieldErrors: asField('payload.id', id) };
+    const revision = parseBoundedInt(raw.revision, { min: 0, max: Number.MAX_SAFE_INTEGER });
+    if (!revision.ok) return { ok: false, fieldErrors: asField('payload.revision', revision) };
+    return { ok: true, value: {} };
   }
 
   const challengeId = parseUuid(raw.challengeId);
@@ -558,6 +594,27 @@ async function removeRecovery(supabase, { userId, methodId }) {
   return applied(supabase, userId, MESSAGES.removed);
 }
 
+/**
+ * `revoke-device`, refused (Ruling 27). Neither half of this action is
+ * buildable against the installed client: there is no provider call that
+ * lists another identity's sessions, so a household's devices cannot be
+ * enumerated to check the given id against, and `auth.admin.signOut` takes
+ * only the JWT of the CURRENT caller, which a server never holds for a
+ * device other than the one making this request. test/recoveryCapability.
+ * test.mjs proves both of those against the installed SDK rather than
+ * trusting documentation, so an upgrade that adds the capability fails that
+ * test and tells someone this function can be finished.
+ *
+ * Nothing here reads the database or the provider: there is nothing to check
+ * the payload's id against, so it is accepted for shape only and never acted
+ * on. This still runs inside the ledger's claimed operation, the same as
+ * every other action, so a replay returns the same terminal refusal instead
+ * of asking the person again.
+ */
+async function revokeDevice() {
+  return refused(MESSAGES.deviceRevocationUnavailable);
+}
+
 /** The one effect of one command, inside the operation the ledger has claimed. */
 async function perform(supabase, { request, action, userId, operationId, payload, expectedRevision, currentRevision }) {
   // The precondition is checked here, not before the claim, so that a replay of
@@ -568,6 +625,7 @@ async function perform(supabase, { request, action, userId, operationId, payload
   }
   if (action === 'check-recovery') return checkRecovery(supabase, { userId, challengeId: payload.challengeId });
   if (action === 'cancel-recovery') return cancelRecovery(supabase, { userId, challengeId: payload.challengeId });
+  if (action === 'revoke-device') return revokeDevice();
   return removeRecovery(supabase, { userId, methodId: payload.id });
 }
 

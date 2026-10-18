@@ -166,3 +166,103 @@ test('neither setSession without a refresh token nor an Authorization header sta
   const stillRefused = await withHeader.auth.updateUser({ email: 'someone@example.test' });
   assert.equal(stillRefused.error?.name, 'AuthSessionMissingError', 'the header is not a session');
 });
+
+// ---------------------------------------------------------------------------
+// Ruling 27 (Task 9, B02 plan): BE-227 asks for device listing and session
+// revocation. Both halves were checked against this installed client rather
+// than assumed buildable, by enumerating the admin API off the client object
+// the way the rest of this file does.
+//
+//   listing   there is no method on `auth.admin`, or on its `mfa`, `oauth`,
+//             `customProviders` or `passkey` namespaces, whose name is
+//             session-shaped. Nothing here can enumerate another identity's
+//             sessions.
+//   revoking  `auth.admin.signOut` exists, but its one required argument is
+//             the JWT of the caller being signed out. A server only ever
+//             holds that JWT for the CURRENT caller's own request, never for
+//             a different device, so there is no id this route could pass to
+//             revoke one.
+//
+// Both are recorded as a gap in docs/backend/requirements-tracker.md (BE-227)
+// rather than worked around, and app/api/account/commands/route.js refuses
+// `revoke-device` honestly instead of inventing either half. If a future SDK
+// upgrade adds a session-listing method, the first test below fails and says
+// so: that is the point of writing the proof as a thing that can fail rather
+// than a thing that passes today.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every method name reachable from `object`: own-enumerable function
+ * properties plus prototype methods (how the admin class itself attaches
+ * `signOut`, `listUsers` and the rest), and one level into any own property
+ * that is itself a plain object (how `mfa`, `oauth`, `customProviders` and
+ * `passkey` attach theirs), so a namespace nobody named here, or one a future
+ * SDK adds beside them, is still walked instead of silently skipped. Only one
+ * level: the real admin object has no namespace nested inside another, and
+ * going further would start reading unrelated data (the string values of
+ * `admin.headers`) rather than API surface.
+ */
+function adminMethodNames(object) {
+  const names = [];
+  for (const key of Object.keys(object)) {
+    const value = object[key];
+    if (typeof value === 'function') {
+      names.push(key);
+    } else if (value && typeof value === 'object') {
+      for (const nestedKey of Object.keys(value)) {
+        if (typeof value[nestedKey] === 'function') names.push(`${key}.${nestedKey}`);
+      }
+    }
+  }
+  let proto = Object.getPrototypeOf(object);
+  while (proto && proto !== Object.prototype) {
+    for (const key of Object.getOwnPropertyNames(proto)) {
+      if (key !== 'constructor' && typeof object[key] === 'function') names.push(key);
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+  return names;
+}
+
+test('Ruling 27: the admin API has no method that could list another identity\'s sessions', () => {
+  const supabase = client();
+  const names = adminMethodNames(supabase.auth.admin);
+  const sessionLike = names.filter((name) => /session/i.test(name));
+  assert.deepEqual(
+    sessionLike,
+    [],
+    sessionLike.length
+      ? `found a session-shaped method on the installed admin API: ${sessionLike.join(', ')}. BE-227's device ` +
+        'listing may now be buildable; see docs/backend/requirements-tracker.md and re-open Task 9.'
+      : undefined,
+  );
+});
+
+test('Ruling 27: admin.signOut takes one JWT, the caller\'s own, not a device or session id to revoke', () => {
+  const supabase = client();
+  assert.equal(typeof supabase.auth.admin.signOut, 'function');
+  assert.equal(
+    supabase.auth.admin.signOut.length,
+    1,
+    'signOut takes one required argument (the JWT); a server holds that JWT only for the current caller',
+  );
+});
+
+test('the probe discriminates: a session-shaped method is caught when one exists', () => {
+  // Without this, the two tests above would also pass against a client that
+  // had grown a session-listing method anywhere in its surface, because the
+  // walk or the regex could be silently broken rather than genuinely finding
+  // nothing. This checks both against an object built to have exactly that.
+  const fakeAdmin = {
+    listUsers() {},
+    oauth: { revokeSession() {} },
+    passkey: { nested: { listActiveSessions() {} } },
+  };
+  const names = adminMethodNames(fakeAdmin);
+  const sessionLike = names.filter((name) => /session/i.test(name)).sort();
+  assert.deepEqual(sessionLike, ['oauth.revokeSession'], 'one level deep is found');
+  assert.ok(
+    !names.includes('passkey.nested.listActiveSessions') && !names.includes('passkey.nested'),
+    'sanity: two levels deep is past the bound this probe checks, which matches the real admin object (no namespace nests inside another)',
+  );
+});

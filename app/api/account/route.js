@@ -31,8 +31,12 @@ import {
  *                       verified, or null. Never the address itself (BE-201).
  *   recovery.challenge  the one open ownership challenge, or null. The clock
  *                       decides whether a pending row is expired.
- *   recovery.devices    empty. Listing and revoking sessions is task 9; an
- *                       empty list here is not a claim that there are none.
+ *   recovery.devices    empty, and that is a documented gap (Ruling 27), not
+ *                       a claim that there are none: the installed admin API
+ *                       has no method that lists another identity's sessions,
+ *                       so there is nothing to populate it from. See
+ *                       lib/account.js and BE-227 in
+ *                       docs/backend/requirements-tracker.md.
  *   unresolvedOperations  this household's unsettled account work, so the
  *                       client can reconcile a response it lost.
  *
