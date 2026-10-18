@@ -587,6 +587,26 @@ test('with the capability off both routes refuse, read nothing and write nothing
   assert.equal(h.db.rows('luna_runs')[0].status, 'queued');
 });
 
+test('neither run route needs a provider key, so a key removed mid-run strands nothing', async () => {
+  const h = harness();
+  const state = await started(h, 'alice', { text: 'Asked while a key was configured' });
+  // RULING L13 stops at `capabilities`, deliberately. Reading or stopping a run
+  // needs no provider: the run already exists, and refusing a status poll for a
+  // missing key would strand a run that was created while one was present, with
+  // the client polling an id it can never settle. `ON` here carries the flag and
+  // no key, and the sandbox scrubs every provider variable, so this is the
+  // unconfigured deployment.
+  const polled = await (await status(h, 'alice', state.run.id)).json();
+  assertLunaRun(polled);
+  assert.equal(polled.status, 'queued', 'the run is still readable');
+
+  const stopped = await (await cancel(h, 'alice', state.run.id)).json();
+  assertLunaRun(stopped);
+  assert.equal(stopped.status, 'cancelled', 'and still stoppable');
+  assert.equal(stopped.conversation.messages[0].text, 'Asked while a key was configured');
+  assert.deepEqual(h.blockedFetches, [], 'and neither route called a provider to find out');
+});
+
 test('before migration 0020 both routes report the feature unavailable, never a run', async (t) => {
   muteConsoleError(t);
   const h = createRouteHarness({

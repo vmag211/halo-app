@@ -73,6 +73,29 @@ import { LUNA_FEATURE, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
  * (`recoverySnapshot({ enabled: false, reason: featureDisabledReason(...) })`),
  * and it is the one case `featureDisabledReason('luna')` exists for.
  *
+ * THREE FACTS CAN MAKE LUNA UNUSABLE, AND THEY DO NOT ANSWER ALIKE. In the
+ * order the handler evaluates them:
+ *
+ *   1. the capability flag is off     -> 200, `available: false`, the reason
+ *   2. migration 0020 is not applied  -> 503 `feature_unavailable`
+ *   3. the flag is on, but no key     -> 200, `available: false`, the reason
+ *
+ * 1 is evaluated before 2 deliberately, and the order is not interchangeable:
+ * a capability that is off must read nothing at all, and discovering fact 2
+ * requires a read. Among the facts that can coexist with the flag ON, 2
+ * outranks 3, because a 200 must never paper over a deployment fault.
+ *
+ * RULING L13, fact 3. Without a provider key Luna cannot answer anything, and
+ * cannot even degrade to cited passages the way Ruling L4 promises:
+ * `answerFromCorpus` calls `embedQuestion` with the key BEFORE retrieval
+ * happens, so retrieval never runs and there are no passages to fall back to.
+ * Claiming `available: true` would hand the person a Send button and fail
+ * every question they typed into it. The key is read exactly as the legacy
+ * assistant reads it (`app/api/assistant/route.js:32`), so the two surfaces
+ * cannot disagree about what "configured" means, and it is a PRESENCE check
+ * only: no network call, and the key itself never leaves `providerConfigured`,
+ * which returns a boolean.
+ *
  * A MISSING MIGRATION IS NOT THE SAME FACT, and stays a non-retryable 503
  * (lib/luna.js `lunaUnavailable`). "The capability is switched off" is
  * something the product chose and can report; "0020 is not applied" is a
@@ -145,6 +168,37 @@ const OFF = Object.freeze({
 });
 
 /**
+ * The answer for either fact that means "Luna cannot answer": the flag is off
+ * (Ruling L11) or no provider is configured (Ruling L13).
+ *
+ * ONE body for both, deliberately. The person reading it is not the operator,
+ * and "somebody has not switched this on" and "somebody has not finished
+ * configuring it" are the same fact from their side: Luna is not available and
+ * there is nothing they can do about either. Telling them which would be
+ * configuration detail dressed up as an explanation.
+ */
+const notAvailable = (headers) =>
+  NextResponse.json({ ...CAPABILITIES, ...OFF, reason: featureDisabledReason(LUNA_FEATURE) }, { headers });
+
+/**
+ * Whether a provider key is configured at all (Ruling L13).
+ *
+ * The same expression the legacy assistant uses
+ * (`app/api/assistant/route.js:32`), read per request rather than at import,
+ * so a deployment that adds the key does not need a cold start to become
+ * honest. Presence only: no network call is made to find out whether the key
+ * WORKS, because reporting what a deployment can do must not spend a provider
+ * request and must not start failing because the provider is briefly down.
+ *
+ * It returns a boolean and nothing else, so no part of the key can reach a
+ * response, a log line or an error envelope through this function.
+ */
+function providerConfigured() {
+  const key = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || '';
+  return key.trim().length > 0;
+}
+
+/**
  * Proves migration 0020 is applied before the route claims Luna can answer,
  * scoped to the caller like every other statement here. A head count returns
  * no rows, so this reads nobody's conversation: it only asks whether the table
@@ -164,15 +218,18 @@ export async function GET(request) {
   try {
     const { userId } = await requireUser(request);
 
-    // Off by default, and off means off: nothing read, nothing written and
-    // nothing disclosed. What it is NOT is silent, because reporting
-    // availability is this route's whole job (Ruling L11).
-    if (!featureEnabled(LUNA_FEATURE)) {
-      const reason = featureDisabledReason(LUNA_FEATURE);
-      return NextResponse.json({ ...CAPABILITIES, ...OFF, reason }, { headers });
-    }
+    // The three facts, in the order the block comment above sets out. Fact 1
+    // first, because off means off: nothing read, nothing written and nothing
+    // disclosed. What it is NOT is silent, because reporting availability is
+    // this route's whole job (Ruling L11).
+    if (!featureEnabled(LUNA_FEATURE)) return notAvailable(headers);
 
+    // Fact 2. A deployment fault outranks fact 3: it is reported as a fault,
+    // never softened into an answer.
     await requireLunaSchema(supabaseAdmin, userId);
+
+    // Fact 3. Switched on, but with nothing to answer with (Ruling L13).
+    if (!providerConfigured()) return notAvailable(headers);
 
     return NextResponse.json(CAPABILITIES, { headers });
   } catch (err) {

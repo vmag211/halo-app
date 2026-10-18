@@ -20,11 +20,12 @@
  * no broken affordance. The rest is said in prose through `providerLabel` and
  * `retentionSummary`, which the client renders verbatim.
  *
- * `available: false` IS correct for one case and only one: the capability flag
- * is off, so Luna genuinely cannot answer. That case is a 503 here (see
- * lib/luna.js `lunaUnavailable`, the one degradation every Luna route shares),
- * which produces the same clean blocked state through the client's own error
- * path, so the flag-off answer never has to claim a working service.
+ * `available: false` IS correct, and required, when Luna genuinely cannot
+ * answer: the capability flag is off (Ruling L11) or no provider key is
+ * configured (Ruling L13). Those are the opposite of the trap, because there
+ * is nothing working to disable. A missing migration 0020 is a third fact and
+ * a different answer, a non-retryable 503; the precedence between all three is
+ * pinned by its own tests at the end of this file.
  *
  * `assertLunaCapabilities` below transcribes `validLunaCapabilities`
  * (lib/frontend/production/luna-service.ts:29) on
@@ -43,10 +44,21 @@ const { featureDisabledReason } = await import('../lib/features.js');
 const ROUTE = '/api/luna/capabilities';
 const TABLES = haloTables('profiles', 'luna_conversations', 'luna_turns', 'luna_runs');
 
-/** The flag that turns Luna on. Off unless a test sets it (BE-351, Ruling L5). */
-const ON = { HALO_FEATURE_LUNA: 'on' };
-
 const EM_DASH = String.fromCodePoint(0x2014);
+/** Recognisable, so a test can prove no part of it reaches a response. */
+const MODEL_KEY = 'sk-test-luna-key-must-never-be-echoed';
+
+/**
+ * What a working deployment looks like: the capability flag on (BE-351,
+ * Ruling L5) AND a provider key configured (Ruling L13). Both are needed, and
+ * the sandbox scrubs every provider variable, so a test that wants an
+ * available Luna has to say so.
+ */
+const ON = { HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: MODEL_KEY };
+
+/** The flag on, with no provider key: Luna is switched on but cannot answer. */
+const ON_WITHOUT_KEY = { HALO_FEATURE_LUNA: 'on' };
+
 
 function harness() {
   return createRouteHarness({
@@ -282,6 +294,122 @@ test('the flag must be explicitly on, so a misspelling reports the capability of
     assertLunaCapabilities(body);
     assert.equal(body.available, false, `HALO_FEATURE_LUNA=${JSON.stringify(value)} is off`);
   }
+});
+
+test('the capability is on but no provider key is configured, so availability is not claimed', async () => {
+  const h = harness();
+  const response = await h.call(ROUTE, 'GET', { as: 'alice', env: ON_WITHOUT_KEY });
+  // RULING L13. Without a key Luna cannot answer anything at all, and cannot
+  // even fall back to cited passages: `answerFromCorpus` calls
+  // `embedQuestion` with the key BEFORE retrieval happens, so retrieval never
+  // runs. Claiming `available: true` here would hand the person a Send button
+  // and fail every question they typed into it.
+  assert.equal(response.status, 200, 'this is a reportable state, not a deployment fault');
+  const body = await response.json();
+  assertLunaCapabilities(body);
+  assert.equal(body.available, false);
+  assert.equal(body.reason, featureDisabledReason('luna'), 'one honest sentence covers both off states');
+  assert.deepEqual(body.tools, []);
+  assert.deepEqual(body.context, { tasks: false, home: false, projects: false });
+  assert.equal(body.publicRetrieval, false);
+});
+
+test('an unconfigured deployment is reported to the person, not to the operator', async () => {
+  const h = harness();
+  const body = await (await h.call(ROUTE, 'GET', { as: 'alice', env: ON_WITHOUT_KEY })).json();
+  // The prose a person reads, not the whole payload: the contract's own field
+  // is named `providerLabel`, so searching the JSON for "provider" would match
+  // the schema rather than the copy. The reader is not the operator, so nothing
+  // here names a variable, a vendor or a step they cannot take.
+  const prose = [body.providerLabel, body.retentionSummary, body.reason].join(' ').toLowerCase();
+  for (const detail of ['assistant_model_key', 'openai_api_key', 'api key', 'configur', 'provider', 'variable']) {
+    assert.equal(prose.includes(detail), false, `the copy does not mention ${detail}`);
+  }
+  assert.equal(prose.includes(EM_DASH), false, 'app-facing copy uses no em dash');
+});
+
+test('no part of the provider key reaches the response, however it was configured', async () => {
+  const h = harness();
+  for (const [env, available] of [
+    [{ HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: MODEL_KEY }, true],
+    [{ HALO_FEATURE_LUNA: 'on', OPENAI_API_KEY: MODEL_KEY }, true],
+    // The off answer is also composed while a real key exists, which is the
+    // only state where the off body could carry one.
+    [{ ASSISTANT_MODEL_KEY: MODEL_KEY }, false],
+  ]) {
+    const body = await (await h.call(ROUTE, 'GET', { as: 'alice', env })).json();
+    assertLunaCapabilities(body);
+    assert.equal(body.available, available, 'either variable counts as configured, as the legacy route reads it');
+    const whole = JSON.stringify(body);
+    assert.equal(whole.includes(MODEL_KEY), false, 'the key itself is never echoed');
+    assert.equal(whole.includes(MODEL_KEY.slice(0, 8)), false, 'and no fragment of it either');
+  }
+});
+
+test('a key that is present but empty is not a configured provider', async () => {
+  const h = harness();
+  for (const env of [
+    { HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: '' },
+    { HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: '   ' },
+    { HALO_FEATURE_LUNA: 'on', OPENAI_API_KEY: '' },
+  ]) {
+    const body = await (await h.call(ROUTE, 'GET', { as: 'alice', env })).json();
+    assert.equal(body.available, false, `${JSON.stringify(env)} cannot answer a question`);
+  }
+});
+
+test('the provider is checked for presence only: no network call is made to prove it works', async () => {
+  const h = harness();
+  const body = await (await h.call(ROUTE, 'GET', { as: 'alice', env: ON })).json();
+  assert.equal(body.available, true);
+  // Reporting what the deployment can do must not spend a request on the
+  // provider, and must not fail because the provider is briefly down. The
+  // harness records any attempt and the default fetch rejects.
+  assert.deepEqual(h.blockedFetches, [], 'no provider call is made to answer this route');
+});
+
+// ---------------------------------------------------------------------------
+// The three facts, in order
+// ---------------------------------------------------------------------------
+
+/**
+ * Three distinct facts can make Luna unusable, and they do not answer alike:
+ *
+ *   1. the capability flag is off     -> 200, available: false, the reason
+ *   2. migration 0020 is not applied  -> 503 feature_unavailable
+ *   3. the flag is on, no provider    -> 200, available: false, the reason
+ *
+ * The handler evaluates 1 before 2, because a capability that is off must read
+ * nothing at all, and discovering fact 2 requires a read. Among the facts that
+ * can coexist with the flag ON, 2 outranks 3: a 200 must never paper over a
+ * deployment fault.
+ */
+test('a missing schema outranks a missing provider key, because a 503 is not a reportable state', async (t) => {
+  muteConsoleError(t);
+  const h = createRouteHarness({
+    tables: haloTables('profiles'), // no Luna tables
+    seed: ({ alice }) => ({ profiles: [{ id: alice.id }] }),
+  });
+  const body = await expectEnvelope(await h.call(ROUTE, 'GET', { as: 'alice', env: ON_WITHOUT_KEY }), {
+    status: 503,
+    code: 'feature_unavailable',
+    retryable: false,
+  });
+  assert.ok(!('available' in body), 'the schema fault is reported, not softened into available: false');
+});
+
+test('the flag outranks both, and settles the answer before anything is read', async (t) => {
+  muteConsoleError(t);
+  const h = createRouteHarness({
+    tables: haloTables('profiles'), // no Luna tables either
+    seed: ({ alice }) => ({ profiles: [{ id: alice.id }] }),
+  });
+  const response = await h.call(ROUTE, 'GET', { as: 'alice' }); // no flag, no key
+  assert.equal(response.status, 200, 'a switched off capability is reported, not diagnosed');
+  const body = await response.json();
+  assert.equal(body.available, false);
+  assert.equal(body.reason, featureDisabledReason('luna'));
+  assert.deepEqual(h.db.queryLog, [], 'off means off: the schema is not even probed');
 });
 
 test('before migration 0020 the route reports the feature unavailable, never a working service', async (t) => {
