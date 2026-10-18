@@ -116,10 +116,15 @@ import {
  * this route needs no idempotency of its own: reading twice gives the same
  * answer because nothing moved.
  *
- * 'unknown' IS RETURNED BUT NEVER WRITTEN (Ruling 9). 0018's CHECK permits five
- * statuses and `unknown` is not one of them, deliberately. This route
- * manufactures it when it cannot truthfully say more, and since it writes
- * nothing at all, it cannot store one even by mistake.
+ * 'unknown' IS NEITHER RETURNED NOR WRITTEN BY THIS ROUTE (Ruling 9). 0018's
+ * CHECK permits five statuses and `unknown` is not one of them, deliberately,
+ * so a route may manufacture it but may never store it. This route writes
+ * nothing at all, so it cannot store one even by mistake, and after round 2 it
+ * no longer returns one either: the branch that used to (an unbindable
+ * verified receipt) now gives the uniform answer, because a word of its own
+ * told a stranger that a verified receipt existed at the id they quoted.
+ * `recoveryStatus` still downgrades a tokenless `verified` to `unknown` as a
+ * last defence for any future caller; no path here reaches it.
  *
  * THE CHALLENGE IS FOUND BY THE NONCE DIGEST, NEVER BY `challengeId`
  * (Ruling 16). `/request` returns `challengeId: null` for a linked and an
@@ -160,8 +165,24 @@ import {
  * SAME ANSWER (Ruling 30). Not similar: byte-identical, built by one
  * `uniformStatus` helper, for a challenge that was not found, a `pending` one,
  * an expired one, a `collision`, a `failure` and a spent row alike. The one
- * exception is `verified`, which needs control of the mailbox, and whoever
- * controls the mailbox is entitled to recover the account.
+ * exception is `verified`.
+ *
+ * THAT EXCEPTION RESTS ON A CONDITION THAT IS NOT MET TODAY, and the earlier
+ * version of this paragraph asserted it as settled. It said the exception is
+ * safe because reaching `verified` requires control of the mailbox and whoever
+ * controls the mailbox is entitled to recover the account. That is not
+ * sufficient. The row is keyed by the CALLER'S nonce and the emailed link
+ * carries no nonce binding, so the party controlling the mailbox is the victim
+ * who clicks, while the party collecting the `verified` answer and the restore
+ * token is whoever holds the nonce. A stranger can request recovery for
+ * somebody else's address, persuade them to click, and collect the credential.
+ *
+ * So the condition is: THE VERIFICATION STEP MUST BIND THE CLICKER TO THE NONCE
+ * THAT OPENED THE CHALLENGE. It is unmet because that step is unbuilt, which is
+ * also the only reason the gap is dormant rather than live: nothing in this
+ * system marks a recover row `verified`, so the exception is unreachable in
+ * practice. Recorded as Ruling 31 against the unbuilt step. A reader must not
+ * find a confident sentence here where there is an open dependency.
  *
  * The cost, accepted: the plan's "collision, expired and failed as distinct
  * terminal states" is withdrawn, because only a real account can produce a row
@@ -394,20 +415,33 @@ async function ownsChallenge(supabase, { nonceHash, challengeId }) {
  * What a stored ledger receipt means here, under Ruling 30.
  *
  * Only a `verified` receipt can say anything the uniform answer does not, so
- * only a `verified` receipt is examined at all; everything else is reported as
- * the one answer, which is also what keeps an operation id from being a
- * channel. A `verified` receipt additionally needs ALL of:
+ * only a `verified` receipt is examined at all. A `verified` one additionally
+ * needs BOTH of:
  *
- *   the caller to own the challenge it names  (`ownsChallenge`, above)
- *   its own expiry still in the future        (the same clock as a row's, so
- *                                              the two paths cannot disagree)
- *   a derivable token                         (`recoveryStatus` downgrades a
- *                                              tokenless verified to `unknown`)
+ *   its own expiry still in the future, decided by `challengeStatus`, the same
+ *   function a row goes through. The receipt's two relevant fields are mapped
+ *   onto the shape that function reads, so this is one comparison shared
+ *   between the two paths rather than two comparisons that happen to agree.
+ *   It used to be an inline copy, which is exactly the shape of the defect
+ *   review I1 found: a rule stated in one place and re-implemented in another.
  *
- * The expiry check is the second half of a defect worth naming: this path used
- * to derive a token whenever the receipt said `verified`, with no clock at all,
- * so a receipt whose expiry had passed yesterday still produced a fresh token,
- * while the row path next to it refused exactly that. One file, two answers.
+ *   the caller to own the challenge it names, which only the browser that
+ *   opened that challenge can show.
+ *
+ * WHAT MATTERS HERE IS THAT THE OWNERSHIP READ IS NEVER SKIPPED, not the order
+ * of the two checks. Both are evaluated before either is acted on, which reads
+ * clearly, but the honest claim is narrower than it looks: swapping them and
+ * short-circuiting on ownership is behaviourally identical, because the only
+ * thing that would move is an in-memory comparison, and a mutation proving that
+ * is reported in the task notes rather than pretended away. The property worth
+ * having, and the one a test pins, is that a live and an expired verified
+ * receipt cost the same statements, so the clock cannot be read off the work.
+ *
+ * Every failure is the uniform answer, never a word of its own. An earlier
+ * version answered `unknown` for an unbindable receipt: address-independent,
+ * so not the C1 oracle, but still a branch that told a stranger "a verified
+ * receipt exists at the id you quoted", bought for nothing, because the caller
+ * can act on neither answer and `validRecoveryStatus` accepts both.
  *
  * A `session` on the receipt is never forwarded (Ruling 8).
  */
@@ -415,14 +449,15 @@ async function fromReceipt(supabase, receipt, { operationId, key, nonceHash, now
   if (receipt?.status !== 'verified') return uniformStatus(operationId);
 
   const challengeId = receipt.challengeId ?? null;
-  if (!(await ownsChallenge(supabase, { nonceHash, challengeId }))) {
-    // Cannot be published, and saying so is not the same as saying there is
-    // nothing: 'unknown' is the word for "cannot truthfully say more".
-    return recoveryStatus({ operationId, status: 'unknown' });
-  }
-
-  const expiry = Date.parse(receipt.expiresAt);
-  if (!Number.isFinite(expiry) || expiry <= now) return uniformStatus(operationId);
+  // The receipt, in the shape `challengeStatus` reads: a receipt has no
+  // `consumed_at` of its own, and a spent row is what the ownership check
+  // below is allowed to see rather than something this clock judges.
+  const live = challengeStatus(
+    { status: receipt.status, expires_at: receipt.expiresAt, consumed_at: null },
+    { now },
+  ) === 'verified';
+  const owned = await ownsChallenge(supabase, { nonceHash, challengeId });
+  if (!live || !owned) return uniformStatus(operationId);
 
   return recoveryStatus({
     operationId,
@@ -439,10 +474,11 @@ async function fromReceipt(supabase, receipt, { operationId, key, nonceHash, now
  * no id of its own.
  *
  * Every branch but a bound, live, `verified` receipt is the uniform answer. An
- * operation still in flight, one that died, one that failed, and one that was
- * never recorded are therefore indistinguishable from each other and from no
- * challenge at all, which is what stops a leaked operation id from reporting on
- * an operation the holder had no part in.
+ * operation still in flight, one that died, one that failed, one that was never
+ * recorded, and one whose receipt cannot be bound to this caller are therefore
+ * all indistinguishable from each other and from no challenge at all, which is
+ * what stops a leaked operation id from reporting on an operation its holder
+ * had no part in. There is no remaining branch an id alone can reach.
  */
 async function fromLedger(supabase, { operationId, requestOperationId, key, nonceHash }) {
   const prior = await readOperation(supabase, { operationId: requestOperationId, domain: DOMAIN });
@@ -540,6 +576,20 @@ export async function POST(request) {
     const nonceHash = nonceDigest(nonce.value);
     const row = await findRecoverChallenge(supabaseAdmin, { nonceHash });
 
+    // THE LEDGER IS READ WHETHER OR NOT A ROW WAS FOUND, AND THE EXTRA READ IS
+    // DELIBERATE: DO NOT OPTIMISE IT AWAY. Reading it only when the row lookup
+    // came back empty made a linked address cost one fewer database round trip
+    // than an unlinked one, in exactly the scopes a client reconciles in.
+    // Bodies, statuses and headers were already identical, so that was a
+    // statistical signal rather than a definitive one, but it is the same class
+    // of leak POST /api/recovery/request restructured itself to avoid, one
+    // route over, and the cost of closing it is one read on a route that writes
+    // nothing. The answer below may discard what this returns; the point is
+    // that the statements do not depend on what was found.
+    const reconciled = RECONCILING.has(scope.value) && requestOperationId
+      ? await fromLedger(supabaseAdmin, { operationId, requestOperationId, key, nonceHash })
+      : null;
+
     // A live challenge is the canonical state whenever there is one, but only
     // `verified` may be reported as itself (Ruling 30). Everything else about a
     // row that exists has to read exactly like a row that does not, because a
@@ -558,19 +608,12 @@ export async function POST(request) {
       );
     }
 
-    // No verified row. Only a reconciling scope has an earlier operation to ask
-    // about; a plain poll has nothing further to say.
-    if (!row && RECONCILING.has(scope.value) && requestOperationId) {
-      return NextResponse.json(
-        await fromLedger(supabaseAdmin, { operationId, requestOperationId, key, nonceHash }),
-        { headers },
-      );
-    }
-
-    // THE ONE ANSWER: not found, pending, expired, collided, failed and spent,
-    // all alike. This is also the answer for a nonce that is not this row's, by
-    // construction rather than by agreement (Ruling 23).
-    return NextResponse.json(uniformStatus(operationId), { headers });
+    // No verified row. A reconciling scope may have an earlier operation to
+    // report on; everything else is the one answer: not found, pending,
+    // expired, collided, failed and spent, all alike, which is also the answer
+    // for a nonce that is not this row's, by construction rather than by
+    // agreement (Ruling 23).
+    return NextResponse.json(reconciled ?? uniformStatus(operationId), { headers });
   } catch (err) {
     // A missing table or column is the capability not being there, which on
     // this route is the terminal 200 and never a 503. Only reachable once the

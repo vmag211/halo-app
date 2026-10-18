@@ -690,25 +690,78 @@ test('every ledger state but a bound verified receipt is the one answer', async 
   assert.equal(JSON.parse(noOperation).status, 'pending');
 });
 
-test("'unknown' is reserved for a verified receipt this route may not publish, and is never written", async () => {
-  // Ruling 9. 'unknown' is the word for "cannot truthfully say more", and the
-  // one case that now earns it is a receipt that reached `verified` for a
-  // challenge the caller cannot prove is theirs. Everything else is the
-  // uniform answer, so `unknown` is not a channel either: reaching it requires
-  // a verified receipt to exist at the id the caller quoted.
+test('an unbindable verified receipt is the uniform answer too, not its own distinguishable word', async () => {
+  // Round 2. This used to answer `unknown`, which was address-independent and
+  // did not reintroduce C1, but it was still a branch a stranger could reach
+  // and read something off: it said "a verified receipt exists at the id you
+  // quoted". Ruling 30's own principle argues for giving it up, because the
+  // caller cannot act on either answer and `validRecoveryStatus` accepts both,
+  // so the signal was bought for nothing.
   const h = harness({
     operations: [receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt: future() })],
   });
-  const body = await (await ask(h, poll(1, { scope: 'request' }))).json();
+  const response = await ask(h, poll(1, { scope: 'request' }));
+  const text = await response.text();
+  const body = JSON.parse(text);
   assertRecoveryStatus(body, op(101));
-  assert.equal(body.status, 'unknown', 'the nonce does not resolve to that challenge');
-  assert.equal(body.restoreToken, undefined, 'and no token is derived for it');
+  assert.equal(body.status, 'pending', 'the nonce does not resolve to that challenge, so nothing is published');
+  assert.equal(body.restoreToken, undefined);
   assert.equal(body.challengeId, null);
-  assert.ok(
-    !JSON.stringify(h.db.rows('recovery_challenges')).includes('unknown'),
-    'nothing in the table was made to say it',
+  assert.equal(
+    text,
+    await (await ask(harness(), poll(1, { scope: 'request' }))).text(),
+    'byte-identical to quoting an operation id that was never used',
   );
-  assert.ok(!JSON.stringify(h.db.rows('operations')).includes('"unknown"'), 'and nothing in the ledger either');
+  // 'unknown' is a word this route may say and the database may never store
+  // (Ruling 9). Nothing reaches for it on any path now, and nothing writes it.
+  assert.ok(!text.includes('unknown'));
+  assert.ok(!JSON.stringify(h.db.rows('recovery_challenges')).includes('unknown'));
+  assert.ok(!JSON.stringify(h.db.rows('operations')).includes('"unknown"'));
+});
+
+test('a stranger never gets more signal than the owner, whatever the receipt\'s expiry', async () => {
+  // The ordering wrinkle round 2 closed: ownership used to be checked BEFORE
+  // expiry, so a stranger quoting the id of an EXPIRED verified receipt got
+  // `unknown` while the legitimate owner of that same receipt got the uniform
+  // answer. The non-owner received strictly more than the owner, which is
+  // backwards. Now neither can tell the two cases apart, in either direction.
+  const cases = { live: future(), expired: ago(1000) };
+  for (const [name, expiresAt] of Object.entries(cases)) {
+    const seed = {
+      challenges: [{
+        id: challengeId(1),
+        nonce_hash: sha256(clientNonce(1)),
+        status: 'verified',
+        restore_token_hash: hex('d4'),
+        consumed_at: ago(1000),
+        expires_at: expiresAt,
+      }],
+      operations: [receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt })],
+    };
+    const owner = await (await ask(harness(seed), poll(1, { scope: 'complete' }))).text();
+    const stranger = await (await ask(harness(seed), poll(9, { scope: 'complete' }))).text();
+    const ownerBody = JSON.parse(owner);
+    const strangerBody = JSON.parse(stranger);
+    assertRecoveryStatus(ownerBody, op(101));
+    assertRecoveryStatus(strangerBody, op(109));
+
+    if (name === 'live') {
+      assert.equal(ownerBody.status, 'verified', 'a live receipt is still the owner\'s to collect');
+      assert.equal(strangerBody.status, 'pending', 'and a stranger learns nothing from it');
+    } else {
+      assert.equal(ownerBody.status, 'pending', 'an expired receipt gives the owner the uniform answer');
+      assert.equal(
+        strangerBody.status,
+        ownerBody.status,
+        'and the stranger gets exactly the same, never more',
+      );
+      assert.equal(
+        stranger.replace(op(109), 'ID'),
+        owner.replace(op(101), 'ID'),
+        'byte-identical once the id each caller chose is normalised out',
+      );
+    }
+  }
 });
 
 test('an operation that is not in the ledger at all is the same terminal failed as no challenge', async () => {
@@ -717,7 +770,17 @@ test('an operation that is not in the ledger at all is the same terminal failed 
   assert.equal(await withLedger.text(), await plain.text(), 'nothing to reconcile reads as nothing happened');
 });
 
-test('a live verified challenge outranks the ledger, because it is the newer record of the same attempt', async () => {
+test('a live verified challenge outranks the ledger, and the ledger is read anyway, deliberately', async () => {
+  // Two properties in one test, because they pull against each other and a
+  // later reader needs to see that both were intended.
+  //
+  // The live row is the canonical state, so it is what gets reported. But the
+  // ledger is STILL read in a reconciling scope, even though its answer is
+  // discarded here, because reading it only when no row was found made a
+  // linked address cost one fewer database round trip than an unlinked one.
+  // Bodies, statuses and headers were already identical, so that was
+  // statistical rather than definitive, but it is the same class of leak
+  // /request went to real trouble to equalise, one route over.
   const expires = future();
   const h = harness({
     challenges: [{
@@ -733,11 +796,36 @@ test('a live verified challenge outranks the ledger, because it is the newer rec
   assert.equal(body.status, 'verified', 'the live row is the canonical state');
   assert.equal(body.challengeId, challengeId(1));
   assert.equal(body.expiresAt, expires);
-  assert.deepEqual(
-    h.db.queryLog.filter((entry) => entry.table === 'operations'),
-    [],
-    'and the ledger is not consulted when a live row answered',
+  assert.equal(
+    h.db.queryLog.filter((entry) => entry.table === 'operations').length,
+    1,
+    'the ledger is read even though a row answered, so the work does not depend on the row existing',
   );
+});
+
+test('a reconciling scope makes the same statements whether or not a challenge exists', async () => {
+  // The timing property stated as a fact about the route rather than as a
+  // wall-clock measurement that would flake, which is the same method task 5
+  // proves its own mitigation with.
+  const seeded = harness({
+    challenges: [{ id: challengeId(1), nonce_hash: sha256(clientNonce(1)), status: 'pending', expires_at: future() }],
+    operations: [receipt(op(1), { status: 'pending', challengeId: null, expiresAt: null })],
+  });
+  const empty = harness({
+    operations: [receipt(op(1), { status: 'pending', challengeId: null, expiresAt: null })],
+  });
+  const first = await ask(seeded, poll(1, { scope: 'request' }));
+  const second = await ask(empty, poll(1, { scope: 'request' }));
+
+  assert.equal(await first.text(), await second.text(), 'the same answer');
+  assert.deepEqual(
+    seeded.db.queryLog.map((entry) => `${entry.operation} ${entry.table}`),
+    empty.db.queryLog.map((entry) => `${entry.operation} ${entry.table}`),
+    'and the same statements, in the same order, for a challenge that exists and one that does not',
+  );
+  // Not vacuous: one of them really does hold the row.
+  assert.equal(seeded.db.rows('recovery_challenges').length, 1);
+  assert.equal(empty.db.rows('recovery_challenges').length, 0);
 });
 
 test('another household\'s recovery operation is not readable, because the ledger is scoped to the unowned domain', async () => {
@@ -749,7 +837,12 @@ test('another household\'s recovery operation is not readable, because the ledge
   assert.equal(text, await (await ask(harness(), poll(1, { scope: 'request' }))).text());
 });
 
-test('a receipt that is verified but names no challenge is unknown, never a verified body the client discards', async () => {
+test('a receipt that is verified but names no challenge is the uniform answer, never a body the client discards', async () => {
+  // With no challenge id there is nothing to bind the receipt to and nothing to
+  // derive a token from, so there is nothing to say. `recoveryStatus` would
+  // downgrade a tokenless `verified` to `unknown` as a last defence; this path
+  // never reaches it, because an unbindable receipt is answered uniformly
+  // first.
   const h = harness({
     challenges: [{
       id: challengeId(1),
@@ -763,7 +856,7 @@ test('a receipt that is verified but names no challenge is unknown, never a veri
   });
   const body = await (await ask(h, poll(1, { scope: 'request' }))).json();
   assertRecoveryStatus(body, op(101));
-  assert.equal(body.status, 'unknown', 'with no challenge id there is nothing to bind the receipt to');
+  assert.equal(body.status, 'pending');
   assert.equal(body.restoreToken, undefined);
 });
 
@@ -1038,24 +1131,47 @@ test('a limiter that cannot answer lets the poll through, which is the opposite 
 // Nothing about an address, and nothing proof-bearing, leaves the server
 // ---------------------------------------------------------------------------
 
-test('no answer this route gives can say whether an address exists', async () => {
-  // It never looks at one: no email field is accepted, no address digest is
-  // computed and the provider is never asked anything. So the strongest
-  // statement available is that no answer carries an address, its digest, or
-  // whose account a challenge belongs to.
+test('no answer this route gives carries an address, a digest or an identity, on any path', async () => {
+  // The reasoning this test used to carry was the false one both route headers
+  // now repudiate ("it never looks at an address, so there is no address for an
+  // answer to be about"). The route does not need to look at one, because
+  // /request already converted "this address is linked" into "a row exists for
+  // the digest the caller chose"; that is what the two-route oracle test above
+  // exists for, and it is the real proof.
+  //
+  // What is worth asserting HERE is the narrower disclosure property, swept
+  // across every answer shape this route has rather than one of them: no body
+  // and no header carries an address, its digest, or whose account a challenge
+  // is.
   const h = harness({
-    challenges: [{ id: challengeId(1), nonce_hash: sha256(clientNonce(1)), status: 'pending' }],
+    challenges: [{
+      id: challengeId(1),
+      nonce_hash: sha256(clientNonce(1)),
+      status: 'verified',
+      restore_token_hash: hex('d4'),
+      expires_at: future(),
+    }],
+    operations: [receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt: future() })],
   });
-  const texts = [];
-  for (const body of [poll(1), poll(9), poll(9, { scope: 'request' })]) {
-    texts.push(await (await ask(h, body)).text());
+  const shapes = {
+    'the verified answer': await ask(h, poll(1)),
+    'the uniform answer': await ask(h, poll(9)),
+    'a reconciling scope': await ask(h, poll(9, { scope: 'request' })),
+    'a refusal': await ask(h, { ...poll(1), clientNonce: 'too-short' }),
+  };
+  const forbidden = [LINKED, sha256(LINKED), h.identities.alice.id, h.identities.bob.id];
+  for (const [name, response] of Object.entries(shapes)) {
+    const text = await response.text();
+    const headers = JSON.stringify([...response.headers.entries()]);
+    for (const secret of forbidden) {
+      assert.ok(!text.includes(secret), `${name}: ${secret.slice(0, 12)} is not in the body`);
+      assert.ok(!headers.includes(secret), `${name}: ${secret.slice(0, 12)} is not in a header`);
+    }
   }
-  for (const text of texts) {
-    assert.ok(!text.includes(LINKED), 'no address');
-    assert.ok(!text.includes(sha256(LINKED)), 'and not its digest either');
-    assert.ok(!text.includes(h.identities.alice.id), 'nor whose account it is');
-  }
-  assert.equal(h.db.generatedLinks.length, 0, 'the provider is never asked to resolve anything');
+  // Non-vacuous: the verified answer really did carry content, so the sweep
+  // above is not four empty bodies.
+  assert.equal((await (await ask(h, poll(1))).json()).status, 'verified');
+  assert.equal(h.db.generatedLinks.length, 0, 'and the provider is never asked to resolve anything');
 });
 
 test('the nonce, its digest and the derivation key reach no response and no log line', async (t) => {
@@ -1362,8 +1478,10 @@ test('a receipt with an unreadable expiry yields no token either', async () => {
 test('an operation id alone cannot reconcile anything: the receipt is bound to the caller\'s nonce', async () => {
   // Review I2. `requestOperationId` travels in crash reports, analytics
   // payloads and screenshots of a network trace, so holding one must prove
-  // nothing. Here the receipt names a real, verified challenge and the caller
-  // quotes the right operation id but holds the WRONG nonce.
+  // nothing. Here the receipt names a real, live, verified challenge and the
+  // caller quotes the right operation id but holds the WRONG nonce, so it gets
+  // the uniform answer: not a word of its own, which would still have told it
+  // that a verified receipt exists at that id.
   const expires = future();
   const seed = {
     challenges: [{
@@ -1379,11 +1497,18 @@ test('an operation id alone cannot reconcile anything: the receipt is bound to t
       kind: 'recovery.complete',
     }],
   };
-  const thief = await (await ask(harness(seed), poll(9, { scope: 'complete' }))).json();
-  assert.equal(thief.status, 'unknown', 'nothing is published to a caller who cannot prove the challenge is theirs');
-  assert.equal(thief.restoreToken, undefined, 'and above all no credential');
-  assert.equal(thief.challengeId, null, 'nor the id the receipt named');
-  assert.equal(thief.expiresAt, null);
+  const thief = await (await ask(harness(seed), poll(9, { scope: 'complete' }))).text();
+  const body = JSON.parse(thief);
+  assertRecoveryStatus(body, op(109));
+  assert.equal(body.status, 'pending', 'nothing is published to a caller who cannot prove the challenge is theirs');
+  assert.equal(body.restoreToken, undefined, 'and above all no credential');
+  assert.equal(body.challengeId, null, 'nor the id the receipt named');
+  assert.equal(body.expiresAt, null);
+  assert.equal(
+    thief,
+    await (await ask(harness(), poll(9, { scope: 'complete' }))).text(),
+    'byte-identical to quoting an id that was never used',
+  );
 
   // Not vacuous: the browser that owns the nonce does get it.
   const owner = await (await ask(harness(seed), poll(1, { scope: 'complete' }))).json();
@@ -1407,8 +1532,10 @@ test('a receipt naming a challenge that is not the caller\'s own is not publishe
     operations: [receipt(op(1), { status: 'verified', challengeId: challengeId(2), expiresAt: future() })],
   });
   const body = await (await ask(h, poll(1, { scope: 'complete' }))).json();
-  assert.equal(body.status, 'unknown');
+  assertRecoveryStatus(body, op(101));
+  assert.equal(body.status, 'pending');
   assert.equal(body.restoreToken, undefined);
+  assert.equal(body.challengeId, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -1566,4 +1693,30 @@ test('findRecoverChallenge includes consumed rows only when asked, and never by 
   assert.equal(spent?.id, challengeId(1), 'and is reachable only for proving ownership');
   assert.equal(await lib.findRecoverChallenge(h.db, { nonceHash: sha256(clientNonce(2)), includeConsumed: true }), null);
   assert.equal(await lib.findRecoverChallenge(h.db, {}), null, 'no digest, no row');
+});
+
+test('a live and an expired verified receipt cost the same statements, so the clock cannot be read off the work', async () => {
+  // The narrow, true version of the receipt path's timing property. Reordering
+  // the ownership check and the clock is behaviourally identical, because only
+  // an in-memory comparison moves; what must hold is that neither case skips a
+  // database round trip the other makes.
+  const logs = {};
+  for (const [name, expiresAt] of Object.entries({ live: future(), expired: ago(1000) })) {
+    const h = harness({
+      challenges: [{
+        id: challengeId(1),
+        nonce_hash: sha256(clientNonce(1)),
+        status: 'verified',
+        restore_token_hash: hex('d4'),
+        consumed_at: ago(1000),
+        expires_at: expiresAt,
+      }],
+      operations: [receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt })],
+    });
+    const response = await ask(h, poll(1, { scope: 'complete' }));
+    assert.equal(response.status, 200, name);
+    logs[name] = h.db.queryLog.map((entry) => `${entry.operation} ${entry.table}`);
+  }
+  assert.deepEqual(logs.live, logs.expired, 'the same statements either way');
+  assert.ok(logs.live.length >= 3, 'and there really are statements to compare, not an empty log');
 });
