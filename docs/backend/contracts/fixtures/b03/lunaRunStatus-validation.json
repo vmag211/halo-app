@@ -1,0 +1,18 @@
+{
+  "operationId": "lunaRunStatus",
+  "status": 400,
+  "body": {
+    "error": "Keep this to 200 characters or fewer.",
+    "code": "validation_failed",
+    "message": "Keep this to 200 characters or fewer.",
+    "field_errors": [
+      {
+        "field": "id",
+        "code": "text_too_long",
+        "message": "Keep this to 200 characters or fewer."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "operationId": "lunaRunCancel",
+  "status": 200,
+  "body": {
+    "id": "0b030000-0000-4000-8000-000000007201",
+    "status": "completed",
+    "conversation": {
+      "id": "0b030000-0000-4000-8000-00000000c001",
+      "revision": 4,
+      "messages": [
+        {
+          "id": "0b030000-0000-4000-8000-0000000071a1",
+          "role": "user",
+          "text": "What does the agency say about radon in a basement?"
+        },
+        {
+          "id": "0b030000-0000-4000-8000-0000000071a2",
+          "role": "assistant",
+          "text": "Radon collects in the lowest level of a home, and the agency recommends testing before anything else.",
+          "sources": [
+            {
+              "title": "Radon and your home",
+              "url": "https://agency.example.test/radon"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "fact",
+              "text": "Radon collects in the lowest level of a home, and the agency recommends testing before anything else.",
+              "sourceIndexes": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "pendingRequest": null,
+      "unresolvedOperations": {}
+    }
+  }
+}

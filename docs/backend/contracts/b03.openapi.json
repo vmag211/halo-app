@@ -1,0 +1,1612 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B03 Luna backend contract",
+    "version": "b03-1",
+    "description": "The six Luna operations B03 built: capabilities, the conversation read, clear, messages, run status and run cancel. Luna answers and cites; Luna does not act, so the four tool operations (luna.proposal.edit, luna.proposal.cancel, luna.confirm, luna.operation) are absent from this document and LunaMessage here forbids a proposal, a link list and a choice list. The frontend's own LunaMessage type permits all three; this release never emits one. Response schemas mirror lib/frontend/production/luna-service.ts on origin/codex/october15-review-refinement, which the client uses to validate and, on failure, to discard the whole payload. Where a rule cannot be written in JSON Schema (message ids unique within a conversation, a source url parseable with no embedded credentials) the conformance test transcribes the validator instead. Only statuses each handler can actually produce are listed. Nothing here is a deployment, provider or approval claim: the capability flag is off in every environment and migration 0020 is applied nowhere."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/luna/capabilities": {
+      "get": {
+        "operationId": "lunaCapabilities",
+        "summary": "What this deployment of Luna can do",
+        "description": "Deployment configuration, identical for every household. Three facts can mean Luna cannot answer and they do not answer alike: the capability flag off is a 200 with available:false and the reason (Ruling L11), migration 0020 absent is a 503 feature_unavailable, and no provider key configured is a 200 with available:false and the reason (Ruling L13).",
+        "responses": {
+          "200": {
+            "description": "LunaCapabilities. available:true carries tools:[] in this contract version (Ruling L7); available:false carries the reason.",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunaCapabilities"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage (auth_unavailable, with Retry-After), or migration 0020 absent (feature_unavailable, not retryable and with no Retry-After)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/luna/conversations": {
+      "get": {
+        "operationId": "lunaConversation",
+        "summary": "The caller's one Luna conversation, or the absence of one",
+        "description": "A single conversation, not a list: one per household. This read writes nothing (Ruling L10), so a household that has never asked anything is answered { conversation: null } rather than a freshly minted conversation. That body is deliberately not a valid LunaConversationData: the client computes conversation?.id ?? null and sends null to mean start one.",
+        "parameters": [
+          {
+            "name": "current",
+            "in": "query",
+            "required": false,
+            "description": "The client always sends current=true. One conversation per household makes it the only thing it can mean, so it is read but not required.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conversation, or { conversation: null } when the household has none",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunaConversationRead"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage, or the capability off or migration 0020 absent (feature_unavailable, not retryable)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/luna/conversations/clear": {
+      "post": {
+        "operationId": "lunaClear",
+        "summary": "Delete the caller's transcript",
+        "description": "The turns are deleted, not marked. The receipt must be a valid conversation with no messages and either a new id or a strictly greater revision (ProductionLunaClear.ts:19); this route keeps the id and raises the revision. Idempotency is the operation ledger and nothing else, so the Idempotency-Key header is required.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "The client's own operation id, a uuid, stable across retries.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "The same revision as the body carries. A different one is a 400: a client sending two preconditions does not know what it is asking for.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LunaClearPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The cleared conversation: no messages, the same id, a strictly greater revision",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunaConversationData"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unreadable body (bad_request) or a field that failed a rule (validation_failed)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "stale_revision (with the current revision), unknown_conversation, run_open, or operation_mismatch",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over the route's cap",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage; the capability off or a migration absent (feature_unavailable, not retryable); or an earlier attempt on this key that has not settled (upstream_unavailable, retryable), which the client reads as an unconfirmed outcome",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/luna/messages": {
+      "post": {
+        "operationId": "lunaMessage",
+        "summary": "Ask one question, and get a run back",
+        "description": "This route does not answer (Ruling L8). It validates, stores the person's turn, creates a run, schedules the generation after the response and returns the run, inside the client's hard 20 second timeout. Every answer here carries the canonical conversation including the person's own turn (Ruling L12), not only the completed ones the validator requires it for, because the component never appends the user's message locally. noteContext and guide are validated and then deliberately unused: Luna reads no household data in this package (Ruling L2).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "The client sends the clientMessageId here. A header naming a different id is a 400, so one key cannot be spent on another message.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LunaMessagePost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The run, with the conversation attached whatever the status",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunaRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unreadable body (bad_request) or a field that failed a rule (validation_failed)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A conversationId that is not this household's, identical to one that never existed",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "operation_mismatch: this clientMessageId was already used for a different question",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over the route's cap",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A budget ran out: the household's hourly bound, the conversation's daily bound, or the app-wide daily ceiling. No run is created, and the client substitutes its own calm sentence.",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage, or the capability off, no model configured, or a migration absent (feature_unavailable, not retryable)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/luna/runs/status": {
+      "get": {
+        "operationId": "lunaRunStatus",
+        "summary": "How one run is getting on",
+        "description": "The client polls this up to 120 times, a second apart, and learns the run finished only by status becoming completed, failed or cancelled. The id may be the run's own or the original clientMessageId, and the answer always carries the canonical run id. An id with no run is a failed run, never a 404, because a 404 would park the attempt for ever. The conversation is attached on a terminal status and deliberately left off while the run is queued or generating.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "The run id, or the clientMessageId from before a run id was known.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SafeText"
+                },
+                {
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunaRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An id outside the client's own 200 character bound, which could never have been a run of ours",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage, or the capability off or migration 0020 absent (feature_unavailable, not retryable)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/luna/runs/cancel": {
+      "post": {
+        "operationId": "lunaRunCancel",
+        "summary": "Stop waiting for an answer",
+        "description": "The client accepts the outcome only when status is cancelled, completed or failed, and reports anything else as unconfirmed, so this route answers with what actually happened to the run and never with work still in progress. completed is a legitimate answer: the generation may have finished during the race. The Idempotency-Key is cancel:<clientMessageId>, which is not a uuid, so the route derives a stable uuid from it for the ledger.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "cancel:<clientMessageId>. A prefixed string, not a uuid.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SafeText"
+                },
+                {
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LunaRunCancelPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The run as it now stands, with the conversation attached on a terminal status",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunaRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unreadable body (bad_request), a field that failed a rule, or a missing Idempotency-Key (validation_failed)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "One Idempotency-Key reused for a different run",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over the route's cap",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage, or the capability off or migration 0017 or 0020 absent (feature_unavailable, not retryable)",
+            "headers": {
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "SafeText": {
+        "description": "The frontend's text() predicate (luna-service.ts:13) without its max: a string free of the control characters U+0000 to U+0008, U+000B, U+000C and U+000E to U+001F. Tab, line feed and carriage return are permitted, because a pasted question has them. Compose it with maxLength through allOf.",
+        "type": "string",
+        "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f]*$"
+      },
+      "HttpsSourceUrl": {
+        "description": "A conservative subset of safeSourceUrl (explore-service.ts:11): https only, at most 3000 characters, and no @ in the authority, so embedded credentials cannot appear. The full rule, which needs a URL parser, is enforced by the transcribed validator in test/contractsB03.test.mjs.",
+        "type": "string",
+        "maxLength": 3000,
+        "pattern": "^https://[^@/?#]+([/?#]|$)"
+      },
+      "SourceInstant": {
+        "description": "The frontend's sourceInstant (luna-service.ts:14): a full instant with an explicit zone, at most three fractional digits and an offset inside plus or minus 14 hours. A date alone is rejected. Nothing in this release emits one; assistant_corpus.retrieved is a date column, and observedAt is optional.",
+        "type": "string",
+        "maxLength": 100,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?(?:Z|[+-](?:0\\d|1[0-4]):[0-5]\\d)$"
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The Luna client reads none of it: runtime.ts:144 maps the status to a failure code and substitutes its own canned sentence. It is still strict here, because a field that leaks a database message or another household's id would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale_revision",
+              "unknown_conversation",
+              "run_open",
+              "operation_mismatch"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "LunaSource": {
+        "description": "One cited source on an assistant message. The frontend requires title, not the corpus column's source_label, and the url must be https or the whole conversation is discarded.",
+        "type": "object",
+        "properties": {
+          "title": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 500
+              }
+            ]
+          },
+          "url": {
+            "$ref": "#/components/schemas/HttpsSourceUrl"
+          }
+        },
+        "required": [
+          "title",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "LunaEvidenceBlock": {
+        "description": "One statement bound to the sources it rests on. sourceIndexes point into this message's own sources array, never anywhere else, and a fact block must cite at least one.",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "interpretation",
+              "next-step"
+            ]
+          },
+          "text": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 3000,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "sourceIndexes": {
+            "type": "array",
+            "maxItems": 30,
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 500
+              }
+            ]
+          },
+          "observedAt": {
+            "$ref": "#/components/schemas/SourceInstant"
+          }
+        },
+        "required": [
+          "kind",
+          "text",
+          "sourceIndexes"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "fact"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "sourceIndexes": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "LunaMessage": {
+        "description": "One turn. The frontend's LunaMessage also permits links, choices and proposal; this contract version forbids all three, because Luna answers and cites and does not act (Ruling L7), and the proposal controls render only inside a message.proposal block. Array order is the contract: there is no timestamp field.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 200
+              }
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "text": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 16000
+              }
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/LunaSource"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/LunaEvidenceBlock"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "text"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "evidence"
+              ]
+            },
+            "then": {
+              "properties": {
+                "role": {
+                  "const": "assistant"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "LunaPendingRequest": {
+        "description": "The question a run is still working on, which is how a reload parks the attempt again. Null when nothing is in flight; a run past its staleness window is deliberately not pending.",
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 200
+              }
+            ]
+          },
+          "text": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 1000
+              }
+            ]
+          },
+          "runId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 200
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "LunaConversationData": {
+        "description": "The whole conversation, which every accepted payload replaces outright. All five members are required here, which is stricter than the frontend: pendingRequest and unresolvedOperations are what a reload recovers the parked attempt and the parked operations from, so a response that omits them is a response a reload cannot use. unresolvedOperations is always empty in this release, because no proposal is ever emitted. Message ids must be unique within the conversation, which JSON Schema cannot express and the conformance test asserts.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 200
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "messages": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/LunaMessage"
+            }
+          },
+          "pendingRequest": {
+            "$ref": "#/components/schemas/LunaPendingRequest"
+          },
+          "unresolvedOperations": {
+            "type": "object",
+            "maxProperties": 100,
+            "propertyNames": {
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "additionalProperties": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SafeText"
+                },
+                {
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "messages",
+          "pendingRequest",
+          "unresolvedOperations"
+        ],
+        "additionalProperties": false
+      },
+      "LunaAbsentConversation": {
+        "description": "What GET /api/luna/conversations answers for a household that has never asked anything. Deliberately not a valid LunaConversationData: there is no valid empty conversation (a non-empty id and a revision above 0 are required), and minting one would give a GET a side effect and manufacture records whose retention is undecided. The client already handles the absent state, because it sends conversationId:null to mean start one.",
+        "type": "object",
+        "properties": {
+          "conversation": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "conversation"
+        ],
+        "additionalProperties": false
+      },
+      "LunaConversationRead": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/LunaConversationData"
+          },
+          {
+            "$ref": "#/components/schemas/LunaAbsentConversation"
+          }
+        ]
+      },
+      "LunaRun": {
+        "description": "One run of one question. status:completed MUST carry the conversation: the client discards the whole payload otherwise, and the person loses the answer and their own question with it. For every other status the conversation is optional, and POST /api/luna/messages sends it anyway so the person's own turn is never invisible while they wait.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 200
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "generating",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "message": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 1000
+              }
+            ]
+          },
+          "conversation": {
+            "$ref": "#/components/schemas/LunaConversationData"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "completed"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "required": [
+                "conversation"
+              ]
+            }
+          }
+        ]
+      },
+      "LunaCapabilities": {
+        "description": "All seven members are mandatory in the frontend validator; none is optional. reason is an eighth field this backend adds to the unavailable answer, which the validator tolerates because it is a conjunction of positive checks with no key count and no rejection of extra properties. In contract version b03-1, available:true means tools is empty: Luna answers and cites and does not act. That constraint is a statement about this release and changes when the tool half is built.",
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "providerLabel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 300
+              }
+            ]
+          },
+          "retentionSummary": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 2000
+              }
+            ]
+          },
+          "publicRetrieval": {
+            "type": "boolean"
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "tasks": {
+                "type": "boolean"
+              },
+              "home": {
+                "type": "boolean"
+              },
+              "projects": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "tasks",
+              "home",
+              "projects"
+            ],
+            "additionalProperties": false
+          },
+          "tools": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SafeText"
+                },
+                {
+                  "maxLength": 200
+                }
+              ]
+            }
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 2000
+              }
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "providerLabel",
+          "retentionSummary",
+          "publicRetrieval",
+          "context",
+          "tools"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "available": {
+                  "const": true
+                }
+              },
+              "required": [
+                "available"
+              ]
+            },
+            "then": {
+              "properties": {
+                "tools": {
+                  "maxItems": 0
+                }
+              },
+              "not": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "available": {
+                  "const": false
+                }
+              },
+              "required": [
+                "available"
+              ]
+            },
+            "then": {
+              "required": [
+                "reason"
+              ]
+            }
+          }
+        ]
+      },
+      "LunaNoteContext": {
+        "description": "One note the person chose to include. Validated and then deliberately unused: a note is household data, and whether household records may reach a free-tier model is an unresolved decision (Ruling L2).",
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 200
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fields": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "enum": [
+                "title",
+                "description",
+                "time",
+                "place",
+                "evidence"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "LunaGuide": {
+        "description": "The guide step open on the screen, omitted entirely when none is. Validated and then deliberately unused.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 200
+              }
+            ]
+          },
+          "guideId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 200
+              }
+            ]
+          },
+          "version": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 200
+              }
+            ]
+          },
+          "stepId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 200
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LunaMessagePost": {
+        "description": "The body the production component sends (ProductionLunaConversation.tsx:50). conversationId is explicitly null on the first turn and means start one. page is a display label and not an enum, so it is untrusted free text here; only an eight label allowlist reaches the model prompt, because buildAnswerPrompt writes it into the system message.",
+        "type": "object",
+        "properties": {
+          "clientMessageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "text": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            ]
+          },
+          "page": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 200
+              }
+            ]
+          },
+          "noteContext": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/LunaNoteContext"
+            }
+          },
+          "guide": {
+            "$ref": "#/components/schemas/LunaGuide"
+          }
+        },
+        "required": [
+          "clientMessageId",
+          "conversationId",
+          "text",
+          "page",
+          "noteContext"
+        ],
+        "additionalProperties": false
+      },
+      "LunaClearPost": {
+        "description": "Exactly the two fields the client sends. Anything else in the body is refused rather than ignored, which is also what stops a field smuggling in another household.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "LunaRunCancelPost": {
+        "description": "Exactly one field: the run id, or the clientMessageId when no run id is known yet.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "minLength": 1,
+                "maxLength": 200
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "operationId": "lunaClear",
+  "status": 400,
+  "body": {
+    "error": "Enter a valid id.",
+    "code": "validation_failed",
+    "message": "Enter a valid id.",
+    "field_errors": [
+      {
+        "field": "id",
+        "code": "invalid_uuid",
+        "message": "Enter a valid id."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

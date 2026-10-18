@@ -1,0 +1,12 @@
+{
+  "operationId": "lunaMessage",
+  "status": 429,
+  "body": {
+    "error": "You've reached the question limit for now. Please try again in a little while.",
+    "code": "rate_limited",
+    "message": "You've reached the question limit for now. Please try again in a little while.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b03-contract-0001"
+  }
+}

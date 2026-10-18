@@ -1,0 +1,18 @@
+{
+  "operationId": "lunaRunCancel",
+  "status": 400,
+  "body": {
+    "error": "An Idempotency-Key header is required to stop a request.",
+    "code": "validation_failed",
+    "message": "An Idempotency-Key header is required to stop a request.",
+    "field_errors": [
+      {
+        "field": "operationId",
+        "code": "idempotency_key_required",
+        "message": "An Idempotency-Key header is required to stop a request."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

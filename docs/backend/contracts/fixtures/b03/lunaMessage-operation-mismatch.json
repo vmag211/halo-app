@@ -1,0 +1,13 @@
+{
+  "operationId": "lunaMessage",
+  "status": 409,
+  "body": {
+    "error": "That request id was already used for a different message.",
+    "code": "conflict",
+    "message": "That request id was already used for a different message.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b03-contract-0001",
+    "reason": "operation_mismatch"
+  }
+}

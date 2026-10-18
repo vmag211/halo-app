@@ -1,0 +1,22 @@
+{
+  "operationId": "lunaRunStatus",
+  "status": 200,
+  "body": {
+    "id": "0b030000-0000-4000-8000-000000007201",
+    "status": "failed",
+    "message": "Luna could not finish that answer. Your question is kept.",
+    "conversation": {
+      "id": "0b030000-0000-4000-8000-00000000c001",
+      "revision": 3,
+      "messages": [
+        {
+          "id": "0b030000-0000-4000-8000-0000000071a1",
+          "role": "user",
+          "text": "What does the agency say about radon in a basement?"
+        }
+      ],
+      "pendingRequest": null,
+      "unresolvedOperations": {}
+    }
+  }
+}

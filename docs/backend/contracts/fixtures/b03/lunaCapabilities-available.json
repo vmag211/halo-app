@@ -1,0 +1,16 @@
+{
+  "operationId": "lunaCapabilities",
+  "status": 200,
+  "body": {
+    "available": true,
+    "providerLabel": "Luna answers questions from published health and environmental sources",
+    "retentionSummary": "Luna quotes and cites those sources, and cannot change anything in HALO or act for you. Your home readings, notes, journal and tasks are not part of this conversation. Your questions and the answers are kept in your account until you clear this conversation or delete your account.",
+    "publicRetrieval": false,
+    "context": {
+      "tasks": false,
+      "home": false,
+      "projects": false
+    },
+    "tools": []
+  }
+}

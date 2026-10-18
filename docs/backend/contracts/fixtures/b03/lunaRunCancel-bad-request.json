@@ -1,0 +1,12 @@
+{
+  "operationId": "lunaRunCancel",
+  "status": 400,
+  "body": {
+    "error": "The request body must be valid JSON.",
+    "code": "bad_request",
+    "message": "The request body must be valid JSON.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

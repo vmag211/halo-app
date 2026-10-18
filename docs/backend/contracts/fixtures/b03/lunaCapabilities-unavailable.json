@@ -1,0 +1,17 @@
+{
+  "operationId": "lunaCapabilities",
+  "status": 200,
+  "body": {
+    "available": false,
+    "providerLabel": "Luna is not available yet",
+    "retentionSummary": "You can still use HALO directly.",
+    "publicRetrieval": false,
+    "context": {
+      "tasks": false,
+      "home": false,
+      "projects": false
+    },
+    "tools": [],
+    "reason": "Luna is not available yet. You can still use HALO directly."
+  }
+}

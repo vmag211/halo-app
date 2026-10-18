@@ -1,3 +1,23 @@
+# HALO executable API contracts
+
+One document per build package, each covering only the operations that package changed. `b01.openapi.json` is version `b01-1` (six B01 operations) and `b03.openapi.json` is version `b03-1` (the six Luna operations B03 built). Both are OpenAPI 3.1 with the same shape: a `paths` map whose statuses are the ones the handlers can actually produce, synthetic `{ operationId, status, body }` fixtures under `fixtures/<package>/`, and an Ajv 2020 conformance suite that runs the real handlers through the isolated route harness. Neither certifies a deployment, a provider right or a source's meaning.
+
+# B03 Luna contract
+
+`b03.openapi.json`, version `b03-1`, documents `lunaCapabilities`, `lunaConversation`, `lunaClear`, `lunaMessage`, `lunaRunStatus` and `lunaRunCancel`. `test/contractsB03.test.mjs` is its conformance suite, and it does three things B01's does not.
+
+**It transcribes the frontend's own validators and runs them on every response.** The client validates each Luna payload with `validLunaRun`, `validLunaConversation` or `validLunaCapabilities` from `lib/frontend/production/luna-service.ts` on `origin/codex/october15-review-refinement` (not checked out here; read it with `git show`), and **discards the whole payload** when one returns false, so a single wrong field loses the answer and the person's own question with it. The transcriptions are boolean predicates, and one test proves they reject what the client rejects, in both directions for the rule that is easiest to get backwards: a `completed` run must carry its conversation, and a `queued` one need not but may.
+
+**It checks that the routes agree with each other.** One client function validates the conversation returned by `messages`, `runs/status`, `runs/cancel`, `conversations` and `clear`, and the component holds a single conversation pointer, so a divergence between any two of the five is a defect even with every route's own suite green. The suite asserts the five are byte-identical for the same state and carry the same five members, and that the two run routes answer the same run identically once it is settled. The `runs/status` and `runs/cancel` handlers deliberately still duplicate the five-line shape that decides this; the agreement is pinned here rather than by sharing that code.
+
+**Two schema constraints are statements about this release, not about Luna for ever.** `LunaMessage` forbids `proposal`, `links` and `choices`, which the frontend's own type permits, and `LunaCapabilities` requires `tools` to be empty whenever `available` is true. Both encode the scope decision that Luna answers and cites and does not act: the four tool operations (`luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm`, `luna.operation`) are not built and are deliberately absent from this document. Building the tool half means a new contract version, and the suite will say so.
+
+Rules the frontend enforces that JSON Schema cannot express are listed in the schema descriptions and enforced by the transcribed validators instead: message ids unique within a conversation, a source url that parses as https with no embedded credentials, and evidence text that is non-blank after trimming. `LunaConversationData` requires all five members, which is stricter than the frontend, because `pendingRequest` and `unresolvedOperations` are what a reload recovers a parked attempt and parked operations from. `unresolvedOperations` is always empty in this release. The absent-conversation answer, `{ "conversation": null }`, is deliberately **not** a valid `LunaConversationData`: there is no valid empty conversation, and the client sends `conversationId: null` to mean "start one".
+
+Fixtures use reserved `example.test` hosts and obviously synthetic ids, and a test scans every one of them for secrets, tokens, bearer headers, provider names, street addresses and em dashes. No fixture is evidence about a real source.
+
+Run `node --test test/contractsB03.test.mjs`. The capability flag is off in every environment and migration 0020 is applied nowhere, so nothing in this contract has run against a real model or a real Supabase project.
+
 # B01 executable API contract
 
 `b01.openapi.json` is OpenAPI 3.1, contract version `b01-1`. It documents six operations changed by B01, not the whole HALO API. Existing approved frontend types remain handwritten and unchanged; `test/contractsB01.test.mjs` checks actual handler responses against the executable schemas with Ajv 2020 and format validation. Types have not been generated or proven exhaustive against this document.
