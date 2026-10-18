@@ -521,7 +521,11 @@ test('being rate limited does not reveal whether the address exists', async () =
   const first = await ask(linked, attempt(1, LINKED));
   const second = await ask(unlinked, attempt(1, UNLINKED));
   const bodies = await Promise.all([first.json(), second.json()]);
-  assert.equal(first.status, second.status);
+  // Both really were refused, or the comparison below would hold for two
+  // ordinary answers and prove nothing.
+  assert.equal(first.status, 429);
+  assert.equal(second.status, 429);
+  assert.equal(bodies[0].code, 'rate_limited');
   assert.deepEqual(
     { ...bodies[0], request_id: 'ID' },
     { ...bodies[1], request_id: 'ID' },
