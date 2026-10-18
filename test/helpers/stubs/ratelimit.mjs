@@ -49,8 +49,11 @@ export async function checkLimit(_limiter, key, opts = {}) {
   if (!decide) return true;
   const verdict = decide(key);
   if (verdict !== LIMITER_UNAVAILABLE) return verdict !== false;
-  // The real checkLimit's own words, so a test asserting on the line sees what
-  // production would write.
+  // The real checkLimit's SHAPE, not its exact words: production interpolates
+  // the thrown error's message where this has a fixed phrase, because a
+  // returned sentinel carries no message to interpolate. The parts a test
+  // should assert on, the label and the allowing/skipping verdict, are the
+  // real ones.
   console.error(
     `${label} unavailable (limiter unreachable); ${fallback ? 'allowing' : 'skipping'} the call.`,
   );

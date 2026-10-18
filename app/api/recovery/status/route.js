@@ -7,13 +7,14 @@ import { checkLimit, recoveryRequestLimiter } from '@/lib/ratelimit';
 import { UNAUTHENTICATED_DOMAIN, isOperationsUnavailable, readOperation } from '@/lib/operations';
 import { isRecoveryUnavailable } from '@/lib/account';
 import {
+  challengeStatus,
   clientDigest,
   deriveRestoreToken,
   findRecoverChallenge,
-  challengeStatus,
   nonceDigest,
   recoveryStatus,
   restoreTokenKey,
+  uniformStatus,
 } from '@/lib/recovery';
 
 /**
@@ -63,6 +64,19 @@ import {
  * instead of a dead end. The cost, named rather than hidden: a 200 hides a
  * capability outage from HTTP-level monitoring, which is why the unavailable
  * case is the one thing this route logs.
+ *
+ * AND THAT LOG LINE IS ONE PER UNAUTHENTICATED REQUEST, WITH NO BOUND ON IT.
+ * Worth saying plainly because the two mitigations on this route work against
+ * each other: while the capability is off, which is its state today, every
+ * public request writes a line, and the fail-open limiter below means a flood
+ * is answered rather than shed, so nothing caps the volume. A deployment that
+ * leaves recovery off and gets scanned pays for it in log storage, and a real
+ * outage can be buried in the noise, which is the opposite of what the line is
+ * for. It is accepted rather than fixed because the alternatives are worse
+ * here: sampling the line makes the signal unreliable, dropping it restores
+ * the invisible outage, and failing the limiter closed restores the dead end.
+ * The honest fix is a counter outside the request path, which this task does
+ * not build.
  *
  * ONE REASON FOR ALL THREE CAUSES, and the log line is where they are told
  * apart. The body says `recovery_unavailable` whether the flag is off, the key
@@ -124,11 +138,42 @@ import {
  * hold a good token for a row that is gone. If the two answers differed, the
  * difference would tell an attacker whether a challenge exists.
  *
- * NOTHING ABOUT WHETHER AN ADDRESS EXISTS IS OBSERVABLE, including in the
- * not-found answer. This route never looks at an address at all: it takes no
- * `email` field, computes no address digest, and asks the provider nothing.
- * Every answer it gives is a fact about a nonce the caller already holds, so
- * there is no address for an answer to be about.
+ * NOTHING ABOUT WHETHER AN ADDRESS EXISTS IS OBSERVABLE, AND THE REASON IS NOT
+ * THE ONE THIS COMMENT USED TO GIVE. It used to say that this route never looks
+ * at an address, so there is no address for an answer to be about. That was
+ * false, and it hid a live two-request oracle for a whole review round. This
+ * route does not need to look at an address, because `/request` has already
+ * converted "this address is linked" into "a row exists for the nonce digest I
+ * chose": a `recover` row is created only for an address that resolved to a
+ * linked confirmed identity, and it is keyed by the CALLER'S nonce, the caller
+ * being a stranger typing somebody else's address. So:
+ *
+ *   POST /request {email: victim, clientNonce: N}   ->  the uniform pending
+ *   POST /status  {clientNonce: N, ...}             ->  found, or not found
+ *
+ * answered a definitive "does this person have a HALO account" in two requests,
+ * which is the thing Ruling 16 gave up a useful field to prevent. No
+ * `profile_id` scoping can close it, because the row genuinely does belong to
+ * the digest the attacker chose.
+ *
+ * THE REAL REASON IT IS SAFE NOW IS THAT EVERY ANSWER EXCEPT `verified` IS THE
+ * SAME ANSWER (Ruling 30). Not similar: byte-identical, built by one
+ * `uniformStatus` helper, for a challenge that was not found, a `pending` one,
+ * an expired one, a `collision`, a `failure` and a spent row alike. The one
+ * exception is `verified`, which needs control of the mailbox, and whoever
+ * controls the mailbox is entitled to recover the account.
+ *
+ * The cost, accepted: the plan's "collision, expired and failed as distinct
+ * terminal states" is withdrawn, because only a real account can produce a row
+ * that expires, collides or fails, so saying those words apart IS the oracle.
+ * The client loses the ability to explain which of them happened, and keeps the
+ * conditional pending copy it already had.
+ *
+ * AND THE CLIENT ALREADY AGREED WITH THIS, which is what makes it honest rather
+ * than a fudge: its pending copy reads 'If this address has recovery set up,
+ * check its inbox. Open the verification link, then check here.' The frontend
+ * was written to treat pending as existence-agnostic, so collapsing to it
+ * matches the contract instead of working around it.
  *
  * THE THREE SCOPES, and the one rule that orders them. The challenge row is the
  * canonical state of a recovery attempt whenever one exists, because it is the
@@ -149,8 +194,28 @@ import {
  * restore token for it; it does not forward a stored `session` object, because
  * minting a session is `/complete`'s to do and a `verified` response carrying
  * only a session leaves the UI's "Restore my account" button enabled and inert.
- * The person clicks it, `/complete` replays its own ledger receipt, and the
- * session arrives from the route that owns it.
+ *
+ * THE JUSTIFICATION THIS PARAGRAPH USED TO GIVE WAS WRONG, and the correction
+ * matters more than the error. It said the person clicks "Restore my account"
+ * and `/complete` replays its own ledger receipt. It cannot: the client mints a
+ * FRESH `operationId` for every `/complete` attempt (the contract digest,
+ * section 1), so there is no id for a second attempt to replay, and the first
+ * attempt consumed its challenge row, so a fresh attempt finds nothing
+ * unconsumed either. A reissued token therefore does NOT reliably let someone
+ * finish a recovery whose `/complete` response was lost. What this route can
+ * honestly do is report that the challenge reached `verified` and hand back the
+ * token derived for the browser that owns it; whether `/complete` can honour a
+ * reissued token for an already-consumed row is task 8's design decision, and
+ * it is recorded as an open item rather than assumed here.
+ *
+ * A RECEIPT IS ONLY EVER PUBLISHED TO THE BROWSER THAT OWNS ITS CHALLENGE.
+ * `requestOperationId` is an id, not a credential: it travels in crash reports,
+ * analytics payloads and screenshots of a network trace, and holding one proves
+ * nothing. So a `verified` receipt is published only when the caller's nonce
+ * digest resolves to the very challenge the receipt names, which is a fact only
+ * that browser can produce. When it cannot be bound, the answer is `unknown`.
+ * Every other receipt is reported as the uniform answer, so an operation id on
+ * its own buys no information at all.
  *
  * RATE LIMITED PER CLIENT, AND FAILING OPEN, WHICH IS THE OPPOSITE OF
  * `/request`. Both use the same sliding window from lib/ratelimit.js and the
@@ -165,10 +230,22 @@ import {
  *
  *   /status fails OPEN because it writes nothing, sends nothing and spends
  *   nothing at a provider, so the whole cost of an outage-time flood is
- *   database reads. Failing closed would instead make the reconciliation path
- *   unanswerable for as long as Redis is down, which is the dead-end loop
- *   Ruling 6 exists to prevent. Availability is the safety property on this
- *   route; it is the hazard on the other one.
+ *   database reads and log lines. Failing closed would instead make the
+ *   reconciliation path unanswerable for as long as Redis is down, which is the
+ *   dead-end loop Ruling 6 exists to prevent. Availability is the safety
+ *   property on this route; it is the hazard on the other one.
+ *
+ * TWO INTERACTIONS OF THAT CHOICE THAT A READER SHOULD NOT HAVE TO DERIVE.
+ * First, when no proxy header is present every caller shares the single
+ * `UNATTRIBUTED` bucket, which is the safe direction for /request (a missing
+ * header must not mean an unlimited caller) but means that on such a
+ * deployment one noisy client can spend the whole budget and 429 everybody
+ * else's reconciliation. Failing open does not help there, because the limiter
+ * is answering correctly; it is the key that is coarse. Second, the two
+ * failure directions compose badly in exactly one case: the limiter being down
+ * is when this route is least bounded and also when it is most likely to be
+ * needed. Both are bounded in severity, because nothing here writes or sends,
+ * and both are recorded as deployment concerns rather than designed around.
  *
  * NOTHING PROOF-BEARING LEAVES THE SERVER OTHER THAN THE RESTORE TOKEN ITSELF,
  * which necessarily crosses the wire once to the legitimate caller because the
@@ -295,52 +372,82 @@ function unavailable(operationId, cause, requestId) {
 }
 
 /**
- * What a stored ledger receipt means here. `/request` and `/complete` both
- * store a `RecoveryStatus` as their receipt, so the status is read straight off
- * it; everything else is rebuilt rather than forwarded.
+ * Whether the caller holds the nonce of the challenge a ledger receipt names.
  *
- * A `verified` receipt is reissued with a token derived from the receipt's own
- * challenge id, so the person can finish through `/complete`, which replays its
- * own receipt and returns the session. A receipt with no usable challenge id
- * cannot produce a token, and `recoveryStatus` reports that as `unknown` rather
- * than as a `verified` body the client would discard.
+ * This is the whole of the reconcile path's authorisation. `requestOperationId`
+ * is an id and not a credential, so publishing a receipt to whoever quotes one
+ * would hand its outcome to anyone who found it in a crash report or a
+ * screenshot. The nonce digest resolving to that exact challenge id is a fact
+ * only the browser that opened the challenge can produce.
+ *
+ * Consumed rows are included here, and ONLY here: a successful `/complete`
+ * spends its row, so that is precisely the case this path exists for, and the
+ * row is being used to prove ownership rather than to decide what to report.
+ */
+async function ownsChallenge(supabase, { nonceHash, challengeId }) {
+  if (!challengeId) return false;
+  const row = await findRecoverChallenge(supabase, { nonceHash, includeConsumed: true });
+  return !!row && row.id === challengeId;
+}
+
+/**
+ * What a stored ledger receipt means here, under Ruling 30.
+ *
+ * Only a `verified` receipt can say anything the uniform answer does not, so
+ * only a `verified` receipt is examined at all; everything else is reported as
+ * the one answer, which is also what keeps an operation id from being a
+ * channel. A `verified` receipt additionally needs ALL of:
+ *
+ *   the caller to own the challenge it names  (`ownsChallenge`, above)
+ *   its own expiry still in the future        (the same clock as a row's, so
+ *                                              the two paths cannot disagree)
+ *   a derivable token                         (`recoveryStatus` downgrades a
+ *                                              tokenless verified to `unknown`)
+ *
+ * The expiry check is the second half of a defect worth naming: this path used
+ * to derive a token whenever the receipt said `verified`, with no clock at all,
+ * so a receipt whose expiry had passed yesterday still produced a fresh token,
+ * while the row path next to it refused exactly that. One file, two answers.
  *
  * A `session` on the receipt is never forwarded (Ruling 8).
  */
-function fromReceipt(receipt, { operationId, key, nonceHash }) {
-  const status = receipt?.status;
-  const challengeId = receipt?.challengeId ?? null;
+async function fromReceipt(supabase, receipt, { operationId, key, nonceHash, now = Date.now() }) {
+  if (receipt?.status !== 'verified') return uniformStatus(operationId);
+
+  const challengeId = receipt.challengeId ?? null;
+  if (!(await ownsChallenge(supabase, { nonceHash, challengeId }))) {
+    // Cannot be published, and saying so is not the same as saying there is
+    // nothing: 'unknown' is the word for "cannot truthfully say more".
+    return recoveryStatus({ operationId, status: 'unknown' });
+  }
+
+  const expiry = Date.parse(receipt.expiresAt);
+  if (!Number.isFinite(expiry) || expiry <= now) return uniformStatus(operationId);
+
   return recoveryStatus({
     operationId,
-    status,
+    status: 'verified',
     challengeId,
-    expiresAt: receipt?.expiresAt ?? null,
-    restoreToken: status === 'verified' ? deriveRestoreToken(key, { challengeId, nonceHash }) : null,
+    expiresAt: receipt.expiresAt,
+    restoreToken: deriveRestoreToken(key, { challengeId, nonceHash }),
   });
 }
 
 /**
- * The canonical outcome of the operation the client named, when no live
- * challenge was found. Read only: `readOperation`, never `runOperation`, so
- * this route claims no id of its own.
+ * The outcome of the operation the client named, when no live challenge was
+ * found. Read only: `readOperation`, never `runOperation`, so this route claims
+ * no id of its own.
  *
- *   a stored receipt     report it (above)
- *   still pending        the operation is in flight, so `pending` is true
- *   failed or cancelled  a settled failure, reported as `failed`
- *   anything else        `unknown`: settled but with no receipt to replay, or
- *                        dead past its window. 'unknown' is exactly the word
- *                        for "cannot truthfully say more" (Ruling 9).
- *   no row at all        `failed`, the same terminal answer as no challenge
+ * Every branch but a bound, live, `verified` receipt is the uniform answer. An
+ * operation still in flight, one that died, one that failed, and one that was
+ * never recorded are therefore indistinguishable from each other and from no
+ * challenge at all, which is what stops a leaked operation id from reporting on
+ * an operation the holder had no part in.
  */
 async function fromLedger(supabase, { operationId, requestOperationId, key, nonceHash }) {
   const prior = await readOperation(supabase, { operationId: requestOperationId, domain: DOMAIN });
-  if (!prior) return recoveryStatus({ operationId, status: 'failed' });
-  if (prior.result) return fromReceipt(prior.result, { operationId, key, nonceHash });
-  if (prior.status === 'pending') return recoveryStatus({ operationId, status: 'pending' });
-  if (prior.status === 'failed' || prior.status === 'cancelled') {
-    return recoveryStatus({ operationId, status: 'failed' });
-  }
-  return recoveryStatus({ operationId, status: 'unknown' });
+  if (!prior?.result) return uniformStatus(operationId);
+  return fromReceipt(supabase, prior.result, { operationId, key, nonceHash });
 }
 
 export async function POST(request) {
@@ -433,34 +540,37 @@ export async function POST(request) {
     const nonceHash = nonceDigest(nonce.value);
     const row = await findRecoverChallenge(supabaseAdmin, { nonceHash });
 
-    // The live challenge is the canonical state whenever there is one.
-    if (row) {
-      const status = challengeStatus(row);
+    // A live challenge is the canonical state whenever there is one, but only
+    // `verified` may be reported as itself (Ruling 30). Everything else about a
+    // row that exists has to read exactly like a row that does not, because a
+    // row exists only for an address that resolved and the caller chose its
+    // nonce digest.
+    if (row && challengeStatus(row) === 'verified') {
       return NextResponse.json(
         recoveryStatus({
           operationId,
-          status,
+          status: 'verified',
           challengeId: row.id,
           expiresAt: row.expires_at,
-          restoreToken: status === 'verified' ? deriveRestoreToken(key, { challengeId: row.id, nonceHash }) : null,
+          restoreToken: deriveRestoreToken(key, { challengeId: row.id, nonceHash }),
         }),
         { headers },
       );
     }
 
-    // No live row. Only a reconciling scope has an earlier operation to ask
+    // No verified row. Only a reconciling scope has an earlier operation to ask
     // about; a plain poll has nothing further to say.
-    if (RECONCILING.has(scope.value) && requestOperationId) {
+    if (!row && RECONCILING.has(scope.value) && requestOperationId) {
       return NextResponse.json(
         await fromLedger(supabaseAdmin, { operationId, requestOperationId, key, nonceHash }),
         { headers },
       );
     }
 
-    // No row, and nothing to reconcile. This is also the answer for a nonce
-    // that is not this row's, by construction rather than by agreement
-    // (Ruling 23).
-    return NextResponse.json(recoveryStatus({ operationId, status: 'failed' }), { headers });
+    // THE ONE ANSWER: not found, pending, expired, collided, failed and spent,
+    // all alike. This is also the answer for a nonce that is not this row's, by
+    // construction rather than by agreement (Ruling 23).
+    return NextResponse.json(uniformStatus(operationId), { headers });
   } catch (err) {
     // A missing table or column is the capability not being there, which on
     // this route is the terminal 200 and never a 503. Only reachable once the
