@@ -22,6 +22,7 @@ export const assistantGlobalLimiter = allowAll();
 export const dailyScoreLimiter = allowAll();
 export const pushLimiter = allowAll();
 export const recoveryRequestLimiter = allowAll();
+export const recoveryAddressLimiter = allowAll();
 
 export async function checkLimit(_limiter, key) {
   const decide = currentHarness().rateLimit;

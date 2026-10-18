@@ -3,13 +3,12 @@ import { supabaseAdmin } from '@/lib/serverAuth';
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseText, parseUuid } from '@/lib/validate';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
-import { checkLimit, recoveryRequestLimiter } from '@/lib/ratelimit';
+import { checkLimit, recoveryAddressLimiter, recoveryRequestLimiter } from '@/lib/ratelimit';
 import {
   OPERATION_INPUT_MISMATCH,
   UNAUTHENTICATED_DOMAIN,
   isOperationsUnavailable,
   operationsUnavailable,
-  requestHash,
   runOperation,
 } from '@/lib/operations';
 import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from '@/lib/account';
@@ -61,46 +60,62 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * documentation says so, but it is a platform promise rather than something
  * proved here.
  *
- * RATE LIMITED TWICE, on two different things, for two different reasons.
+ * RATE LIMITED TWICE, on two different things, for two different reasons. Both
+ * budgets are sliding windows in the shared limiter (lib/ratelimit.js), both
+ * are keyed by a digest, and both fail CLOSED.
  *
- *   per address  At most a few requests an hour for one address digest, counted
- *                on the operation ledger (migration 0017). Over that, the
- *                request is accepted and silently does nothing: the answer is
- *                the same `pending` body, so being limited is not observable
- *                and cannot say anything about the address either. This is what
- *                keeps someone's inbox from being used as a weapon.
+ *   per address  At most a few requests an hour for one address digest. Over
+ *                that, the request is accepted and silently does nothing: the
+ *                answer is the same `pending` body, so being limited is not
+ *                observable and cannot say anything about the address either.
+ *                This is what keeps someone's inbox from being used as a
+ *                weapon, and it is the bound that still holds when the client
+ *                budget can be sidestepped (see the assumption below).
  *
- *                Why the ledger and not the challenge rows, which 0018 indexes
- *                by (email_hash, created_at) for exactly this: the link intent
- *                DELETES challenge rows when a person cancels or the address is
- *                confirmed, so counting them would under-count, and an attacker
- *                whose attempts had settled would get a fresh budget. The
- *                ledger keeps one row per attempt and is never deleted except
- *                by the cascade that deletes a whole household (Ruling 14).
+ *                It is deliberately NOT a count of rows (Ruling 18). Any count
+ *                is read before the write that would make it true, so N
+ *                simultaneous requests for one address all see a count below
+ *                the budget and all proceed: the bound would be concurrency,
+ *                not the number. A sliding window is one atomic decision per
+ *                request in Redis, so a burst spends tokens instead of racing.
+ *                Counting CHALLENGE rows would be wrong for a second reason as
+ *                well, which the window also avoids: the link intent deletes
+ *                them when a person cancels or an address is confirmed, so an
+ *                attacker whose attempts had settled would get a fresh budget
+ *                (Ruling 14). Nothing anyone can delete refills this window.
  *
- *                The row is matched by `request_hash`, which the ledger
- *                computes from the operation's input. The input here is the
- *                address digest and NOTHING per-attempt, deliberately: that is
- *                what makes the hash the same for every attempt on one address
- *                and so countable. Adding a field to it would silently turn the
- *                limit off, which is why a test pins it.
+ *                The budget is spent inside the operation, so a replay costs
+ *                nothing: replaying an id does no work, and should not be able
+ *                to exhaust an address's budget by being repeated.
  *
- *                The window is self-extending: a request that is dropped is
- *                still recorded and still counts. That is the deliberate
- *                direction. Not counting dropped attempts would let an attacker
- *                send the full budget of real messages every hour; counting
- *                them means a budget spent on noise buys silence instead. The
- *                cost is that someone under attack cannot recover until the
- *                attacker stops, which is true of any per-address limit, and
- *                the abuse guard proper is the human verification Task 6 adds
- *                in front of this route.
+ *                The window is self-extending: a request that is dropped still
+ *                spends a token. That is the deliberate direction. Not spending
+ *                one would let an attacker send the full budget of real
+ *                messages every hour; spending it means a budget spent on noise
+ *                buys silence instead. The cost is that someone under attack
+ *                cannot recover until the attacker stops, which is true of any
+ *                per-address limit, and the abuse guard proper is the human
+ *                verification Task 6 adds in front of this route.
  *
- *   per client   At most a few requests an hour from one client, keyed by a
- *                digest of the forwarded client address (lib/ratelimit.js).
- *                This one answers 429, because a client being told to slow
- *                down tells it nothing it does not already know: it is its own
- *                traffic. It is checked first, before anything is read, so a
- *                flood is shed rather than served.
+ *   per client   At most a few requests an hour from one client. This one
+ *                answers 429, because a client being told to slow down tells it
+ *                nothing it does not already know: it is its own traffic. It is
+ *                checked first, before anything is read, so a flood is shed
+ *                rather than served.
+ *
+ *                AN ASSUMPTION, NOT A FACT (Ruling 19): there is no session
+ *                here, so this rests on the client address a proxy reports, and
+ *                a header is only as trustworthy as whatever sits in front of
+ *                this route. `clientDigest` below prefers the headers a
+ *                platform sets over the one any caller can send, and takes the
+ *                hop nearest the proxy rather than the one furthest from it, so
+ *                a prepended value cannot buy a fresh bucket. Whether the
+ *                deployment actually overwrites or appends these headers is NOT
+ *                verified here and is recorded as an open human check. If it
+ *                does not, this budget is per claimed address rather than per
+ *                caller, and the address budget above is what still bounds the
+ *                damage. That is why the address budget is not allowed to
+ *                depend on it.
  *
  * Neither limit can become an enumeration channel, because both are decided
  * before the address is looked at and neither decision depends on whether it
@@ -114,11 +129,42 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * browser's. Treating one as this flow's would be worse than ignoring it: a
  * person who had once linked an address would be unable to recover with it.
  *
+ * ONE LIVE ROW PER BROWSER, which is the invariant tasks 7 and 8 get to rely on
+ * (Ruling 20). Because the answer carries no challenge id, the nonce digest is
+ * the only handle those routes have on a row. Two accepted requests reusing one
+ * `clientNonce` are not replays (different operation ids) and both are within
+ * the address budget, so without care they would leave two live rows sharing
+ * one digest and a single-row lookup there could not resolve it. So this route
+ * supersedes its own prior UNCONSUMED row for the same `(profile_id,
+ * nonce_hash)` before inserting, which leaves exactly one. The invariant is
+ * therefore: AT MOST ONE UNCONSUMED `recover` ROW PER (profile_id, nonce_hash).
+ * A consumed row is never touched, because `consumed_at` is the evidence that a
+ * restore token was spent and single use depends on it, so a lookup there must
+ * filter on `consumed_at is null` to be certain of one row. Another browser's
+ * nonce, and another household's rows, are out of scope of the delete by
+ * construction.
+ *
  * HASHES ONLY. The address and the nonce are stored as sha256 digests, which is
  * all migration 0018's columns physically accept, and the provider's one-time
  * link and token are used and dropped: they reach no response, no row and no
- * log line (BE-201). A failure that is ours is logged as a status and a code,
- * never a provider message, which could echo the address back into the log.
+ * log line (BE-201).
+ *
+ * AND NOTHING IS LOGGED PER REQUEST once the address is in play, in either
+ * direction. Not finding an address is obviously not loggable: a line per
+ * request that found nothing is a record of which addresses do not exist. The
+ * inverse is just as disclosing and is the easier mistake to make: the provider
+ * resolves the address before it hands anything to its mailer, so a delivery or
+ * a write failure can only happen for an address that DID resolve, and a line
+ * per such failure accumulates one entry per existing address and none per
+ * address that does not. During a mailer outage that log IS the answer to "does
+ * this address have an account", readable off the line count by anyone who can
+ * tie a request id to the address it was asked about. So the delivery step logs
+ * nothing at all, whatever happens, and does not branch on which error it got
+ * either (which also means it does not depend on a provider error code this
+ * package cannot verify). Nothing is granted on failure, so the line bought
+ * little; what it cost was the property the rest of this route is built on.
+ * Provider-side delivery health is the provider's own monitoring, and the
+ * ledger records that the attempt existed.
  *
  * THE ONE PROVIDER CALL, and what is unverified about it.
  * `auth.admin.generateLink({ type: 'magiclink', email })` is both halves of
@@ -193,15 +239,27 @@ const NONCE_MAX_LENGTH = 200;
 /** How long a person has to prove the address, matching the link intent's window. */
 const CHALLENGE_TTL_MS = 30 * 60 * 1000;
 
-/** Requests per address digest per window before the rest are accepted and dropped. */
-const ADDRESS_LIMIT = 3;
-const ADDRESS_WINDOW_MS = 60 * 60 * 1000;
-
 const DOMAIN = UNAUTHENTICATED_DOMAIN;
 const KIND = 'recovery.request';
 
-/** The limiter key for a caller whose client address no deployment forwarded. */
+/** The limiter keys. The budgets themselves are the windows in lib/ratelimit.js. */
+const CLIENT_KEY = 'recovery:client:';
+const ADDRESS_KEY = 'recovery:address:';
+
+/**
+ * The one bucket every caller shares when no proxy reported a client address.
+ * A fixed string, deliberately: anything per-request (a fresh id, say) would
+ * look like a key and quietly give every such caller an unlimited budget.
+ */
 const UNATTRIBUTED = 'unattributed';
+
+/**
+ * Where a client address is taken from, in order of how much a caller can
+ * influence it. The first two are set by the platform in front of this route;
+ * `x-forwarded-for` is a list anyone may send, and only the hop nearest the
+ * proxy is of any use. See `clientDigest`.
+ */
+const CLIENT_ADDRESS_HEADERS = Object.freeze(['x-vercel-forwarded-for', 'x-real-ip', 'x-forwarded-for']);
 
 const MESSAGES = Object.freeze({
   limited: 'Too many recovery requests from this device. Please wait and try again later.',
@@ -277,85 +335,89 @@ function parseNonce(value) {
 
 /**
  * Which client this is, as a digest. There is no session to key a limit to, so
- * the only thing available is the address the deployment forwarded, and it is
+ * the only thing available is the client address a proxy reports, and it is
  * hashed because a client address is personal data and a limiter key is not the
  * place for it.
  *
- * A request with no forwarded address shares one bucket with every other such
- * request. That is the safe direction: a missing header must not mean an
- * unlimited caller. On the deployment this ships to the header is always
- * present; locally it is usually absent, so every local caller shares a budget.
+ * Two rules, both because the raw header is caller-supplied text (Ruling 19):
+ *
+ *   1. A header the platform sets is preferred over the one anyone can send.
+ *   2. Within whichever header is used, the hop NEAREST the proxy is taken,
+ *      which is the rightmost entry. A proxy appends the peer it received the
+ *      request from, so the rightmost value is the one the hop closest to us
+ *      saw; the leftmost is the end furthest away and is whatever the caller
+ *      chose to put there. Taking the leftmost would let a caller vary its own
+ *      bucket per request and never be refused.
+ *
+ * This is an ASSUMPTION about the deployment, not a property of this code: if
+ * nothing in front of this route rewrites or appends these headers, the budget
+ * is per claimed address rather than per caller. It is not verified here. The
+ * per-address budget is deliberately independent of it, so that is what still
+ * bounds the damage; this one is defence in depth.
+ *
+ * A request with no reported address shares one bucket with every other such
+ * request, which is the safe direction: a missing header must not mean an
+ * unlimited caller. Locally there is usually no such header, so every local
+ * caller shares a budget.
  */
 function clientDigest(request) {
-  const forwarded = request.headers.get('x-forwarded-for') ?? '';
-  const first = forwarded.split(',')[0].trim();
-  const seen = first || (request.headers.get('x-real-ip') ?? '').trim();
-  return seen ? hashToken(seen.toLowerCase()) : UNATTRIBUTED;
+  for (const name of CLIENT_ADDRESS_HEADERS) {
+    const hops = (request.headers.get(name) ?? '').split(',').map((hop) => hop.trim()).filter(Boolean);
+    const nearest = hops[hops.length - 1];
+    if (nearest) return hashToken(nearest.toLowerCase());
+  }
+  return UNATTRIBUTED;
 }
 
 /**
  * Proves migrations 0018 and 0019 are applied, before the operation id is
- * claimed and before the provider is touched. There is no owner to scope it to
- * here, so it is a head-only statement whose count is never read: the only
- * question is whether the statement can run at all. `intent` is named because
- * without that column this route cannot label its own rows, and an unlabelled
- * row is one the link intent is entitled to delete.
+ * claimed and before the provider is touched. The only question is whether the
+ * statement can run at all: naming a table that is not there, or a column that
+ * is not there, is the error this is here to provoke.
+ *
+ * So it reads the `intent` column of at most one row and discards it. It is
+ * `intent` because without that column this route cannot label its own rows,
+ * and an unlabelled row is one the link intent is entitled to delete. It is
+ * `limit(1)` and NOT a count, exact or otherwise: an unauthenticated caller
+ * must not be able to make this route scan a table, and `intent` is in none of
+ * 0018's indexes, so a filtered count on it would be a full scan per public
+ * request. With no filter and one row, the statement stops at the first row it
+ * finds. Nothing is read from the result, so it discloses nothing.
  */
 async function requireChallengeTable(supabase) {
-  const { error } = await supabase
-    .from('recovery_challenges')
-    .select('id', { count: 'exact', head: true })
-    .eq('intent', CHALLENGE_INTENT.RECOVER);
+  const { error } = await supabase.from('recovery_challenges').select('intent').limit(1);
   if (error) throw error;
 }
 
 /**
- * Whether this address has budget left in the window. Counts the ledger, not
- * the challenge rows, so a cancelled or completed attempt still counts (see the
- * header). The current operation's own row is already claimed, hence excluded.
- * A 'failed' row does not count: it recorded an attempt that was refused before
- * anything was sent.
+ * Whether this address has budget left in its window. One atomic decision in
+ * the limiter rather than a count of rows, for the reasons in the header
+ * (Ruling 18), and fail CLOSED: if the limiter cannot answer, nothing is sent.
  */
-async function withinAddressBudget(supabase, { addressDigest, operationId }) {
-  const { count, error } = await supabase
-    .from('operations')
-    .select('operation_id', { count: 'exact', head: true })
-    .eq('domain', DOMAIN)
-    .eq('kind', KIND)
-    .eq('request_hash', requestHash({ addressDigest }))
-    .in('status', ['pending', 'succeeded'])
-    .neq('operation_id', operationId)
-    .gte('created_at', new Date(Date.now() - ADDRESS_WINDOW_MS).toISOString());
-  if (error) throw error;
-  return (count ?? 0) < ADDRESS_LIMIT;
-}
-
-/** An address the provider has no identity for. The ordinary case, and the sensitive one. */
-const isUnknownAddress = (error) => error?.status === 404 || error?.code === 'user_not_found';
+const withinAddressBudget = (addressDigest) =>
+  checkLimit(recoveryAddressLimiter, `${ADDRESS_KEY}${addressDigest}`, {
+    fallback: false,
+    label: 'recovery address limiter',
+  });
 
 /**
  * The work that depends on the address, run after the response is finished.
  *
  * Ask the provider for a verification, which is also how the address is
  * resolved, and open a challenge if, and only if, it resolved to an identity
- * whose own address is confirmed. Nothing here can reach the caller, so nothing
- * here throws: a failure that is ours is logged, without the address, without
- * the nonce and without the provider's words.
+ * whose own address is confirmed.
+ *
+ * Nothing here can reach the caller, and nothing here is logged or rethrown:
+ * every failure on this path is one that can only happen for an address that
+ * resolved, so a line per failure is an existence record (see the header). Each
+ * one simply stops, which grants nothing and promises nothing. There is also no
+ * branching on which error the provider gave, so no provider error code this
+ * package cannot verify is load-bearing.
  */
-async function deliver(supabase, { requestId, email, addressDigest, nonceHash }) {
+async function deliver(supabase, { email, addressDigest, nonceHash }) {
   try {
     const { data, error } = await supabase.auth.admin.generateLink({ type: 'magiclink', email });
-    if (error) {
-      // Not finding an address is ordinary and is the enumeration-sensitive
-      // case, so it is not logged at all: a log line per request that found
-      // nothing would be a record of which addresses do not exist.
-      if (!isUnknownAddress(error)) {
-        console.error(
-          `recovery request delivery failed (request ${requestId}): ${error.status ?? 'no_status'} ${error.code ?? 'no_code'}`,
-        );
-      }
-      return;
-    }
+    if (error) return;
 
     // Resolved, but only a confirmed address of this identity's own can recover
     // it. An unconfirmed one is what `remove-recovery` leaves behind and is no
@@ -364,7 +426,25 @@ async function deliver(supabase, { requestId, email, addressDigest, nonceHash })
     const user = data?.user ?? null;
     if (!linkedMethod(user) || normalizeAddress(user.email) !== email) return;
 
-    const { error: challengeError } = await supabase.from('recovery_challenges').insert({
+    // One live challenge per browser (Ruling 20). This browser's own earlier
+    // attempt is superseded so that its nonce digest, which is the only handle
+    // /status and /complete have, names exactly one unconsumed row. Scoped to
+    // this identity, this intent and this digest, so another browser's attempt
+    // and another household's rows are out of reach; a CONSUMED row is left
+    // alone, because `consumed_at` is the evidence a restore token was spent.
+    const { error: supersedeError } = await supabase
+      .from('recovery_challenges')
+      .delete()
+      .eq('profile_id', user.id)
+      .eq('intent', CHALLENGE_INTENT.RECOVER)
+      .eq('nonce_hash', nonceHash)
+      .is('consumed_at', null);
+    // Without the delete there could be two live rows for one digest, which is
+    // worse than this attempt doing nothing: the person still has the challenge
+    // their first request opened.
+    if (supersedeError) return;
+
+    await supabase.from('recovery_challenges').insert({
       profile_id: user.id,
       intent: CHALLENGE_INTENT.RECOVER,
       email_hash: addressDigest,
@@ -372,13 +452,9 @@ async function deliver(supabase, { requestId, email, addressDigest, nonceHash })
       status: 'pending',
       expires_at: new Date(Date.now() + CHALLENGE_TTL_MS).toISOString(),
     });
-    if (challengeError) {
-      console.error(`recovery request could not open a challenge (request ${requestId}): ${challengeError.code ?? 'no_code'}`);
-    }
-  } catch (err) {
+  } catch {
     // A thrown provider or database failure, after the caller has already been
-    // answered. The name is enough; the message could carry the address.
-    console.error(`recovery request delivery failed (request ${requestId}): ${err?.name ?? 'Error'}`);
+    // answered. Deliberately silent, for the same reason as above.
   }
 }
 
@@ -429,7 +505,7 @@ export async function POST(request) {
     // outage this route pauses rather than becoming an open mail relay. The
     // decision is made before the address is looked at, so it cannot differ for
     // an address that exists.
-    const allowed = await checkLimit(recoveryRequestLimiter, `recovery:request:${clientDigest(request)}`, {
+    const allowed = await checkLimit(recoveryRequestLimiter, `${CLIENT_KEY}${clientDigest(request)}`, {
       fallback: false,
       label: 'recovery request limiter',
     });
@@ -449,16 +525,20 @@ export async function POST(request) {
         profileId: null,
         domain: DOMAIN,
         kind: KIND,
-        // The address digest alone, and nothing per-attempt: this is the rate
-        // limit's key as well as the operation's fingerprint (see the header).
+        // The operation's fingerprint. Address-derived, so the same id arriving
+        // with a different address is caught as a mismatch rather than
+        // answered with the first address's outcome. The nonce is left out:
+        // the answer carries nothing a replay could reveal, so the same id
+        // with another nonce is a replay that writes nothing, and the
+        // challenge stays bound to the browser that opened it.
         input: { addressDigest },
       },
       async () => {
-        if (await withinAddressBudget(supabaseAdmin, { addressDigest, operationId: operationId.value })) {
+        // Inside the operation, so a replay spends no budget and does no work.
+        if (await withinAddressBudget(addressDigest)) {
           // Everything that depends on the address, after the response.
           after(() =>
             deliver(supabaseAdmin, {
-              requestId,
               email: email.value,
               addressDigest,
               nonceHash: hashToken(nonce.value),

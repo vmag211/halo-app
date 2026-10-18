@@ -57,8 +57,10 @@ const UNLINKED = 'nobody@example.test';
 const UNCONFIRMED = 'unconfirmed@example.test';
 const VERIFIED_AT = '2026-10-01T10:00:00Z';
 
-/** The client this test speaks as, and the key the limiter sees for it. */
+/** The client this test speaks as: the hop the deployment itself appended. */
 const CLIENT_IP = '203.0.113.7';
+/** What a caller puts in the header hoping to be counted as someone else. */
+const FORGED = '192.0.2.44';
 
 /** Computed here rather than imported, so the route's own hashing is not what proves it. */
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
@@ -78,20 +80,52 @@ const clientNonce = (n) =>
   `${`${n}`.padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa${`${n}`.padStart(8, '0')}-bbbb-4bbb-8bbb-bbbbbbbbbbbb`;
 
 /**
- * How many requests one address may make in an hour before the rest are
- * dropped, transcribed from the route. The window is read from the operation
- * ledger, which is never deleted, so ageing those rows is the honest way to
- * move past it without sleeping.
+ * The two budgets the route asks the limiters for, transcribed from
+ * lib/ratelimit.js: requests per address digest per hour, and requests per
+ * client digest per hour.
  */
-const ADDRESS_LIMIT = 3;
-const PAST_THE_WINDOW = 90 * 60 * 1000;
+const ADDRESS_BUDGET = 3;
+const CLIENT_BUDGET = 10;
+
+/**
+ * A stand-in sliding window, because the real one lives in Redis and the
+ * harness's limiter stub allows everything by default. Every call consumes a
+ * token for its own key and the verdict is the limiter's: nothing here counts
+ * rows, which is the point of Ruling 18. An unexpected key throws, so renaming
+ * one breaks a test rather than silently disabling a budget.
+ *
+ * `decide.used` is the token count per key, for assertions.
+ */
+function budgets({ client = CLIENT_BUDGET, address = ADDRESS_BUDGET } = {}) {
+  const used = new Map();
+  const limits = [['recovery:client:', client], ['recovery:address:', address]];
+  const decide = (key) => {
+    const found = limits.find(([prefix]) => key.startsWith(prefix));
+    if (!found) throw new Error(`routesRecoveryRequest: unexpected limiter key ${key}`);
+    const spent = (used.get(key) ?? 0) + 1;
+    used.set(key, spent);
+    return spent <= found[1];
+  };
+  decide.used = used;
+  return decide;
+}
+
+/** Collects the client keys the route asked about, allowing every request. */
+function clientKeys() {
+  const seen = [];
+  const decide = (key) => {
+    if (key.startsWith('recovery:client:')) seen.push(key);
+    return true;
+  };
+  return { seen, decide };
+}
 
 /**
  * alice holds LINKED, confirmed. bob holds UNCONFIRMED, never confirmed, which
  * is the state `remove-recovery` leaves an address in. `operations` and
  * `challenges` default to empty so each test seeds only what it is about.
  */
-function harness({ challenges = [], operations = [], tables = TABLES, rateLimit, household = false } = {}) {
+function harness({ challenges = [], operations = [], tables = TABLES, rateLimit = budgets(), household = false } = {}) {
   return createRouteHarness({
     tables,
     rateLimit,
@@ -400,7 +434,12 @@ test('a conflict says nothing about either address', async () => {
   const toUnlinked = await ask(first, { email: UNLINKED, clientNonce: clientNonce(1), operationId: op(1) });
   const toOtherLinked = await ask(second, { email: UNCONFIRMED, clientNonce: clientNonce(1), operationId: op(1) });
   const bodies = await Promise.all([toUnlinked.json(), toOtherLinked.json()]);
-  assert.equal(toUnlinked.status, toOtherLinked.status);
+  // Both really were refused as conflicts, or this would be two identical
+  // replays and the comparison would prove nothing.
+  assert.equal(toUnlinked.status, 409);
+  assert.equal(toOtherLinked.status, 409);
+  assert.equal(bodies[0].code, 'conflict');
+  assert.equal(bodies[0].reason, 'operation_mismatch');
   assert.deepEqual(
     { ...bodies[0], request_id: 'ID' },
     { ...bodies[1], request_id: 'ID' },
@@ -423,57 +462,66 @@ test('an Idempotency-Key that is not the operation id is refused rather than gue
 
 test('an address may be asked about a few times an hour; after that nothing more is sent, and the answer still does not change', async () => {
   const h = harness();
-  for (let n = 1; n <= ADDRESS_LIMIT; n += 1) {
+  for (let n = 1; n <= ADDRESS_BUDGET; n += 1) {
     const response = await complete(h, attempt(n, LINKED));
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), PENDING(op(n)), `attempt ${n} is accepted`);
   }
-  assert.equal(h.db.generatedLinks.length, ADDRESS_LIMIT, 'each accepted attempt sent one verification');
-  assert.equal(h.db.rows('recovery_challenges').length, ADDRESS_LIMIT);
+  assert.equal(h.db.generatedLinks.length, ADDRESS_BUDGET, 'each accepted attempt sent one verification');
+  assert.equal(h.db.rows('recovery_challenges').length, ADDRESS_BUDGET);
 
-  const refused = await complete(h, attempt(ADDRESS_LIMIT + 1, LINKED));
+  const refused = await complete(h, attempt(ADDRESS_BUDGET + 1, LINKED));
   assert.equal(refused.status, 200, 'being limited is not something the caller can observe');
-  assert.deepEqual(await refused.json(), PENDING(op(ADDRESS_LIMIT + 1)), 'the same pending answer');
-  assert.equal(h.db.generatedLinks.length, ADDRESS_LIMIT, 'but the inbox is not sent to again');
-  assert.equal(h.db.rows('recovery_challenges').length, ADDRESS_LIMIT, 'and no further challenge is opened');
-  assert.equal(h.db.rows('operations').length, ADDRESS_LIMIT + 1, 'while the attempt is still recorded');
+  assert.deepEqual(await refused.json(), PENDING(op(ADDRESS_BUDGET + 1)), 'the same pending answer');
+  assert.equal(h.db.generatedLinks.length, ADDRESS_BUDGET, 'but the inbox is not sent to again');
+  assert.equal(h.db.rows('recovery_challenges').length, ADDRESS_BUDGET, 'and no further challenge is opened');
+  assert.equal(h.db.rows('operations').length, ADDRESS_BUDGET + 1, 'while the attempt is still recorded');
 });
 
-test('the address limit counts the ledger, which no cancellation or completion can empty', async () => {
-  // Ruling 14. Counting challenge rows would under-count, because the link
-  // intent deletes them when a person cancels or the address is confirmed. The
-  // ledger keeps one row per attempt and is never deleted.
+test('the address budget is keyed by the address digest, and by nothing the caller can vary', async () => {
+  const limiter = budgets();
+  const h = harness({ rateLimit: limiter });
+  for (let n = 1; n <= ADDRESS_BUDGET; n += 1) {
+    await complete(h, attempt(n, LINKED), { headers: { 'X-Forwarded-For': `198.51.100.${n}` } });
+  }
+  const addressKeys = [...limiter.used.keys()].filter((key) => key.startsWith('recovery:address:'));
+  assert.deepEqual(addressKeys, [`recovery:address:${sha256(LINKED)}`], 'one key, the digest of the address');
+  assert.equal(limiter.used.get(addressKeys[0]), ADDRESS_BUDGET, 'one token per attempt, whatever the caller claims to be');
+});
+
+test('the address budget is not a row count, so deleting every challenge does not refill it', async () => {
+  // Ruling 14, carried into Ruling 18. Counting challenge rows would
+  // under-count, because the link intent deletes them when a person cancels or
+  // the address is confirmed. The budget now lives in the limiter's own window,
+  // which is not a row anyone can delete, and is not the ledger either.
   const h = harness();
-  for (let n = 1; n <= ADDRESS_LIMIT; n += 1) await complete(h, attempt(n, LINKED));
+  for (let n = 1; n <= ADDRESS_BUDGET; n += 1) await complete(h, attempt(n, LINKED));
 
-  const { error } = await h.db.from('recovery_challenges').delete().eq('intent', 'recover');
-  assert.equal(error, null);
+  const challenges = await h.db.from('recovery_challenges').delete().eq('intent', 'recover');
+  assert.equal(challenges.error, null);
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'every challenge row is gone');
+  const ledger = await h.db.from('operations').delete().eq('domain', 'recovery');
+  assert.equal(ledger.error, null);
+  assert.equal(h.db.rows('operations').length, 0, 'and so is every ledger row');
 
-  await complete(h, attempt(ADDRESS_LIMIT + 1, LINKED));
-  assert.equal(h.db.generatedLinks.length, ADDRESS_LIMIT, 'and the limit still holds');
+  await complete(h, attempt(ADDRESS_BUDGET + 1, LINKED));
+  assert.equal(h.db.generatedLinks.length, ADDRESS_BUDGET, 'the budget still holds');
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'nothing was reopened');
 });
 
-test('the ledger row the limit counts is keyed by the address and nothing per-attempt', async () => {
-  // The fragile part of counting the ledger: the row is matched by the input
-  // fingerprint the ledger itself computes, so the input must be the address
-  // digest and nothing else. Add a per-attempt field to it and every attempt
-  // gets a unique hash, which would turn the limit off silently.
-  const h = harness();
+test('a replay does not spend the address budget, because it does nothing', async () => {
+  const limiter = budgets();
+  const h = harness({ rateLimit: limiter });
   await complete(h, attempt(1, LINKED));
-  await complete(h, attempt(2, LINKED));
-  await complete(h, attempt(3, UNLINKED));
-  const hashes = h.db.rows('operations').map((row) => row.request_hash);
-  assert.equal(hashes[0], hashes[1], 'two attempts on one address share a fingerprint');
-  assert.notEqual(hashes[0], hashes[2], 'and a different address has a different one');
-  assert.equal(hashes.filter(Boolean).length, 3, 'every attempt carries one');
-  assert.ok(!hashes.includes(sha256(LINKED)), 'it is a hash of the operation input, not the address digest itself');
+  await complete(h, attempt(1, LINKED));
+  await complete(h, attempt(1, LINKED));
+  assert.equal(limiter.used.get(`recovery:address:${sha256(LINKED)}`), 1, 'one token for one operation');
+  assert.equal(h.db.generatedLinks.length, 1);
 });
 
-test('the limit is per address, so one address being asked about does not block another', async () => {
+test('the budget is per address, so one address being asked about does not block another', async () => {
   const h = harness();
-  for (let n = 1; n <= ADDRESS_LIMIT + 1; n += 1) await complete(h, attempt(n, UNLINKED));
+  for (let n = 1; n <= ADDRESS_BUDGET + 1; n += 1) await complete(h, attempt(n, UNLINKED));
   assert.equal(h.db.rows('recovery_challenges').length, 0);
 
   await complete(h, attempt(20, LINKED));
@@ -481,19 +529,24 @@ test('the limit is per address, so one address being asked about does not block 
   assert.equal(h.db.rows('recovery_challenges').length, 1);
 });
 
-test('older attempts fall out of the window, so the limit is a pause and not a lockout', async () => {
+test('a concurrent burst on one address cannot outrun the budget', async () => {
+  // Ruling 18. The budget used to be a count read before the write inside the
+  // operation, which N simultaneous requests could all pass. It is now one
+  // decision per request taken by the limiter, so a burst spends tokens rather
+  // than racing a count. Each request carries a different forged client
+  // address, so the per-client budget cannot be what refuses them: this is the
+  // address budget alone, which is exactly the composition the review found.
   const h = harness();
-  for (let n = 1; n <= ADDRESS_LIMIT + 1; n += 1) await complete(h, attempt(n, LINKED));
-  assert.equal(h.db.generatedLinks.length, ADDRESS_LIMIT, 'the window is full');
+  const burst = Array.from({ length: 50 }, (_, index) =>
+    ask(h, attempt(index + 1, LINKED), { headers: { 'X-Forwarded-For': `198.51.100.${index + 1}` } }),
+  );
+  const responses = await Promise.all(burst);
+  await h.runAfter();
 
-  const { error } = await h.db
-    .from('operations')
-    .update({ created_at: ago(PAST_THE_WINDOW) })
-    .eq('domain', 'recovery');
-  assert.equal(error, null);
-
-  await complete(h, attempt(ADDRESS_LIMIT + 2, LINKED));
-  assert.equal(h.db.generatedLinks.length, ADDRESS_LIMIT + 1, 'an hour later the address can be asked about again');
+  assert.deepEqual([...new Set(responses.map((response) => response.status))], [200], 'every caller is answered the same');
+  assert.equal(h.db.generatedLinks.length, ADDRESS_BUDGET, 'and one inbox gets the budget, not the burst');
+  assert.equal(h.db.rows('recovery_challenges').length, ADDRESS_BUDGET);
+  assert.equal(h.db.rows('operations').length, 50, 'while every attempt is still recorded');
 });
 
 test('a client that asks too often is told to wait, with nothing said about any address', async () => {
@@ -507,12 +560,21 @@ test('a client that asks too often is told to wait, with nothing said about any 
   const response = await ask(h, attempt(1, LINKED));
   const body = await expectEnvelope(response, { status: 429, code: 'rate_limited' });
   assert.ok(!body.message.includes('@'), 'the refusal names no address');
-  assert.equal(limitedKeys.length, 1, 'one limiter, checked once');
-  assert.ok(limitedKeys[0].includes(sha256(CLIENT_IP)), 'keyed by a digest of the client address, never the address itself');
+  assert.deepEqual(limitedKeys, [`recovery:client:${sha256(CLIENT_IP)}`], 'the client budget, checked once, keyed by a digest');
   assert.ok(!limitedKeys[0].includes(CLIENT_IP), 'the client address itself is not a limiter key');
   assert.deepEqual(h.db.queryLog, [], 'a shed request reads nothing');
   assert.equal(h.db.rows('operations').length, 0, 'and records nothing');
   assert.equal(h.db.generatedLinks.length, 0);
+});
+
+test('a client that spends its budget is refused even though the address has budget left', async () => {
+  const limiter = budgets({ client: 2 });
+  const h = harness({ rateLimit: limiter });
+  await complete(h, attempt(1, UNLINKED));
+  await complete(h, attempt(2, UNLINKED));
+  const refused = await ask(h, attempt(3, UNLINKED));
+  await expectEnvelope(refused, { status: 429, code: 'rate_limited' });
+  assert.equal(limiter.used.get(`recovery:client:${sha256(CLIENT_IP)}`), 3, 'the client window is what refused it');
 });
 
 test('being rate limited does not reveal whether the address exists', async () => {
@@ -533,27 +595,59 @@ test('being rate limited does not reveal whether the address exists', async () =
   );
 });
 
-test('every client shares one bucket when the deployment forwards no address, rather than none at all', async () => {
-  const keys = [];
-  const h = harness({
-    rateLimit: (key) => {
-      keys.push(key);
-      return true;
-    },
-  });
-  await complete(h, attempt(1, LINKED), { headers: { 'X-Forwarded-For': '' } });
-  assert.equal(keys.length, 1);
-  assert.ok(keys[0].length > 0, 'a missing client address still produces a key');
-  assert.ok(!keys[0].includes(sha256(CLIENT_IP)));
+test('every client shares ONE bucket when the deployment forwards no address, rather than a fresh one each time', async () => {
+  // The hazard this guards: a per-request stand-in (a random id, say) would
+  // look like a key and give every caller an unlimited budget. Two
+  // unattributed requests have to land in the same bucket.
+  const keys = clientKeys();
+  const h = harness({ rateLimit: keys.decide });
+  await complete(h, attempt(1, UNLINKED), { headers: { 'X-Forwarded-For': '' } });
+  await complete(h, attempt(2, UNLINKED), { headers: { 'X-Forwarded-For': '' } });
+  assert.equal(keys.seen.length, 2);
+  assert.equal(keys.seen[0], keys.seen[1], 'the same bucket for both, so the budget still applies');
+  assert.ok(keys.seen[0].length > 'recovery:client:'.length, 'and it is a usable key');
+  assert.ok(!keys.seen[0].includes(sha256(CLIENT_IP)));
 });
 
-test('the client key is the first forwarded hop, not whatever a proxy chain appended', async () => {
-  const keys = [];
-  const h = harness({ rateLimit: (key) => { keys.push(key); return true; } });
-  await complete(h, attempt(1, LINKED), {
-    headers: { 'X-Forwarded-For': ` ${CLIENT_IP} , 198.51.100.4, 192.0.2.9` },
+test('the client key is the hop nearest the trusted proxy, so a prepended one cannot buy a fresh bucket', async () => {
+  // Ruling 19. The leftmost entry is the end furthest from the proxy and is
+  // whatever the caller sent; the rightmost is what the hop nearest us
+  // appended. Taking the leftmost let an attacker vary the key per request and
+  // never be refused.
+  const keys = clientKeys();
+  const h = harness({ rateLimit: keys.decide });
+  await complete(h, attempt(1, UNLINKED), {
+    headers: { 'X-Forwarded-For': ` ${FORGED} , 198.51.100.4, ${CLIENT_IP} ` },
   });
-  assert.ok(keys[0].includes(sha256(CLIENT_IP)), 'the caller the deployment saw');
+  assert.deepEqual(keys.seen, [`recovery:client:${sha256(CLIENT_IP)}`], 'the hop nearest the proxy');
+  assert.ok(!keys.seen[0].includes(sha256(FORGED)), 'never the one the caller chose');
+});
+
+test('a forged chain cannot vary the client key from request to request', async () => {
+  const keys = clientKeys();
+  const h = harness({ rateLimit: keys.decide });
+  for (let n = 1; n <= 3; n += 1) {
+    await complete(h, attempt(n, UNLINKED), {
+      headers: { 'X-Forwarded-For': `10.0.0.${n}, 192.0.2.${n}, ${CLIENT_IP}` },
+    });
+  }
+  assert.deepEqual([...new Set(keys.seen)], [`recovery:client:${sha256(CLIENT_IP)}`], 'one bucket for all three');
+});
+
+test('a header the proxy sets is preferred over the one a caller can forge', async () => {
+  const keys = clientKeys();
+  const h = harness({ rateLimit: keys.decide });
+  await complete(h, attempt(1, UNLINKED), {
+    headers: { 'X-Vercel-Forwarded-For': CLIENT_IP, 'X-Forwarded-For': FORGED },
+  });
+  await complete(h, attempt(2, UNLINKED), {
+    headers: { 'X-Real-IP': CLIENT_IP, 'X-Forwarded-For': FORGED },
+  });
+  assert.deepEqual(
+    [...new Set(keys.seen)],
+    [`recovery:client:${sha256(CLIENT_IP)}`],
+    'both vendor headers win over a forged forwarding chain',
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -580,15 +674,34 @@ test('an address over 254 characters is refused, like the client\'s own rule', a
   assert.equal(body.field_errors[0].field, 'email');
 });
 
-test('a refusal for a malformed address says no more than a refusal for a well formed one', async () => {
-  // The validation error must not become the oracle the pending body is not: an
-  // address that cannot exist and one that simply does not exist are both just
-  // refused or accepted on their shape.
-  const h = harness();
-  const malformed = await ask(h, { email: 'nobody@example', clientNonce: clientNonce(1), operationId: op(1) });
-  const other = await ask(h, { email: 'someone@example', clientNonce: clientNonce(2), operationId: op(2) });
-  const bodies = await Promise.all([malformed.json(), other.json()]);
-  assert.deepEqual({ ...bodies[0], request_id: 'ID' }, { ...bodies[1], request_id: 'ID' });
+test('validation answers on the shape of the address and never on whether it exists', async () => {
+  // The four combinations of {well formed, malformed} and {linked, unlinked}.
+  // The answer must depend on the first and never on the second: the two well
+  // formed ones are byte-identical to each other, the two malformed ones are
+  // byte-identical to each other, and the two groups differ, so neither
+  // comparison is one shape of answer against itself.
+  const broken = (address) => address.replace(/\.[^.]+$/, ''); // drop the dot and the last label
+  const cases = [
+    { name: 'well formed, linked', email: LINKED, group: 'accepted' },
+    { name: 'well formed, unlinked', email: UNLINKED, group: 'accepted' },
+    { name: 'malformed, from a linked address', email: broken(LINKED), group: 'refused' },
+    { name: 'malformed, from an unlinked address', email: broken(UNLINKED), group: 'refused' },
+  ];
+  const answers = [];
+  for (const [index, item] of cases.entries()) {
+    const h = harness();
+    const response = await ask(h, { email: item.email, clientNonce: clientNonce(index + 1), operationId: op(1) });
+    const text = (await response.text()).replaceAll(op(1), 'OPERATION');
+    answers.push({ ...item, status: response.status, text: text.replace(/"request_id":"[^"]+"/, '"request_id":"ID"') });
+  }
+  const accepted = answers.filter((item) => item.group === 'accepted');
+  const refused = answers.filter((item) => item.group === 'refused');
+  assert.equal(accepted[0].text, accepted[1].text, 'a linked and an unlinked address are accepted identically');
+  assert.equal(accepted[0].status, accepted[1].status);
+  assert.equal(refused[0].text, refused[1].text, 'and both malformed addresses are refused identically');
+  assert.equal(refused[0].status, refused[1].status);
+  assert.notEqual(accepted[0].text, refused[0].text, 'while the two groups really do differ');
+  assert.deepEqual([accepted[0].status, refused[0].status], [200, 400]);
 });
 
 test('the address is normalized the way it is hashed, so case cannot open a second challenge', async () => {
@@ -667,7 +780,13 @@ test('the provider\'s one-time link and token reach no response, no row and no l
   assert.ok(!text.includes(clientNonce(1)) && !stored.includes(clientNonce(1)), 'nor the nonce');
 });
 
-test('a provider failure is not reported to the caller and is logged without the address', async (t) => {
+test('a provider failure is not reported to the caller, and leaves no line to count either', async (t) => {
+  // The inverse oracle (review I2). The provider resolves the address before it
+  // hands anything to its mailer, so a mailer failure can only happen for an
+  // address that DID resolve. A line per such failure would accumulate one
+  // entry per existing address and none per address that does not exist, which
+  // is exactly the record the unknown-address case refuses to keep. Nothing is
+  // granted on failure, so the line buys little and costs that.
   for (const [index, mode] of ['returned', 'thrown'].entries()) {
     const logged = muteConsoleError(t);
     const h = harness();
@@ -677,12 +796,29 @@ test('a provider failure is not reported to the caller and is logged without the
     assert.equal(response.status, 200, 'the caller was already told pending, truthfully');
     assert.deepEqual(await response.json(), PENDING(op(index + 1)));
     assert.equal(h.db.rows('recovery_challenges').length, 0, 'and no challenge is opened on a failed send');
-    const text = loggedText(logged);
-    assert.ok(text.length > 0, `${mode}: the failure is visible to us`);
-    assert.ok(!text.includes(LINKED), 'without the address');
-    assert.ok(!text.includes(clientNonce(index + 1)), 'and without the nonce');
+    assert.equal(loggedText(logged), '', `${mode}: no per-request line`);
     logged.mock.restore();
   }
+});
+
+test('a challenge that cannot be written leaves no line to count either', async (t) => {
+  // The same oracle, one statement later: an insert can only fail for an
+  // address that resolved to a linked identity.
+  const logged = muteConsoleError(t);
+  const h = harness();
+  const response = await ask(h, attempt(1, LINKED));
+  assert.equal(response.status, 200);
+  h.db.from = ((real) => (name) => {
+    const builder = real(name);
+    if (name !== 'recovery_challenges') return builder;
+    builder.then = (resolve) =>
+      Promise.resolve({ data: null, count: null, error: { code: '08006', message: `connection failure for ${LINKED}` } }).then(resolve);
+    return builder;
+  })(h.db.from.bind(h.db));
+  await h.runAfter();
+
+  assert.equal(h.db.generatedLinks.length, 1, 'the provider was asked');
+  assert.equal(loggedText(logged), '', 'and the failed write is not a line per existing address');
 });
 
 test('an address that resolves to nothing is not logged at all, because that is the enumeration-sensitive case', async (t) => {
@@ -692,9 +828,90 @@ test('an address that resolves to nothing is not logged at all, because that is 
   assert.equal(loggedText(logged), '', 'not finding an address is ordinary, not an error');
 });
 
+test('whatever the outcome, the number of log lines is the same, so no count can be read off them', async (t) => {
+  const logged = muteConsoleError(t);
+  for (const [index, email] of [LINKED, UNLINKED, UNCONFIRMED].entries()) {
+    const h = harness();
+    await complete(h, attempt(index + 1, email));
+  }
+  assert.equal(loggedText(logged), '', 'three different outcomes, no lines at all');
+});
+
 // ---------------------------------------------------------------------------
 // The two intents share one table (Ruling 15)
 // ---------------------------------------------------------------------------
+
+test('a second request from the same browser supersedes its own live challenge, so the nonce digest stays one row', async () => {
+  // Ruling 20. The answer carries no challenge id, so the nonce digest is the
+  // only handle /status and /complete have. Two accepted requests reusing one
+  // clientNonce are not replays to the ledger (different operation ids), and
+  // without this they would leave two live rows sharing one digest, which a
+  // single-row lookup there cannot resolve.
+  const h = harness();
+  await complete(h, attempt(1, LINKED));
+  const first = h.db.rows('recovery_challenges')[0];
+  await complete(h, { email: LINKED, clientNonce: clientNonce(1), operationId: op(2) });
+
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 1, 'one live row for one nonce digest');
+  assert.notEqual(rows[0].id, first.id, 'the newer request is the one that stands');
+  assert.equal(rows[0].nonce_hash, sha256(clientNonce(1)));
+  assert.equal(h.db.generatedLinks.length, 2, 'both requests really did ask for a verification');
+});
+
+test('superseding is scoped to the one browser: another nonce on the same identity survives', async () => {
+  const h = harness();
+  await complete(h, attempt(1, LINKED));
+  await complete(h, attempt(2, LINKED));
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 2, 'two browsers, two live challenges');
+  assert.deepEqual(
+    rows.map((row) => row.nonce_hash).sort(),
+    [sha256(clientNonce(1)), sha256(clientNonce(2))].sort(),
+    'each keeps its own digest',
+  );
+});
+
+test('superseding never touches a spent challenge, which is the record that a token was used', async () => {
+  // consumed_at is the single-use evidence /complete relies on. A re-request
+  // with the same nonce must not erase it.
+  const h = harness({
+    challenges: [{
+      id: CHALLENGE,
+      intent: 'recover',
+      nonce_hash: sha256(clientNonce(1)),
+      email_hash: sha256(LINKED),
+      status: 'verified',
+      restore_token_hash: hex('d4'),
+      consumed_at: ago(1000),
+    }],
+  });
+  const before = h.db.rows('recovery_challenges')[0];
+  assert.ok(before.consumed_at, 'the spent row is there to lose');
+  await complete(h, attempt(1, LINKED));
+
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 2, 'the spent row stays, alongside the new live one');
+  const spent = rows.find((row) => row.id === CHALLENGE);
+  assert.deepEqual(spent, before, 'untouched, including the single-use record');
+  assert.equal(rows.filter((row) => !row.consumed_at).length, 1, 'exactly one unconsumed row for the digest');
+});
+
+test('superseding never touches another household, even for the same nonce digest', async () => {
+  const h = harness({
+    challenges: [{
+      owner: 'bob',
+      id: CHALLENGE,
+      intent: 'recover',
+      nonce_hash: sha256(clientNonce(1)),
+      email_hash: sha256(UNCONFIRMED),
+    }],
+  });
+  await complete(h, attempt(1, LINKED));
+  const rows = h.db.rows('recovery_challenges');
+  assert.equal(rows.length, 2);
+  assert.ok(rows.some((row) => row.id === CHALLENGE && row.profile_id === h.identities.bob.id), "bob's row is untouched");
+});
 
 test('a link challenge is invisible to this route: it is neither read, superseded nor counted', async () => {
   const h = harness({
@@ -709,10 +926,16 @@ test('a link challenge is invisible to this route: it is neither read, supersede
   assert.equal(link.nonce_hash, hex('b2'), 'untouched: its nonce was discarded by the route that wrote it');
   assert.equal(rows.filter((row) => row.intent === 'recover').length, 1);
 
-  // Every statement this route makes on the table names its own intent.
+  // Every statement this route makes on the table either names its own intent,
+  // or is the schema probe, which carries no filter at all and so cannot be a
+  // lookup of anything: it reads one column of at most one row and discards it.
   const statementsOnChallenges = h.db.queryLog.filter((entry) => entry.table === 'recovery_challenges');
-  assert.ok(statementsOnChallenges.length >= 2, 'the probe and the insert both ran');
-  for (const entry of statementsOnChallenges) {
+  assert.ok(statementsOnChallenges.length >= 3, 'the probe, the supersede and the insert all ran');
+  const probes = statementsOnChallenges.filter(
+    (entry) => entry.operation === 'select' && (entry.filters ?? []).length === 0,
+  );
+  assert.equal(probes.length, 1, 'exactly one unfiltered read, the probe');
+  for (const entry of statementsOnChallenges.filter((item) => item !== probes[0])) {
     const named = `${JSON.stringify(entry.filters ?? [])}${JSON.stringify(entry.rows ?? [])}`.includes('"intent"');
     assert.ok(named, `${entry.operation} on recovery_challenges did not name the intent`);
   }
@@ -723,7 +946,7 @@ test('a link challenge for the same address does not count towards the address l
   // so it can never be settled by a recovering browser. Counting it would
   // refuse a real recovery attempt because the owner had once linked something.
   const h = harness({
-    challenges: Array.from({ length: ADDRESS_LIMIT + 2 }, () => ({ intent: 'link', email_hash: sha256(LINKED) })),
+    challenges: Array.from({ length: ADDRESS_BUDGET + 2 }, () => ({ intent: 'link', email_hash: sha256(LINKED) })),
   });
   await complete(h, attempt(1, LINKED));
   assert.equal(h.db.generatedLinks.length, 1, 'the recovery attempt is accepted');
