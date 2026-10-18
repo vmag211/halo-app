@@ -134,6 +134,18 @@ Not built in this package. Specified here so it is not rediscovered a third time
   does not exist today and which task 5 already records as unverified.
 - Whichever is chosen, the landing route is the only thing permitted to move a challenge to `verified`,
   and it must not itself become a way to verify a challenge without proving control of the mailbox.
+- **Ruling 31, and it is the most important constraint on this task.** Ruling 30 made `verified` the one
+  answer `/status` may distinguish, justified as "reaching verified requires control of the mailbox, and
+  whoever controls the mailbox is entitled to recover the account". A review of task 7 showed that
+  reasoning is incomplete, and the gap lands here: the challenge row is keyed by the CALLER's nonce, and
+  the emailed link carries no nonce binding (`generateLink({type:'magiclink', email})` with no
+  `redirectTo`). So the party who controls the mailbox is the victim who clicks, while the party who
+  collects `verified` and the restore token is whoever holds the nonce. A stranger can therefore request
+  recovery for someone else's address, persuade them to click, and collect the credential.
+  **This task MUST bind the clicker to the nonce**, so that only the browser that opened the challenge
+  can benefit from its verification. If it does not, Ruling 30's single exception stops being an
+  existence oracle and becomes a takeover path. Nothing marks a recover row `verified` today, which is
+  the only reason this is dormant rather than live.
 
 Until this exists, `/status` can return `verified` only for a row seeded in a test, and the capability
 flag could not honestly be turned on even if the Turnstile keys, the frontend token field, the backup
