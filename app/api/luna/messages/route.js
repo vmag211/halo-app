@@ -3,7 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseText, parseUuid } from '@/lib/validate';
 import { featureEnabled } from '@/lib/features';
-import { assistantGlobalLimiter, assistantLimiter, checkLimit } from '@/lib/ratelimit';
+import { assistantGlobalLimiter, assistantLimiter, checkLimit, lunaConversationLimiter } from '@/lib/ratelimit';
 import { chatModel, embedModel } from '@/lib/assistantRag';
 import {
   OPERATION_INPUT_MISMATCH,
@@ -101,14 +101,33 @@ import {
  * answered synchronously as a `completed` run and the client stops polling at
  * once.
  *
- * SPEND IS BOUNDED TWICE, on the budgets /api/assistant already uses, because
- * both surfaces spend from the same provider quota and a second window for the
- * same money would not be a bound at all. 20 questions per household per hour
- * (fails OPEN: a limiter hiccup must not block the critical path) and the
- * app-wide daily ceiling (fails CLOSED: the per-household bound has no upper
- * limit, because anonymous ids are cheap to mint). The cost of sharing the keys
- * is real and deliberate: a household that has used the legacy assistant panel
- * twenty times this hour cannot ask Luna until the window moves.
+ * SPEND IS BOUNDED THREE TIMES (Ruling L15), and each bound answers a
+ * different question:
+ *
+ *   per household, hourly    20 questions, on /api/assistant's own key, because
+ *                            both surfaces spend from one provider quota and a
+ *                            second window over the same money is not a bound.
+ *                            Fails OPEN: a limiter hiccup must not block the
+ *                            critical path.
+ *   per conversation, daily  60 questions. The hourly bound above lets one
+ *                            household spend 480 in a day, more than the
+ *                            app-wide ceiling holds, and a conversation costs
+ *                            more per answer than a single question did because
+ *                            it re-sends its history every turn. This is what
+ *                            stops one enthusiastic thread taking a visible
+ *                            share of everybody's day. Fails CLOSED.
+ *   app-wide, daily          the existing ceiling. Fails CLOSED: the
+ *                            per-household bound has no upper limit, because
+ *                            anonymous ids are cheap to mint.
+ *
+ * The first two bound what a household and a thread may DO, so a refused
+ * question is charged to both: it asks no model, but it still appends two turns
+ * to that conversation. The app-wide ceiling bounds only what reaches a
+ * provider, so a refusal must never spend it.
+ *
+ * The cost of sharing /api/assistant's keys is real and deliberate: a household
+ * that has used the legacy assistant panel twenty times this hour cannot ask
+ * Luna until the window moves.
  *
  * IDEMPOTENCY IS THE OPERATION LEDGER and nothing else (lib/operations.js,
  * domain 'luna'). The client sends `Idempotency-Key: <clientMessageId>` and
@@ -124,6 +143,24 @@ import {
  * Ruling L5). Off by default and enforced here: while it is off this route
  * reads nothing, writes nothing and discloses nothing.
  */
+
+// Ruling L14. The REQUIREMENT IS THE ORDERING, not this number:
+//
+//     LUNA_RUN_DEADLINE_MS (45s)  <  maxDuration (60s)  <  LUNA_RUN_STALE_AFTER_MS (75s)
+//
+// `after()` shares this invocation, so the generation must run out of time
+// before the platform does: at or above the ceiling, the work is killed before
+// `deadlineFetch` can abort it and `settleRun` can record an honest failure,
+// and every slow answer would then depend on a reader deriving staleness
+// instead of on anything this route wrote. The ceiling in turn sits under the
+// staleness window, so a run the platform really did kill is reported failed
+// shortly afterwards, while a slow but living generation inside the ceiling is
+// never slandered as dead. The gap between the deadline and the ceiling is the
+// room the settle after the deadline needs.
+//
+// 60 is the house value: cron/daily, district, map and onboard all declare it
+// and all run in production, so it is a ceiling this deployment permits.
+export const maxDuration = 60;
 
 const DOMAIN = 'luna';
 const KIND = 'luna.message';
@@ -451,6 +488,17 @@ export async function POST(request) {
       label: 'luna limiter',
     });
     if (!perUser) return overBudget(requestId);
+    // Per thread, failing closed. Only when a thread exists: the first message
+    // of a household's one conversation has nothing to charge yet, and the
+    // hourly bound above is what covers it. A conversation id is stable for
+    // ever after that (clearing keeps it), so every later turn is charged.
+    if (existing) {
+      const withinThread = await checkLimit(lunaConversationLimiter, `luna:conversation:${existing.id}`, {
+        fallback: false,
+        label: 'luna conversation limiter',
+      });
+      if (!withinThread) return overBudget(requestId);
+    }
     // App-wide, failing closed, and only on the path that will actually call a
     // model: the ceiling guards provider spend, so a refusal that asks no model
     // must not spend everyone else's budget.

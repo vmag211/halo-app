@@ -48,6 +48,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { auditOwnerScope } from './helpers/isolationKit.mjs';
@@ -57,6 +58,7 @@ const {
   LUNA_DIAGNOSTIC_REFUSAL,
   LUNA_NO_SOURCE,
   LUNA_SOURCES_ONLY,
+  LUNA_RUN_DEADLINE_MS,
   LUNA_RUN_FAILED_MESSAGE,
   LUNA_RUN_STALE_AFTER_MS,
   effectiveRunStatus,
@@ -784,19 +786,26 @@ test('the Idempotency-Key header and the clientMessageId must be the same id', a
 });
 
 // ---------------------------------------------------------------------------
-// 10: quotas, server-side, per user and app-wide
+// 10 and Ruling L15: quotas, server-side, per user, per conversation and app-wide
 // ---------------------------------------------------------------------------
 
 /**
- * A stand-in sliding window for the two budgets lib/ratelimit.js already holds
- * for the model path: 20 questions per household per hour (`assistantLimiter`)
- * and the app-wide daily ceiling (`assistantGlobalLimiter`). An unexpected key
- * throws, so renaming one breaks a test rather than silently disabling a budget.
+ * A stand-in sliding window for the three budgets in lib/ratelimit.js: 20
+ * questions per household per hour (`assistantLimiter`), 60 per conversation
+ * per day (`lunaConversationLimiter`) and the app-wide daily ceiling
+ * (`assistantGlobalLimiter`). An unexpected key throws, so renaming one breaks
+ * a test rather than silently disabling a budget.
  */
-function budgets({ perUser = 20, app = 450 } = {}) {
+function budgets({ perUser = 20, perConversation = 60, app = 450 } = {}) {
   const used = new Map();
   const decide = (key) => {
-    const budget = key === 'assistant:global' ? app : key.startsWith('assistant:') ? perUser : null;
+    const budget = key === 'assistant:global'
+      ? app
+      : key.startsWith('luna:conversation:')
+        ? perConversation
+        : key.startsWith('assistant:')
+          ? perUser
+          : null;
     if (budget === null) throw new Error(`routesLunaMessages: unexpected limiter key ${key}`);
     const spent = (used.get(key) ?? 0) + 1;
     used.set(key, spent);
@@ -837,11 +846,131 @@ test('the app-wide ceiling is checked too, and a refusal that needs no model doe
   assert.equal(limit.used.get('assistant:global'), 1, 'and it did not spend everyone\'s budget');
 });
 
-test('both budgets are asked about, in the order that spends nothing on a request already refused', async () => {
+test('all three budgets are asked about, in the order that spends nothing on a request already refused', async () => {
   const asked = [];
   const h = harness({ rateLimit: (key) => { asked.push(key); return true; } });
-  assertLunaRun(await (await send(h, 'alice', message())).json());
+
+  // The first message has no conversation yet, so there is no thread to charge:
+  // the household's own hourly bound is what covers turn one.
+  const first = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(1) }))).json());
   assert.deepEqual(asked, [`assistant:${h.identities.alice.id}`, 'assistant:global']);
+  await h.runAfter({ fetch: h.provider, env: ON });
+
+  // Every later turn is charged to its thread as well, between the household's
+  // bound and the app-wide ceiling.
+  asked.length = 0;
+  assertLunaRun(await (await send(h, 'alice', message({ id: uuid(2), conversationId: first.conversation.id }))).json());
+  assert.deepEqual(asked, [
+    `assistant:${h.identities.alice.id}`,
+    `luna:conversation:${first.conversation.id}`,
+    'assistant:global',
+  ]);
+});
+
+test('Ruling L15: one thread over its own daily budget is refused calmly, and cannot spend everyone else\'s', async () => {
+  const limit = budgets({ perConversation: 1 });
+  const h = harness({ rateLimit: limit });
+  const first = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(1) }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  const conversationId = first.conversation.id;
+  const before = h.db.rows('luna_turns').length;
+
+  // The thread's first charged turn is also its last.
+  assertLunaRun(await (await send(h, 'alice', message({ id: uuid(2), conversationId }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  const res = await send(h, 'alice', message({ id: uuid(3), conversationId, text: 'And indoors?' }));
+
+  const body = await expectEnvelope(res, { status: 429, code: 'rate_limited' });
+  assert.equal(/limit/i.test(body.message), true, 'the same calm sentence, not an error');
+  assert.equal(body.message.includes('\u2014'), false);
+  assert.equal(/supabase|openai|openrouter|redis|upstash|conversation/i.test(JSON.stringify(body)), false, 'no internal detail');
+  assert.equal(limit.used.get(`luna:conversation:${conversationId}`), 2, 'the budget is keyed to the thread');
+  // A spent thread must not have spent the shared ceiling on the turn it was
+  // refused: that is the whole point of the third budget.
+  assert.equal(limit.used.get('assistant:global'), 2, 'the refused turn reached no model path');
+  assert.equal(h.db.rows('luna_turns').length, before + 2, 'and the refused turn stored nothing');
+  assert.equal(h.db.rows('luna_runs').length, 2, 'never a false run');
+  assert.equal(h.db.rows('operations').length, 2);
+});
+
+test('the per-conversation budget is one thread\'s, so another household\'s thread is untouched by it', async () => {
+  const limit = budgets({ perConversation: 1 });
+  const h = harness({ rateLimit: limit });
+  const alice = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(1) }))).json());
+  const bob = assertLunaRun(await (await send(h, 'bob', message({ id: uuid(2) }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+
+  // alice spends her thread's budget; bob's thread still has all of its own.
+  assertLunaRun(await (await send(h, 'alice', message({ id: uuid(3), conversationId: alice.conversation.id }))).json());
+  await expectEnvelope(
+    await send(h, 'alice', message({ id: uuid(4), conversationId: alice.conversation.id })),
+    { status: 429, code: 'rate_limited' },
+  );
+  const next = assertLunaRun(await (await send(h, 'bob', message({ id: uuid(5), conversationId: bob.conversation.id }))).json());
+  assert.equal(next.status, 'queued', 'bob is not refused by alice\'s thread running out');
+  assert.equal(limit.used.get(`luna:conversation:${bob.conversation.id}`), 1, 'bob\'s thread spent only its own turn');
+});
+
+/**
+ * Two things the route depends on that NO route test can observe, so they are
+ * pinned from the source instead.
+ *
+ * The harness's limiter stand-in answers by key and ignores both the limiter
+ * object and `checkLimit`'s `fallback`, so a window length and the direction a
+ * budget fails in during an Upstash outage are invisible through `h.call`.
+ * They are still decisions, and getting either backwards is silent: a budget
+ * that fails open stops being a bound exactly when the limiter is down, and an
+ * hourly thread window could never bite at all.
+ */
+const sourceOf = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), 'utf8');
+
+test('Ruling L15: the thread budget is a daily window, large enough that only a daily one can bite', () => {
+  const limits = sourceOf('lib/ratelimit.js');
+  const windowOf = (name) => {
+    const found = new RegExp(`${name} = new Ratelimit\\(\\{[\\s\\S]*?slidingWindow\\((\\d+), '([^']+)'\\)`).exec(limits);
+    assert.ok(found, `${name} is a sliding window in lib/ratelimit.js`);
+    return { limit: Number(found[1]), window: found[2] };
+  };
+  const household = windowOf('assistantLimiter');
+  const thread = windowOf('lunaConversationLimiter');
+
+  assert.deepEqual([household.limit, household.window], [20, '1 h'], 'the household bound this one is sized against');
+  assert.equal(thread.window, '24 h', 'a thread budget is about one long-lived conversation, not a burst');
+  // The arithmetic that makes the window choice forced rather than a taste:
+  // an hourly thread budget above the hourly household bound is unreachable,
+  // so it would be a bound that never binds.
+  assert.ok(
+    thread.limit > household.limit,
+    `an hourly window could never bite: ${thread.limit} is reachable inside the household's ${household.limit} an hour`,
+  );
+  // And it stays a fraction of the app-wide ceiling, so several threads can
+  // each run to their own cap on the same day.
+  assert.ok(thread.limit * 5 < 450, `a thread must not be able to take the day: ${thread.limit} of 450`);
+});
+
+test('each budget fails in the direction it was chosen for, and they are consulted in that order', () => {
+  const route = sourceOf('app/api/luna/messages/route.js');
+  const asked = [...route.matchAll(/checkLimit\(\s*(\w+),[\s\S]*?fallback:\s*(true|false)/g)].map((found) => [found[1], found[2] === 'true']);
+  assert.deepEqual(asked, [
+    // Critical path: a limiter hiccup must not block a household from asking.
+    ['assistantLimiter', true],
+    // Spend bounds: during an outage a paused Luna beats an unbounded one.
+    ['lunaConversationLimiter', false],
+    ['assistantGlobalLimiter', false],
+  ]);
+});
+
+test('a refused question is charged to its thread too, because it still appends two turns to it', async () => {
+  const limit = budgets();
+  const h = harness({ rateLimit: limit });
+  const first = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(1) }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  const conversationId = first.conversation.id;
+
+  const refusal = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(2), conversationId, text: 'Do I have asthma?' }))).json());
+  assert.equal(refusal.status, 'completed');
+  assert.equal(limit.used.get(`luna:conversation:${conversationId}`), 1, 'the thread paid for the turns it grew by');
+  assert.equal(limit.used.get('assistant:global'), 1, 'and the model ceiling did not, because no model was asked');
 });
 
 // ---------------------------------------------------------------------------
@@ -1085,6 +1214,39 @@ test('a guide the client sends is accepted and unused; a malformed one is refuse
     const body = await expectEnvelope(res, { status: 400, code: 'validation_failed' });
     assert.equal(body.field_errors[0].field, 'guide', JSON.stringify(guide));
   }
+});
+
+// ---------------------------------------------------------------------------
+// Ruling L14: the invocation boundary the scheduled work lives inside
+// ---------------------------------------------------------------------------
+
+test('Ruling L14: the generation deadline, the declared invocation ceiling and the staleness window are ordered', async () => {
+  const { maxDuration } = await import('../app/api/luna/messages/route.js');
+  assert.equal(typeof maxDuration, 'number', 'the route declares its own invocation ceiling');
+  assert.ok(Number.isInteger(maxDuration) && maxDuration > 0, `maxDuration is a whole number of seconds, got ${maxDuration}`);
+  const ceiling = maxDuration * 1000;
+
+  // The numbers are not what matters; this chain is, and each link is a
+  // different failure if it breaks.
+  //
+  // deadline < ceiling: `after()` shares the route's invocation, so a deadline
+  // at or above the ceiling means the platform kills the generation before
+  // `deadlineFetch` can stop it and `settleRun` can record an honest failure.
+  // Every answer would then depend on a reader deriving staleness instead.
+  assert.ok(
+    LUNA_RUN_DEADLINE_MS < ceiling,
+    `the generation must run out of time before the platform does: ${LUNA_RUN_DEADLINE_MS}ms is not under ${ceiling}ms`,
+  );
+  // ceiling < staleness window: a run the platform did kill must be reported
+  // failed soon after, and the window must still be long enough that a slow but
+  // living generation inside the ceiling is never slandered as dead.
+  assert.ok(
+    ceiling < LUNA_RUN_STALE_AFTER_MS,
+    `a killed invocation must be called dead afterwards, not before: ${ceiling}ms is not under ${LUNA_RUN_STALE_AFTER_MS}ms`,
+  );
+  // The gap between the deadline and the ceiling is the room the settle after
+  // the deadline needs, so it cannot be nothing.
+  assert.ok(ceiling - LUNA_RUN_DEADLINE_MS >= 5_000, 'the settle after the deadline needs room inside the invocation');
 });
 
 // ---------------------------------------------------------------------------
