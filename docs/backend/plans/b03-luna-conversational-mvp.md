@@ -8,7 +8,7 @@ Branch: `vmag211/backend`. Decision this package implements: **Vibhav, 2026-10-1
 
 Luna's registry surface is ten operations: six answering operations and four tool operations, `proposals/edit`, `proposals/cancel`, `tools/confirm` and `operations`. (An earlier version of this paragraph counted the proposal fields inside `messages` as a fifth tool operation and said five of ten. That is wrong and B03 task 3 corrected it: the registry has exactly ten entries, four of them tool operations, and the proposal payload is a response field this release does not emit rather than an operation nobody built.) The tool half carries revision-bound mutation proposals, confirmation, authorization and durable operation status, and it is where nearly all of Luna's risk and effort live.
 
-This package builds the answering half and reports the tool half as unavailable through the contract's own capability mechanism. Five endpoints, no mutations, no new privacy decision.
+This package builds the answering half and reports the tool half as unavailable through the contract's own capability mechanism. Six endpoints, no mutations, no new privacy decision.
 
 **Out of scope, explicitly:** every tool and proposal operation; Luna writing or changing any record; Luna reading household data (see Ruling L2); streaming; and the frontend work to render an answer, which is Yogi's.
 
