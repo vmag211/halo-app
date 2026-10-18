@@ -16,7 +16,19 @@ This package builds the answering half and reports the tool half as unavailable 
 
 `.superpowers/sdd/b03-luna-conversational-mvp/luna-contract-digest.md` is the cited digest of the frontend's Luna types, validators and caller behaviour, with a file:line citation per claim. Where it quotes the frontend, it is binding. Where it says "ambiguous", the controller rules before an implementer proceeds.
 
-Question 8 of that digest is load-bearing for this entire package: the exact mechanism by which `luna.capabilities` reports that tools are unavailable **without the UI appearing broken**. If no such mechanism exists in the contract, this plan's shape is wrong and the controller must re-scope before Task 2 starts.
+Question 8 of that digest was load-bearing for this entire package, and it is now answered: the shape holds.
+
+**Ruling L7, how the tool half is reported absent.** Return `available: true` with `tools: []`.
+`tools: string[]` is declared and validated (`lib/frontend/production/luna-service.ts:11,29`), an empty
+array is explicitly valid, and no component reads it. The proposal and confirm controls render only
+inside a `message.proposal` block (`ProductionLunaConversation.tsx:93`), so simply never emitting a
+proposal erases the action surface with no empty state and no broken affordance. Say it in prose through
+`providerLabel` and `retentionSummary`, which the client renders verbatim, and set
+`publicRetrieval: false` to get the client's own sentence "Live public-source lookup is not available."
+**Do NOT use `available: false`:** it feeds `blocked` (`:36`) and disables answering, sending and every
+starter prompt as well, which would turn a deliberate scope decision into a dead screen.
+Cost if wrong: a person is not told in machine-readable form that actions are unavailable, only in prose;
+the alternative disables the half we are shipping.
 
 ## Rulings made before execution
 
@@ -26,6 +38,16 @@ Question 8 of that digest is load-bearing for this entire package: the exact mec
 - **Ruling L4, generation failure degrades to retrieval.** When the chat model is unavailable, rate-limited or returns nothing usable, the route returns the retrieved cited passages without generated prose, clearly marked as such. The person still gets a real sourced answer for the cost of one embedding call. A model outage must not become a broken feature. Cost if wrong: a plainer answer than intended; the alternative is an error where an answer was possible.
 - **Ruling L5, the capability ships behind a server-enforced flag, default off** (BE-351), the same mechanism `lib/features.js` already provides for recovery. Nothing is reachable until it is turned on deliberately.
 - **Ruling L6, the legacy assistant stays.** `/api/assistant` keeps working and is not migrated, rewritten or deprecated by this package. Luna is additive. Cost if wrong: two answering paths exist at once, which is acceptable while Luna is flag-gated and is cheaper than a migration nobody asked for.
+
+**Ruling L9, Luna is not a reskin of the legacy assistant.** The digest found twelve contradictions
+between the Luna contract and `/api/assistant`: response shape, citation shape, the inline `[n]` and
+`[H]` markers, the disclaimer, refusal wording including an em dash, how a decline is encoded, rate
+limiting, household data, the `page` enum against its display label, request field names and
+statelessness, idempotency and replay, and server-supplied suggestions. Where they conflict the frontend
+contract wins, because the client validates and discards. Reuse the legacy retrieval and refusal
+*behaviour*; do not reuse its response shape or its copy.
+Cost if wrong: two answering paths with different shapes exist at once, which Ruling L6 already accepts
+while Luna is flag-gated.
 
 ## Global constraints (every task, every reviewer)
 
@@ -53,7 +75,28 @@ Migration `0020_luna_conversations.sql` and `lib/luna.js`.
 
 ### Task 2a: `POST /api/luna/messages` (parallel)
 
-The answering route: validate, bound history, retrieve, generate, cite, store the turn, return the contract's shape. Degrade to retrieval on generation failure (Ruling L4). Per-user, per-conversation and app-wide quotas enforced server-side. Refusal behaviour at least as strong as the legacy assistant's, with adversarial tests including prompt injection, attempted instruction override, diagnosis and treatment requests, and a question with no source in the corpus.
+**Ruling L8, and it reshapes this task.** The digest found that `messages` must return a `LunaRun`
+(`{id, status}`) inside the client's hard 20-second timeout (`runtime.ts:116`), never the answer object
+and never a held-open connection. So this route does not answer. It validates, stores the user's turn,
+creates a run, schedules the work, and returns the run. The answer is delivered through
+`runs/status` polling, which is Task 2c. A free model can take tens of seconds, so a synchronous design
+would have failed the client's own timeout and been discovered in integration rather than here.
+
+Second half of the same ruling: a run reported `status: 'completed'` must carry the complete canonical
+conversation **including the user's own turn**, because the production component never appends the user
+message locally (`ProductionLunaConversation.tsx:55`) and discards the entire payload if
+`validLunaRun` or `validLunaConversation` fails. A response that omits the user's turn loses the person's
+own message from the screen.
+Cost if wrong: the work happens in Next's `after()`, which shares the route's invocation duration, so a
+very slow generation can be killed with the turn stored and no answer recorded. That must settle the run
+as failed rather than leaving it pending forever, and Task 1 owns that boundary.
+
+The route's own obligations: validate, bound history (Ruling L3), store the turn, create and schedule the
+run, enforce per-user, per-conversation and app-wide quotas server-side, and return the run. The
+generation step it schedules must retrieve, cite, degrade to retrieval on generation failure (Ruling L4),
+and refuse at least as strongly as the legacy assistant, with adversarial tests covering prompt
+injection, attempted instruction override, diagnosis and treatment requests, and a question with no
+source in the corpus.
 
 ### Task 2b: `GET /api/luna/conversations` and `POST /api/luna/conversations/clear` (parallel)
 
