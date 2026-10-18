@@ -13,6 +13,7 @@ import {
   runOperation,
 } from '@/lib/operations';
 import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from '@/lib/account';
+import { clientDigest } from '@/lib/recovery';
 
 /**
  * POST /api/recovery/request
@@ -439,39 +440,13 @@ const CLIENT_KEY = 'recovery:client:';
 const ADDRESS_KEY = 'recovery:address:';
 
 /**
- * The one bucket every caller shares when no proxy reported a client address.
- * A fixed string, deliberately: anything per-request (a fresh id, say) would
- * look like a key and quietly give every such caller an unlimited budget.
+ * Which headers a client address is looked for in, and why that order
+ * (Ruling 21), now lives with `clientDigest` in lib/recovery.js, because
+ * POST /api/recovery/status needs exactly the same rule and a second copy of
+ * it is a second thing to get wrong. The reasoning is quoted there in full:
+ * the platform-specific name first, then the RIGHTMOST hop of
+ * x-forwarded-for, and x-real-ip only when no chain was forwarded at all.
  */
-const UNATTRIBUTED = 'unattributed';
-
-/**
- * Where a client address is looked for, in order, taking the first header that
- * yields a hop. What is actually known about each, rather than assumed
- * (Ruling 21):
- *
- *   x-vercel-forwarded-for  a vendor-specific name, so it is present only where
- *                           that platform puts it there. Nothing here verifies
- *                           that it does; it is first because a name no generic
- *                           proxy uses is the one a caller gains least by
- *                           sending.
- *   x-forwarded-for         a list anyone may send. Only its RIGHTMOST entry is
- *                           worth anything, because that is the one the nearest
- *                           proxy appends IF a proxy is in front. It is
- *                           consulted before x-real-ip because an append-style
- *                           front (nginx, and most non-platform fronts) puts
- *                           the real peer here and sets nothing else: ordering
- *                           x-real-ip above this hands the bucket straight back
- *                           to the caller on exactly those deployments, with
- *                           the trustworthy value sitting unread.
- *   x-real-ip               a convention some proxies set. A single value with
- *                           no hop structure, so a forged one is
- *                           indistinguishable from a real one. Last, and
- *                           reached only when no chain was forwarded at all.
- *
- * None of this is verified against the deployment. See `clientDigest`.
- */
-const CLIENT_ADDRESS_HEADERS = Object.freeze(['x-vercel-forwarded-for', 'x-forwarded-for', 'x-real-ip']);
 
 const MESSAGES = Object.freeze({
   limited: 'Too many recovery requests from this device. Please wait and try again later.',
@@ -571,46 +546,6 @@ function parseNonce(value) {
   if (!given.ok) return given;
   if (given.value.length < NONCE_MIN_LENGTH) return { ok: false, code: 'invalid_nonce', message: MESSAGES.nonce };
   return { ok: true, value: given.value };
-}
-
-/**
- * Which client this is, as a digest. There is no session to key a limit to, so
- * the only thing available is the client address a proxy reports, and it is
- * hashed because a client address is personal data and a limiter key is not the
- * place for it.
- *
- * Two rules, both because the raw header is caller-supplied text (Ruling 19):
- *
- *   1. The headers are tried in the order of `CLIENT_ADDRESS_HEADERS` above,
- *      which puts the one a caller gains least by sending first and the one a
- *      caller gains most by sending last. A single-valued header is never
- *      preferred over a forwarded chain, because a chain at least has an end a
- *      proxy appends and a single value does not (Ruling 21).
- *   2. Within whichever header is used, the hop NEAREST the proxy is taken,
- *      which is the rightmost entry. A proxy appends the peer it received the
- *      request from, so the rightmost value is the one the hop closest to us
- *      saw; the leftmost is the end furthest away and is whatever the caller
- *      chose to put there. Taking the leftmost would let a caller vary its own
- *      bucket per request and never be refused.
- *
- * This is an ASSUMPTION about the deployment, not a property of this code: if
- * nothing in front of this route rewrites or appends these headers, the budget
- * is per claimed address rather than per caller. It is not verified here. The
- * per-address budget is deliberately independent of it, so that is what still
- * bounds the damage; this one is defence in depth.
- *
- * A request with no reported address shares one bucket with every other such
- * request, which is the safe direction: a missing header must not mean an
- * unlimited caller. Locally there is usually no such header, so every local
- * caller shares a budget.
- */
-function clientDigest(request) {
-  for (const name of CLIENT_ADDRESS_HEADERS) {
-    const hops = (request.headers.get(name) ?? '').split(',').map((hop) => hop.trim()).filter(Boolean);
-    const nearest = hops[hops.length - 1];
-    if (nearest) return hashToken(nearest.toLowerCase());
-  }
-  return UNATTRIBUTED;
 }
 
 /**
