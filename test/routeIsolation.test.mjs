@@ -58,6 +58,7 @@ const ROUTE_COVERAGE = {
   'POST /api/luna/conversations/clear': 'routesLunaConversations: another household\'s conversation id is the identical conflict to one that never existed and deletes nothing, a body naming another profile is refused and a query naming one is ignored, and clearing touches no row outside the caller\'s own Luna conversation',
   'GET /api/luna/runs/status': 'routesLunaRuns: the run lookup is scoped to the caller, and another household\'s run id (or client message id) is the identical failed run to one that never existed, with no conversation attached',
   'POST /api/luna/runs/cancel': 'routesLunaRuns: another household\'s run id settles nothing and is the identical failed run to a missing one; the ledger receipt is owned by the caller and carries no conversation text',
+  'POST /api/luna/messages': 'routesLunaMessages: the turn, the run and the conversation are written and read for the caller only, another household\'s conversation id is the identical 404 to a missing one, their clientMessageId discloses nothing and starts no run, a body naming another profile is refused and a query naming one is ignored; off by the flag or before 0020 nothing is read at all',
   'GET /api/map': 'isolation: read matrix (no household data)',
   'GET /api/notifications': 'isolation: read matrix',
   'GET /api/operations': 'routesOperations: another household\'s operation id is the identical 404, recovery is not readable here, stale pending reads as unknown',
