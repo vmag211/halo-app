@@ -1720,3 +1720,98 @@ test('a live and an expired verified receipt cost the same statements, so the cl
   assert.deepEqual(logs.live, logs.expired, 'the same statements either way');
   assert.ok(logs.live.length >= 3, 'and there really are statements to compare, not an empty log');
 });
+
+// ---------------------------------------------------------------------------
+// Precedence between a live row and a ledger receipt (round 3)
+// ---------------------------------------------------------------------------
+
+test('a live row outranks the ledger: a verified receipt cannot mint a token for a row that says pending', async () => {
+  // Round 3. The round-2 timing fix removed the `!row` gate from BOTH the
+  // decision to READ the ledger and the decision to USE its answer, and only
+  // the first of those was intended. The effect was a precedence change nobody
+  // asked for: a live `pending` row plus a verified receipt naming that same
+  // challenge returned `verified` with a derived restore token, which the
+  // pre-round-2 code could never do.
+  //
+  // It must not. The row is the only thing that may authorise a restore token,
+  // and `verifyRestoreToken` enforces exactly that for task 8, so a token
+  // issued on a receipt's word is one /complete will refuse: a `verified`
+  // answer that cannot be redeemed is the dead end Ruling 8 exists to prevent.
+  // The ledger records what was said; it is not a second source of authority.
+  const expires = future();
+  const h = harness({
+    challenges: [{
+      id: challengeId(1),
+      nonce_hash: sha256(clientNonce(1)),
+      status: 'pending',
+      expires_at: expires,
+    }],
+    operations: [{
+      ...receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt: expires }),
+      kind: 'recovery.complete',
+    }],
+  });
+  const response = await ask(h, poll(1, { scope: 'complete' }));
+  const text = await response.text();
+  const body = JSON.parse(text);
+
+  assertRecoveryStatus(body, op(101));
+  assert.equal(body.status, 'pending', 'the row says pending, so nothing is verified');
+  assert.equal(body.restoreToken, undefined, 'and above all no credential the row does not support');
+  assert.equal(body.challengeId, null);
+  assert.equal(
+    text,
+    await (await ask(harness(), poll(1, { scope: 'complete' }))).text(),
+    'byte-identical to no challenge and no operation at all',
+  );
+  // Non-vacuous on both halves: the row really is there and the receipt really
+  // does claim verified for that exact id.
+  assert.equal(h.db.rows('recovery_challenges').length, 1);
+  assert.equal(h.db.rows('operations')[0].result.status, 'verified');
+  assert.equal(h.db.rows('operations')[0].result.challengeId, challengeId(1));
+});
+
+test('the same receipt IS honoured once the row it names is spent, which is the only legitimate shape', async () => {
+  // The distinction the rule turns on. A successful /complete consumes its row,
+  // so the live lookup finds nothing and the receipt is the only record left:
+  // that is the case the reconcile path exists for. An UNCONSUMED row means no
+  // /complete ever finished, so a receipt claiming otherwise is describing a
+  // state the row contradicts.
+  const expires = future();
+  const h = harness({
+    challenges: [{
+      id: challengeId(1),
+      nonce_hash: sha256(clientNonce(1)),
+      status: 'verified',
+      restore_token_hash: hex('d4'),
+      consumed_at: ago(1000),
+      expires_at: expires,
+    }],
+    operations: [{
+      ...receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt: expires }),
+      kind: 'recovery.complete',
+    }],
+  });
+  const body = await (await ask(h, poll(1, { scope: 'complete' }))).json();
+  assert.equal(body.status, 'verified', 'a spent row leaves the receipt as the record');
+  assert.equal(body.restoreToken, restoreToken(challengeId(1), clientNonce(1)));
+});
+
+test('a live row of every non-verified shape outranks a verified receipt, not just a pending one', async () => {
+  const expires = future();
+  for (const [index, status] of ['pending', 'expired', 'collision', 'failed'].entries()) {
+    const h = harness({
+      challenges: [{
+        id: challengeId(1),
+        nonce_hash: sha256(clientNonce(index + 1)),
+        status,
+        expires_at: expires,
+      }],
+      operations: [receipt(op(1), { status: 'verified', challengeId: challengeId(1), expiresAt: expires })],
+    });
+    const body = await (await ask(h, poll(index + 1, { scope: 'request' }))).json();
+    assertRecoveryStatus(body, op(101 + index));
+    assert.equal(body.status, 'pending', `a live ${status} row is not overridden by the ledger`);
+    assert.equal(body.restoreToken, undefined, `${status}: no token`);
+  }
+});

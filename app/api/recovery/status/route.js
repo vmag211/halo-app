@@ -229,6 +229,37 @@ import {
  * reissued token for an already-consumed row is task 8's design decision, and
  * it is recorded as an open item rather than assumed here.
  *
+ * PRECEDENCE BETWEEN THE TWO RECORDS, STATED AS A RULE BECAUSE TASK 8 INHERITS
+ * IT: A LIVE CHALLENGE ROW DECIDES, ALONE. If the nonce digest resolves to an
+ * unconsumed row, that row is the whole answer and the ledger's is discarded,
+ * even when a receipt claims something stronger for the very same challenge id.
+ * The ledger is consulted only when there is no live row.
+ *
+ * Why it is a rule rather than a preference. The row is the ONLY thing that may
+ * authorise a restore token, which is what `verifyRestoreToken` enforces for
+ * `/complete`: it refuses any token whose row is not `verified` right now. So a
+ * token minted on a receipt's word, for a row that says `pending`, is one
+ * `/complete` will refuse, and a `verified` answer that cannot be redeemed is
+ * exactly the dead end Ruling 8 exists to prevent. A receipt is a record of
+ * what was said at a moment that has passed; it is not a second source of
+ * authority, and treating it as one would put a path around the single gate
+ * review I1 was about.
+ *
+ * It is also the only shape a consistent database can produce. A successful
+ * `/complete` CONSUMES its row, so the live lookup finds nothing and the
+ * receipt is the only record left, which is the case the reconcile path exists
+ * for. An UNCONSUMED row means no `/complete` ever finished, so a receipt
+ * claiming otherwise is describing a state its own row contradicts, and the row
+ * is the newer writer.
+ *
+ * This needs saying because it was briefly NOT true. The round-2 fix below
+ * reads the ledger unconditionally to equalise the work, and removing the
+ * `!row` gate took it off the decision to USE the answer as well as off the
+ * decision to READ it. Only the second was intended. For one round a live
+ * `pending` row plus a verified receipt returned a restore token, which the
+ * code before it could never do. Reading and deciding are separable and are now
+ * separate.
+ *
  * A RECEIPT IS ONLY EVER PUBLISHED TO THE BROWSER THAT OWNS ITS CHALLENGE.
  * `requestOperationId` is an id, not a credential: it travels in crash reports,
  * analytics payloads and screenshots of a network trace, and holding one proves
@@ -590,25 +621,29 @@ export async function POST(request) {
       ? await fromLedger(supabaseAdmin, { operationId, requestOperationId, key, nonceHash })
       : null;
 
-    // A live challenge is the canonical state whenever there is one, but only
-    // `verified` may be reported as itself (Ruling 30). Everything else about a
-    // row that exists has to read exactly like a row that does not, because a
-    // row exists only for an address that resolved and the caller chose its
-    // nonce digest.
-    if (row && challengeStatus(row) === 'verified') {
+    // PRECEDENCE, WHICH IS A RULE AND NOT A SIDE EFFECT (see the header). A
+    // LIVE ROW DECIDES, ALONE. The ledger's answer, already computed above, is
+    // used only when the row lookup found nothing at all. Only `verified` may
+    // be reported as itself (Ruling 30); everything else about a row that
+    // exists has to read exactly like a row that does not, because a row exists
+    // only for an address that resolved and the caller chose its nonce digest.
+    if (row) {
+      const verified = challengeStatus(row) === 'verified';
       return NextResponse.json(
-        recoveryStatus({
-          operationId,
-          status: 'verified',
-          challengeId: row.id,
-          expiresAt: row.expires_at,
-          restoreToken: deriveRestoreToken(key, { challengeId: row.id, nonceHash }),
-        }),
+        verified
+          ? recoveryStatus({
+            operationId,
+            status: 'verified',
+            challengeId: row.id,
+            expiresAt: row.expires_at,
+            restoreToken: deriveRestoreToken(key, { challengeId: row.id, nonceHash }),
+          })
+          : uniformStatus(operationId),
         { headers },
       );
     }
 
-    // No verified row. A reconciling scope may have an earlier operation to
+    // No live row at all. A reconciling scope may have an earlier operation to
     // report on; everything else is the one answer: not found, pending,
     // expired, collided, failed and spent, all alike, which is also the answer
     // for a nonce that is not this row's, by construction rather than by
