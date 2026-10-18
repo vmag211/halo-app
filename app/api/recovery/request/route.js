@@ -59,18 +59,35 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  *   1 CONFIGURED AND THE TOKEN VERIFIES. The request proceeds exactly as the
  *     rest of this file describes.
  *
- *   2 CONFIGURED AND THE TOKEN IS MISSING, UNUSABLE, ALREADY SPENT OR REJECTED.
- *     A 400 carrying a `reason`, and nothing else happens: no id is claimed, no
- *     row is written, no message is sent, and the address budget is not even
- *     consulted, so a refusal cannot be counted against an address either. The
- *     reason is `verification_required` when this route can see for itself that
- *     there is no usable token (absent, not a string, empty, over the
- *     provider's documented length, or carrying control characters) and
- *     `verification_failed` when the provider did not accept one. Those two are
- *     distinguishable so a client can tell a person whose widget never loaded
- *     from one whose answer was refused; both are byte-identical for an address
- *     that resolves and one that does not, because the reason is a fact about
- *     the token and nothing else.
+ *   2 CONFIGURED AND THE TOKEN IS MISSING, UNUSABLE, ALREADY SPENT OR REJECTED,
+ *     OR THE PROVIDER CANNOT BE ASKED. A 400 carrying a `reason`, and nothing
+ *     else happens: no id is claimed, no row is written, no message is sent, and
+ *     the address budget is not even consulted, so a refusal cannot be counted
+ *     against an address either. Three reasons, naming three different facts:
+ *
+ *       verification_required     this route can see for itself that no usable
+ *                                 token arrived (absent, not a string, empty,
+ *                                 carrying control characters, or past the
+ *                                 abuse bound below).
+ *       verification_failed       the provider was asked and refused the token.
+ *                                 The only reason that is about the person.
+ *       verification_unavailable  the provider could not be asked, or answered
+ *                                 something unreadable: a dead network, an
+ *                                 abort at the timeout, a non-2xx, a body that
+ *                                 is not the JSON object this expects. A fact
+ *                                 about US, not about the person, and
+ *                                 deliberately not collapsed into the one above
+ *                                 (Ruling 24): recovery is the one route a
+ *                                 locked-out person has, and telling everyone
+ *                                 during a siteverify outage that their own
+ *                                 check failed sends them round a retry loop
+ *                                 that cannot succeed.
+ *
+ *     All three are distinguishable, so a client can tell a person whose widget
+ *     never loaded from one whose answer was refused from one for whom nothing
+ *     is working. All three are byte-identical for an address that resolves and
+ *     one that does not, because a reason is a fact about the token or about the
+ *     provider and never about the address.
  *
  *   3 NOT CONFIGURED. The route is SHUT: the same non-retryable 503
  *     `feature_unavailable`, in the same words, as the capability being off,
@@ -132,23 +149,32 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * an unparseable one, or anything other than an explicit `success: true` is a
  * refusal. Nothing on this path is logged at all, in either direction: this
  * route keeps no per-request line (see further down), and a line per refused
- * verification would be the first one, so a verifier outage is visible in the
- * provider's own dashboard rather than here. The token, the client address and
- * the provider's answer reach no log line, no row and no response, and the
- * client address is not sent to the provider either (`remoteip` is optional,
- * the header it would come from is not trustworthy here, and a client address
- * is personal data with no reason to reach a third party).
+ * verification would be the first one. So the SERVER-SIDE signal of a verifier
+ * outage is still the provider's own dashboard and the platform's egress
+ * metrics, and what this route adds is only that the person, and therefore the
+ * client, is told which of the three facts it was. That is a real residual: if
+ * an outage has to be visible here, the smallest honest addition is a line
+ * carrying the request id and the reason and nothing else, weighed against the
+ * no-per-request-line invariant rather than added casually. The token, the
+ * client address and the provider's answer reach no log line, no row and no
+ * response, and the client address is not sent to the provider either
+ * (`remoteip` is optional, the header it would come from is not trustworthy
+ * here, and a client address is personal data with no reason to reach a third
+ * party).
  *
  * WHAT IS NOT VERIFIED ABOUT ANY OF IT. There is no site key and no secret key
  * in any environment, so the live exchange has never run: this code is tested
  * against a fake verifier only. The endpoint, the field names (`secret`,
- * `response`, `idempotency_key`), the form encoding, the 2048 character
- * ceiling on a token and the single-use-with-an-idempotency-key behaviour are
- * all from the provider's documentation and are unverified here. Nothing
- * branches on the provider's own `error-codes`, so no documented code is
- * load-bearing, and every unverified assumption fails in the direction of
- * refusing rather than passing. Acceptance of BE-340 is blocked on the keys
- * existing.
+ * `response`, `idempotency_key`), the form encoding and the
+ * single-use-with-an-idempotency-key behaviour are all from the provider's
+ * documentation and are unverified here. Nothing branches on the provider's own
+ * `error-codes`, so no documented code is load-bearing, and every unverified
+ * assumption fails in the direction of refusing rather than passing, AFTER a
+ * call the provider logs. That last clause is why the token size it documents
+ * is deliberately NOT enforced here: a local length limit is the only one of
+ * these that would refuse without a round trip, leaving nothing on the
+ * provider's side to see. See `TOKEN_CEILING`. Acceptance of BE-340 is blocked
+ * on the keys existing.
  *
  * NO TIMING FORK, and how it is actually prevented. The work that depends on
  * the address (asking the provider whether it resolves, opening a challenge,
@@ -338,15 +364,30 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
 const TOKEN_FIELD = 'captchaToken';
 
 /**
- * The provider documents its token as at most this long. A longer one is
- * refused here without a round trip, which is the safe direction and the one
- * place a documented number is relied on; if the real token ever exceeds it,
- * this route refuses a legitimate person rather than letting one through.
+ * An ABUSE BOUND on the token, deliberately loose, and NOT a transcription of
+ * the size the provider documents (2048 characters at the time of writing).
+ *
+ * The looseness is the point (Ruling 25). Every other assumption this route
+ * makes about the provider fails only AFTER a call the provider logs, so a
+ * wrong one shows up in its dashboard, which is the only place a verification
+ * problem here becomes visible. A tight length limit is the one assumption that
+ * fails with NO round trip: a correctly working widget whose token had grown
+ * would be refused locally, the person would be told to complete a check they
+ * had already completed, and nothing at all would appear on the provider's
+ * side. So the provider is the judge of what its own token looks like, and this
+ * number exists only to stop an unauthenticated caller shipping a megabyte of
+ * text through `fetch`. It is far enough above the documented size to absorb a
+ * change in it.
  */
-const TOKEN_MAX_LENGTH = 2048;
+const TOKEN_CEILING = 8192;
 
-/** The body is four fields; the largest are a 254 character address and the token. */
-const MAX_BYTES = 1024 + TOKEN_MAX_LENGTH;
+/**
+ * The body is four fields; the largest are a 254 character address and the
+ * token. Sized from `TOKEN_CEILING` so the byte cap can never be what refuses a
+ * token the ceiling allows: a 413 before the token is read would put the local
+ * refusal back, by another door.
+ */
+const MAX_BYTES = 1024 + TOKEN_CEILING;
 
 /** The only keys the body may carry; anything else is a client confused about this endpoint. */
 const BODY_KEYS = Object.freeze(['email', 'clientNonce', 'operationId', TOKEN_FIELD]);
@@ -361,9 +402,17 @@ const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverif
  */
 const VERIFY_TIMEOUT_MS = 8000;
 
-/** The two verification refusals, which a client must be able to tell apart. */
+/**
+ * The three verification refusals, which a client must be able to tell apart,
+ * and the one verdict that is not a refusal. Each names a different fact:
+ * nothing usable arrived, the provider refused what did, or the provider could
+ * not be asked at all. The third is a fact about US and never about the person
+ * (Ruling 24).
+ */
 const VERIFICATION_REQUIRED = 'verification_required';
 const VERIFICATION_FAILED = 'verification_failed';
+const VERIFICATION_UNAVAILABLE = 'verification_unavailable';
+const VERIFIED = 'verified';
 
 /** The client's own rule (lib/frontend/account-review.ts), enforced here because the client is not authority. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -429,9 +478,14 @@ const MESSAGES = Object.freeze({
   mismatch: 'That request was already made with different details. Please start again.',
   email: 'Enter an email address in the form name@example.com.',
   nonce: 'That request is missing the value that identifies this browser. Please start again.',
-  // Neither of these offers help that does not exist (BE-340).
+  // None of these offers help that does not exist (BE-340), and the third does
+  // not blame the person for something that is ours: telling someone their own
+  // check failed, on the one route a locked-out person has, during an outage
+  // they cannot do anything about, sends them round a loop that cannot succeed.
   [VERIFICATION_REQUIRED]: 'Complete the verification check, then try again.',
   [VERIFICATION_FAILED]: 'That verification could not be confirmed. Please try the check again.',
+  [VERIFICATION_UNAVAILABLE]:
+    'Verification is unavailable right now, which is not a problem with your answer. Please try again in a few minutes.',
 });
 
 /** The one body an accepted request is answered with. Built here so it cannot drift per branch. */
@@ -464,10 +518,11 @@ function tooManyRequests(requestId) {
 
 /**
  * The 400 for a request with no usable proof that a person made it. One
- * builder for both reasons, so they cannot drift apart per branch, and so
- * neither can ever carry anything derived from the address: the reason is a
- * fact about the token and nothing else, which is what makes the two refusals
- * byte-identical for an address that resolves and one that does not.
+ * builder for every reason, so they cannot drift apart per branch, and so none
+ * can ever carry anything derived from the address: a reason is a fact about
+ * the token, or about the provider, and never about the person or the address,
+ * which is what makes every one of these refusals byte-identical for an
+ * address that resolves and one that does not.
  */
 function verificationRefused(reason, requestId) {
   return apiError({
@@ -572,29 +627,37 @@ function verificationSecret() {
 /**
  * The token as it arrived, or null when there is nothing worth asking the
  * provider about. These are the only checks made here, deliberately: present, a
- * string, not empty, one line, and within the documented length. No character
- * class is guessed at, because whether a token is REAL is the provider's answer
- * and not a shape this route can know.
+ * string, not empty, one line, and under the abuse bound above. No character
+ * class is guessed at and no size the provider documents is enforced, because
+ * whether a token is REAL, or even well formed, is the provider's answer and
+ * not a shape this route can know.
  */
 function parseToken(value) {
-  const given = parseText(value, { maxLength: TOKEN_MAX_LENGTH, required: true, rejectControl: true });
+  const given = parseText(value, { maxLength: TOKEN_CEILING, required: true, rejectControl: true });
   return given.ok ? given.value : null;
 }
 
 /**
- * Whether the provider says a person solved this challenge.
+ * What the provider said about this token: `VERIFIED`, `VERIFICATION_FAILED` or
+ * `VERIFICATION_UNAVAILABLE`. Only the first lets a request through, so every
+ * path still fails CLOSED, the same direction both limiters take, because the
+ * alternative is an open mail relay during an outage.
  *
- * True ONLY for an explicit `success: true`. A provider that cannot be reached,
- * answers non-2xx, answers something that is not the JSON object this expects,
- * or takes too long is false: fail CLOSED, the same direction both limiters
- * take, because the alternative is an open mail relay during an outage.
+ * The three are kept apart because only ONE of them is about the token
+ * (Ruling 24). An explicit `success: false` is the provider refusing what the
+ * person sent. Everything else is the provider not answering at all: a dead
+ * network, an abort, a non-2xx, a body that is not JSON, a body that is not an
+ * object, or one with no readable `success`. Those say nothing about the person,
+ * so they must not be reported as the person's own failure: during a siteverify
+ * outage every locked-out caller would otherwise be told their check failed and
+ * asked to retry it, which cannot succeed.
  *
  * Nothing here is logged, in either direction, and nothing it saw is returned:
  * the token, the provider's answer and its `error-codes` reach no log line, no
  * row and no response. Nothing branches on which code came back either, so no
  * documented provider code is load-bearing.
  */
-async function verifiedByProvider(secret, token, operationId) {
+async function providerVerdict(secret, token, operationId) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
   try {
@@ -609,15 +672,21 @@ async function verifiedByProvider(secret, token, operationId) {
       // retried request needs; the operation id is already the client's own
       // choice and names nothing. Nothing depends on it working: if the
       // provider ignores it, a retry is refused, which is the safe direction.
+      // How long the provider honours one is its own undocumented window.
       body: new URLSearchParams({ secret, response: token, idempotency_key: operationId }),
       signal: controller.signal,
       cache: 'no-store',
     });
-    if (!response.ok) return false;
+    if (!response.ok) return VERIFICATION_UNAVAILABLE;
     const verdict = await response.json();
-    return verdict?.success === true;
+    if (verdict?.success === true) return VERIFIED;
+    // An explicit refusal is the only answer that is about the token. Anything
+    // else is an answer this route cannot read, which is the provider not
+    // having answered.
+    return verdict?.success === false ? VERIFICATION_FAILED : VERIFICATION_UNAVAILABLE;
   } catch {
-    return false;
+    // A dead network, an abort at the timeout, or a body that would not parse.
+    return VERIFICATION_UNAVAILABLE;
   } finally {
     clearTimeout(timer);
   }
@@ -799,9 +868,8 @@ export async function POST(request) {
     if (!(await alreadySettled(supabaseAdmin, operationId.value))) {
       const token = parseToken(body.value[TOKEN_FIELD]);
       if (token === null) return verificationRefused(VERIFICATION_REQUIRED, requestId);
-      if (!(await verifiedByProvider(secret, token, operationId.value))) {
-        return verificationRefused(VERIFICATION_FAILED, requestId);
-      }
+      const verdict = await providerVerdict(secret, token, operationId.value);
+      if (verdict !== VERIFIED) return verificationRefused(verdict, requestId);
     }
 
     const addressDigest = hashToken(email.value);

@@ -66,6 +66,20 @@ const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 /** A token shaped like the provider's: opaque, and distinctive enough to grep for. */
 const TOKEN = '0.cf-turnstile-response-ONE.AAAAbbbbCCCCdddd';
 
+/** The size the provider's own documentation gives for a token. */
+const DOCUMENTED_TOKEN_LENGTH = 2048;
+
+/**
+ * The route's own ceiling on a token, transcribed. Deliberately far above the
+ * documented size, because it is an abuse bound and not a transcription: a
+ * local refusal happens with no round trip, so it is invisible in the provider's
+ * dashboard, which is the only place a verification outage shows (Ruling 25).
+ */
+const TOKEN_CEILING = 8192;
+
+/** The route's body cap, transcribed: 1024 for the contract's three fields, plus the token's bound. */
+const BODY_MAX_BYTES = 1024 + TOKEN_CEILING;
+
 /** alice has proved this address; it is the only one that can recover anything. */
 const LINKED = 'linked@example.test';
 /** Nobody holds this one. */
@@ -905,8 +919,10 @@ test('a body that is not an object, and one that is too large, are refused', asy
     await expectEnvelope(malformed, { status: 400, code: 'bad_request', retryable: false });
   }
 
+  // Over the cap, which has to leave room for a token at the route's own
+  // ceiling, so the padding is sized from the cap rather than guessed at.
   const huge = await h.call(ROUTE, 'POST', {
-    rawBody: JSON.stringify({ ...attempt(1, LINKED), padding: 'p'.repeat(4096) }),
+    rawBody: JSON.stringify({ ...attempt(1, LINKED), padding: 'p'.repeat(BODY_MAX_BYTES) }),
     env: ON,
     headers: { 'X-Forwarded-For': CLIENT_IP },
   });
@@ -1003,21 +1019,39 @@ test('a token the verifier rejects is refused, and nothing is written', async (t
   assert.ok(!JSON.stringify(body).includes(TOKEN), 'and so does the token');
 });
 
-test('the two refusals are distinguishable from each other and identical for every address', async () => {
+/**
+ * How to provoke each verification refusal: the verifier to install, and the
+ * body to send. Three distinct facts, which must not collapse into each other.
+ * `verification_unavailable` is the provider failing to answer at all, which is
+ * not the person's own failure and must not be reported as one (Ruling 24).
+ */
+const REFUSALS = Object.freeze({
+  verification_required: {
+    verify: () => verifier(),
+    body: (n, email) => ({ ...attempt(n, email), captchaToken: undefined }),
+  },
+  verification_failed: {
+    verify: () => verifier({ success: false, codes: ['invalid-input-response'] }),
+    body: (n, email) => attempt(n, email),
+  },
+  verification_unavailable: {
+    verify: () => verifier({ reject: true }),
+    body: (n, email) => attempt(n, email),
+  },
+});
+
+test('the three refusals are distinguishable from each other and identical for every address', async () => {
   // Both halves matter. The client has to be able to tell "you sent no token"
-  // from "your token did not verify", so it can offer a route forward rather
-  // than a dead end; and neither refusal may differ for an address that
-  // resolves and one that does not, or the refusal becomes the oracle the
-  // pending body is not.
+  // from "your token did not verify" from "we could not ask", so it can offer a
+  // route forward rather than a dead end; and no refusal may differ for an
+  // address that resolves and one that does not, or the refusal becomes the
+  // oracle the pending body is not.
   const seen = {};
-  for (const reason of ['verification_required', 'verification_failed']) {
+  for (const [reason, how] of Object.entries(REFUSALS)) {
     const texts = [];
     for (const [index, email] of [LINKED, UNLINKED].entries()) {
-      const h = harness({ verify: verifier({ success: reason === 'verification_required' }) });
-      const body = reason === 'verification_required'
-        ? { ...attempt(index + 1, email), captchaToken: undefined }
-        : attempt(index + 1, email);
-      const response = await ask(h, body);
+      const h = harness({ verify: how.verify() });
+      const response = await ask(h, how.body(index + 1, email));
       assert.equal(response.status, 400);
       texts.push(await refusalText(response));
     }
@@ -1025,12 +1059,58 @@ test('the two refusals are distinguishable from each other and identical for eve
     assert.ok(texts[0].includes(`"reason":"${reason}"`));
     seen[reason] = texts[0];
   }
-  assert.notEqual(seen.verification_required, seen.verification_failed, 'and the two cases differ');
+  const distinct = new Set(Object.values(seen));
+  assert.equal(distinct.size, Object.keys(REFUSALS).length, 'and every case differs from every other');
 
   // Not vacuous: that address really does resolve, in the same harness shape.
   const control = harness();
   await complete(control, attempt(9, LINKED));
   assert.equal(control.db.rows('recovery_challenges').length, 1, 'the linked address resolves and opens a challenge');
+});
+
+test('a provider that cannot answer is not reported as the person\'s own failure', async () => {
+  // Ruling 24. A verifier outage and a verifier refusing the token are
+  // different facts about different things, and collapsing them tells every
+  // locked-out person during an outage that their own check failed and to try
+  // it again, which cannot succeed. Recovery is the one route a locked-out
+  // person has, so the two must stay apart.
+  const down = harness({ verify: verifier({ status: 500 }) });
+  const rejecting = harness({ verify: verifier({ success: false }) });
+  const outage = await ask(down, attempt(1, LINKED));
+  const rejected = await ask(rejecting, attempt(2, LINKED));
+
+  const unavailable = await expectEnvelope(outage, {
+    status: 400,
+    code: 'validation_failed',
+    retryable: false,
+    extraKeys: ['reason'],
+  });
+  const failed = await expectEnvelope(rejected, {
+    status: 400,
+    code: 'validation_failed',
+    retryable: false,
+    extraKeys: ['reason'],
+  });
+
+  assert.equal(unavailable.reason, 'verification_unavailable');
+  assert.equal(failed.reason, 'verification_failed');
+  assert.deepEqual(unavailable.field_errors, [{
+    field: 'captchaToken',
+    code: 'verification_unavailable',
+    message: unavailable.message,
+  }], 'the reason is carried in the field error too, so either one can be switched on');
+  assert.notEqual(unavailable.message, failed.message, 'and the copy differs, not only the code');
+  assert.match(
+    unavailable.message,
+    /unavailable/i,
+    'an outage says the check could not be made, rather than that the person failed it',
+  );
+  // And it offers no help that does not exist: there is no support route behind
+  // this refusal, so the copy may not name one (BE-340).
+  assert.ok(
+    !/support|contact|help|email us/i.test(unavailable.message),
+    'no copy promising a human who does not exist',
+  );
 });
 
 test('verification runs before any statement or provider call that depends on the address', async () => {
@@ -1063,6 +1143,10 @@ test('verification runs before any statement or provider call that depends on th
 });
 
 test('a verifier that cannot answer fails closed, in every way it can fail to answer', async (t) => {
+  // Fails closed, and says which fact it is: no answer at all is
+  // `verification_unavailable`, never the person's `verification_failed`
+  // (Ruling 24). Every case below is the provider not answering, including the
+  // ones where it answered something this route cannot read.
   const logged = muteConsoleError(t);
   const cases = [
     { name: 'the network is dead', options: { reject: true } },
@@ -1083,18 +1167,24 @@ test('a verifier that cannot answer fails closed, in every way it can fail to an
       retryable: false,
       extraKeys: ['reason'],
     });
-    assert.equal(body.reason, 'verification_failed', item.name);
+    assert.equal(body.reason, 'verification_unavailable', item.name);
     assert.equal(verify.calls.length, 1, `${item.name}: the provider was asked`);
     assert.equal(h.db.rows('recovery_challenges').length, 0, `${item.name}: nothing was opened`);
     assert.equal(h.db.generatedLinks.length, 0, `${item.name}: nothing was sent`);
   }
+  // And the one answer that IS the person's own failure stays theirs, so the
+  // comparison above is not every outcome collapsing into one reason.
+  const refused = harness({ verify: verifier({ success: false }) });
+  const response = await complete(refused, attempt(99, LINKED));
+  assert.equal((await response.json()).reason, 'verification_failed', 'an explicit refusal is still the token\'s');
   assert.equal(loggedText(logged), '', 'and no failure leaves a line');
 });
 
 test('a token that could not be one is refused without asking the provider at all', async () => {
   const verify = verifier();
   const h = harness({ verify });
-  for (const captchaToken of [null, 42, '', '   ', { token: 'x' }, ['x'], 'x'.repeat(2049), `ab\ncd${'x'.repeat(40)}`]) {
+  const tokens = [null, 42, '', '   ', { token: 'x' }, ['x'], 'x'.repeat(TOKEN_CEILING + 1), `ab\ncd${'x'.repeat(40)}`];
+  for (const captchaToken of tokens) {
     const response = await ask(h, { ...attempt(1, LINKED), captchaToken });
     const body = await expectEnvelope(response, {
       status: 400,
@@ -1112,12 +1202,48 @@ test('a token that could not be one is refused without asking the provider at al
 test('a token at the provider\'s documented maximum length is still sent to be verified', async () => {
   const verify = verifier();
   const h = harness({ verify });
-  const long = `0.${'t'.repeat(2046)}`;
-  assert.equal(long.length, 2048, 'the documented ceiling, not one character under it');
+  const long = `0.${'t'.repeat(DOCUMENTED_TOKEN_LENGTH - 2)}`;
+  assert.equal(long.length, DOCUMENTED_TOKEN_LENGTH, 'the documented ceiling, not one character under it');
   const response = await complete(h, { ...attempt(1, LINKED), captchaToken: long });
   assert.equal(response.status, 200);
   assert.equal(verify.calls[0].fields.response, long);
   assert.equal(h.db.rows('recovery_challenges').length, 1);
+});
+
+test('a token longer than the provider documents still reaches the provider, because the provider is the judge', async () => {
+  // Ruling 25. The local ceiling is an abuse bound, deliberately far above the
+  // documented size, and not a second opinion on what the provider will accept.
+  // A documented number used as a tight local limit is the one assumption here
+  // that fails with NO round trip: a longer token would be refused as
+  // `verification_required`, telling a person to complete a check they already
+  // completed, and leaving nothing in the provider's dashboard, which the route
+  // names as the place a verification problem becomes visible.
+  const verify = verifier();
+  const h = harness({ verify });
+  const tokens = [
+    `0.${'t'.repeat(DOCUMENTED_TOKEN_LENGTH)}`,
+    `0.${'t'.repeat(DOCUMENTED_TOKEN_LENGTH * 2)}`,
+    `0.${'t'.repeat(TOKEN_CEILING - 2)}`,
+  ];
+  for (const [index, token] of tokens.entries()) {
+    assert.ok(token.length > DOCUMENTED_TOKEN_LENGTH, `${token.length} is over the documented size`);
+    const response = await complete(h, { ...attempt(index + 1, LINKED), captchaToken: token });
+    assert.equal(response.status, 200, `${token.length} characters is the provider's to judge`);
+    assert.equal(verify.calls[index].fields.response, token, 'and it arrived there whole');
+  }
+  assert.equal(h.db.rows('recovery_challenges').length, tokens.length, 'all three were accepted');
+
+  // The byte cap must not refuse first either, or the ceiling is decorative:
+  // one character over the bound is the TOKEN check refusing, not a 413.
+  const over = await ask(h, { ...attempt(4, LINKED), captchaToken: `0.${'t'.repeat(TOKEN_CEILING - 1)}` });
+  const body = await expectEnvelope(over, {
+    status: 400,
+    code: 'validation_failed',
+    retryable: false,
+    extraKeys: ['reason'],
+  });
+  assert.equal(body.reason, 'verification_required', 'the abuse bound still holds, as a local refusal');
+  assert.equal(verify.calls.length, tokens.length, 'and costs the provider nothing');
 });
 
 test('the route really does call out to the provider, which a test can prove without reaching it', async () => {
@@ -1132,7 +1258,7 @@ test('the route really does call out to the provider, which a test can prove wit
     retryable: false,
     extraKeys: ['reason'],
   });
-  assert.equal(body.reason, 'verification_failed');
+  assert.equal(body.reason, 'verification_unavailable', 'a dead provider is its own fact, not the person\'s');
   assert.deepEqual(h.blockedFetches, [SITEVERIFY], 'one outbound verification, to Cloudflare\'s siteverify endpoint');
   assert.equal(h.db.rows('recovery_challenges').length, 0);
 });
@@ -1482,13 +1608,21 @@ test('with no verification secret the route is shut, and says exactly what the f
   );
 
   assert.equal(verify.calls.length, 0, 'the provider is never asked');
-  assert.deepEqual(h.blockedFetches, [], 'and nothing else is attempted either');
   assert.deepEqual(h.db.queryLog, [], 'no table is read at all');
   await h.runAfter();
   assert.equal(h.db.rows('operations').length, 0);
   assert.equal(h.db.rows('recovery_challenges').length, 0);
   assert.equal(h.db.generatedLinks.length, 0, 'and no message is sent to anybody');
   assert.equal(loggedText(logged), '');
+
+  // Nothing outbound is attempted either, asserted where the assertion can
+  // actually fail: `blockedFetches` is filled by the harness's own blocking
+  // fetch, which a stand-in verifier replaces, so the harness above could never
+  // have recorded an attempt whatever the route did.
+  const blocked = harness({ verify: null });
+  const shut = await ask(blocked, attempt(3, LINKED), { env: { HALO_FEATURE_RECOVERY: 'on' } });
+  assert.equal(shut.status, 503, 'shut on that harness too');
+  assert.deepEqual(blocked.blockedFetches, [], 'and no host is contacted at all');
 });
 
 test('a secret that is only whitespace is not a secret', async () => {
@@ -1576,4 +1710,71 @@ test('GET is not a method this route has', async () => {
   const h = harness();
   const response = await h.call(ROUTE, 'GET', {});
   assert.equal(response.status, 405);
+});
+
+// ---------------------------------------------------------------------------
+// The refusals' own copy, which assertRecoveryStatus never sees
+// ---------------------------------------------------------------------------
+
+test('no refusal this route can give carries an em dash, not even the ones only a failure reaches', async (t) => {
+  // `assertRecoveryStatus` enforces this repo's no-em-dash rule, but it runs
+  // only on an accepted 200 body, so every refusal below sat outside the rule's
+  // coverage. They are all clean today; this is what makes a future edit to one
+  // of them fail here instead of shipping.
+  const logged = muteConsoleError(t);
+  const refusals = [];
+  const record = async (label, response) => {
+    assert.ok(response.status >= 400, `${label} really is a refusal, got ${response.status}`);
+    const body = await response.json();
+    assert.ok(typeof body.message === 'string' && body.message.length > 0, `${label} says something`);
+    refusals.push([label, body]);
+  };
+
+  await record('the capability is off', await ask(harness(), attempt(1, LINKED), { env: {} }));
+  await record(
+    'no verification secret',
+    await ask(harness(), attempt(1, LINKED), { env: { HALO_FEATURE_RECOVERY: 'on' } }),
+  );
+  for (const [reason, how] of Object.entries(REFUSALS)) {
+    await record(reason, await ask(harness({ verify: how.verify() }), how.body(1, LINKED)));
+  }
+  await record('not an address', await ask(harness(), { ...attempt(1, LINKED), email: 'not-an-address' }));
+  await record('an address too long', await ask(harness(), { ...attempt(1, LINKED), email: `${'a'.repeat(250)}@example.test` }));
+  await record('no usable nonce', await ask(harness(), { ...attempt(1, LINKED), clientNonce: 'too-short' }));
+  await record('an id that is not a uuid', await ask(harness(), { ...attempt(1, LINKED), operationId: 'not-a-uuid' }));
+  await record('a key this route does not know', await ask(harness(), { ...attempt(1, LINKED), scope: 'request' }));
+  await record(
+    'an Idempotency-Key that disagrees',
+    await ask(harness(), attempt(1, LINKED), { headers: { 'Idempotency-Key': op(2) } }),
+  );
+  await record('too many requests', await ask(harness({ rateLimit: () => false }), attempt(1, LINKED)));
+
+  const conflicting = harness();
+  await complete(conflicting, attempt(1, LINKED));
+  await record('the same id with another address', await ask(conflicting, attempt(1, UNLINKED)));
+
+  const malformed = harness();
+  await record('a body over the cap', await malformed.call(ROUTE, 'POST', {
+    rawBody: JSON.stringify({ ...attempt(1, LINKED), padding: 'p'.repeat(BODY_MAX_BYTES) }),
+    env: ON,
+    headers: { 'X-Forwarded-For': CLIENT_IP },
+  }));
+  await record('a body that is not JSON', await malformed.call(ROUTE, 'POST', {
+    rawBody: 'not json at all',
+    env: ON,
+    headers: { 'X-Forwarded-For': CLIENT_IP, 'content-type': 'application/json' },
+  }));
+
+  const broken = harness();
+  const failed = failOnly(broken.db, 'operations', 'upsert');
+  await record('a failure of ours', await ask(broken, attempt(1, LINKED)));
+  assert.ok(failed.length > 0, 'the 500 really came from the ledger write');
+
+  // The whole envelope, so a field error message is covered as well as the
+  // top-level one.
+  for (const [label, body] of refusals) {
+    assert.ok(!JSON.stringify(body).includes('—'), `${label}: app-facing copy uses no em dash`);
+  }
+  assert.equal(refusals.length, 16, 'and every refusal shape this route has is in the sweep');
+  assert.ok(!loggedText(logged).includes('—'), 'nor does the one line a failure of ours leaves');
 });
