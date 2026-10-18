@@ -9,6 +9,7 @@ import {
   UNAUTHENTICATED_DOMAIN,
   isOperationsUnavailable,
   operationsUnavailable,
+  readOperation,
   runOperation,
 } from '@/lib/operations';
 import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from '@/lib/account';
@@ -16,7 +17,12 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
 /**
  * POST /api/recovery/request
  *
- *   { email, clientNonce, operationId }  ->  RecoveryStatus
+ *   { email, clientNonce, operationId, captchaToken }  ->  RecoveryStatus
+ *
+ * READ THIS BEFORE WIRING THE CLIENT: `captchaToken` is NOT in the frontend
+ * contract. See HUMAN VERIFICATION below. Nothing sends it yet, so with the
+ * verification secret configured every request from today's client is refused,
+ * which is why the capability flag stays off until the contract is closed.
  *
  * The first step of "I have lost access to my account", and the only PUBLIC
  * route in this application: there is no session, no `Authorization` header to
@@ -42,6 +48,107 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * null for both fields (`validRecoveryStatus` in
  * lib/frontend/production/recovery-service.ts). It does require both KEYS to be
  * present, with a null or a usable value, which is why they are always written.
+ *
+ * HUMAN VERIFICATION, WHICH RUNS BEFORE THE ADDRESS IS TOUCHED (BE-340). This
+ * route asks a provider to send a message to an address a stranger typed, so
+ * the limiters below are a bound on abuse and not a guard against it. The guard
+ * is a Cloudflare Turnstile token, verified server side against the provider's
+ * siteverify endpoint. Three situations, which must not collapse into each
+ * other:
+ *
+ *   1 CONFIGURED AND THE TOKEN VERIFIES. The request proceeds exactly as the
+ *     rest of this file describes.
+ *
+ *   2 CONFIGURED AND THE TOKEN IS MISSING, UNUSABLE, ALREADY SPENT OR REJECTED.
+ *     A 400 carrying a `reason`, and nothing else happens: no id is claimed, no
+ *     row is written, no message is sent, and the address budget is not even
+ *     consulted, so a refusal cannot be counted against an address either. The
+ *     reason is `verification_required` when this route can see for itself that
+ *     there is no usable token (absent, not a string, empty, over the
+ *     provider's documented length, or carrying control characters) and
+ *     `verification_failed` when the provider did not accept one. Those two are
+ *     distinguishable so a client can tell a person whose widget never loaded
+ *     from one whose answer was refused; both are byte-identical for an address
+ *     that resolves and one that does not, because the reason is a fact about
+ *     the token and nothing else.
+ *
+ *   3 NOT CONFIGURED. The route is SHUT: the same non-retryable 503
+ *     `feature_unavailable`, in the same words, as the capability being off,
+ *     decided before the body is read. A capability that skips human
+ *     verification because a key is absent is exactly the failure BE-340 names,
+ *     so the flag and the key compose as AND, never as "the flag is on, so the
+ *     missing key is waived". Turning the flag on in an environment with no
+ *     secret does not open this route; it leaves it shut. The 503 is identical
+ *     to the flag's so that an unauthenticated stranger cannot read which piece
+ *     of our configuration is missing off the refusal.
+ *
+ * HOW THE TOKEN ARRIVES, AND THE CONTRACT GAP. The frontend's request body for
+ * `recovery.request` is `{ email, clientNonce, operationId }` and nothing else
+ * (ProductionRestoreAccessFlow.tsx:46, pinned in
+ * .superpowers/sdd/b02-identity-linking-and-recovery/recovery-contract-digest.md
+ * section 1). There is no field for a human-verification token, so the two
+ * readings were: a new BODY field, or a request HEADER alongside
+ * `Idempotency-Key`. This route implements the body field `captchaToken`,
+ * because the component assembles its per-route body in one place while the
+ * runtime assembles headers generically for every endpoint, and because the
+ * body here is validated as a CLOSED set of keys: a token sent under a
+ * near-miss name is a 400, where a mistyped header name would be silently
+ * ignored, which is the silent bypass this requirement is about. The name
+ * follows the one this repo already uses for a Turnstile token on the client
+ * (`getCaptchaToken` in lib/auth.js, passed to the provider as `captchaToken`).
+ * THIS IS A SERVER-SIDE CHOICE, NOT A CONTRACT: the frontend does not send the
+ * field, and until it does, a configured deployment refuses every request from
+ * it. Closing that gap is a frontend change plus this name being agreed.
+ *
+ * WHAT A PERSON WHO CANNOT COMPLETE THE CHALLENGE CAN DO TODAY, stated plainly
+ * because the honest answer is short: nothing through this route. The refusal
+ * names a machine-readable reason so a client can offer a route forward instead
+ * of a dead end, and no response here promises help that does not exist. But
+ * there is no human-operated recovery path behind it yet: no support queue, no
+ * identity-proofing procedure, no operator tool, and no owner. For BE-340's
+ * "supported recovery path" to be real, three things are missing, none of them
+ * in this file: a client that renders the widget and reads the reason, a
+ * documented human-operated route with a standard of proof, and someone to run
+ * it. The capability flag staying off is what keeps that from being a live dead
+ * end in the meantime.
+ *
+ * A REPLAY ASKS FOR NO SECOND PROOF, and that is deliberate. A token is single
+ * use at the provider, and the client reuses one `operationId` and one solved
+ * widget for a retried request, so a second verification of the same token
+ * would refuse the honest retry. So the ledger is asked first, keyed on the
+ * client's own id and nothing else: an operation with a RECORDED OUTCOME skips
+ * verification, because replaying it does no work, sends nothing and writes
+ * nothing, and the answer it replays carries nothing a stranger could learn
+ * from. An operation that has NOT settled (in flight, or dead and reported as
+ * unknown) has no outcome to replay, so it still needs a token that verifies.
+ * A consequence worth knowing: if an attempt dies before settling, that flow's
+ * token is already spent, so retrying it is refused until the person starts
+ * again with a fresh id and a fresh challenge, which is what the client's own
+ * `restart()` does. The token is also NOT part of the operation's fingerprint,
+ * for the same reason the nonce is not: a re-solved widget on the same id is a
+ * replay, not a 409.
+ *
+ * AND THE VERIFICATION FAILS CLOSED. An unreachable provider, a non-2xx answer,
+ * an unparseable one, or anything other than an explicit `success: true` is a
+ * refusal. Nothing on this path is logged at all, in either direction: this
+ * route keeps no per-request line (see further down), and a line per refused
+ * verification would be the first one, so a verifier outage is visible in the
+ * provider's own dashboard rather than here. The token, the client address and
+ * the provider's answer reach no log line, no row and no response, and the
+ * client address is not sent to the provider either (`remoteip` is optional,
+ * the header it would come from is not trustworthy here, and a client address
+ * is personal data with no reason to reach a third party).
+ *
+ * WHAT IS NOT VERIFIED ABOUT ANY OF IT. There is no site key and no secret key
+ * in any environment, so the live exchange has never run: this code is tested
+ * against a fake verifier only. The endpoint, the field names (`secret`,
+ * `response`, `idempotency_key`), the form encoding, the 2048 character
+ * ceiling on a token and the single-use-with-an-idempotency-key behaviour are
+ * all from the provider's documentation and are unverified here. Nothing
+ * branches on the provider's own `error-codes`, so no documented code is
+ * load-bearing, and every unverified assumption fails in the direction of
+ * refusing rather than passing. Acceptance of BE-340 is blocked on the keys
+ * existing.
  *
  * NO TIMING FORK, and how it is actually prevented. The work that depends on
  * the address (asking the provider whether it resolves, opening a challenge,
@@ -95,7 +202,8 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  *                buys silence instead. The cost is that someone under attack
  *                cannot recover until the attacker stops, which is true of any
  *                per-address limit, and the abuse guard proper is the human
- *                verification Task 6 adds in front of this route.
+ *                verification above, which an attacker has to pass per request
+ *                before any of this is reached.
  *
  *   per client   At most a few requests an hour from one client. This one
  *                answers 429, because a client being told to slow down tells it
@@ -211,7 +319,8 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * stays bound to the browser that opened it.
  *
  * OFF, AND NOT THERE YET. The capability is off unless its flag is on
- * (BE-351), and while it is off this handler reads nothing and writes nothing.
+ * (BE-351) AND a verification secret is configured, and while either is missing
+ * this handler reads nothing and writes nothing.
  * Until migrations 0017, 0018 and 0019 are applied the answer is a
  * non-retryable 503 `feature_unavailable`, decided before the operation id is
  * claimed and before the provider is touched, so a false `pending` is never
@@ -222,11 +331,39 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * message nothing will send.
  */
 
-/** The body is three fields; the largest is a 254 character address. */
-const MAX_BYTES = 1024;
+/**
+ * Where the human-verification token arrives. NOT a field the frontend sends
+ * today: see HUMAN VERIFICATION in the header for the choice and the gap.
+ */
+const TOKEN_FIELD = 'captchaToken';
+
+/**
+ * The provider documents its token as at most this long. A longer one is
+ * refused here without a round trip, which is the safe direction and the one
+ * place a documented number is relied on; if the real token ever exceeds it,
+ * this route refuses a legitimate person rather than letting one through.
+ */
+const TOKEN_MAX_LENGTH = 2048;
+
+/** The body is four fields; the largest are a 254 character address and the token. */
+const MAX_BYTES = 1024 + TOKEN_MAX_LENGTH;
 
 /** The only keys the body may carry; anything else is a client confused about this endpoint. */
-const BODY_KEYS = Object.freeze(['email', 'clientNonce', 'operationId']);
+const BODY_KEYS = Object.freeze(['email', 'clientNonce', 'operationId', TOKEN_FIELD]);
+
+/** The provider's verification endpoint. The secret goes here and nowhere else. */
+const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+/**
+ * A verification that cannot answer in this long did not happen. An
+ * unauthenticated caller must not be able to hold this handler open for as long
+ * as the platform allows, and a stalled provider has to become a refusal.
+ */
+const VERIFY_TIMEOUT_MS = 8000;
+
+/** The two verification refusals, which a client must be able to tell apart. */
+const VERIFICATION_REQUIRED = 'verification_required';
+const VERIFICATION_FAILED = 'verification_failed';
 
 /** The client's own rule (lib/frontend/account-review.ts), enforced here because the client is not authority. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -292,6 +429,9 @@ const MESSAGES = Object.freeze({
   mismatch: 'That request was already made with different details. Please start again.',
   email: 'Enter an email address in the form name@example.com.',
   nonce: 'That request is missing the value that identifies this browser. Please start again.',
+  // Neither of these offers help that does not exist (BE-340).
+  [VERIFICATION_REQUIRED]: 'Complete the verification check, then try again.',
+  [VERIFICATION_FAILED]: 'That verification could not be confirmed. Please try the check again.',
 });
 
 /** The one body an accepted request is answered with. Built here so it cannot drift per branch. */
@@ -319,6 +459,25 @@ function tooManyRequests(requestId) {
     code: ERROR_CODES.RATE_LIMITED,
     message: MESSAGES.limited,
     requestId,
+  });
+}
+
+/**
+ * The 400 for a request with no usable proof that a person made it. One
+ * builder for both reasons, so they cannot drift apart per branch, and so
+ * neither can ever carry anything derived from the address: the reason is a
+ * fact about the token and nothing else, which is what makes the two refusals
+ * byte-identical for an address that resolves and one that does not.
+ */
+function verificationRefused(reason, requestId) {
+  return apiError({
+    status: 400,
+    code: ERROR_CODES.VALIDATION_FAILED,
+    message: MESSAGES[reason],
+    fieldErrors: [{ field: TOKEN_FIELD, code: reason, message: MESSAGES[reason] }],
+    retryable: false,
+    requestId,
+    extra: { reason },
   });
 }
 
@@ -397,6 +556,83 @@ function clientDigest(request) {
     if (nearest) return hashToken(nearest.toLowerCase());
   }
   return UNATTRIBUTED;
+}
+
+/**
+ * The configured verification secret, or null. Server side only, and never a
+ * `NEXT_PUBLIC_` variable: the site key is the public half and lives in
+ * lib/auth.js, this is the half that must never reach a browser. Whitespace is
+ * not a secret, so a variable set to nothing leaves the route shut.
+ */
+function verificationSecret() {
+  const value = process.env.TURNSTILE_SECRET_KEY;
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
+/**
+ * The token as it arrived, or null when there is nothing worth asking the
+ * provider about. These are the only checks made here, deliberately: present, a
+ * string, not empty, one line, and within the documented length. No character
+ * class is guessed at, because whether a token is REAL is the provider's answer
+ * and not a shape this route can know.
+ */
+function parseToken(value) {
+  const given = parseText(value, { maxLength: TOKEN_MAX_LENGTH, required: true, rejectControl: true });
+  return given.ok ? given.value : null;
+}
+
+/**
+ * Whether the provider says a person solved this challenge.
+ *
+ * True ONLY for an explicit `success: true`. A provider that cannot be reached,
+ * answers non-2xx, answers something that is not the JSON object this expects,
+ * or takes too long is false: fail CLOSED, the same direction both limiters
+ * take, because the alternative is an open mail relay during an outage.
+ *
+ * Nothing here is logged, in either direction, and nothing it saw is returned:
+ * the token, the provider's answer and its `error-codes` reach no log line, no
+ * row and no response. Nothing branches on which code came back either, so no
+ * documented provider code is load-bearing.
+ */
+async function verifiedByProvider(secret, token, operationId) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+  try {
+    const response = await fetch(SITEVERIFY_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      // What is sent, and what deliberately is not. No `remoteip`: it is
+      // optional, the header it would come from is not trustworthy here (see
+      // `clientDigest`), and a client address is personal data with no reason
+      // to reach a third party. `idempotency_key` is the provider's own
+      // mechanism for verifying one token more than once, which is what a
+      // retried request needs; the operation id is already the client's own
+      // choice and names nothing. Nothing depends on it working: if the
+      // provider ignores it, a retry is refused, which is the safe direction.
+      body: new URLSearchParams({ secret, response: token, idempotency_key: operationId }),
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) return false;
+    const verdict = await response.json();
+    return verdict?.success === true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Whether this operation already has a recorded outcome, which is the one case
+ * that needs no second proof (see the header). Keyed on the id the client chose
+ * and the unowned recovery domain, so asking is independent of the address and
+ * of whether it resolves. A row that is still pending, or dead and reported as
+ * unknown, has no outcome and so is not settled.
+ */
+async function alreadySettled(supabase, operationId) {
+  const prior = await readOperation(supabase, { operationId, domain: DOMAIN });
+  return !!prior?.result;
 }
 
 /**
@@ -496,6 +732,13 @@ export async function POST(request) {
     // and the same plain reason the account surface gives.
     if (!featureEnabled('recovery')) return featureOff(requestId);
 
+    // Human verification is part of this capability, not an extra on top of it,
+    // so a deployment with no secret cannot do recovery at all: the same
+    // refusal as the flag being off, decided here, before the body is read.
+    // A missing key must never mean "everyone passes" (BE-340, situation 3).
+    const secret = verificationSecret();
+    if (!secret) return featureOff(requestId);
+
     const body = await readJsonBody(request, { maxBytes: MAX_BYTES });
     if (!body.ok) {
       return apiError({ status: body.status, code: body.code, message: body.message, requestId });
@@ -542,8 +785,24 @@ export async function POST(request) {
     if (!allowed) return tooManyRequests(requestId);
 
     // Both recovery migrations are proved here, before the id is claimed, so an
-    // unavailable feature has written nothing when it says so.
+    // unavailable feature has written nothing when it says so, and so a token
+    // is never spent on a request this deployment could not have served.
     await requireChallengeTable(supabaseAdmin);
+
+    // Prove a person made this request, BEFORE anything that depends on the
+    // address: the digest below is not computed, the address budget is not
+    // consulted, the id is not claimed and the provider is not touched until
+    // this passes, so a refusal can be neither timed nor counted against
+    // whether an address resolves. The ledger is asked first, on the client's
+    // own id alone, because an operation that already settled has a recorded
+    // outcome to replay and the provider will not accept one token twice.
+    if (!(await alreadySettled(supabaseAdmin, operationId.value))) {
+      const token = parseToken(body.value[TOKEN_FIELD]);
+      if (token === null) return verificationRefused(VERIFICATION_REQUIRED, requestId);
+      if (!(await verifiedByProvider(secret, token, operationId.value))) {
+        return verificationRefused(VERIFICATION_FAILED, requestId);
+      }
+    }
 
     const addressDigest = hashToken(email.value);
     const outcome = await runOperation(

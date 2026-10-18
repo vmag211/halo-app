@@ -31,6 +31,13 @@
  * 4. Nothing in the request names whose account is touched. There is no session
  *    here, so the address lookup is the only thing that resolves an identity,
  *    and an Authorization header that happens to be attached changes nothing.
+ * 5. Human verification (BE-340, Task 6) stands in front of all of it, and is
+ *    not a silent bypass in any of its three situations: verified, refused, or
+ *    not configured. It is also checked before the address is touched, so a
+ *    refusal can be neither timed nor counted against whether an address
+ *    resolves. `verifier()` below stands in for Cloudflare's siteverify
+ *    endpoint; nothing in this file reaches the network, and the one test that
+ *    proves the route really does call out asserts on the blocked attempt.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,8 +53,18 @@ const ROUTE = '/api/recovery/request';
 const OWNED = ['profiles', 'daily_scores', 'household_bands', 'symptom_logs', 'alerts'];
 const TABLES = haloTables('operations', 'recovery_challenges', ...OWNED);
 
-/** The flag that turns the capability on. Off unless a test says otherwise. */
-const ON = { HALO_FEATURE_RECOVERY: 'on' };
+/**
+ * What a configured deployment looks like: the capability flag on AND a
+ * verification secret present. Both are required to reach the work, so neither
+ * alone is "on" (Task 6). Off unless a test says otherwise.
+ */
+const ON = { HALO_FEATURE_RECOVERY: 'on', TURNSTILE_SECRET_KEY: 'turnstile-secret-key' };
+
+/** Cloudflare's verification endpoint, transcribed from the route. Nothing here reaches it. */
+const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+/** A token shaped like the provider's: opaque, and distinctive enough to grep for. */
+const TOKEN = '0.cf-turnstile-response-ONE.AAAAbbbbCCCCdddd';
 
 /** alice has proved this address; it is the only one that can recover anything. */
 const LINKED = 'linked@example.test';
@@ -138,6 +155,45 @@ function failOnly(db, table, operation) {
   return failed;
 }
 
+/**
+ * A stand-in for Cloudflare's siteverify endpoint, as the harness's `fetch`.
+ * Records every call (URL, method, headers, decoded form fields, the signal)
+ * and answers what the test asked for. A fetch to anywhere else throws, so a
+ * route reaching another host breaks a test rather than passing quietly.
+ *
+ *   success  the verdict the provider gives
+ *   codes    the provider's own `error-codes`, which nothing may depend on
+ *   status   a non-2xx answer, i.e. the provider refusing to answer at all
+ *   body     a raw body, for an answer that is not the JSON the route expects
+ *   reject   fetch itself fails, like a dead network
+ *   onCall   runs when the verifier is asked, so a test can snapshot the moment
+ */
+function verifier({ success = true, codes = [], status = 200, body, reject = false, onCall } = {}) {
+  const calls = [];
+  const fetchImpl = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input?.url ?? String(input);
+    if (url !== SITEVERIFY) throw new Error(`routesRecoveryRequest: unexpected fetch to ${url}`);
+    const raw = String(init.body ?? '');
+    calls.push({
+      url,
+      method: init.method,
+      headers: new Headers(init.headers ?? {}),
+      fields: Object.fromEntries(new URLSearchParams(raw)),
+      raw,
+      signal: init.signal ?? null,
+      aborted: init.signal?.aborted ?? null,
+    });
+    if (onCall) onCall();
+    if (reject) throw new TypeError('routesRecoveryRequest: the verifier is unreachable');
+    return new Response(body ?? JSON.stringify({ success, 'error-codes': codes }), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  fetchImpl.calls = calls;
+  return fetchImpl;
+}
+
 /** Collects the client keys the route asked about, allowing every request. */
 function clientKeys() {
   const seen = [];
@@ -153,10 +209,20 @@ function clientKeys() {
  * is the state `remove-recovery` leaves an address in. `operations` and
  * `challenges` default to empty so each test seeds only what it is about.
  */
-function harness({ challenges = [], operations = [], tables = TABLES, rateLimit = budgets(), household = false } = {}) {
+function harness({
+  challenges = [],
+  operations = [],
+  tables = TABLES,
+  rateLimit = budgets(),
+  household = false,
+  verify = verifier(),
+} = {}) {
   return createRouteHarness({
     tables,
     rateLimit,
+    // `verify: null` leaves the harness's own blocking fetch in place, which is
+    // how one test proves the route really does call out to the provider.
+    fetch: verify ?? undefined,
     identities: {
       alice: { email: LINKED, emailConfirmedAt: VERIFIED_AT },
       bob: { email: UNCONFIRMED, emailConfirmedAt: null },
@@ -198,16 +264,22 @@ const householdSeed = (id) => ({
 });
 
 /**
- * One request, sent the way the real client sends it: no Authorization header,
- * the operation id also in `Idempotency-Key`, and a forwarded client address
- * because that is what a deployment puts there.
+ * One request, sent the way the real client will have to send it once the
+ * contract carries the token: no Authorization header, the operation id also in
+ * `Idempotency-Key`, a forwarded client address because that is what a
+ * deployment puts there, and a human-verification token.
+ *
+ * The token is filled in only when the key is ABSENT, so a test that means to
+ * send none writes `captchaToken: undefined` (JSON.stringify drops the key,
+ * which is exactly the body today's frontend sends).
  */
 function ask(h, body, { env = ON, headers = {}, as = null, url } = {}) {
   const sent = { 'X-Forwarded-For': CLIENT_IP, ...headers };
   if (body.operationId !== undefined && !('Idempotency-Key' in sent)) {
     sent['Idempotency-Key'] = String(body.operationId);
   }
-  return h.call(ROUTE, 'POST', { as, body, env, headers: sent, url });
+  const sentBody = 'captchaToken' in body ? body : { ...body, captchaToken: TOKEN };
+  return h.call(ROUTE, 'POST', { as, body: sentBody, env, headers: sent, url });
 }
 
 /** The full request body for attempt `n` on `email`. */
@@ -670,7 +742,7 @@ async function keysFor(headers) {
   const keys = clientKeys();
   const h = harness({ rateLimit: keys.decide });
   const response = await h.call(ROUTE, 'POST', {
-    body: attempt(1, UNLINKED),
+    body: { ...attempt(1, UNLINKED), captchaToken: TOKEN },
     env: ON,
     headers: { 'Idempotency-Key': op(1), ...headers },
   });
@@ -840,6 +912,324 @@ test('a body that is not an object, and one that is too large, are refused', asy
   });
   await expectEnvelope(huge, { status: 413, code: 'payload_too_large' });
   assert.equal(h.db.generatedLinks.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Human verification, in front of all of it (BE-340, Task 6)
+// ---------------------------------------------------------------------------
+
+/** The address keys a limiter was asked about, which a refusal must never produce. */
+const addressKeys = (limiter) => [...limiter.used.keys()].filter((key) => key.startsWith('recovery:address:'));
+
+/** A refusal's body, with the one id that legitimately varies normalized out. */
+const refusalText = async (response) =>
+  (await response.text()).replace(/"request_id":"[^"]+"/, '"request_id":"ID"');
+
+test('the verifier is asked once, with the secret and the token and nothing about the person', async () => {
+  const verify = verifier();
+  const h = harness({ verify });
+  const response = await complete(h, attempt(1, LINKED));
+
+  assert.equal(response.status, 200);
+  assert.equal(verify.calls.length, 1, 'one verification per request');
+  const [call] = verify.calls;
+  assert.equal(call.url, SITEVERIFY, 'the provider\'s own endpoint');
+  assert.equal(call.method, 'POST');
+  assert.equal(call.fields.secret, ON.TURNSTILE_SECRET_KEY, 'the server-side secret');
+  assert.equal(call.fields.response, TOKEN, 'and the token the client sent');
+  assert.ok(call.signal && typeof call.signal.aborted === 'boolean', 'the call is bounded by a signal');
+  assert.equal(call.aborted, false, 'which is live when the call is made');
+
+  // Nothing about the person goes to a third party: not the address, not its
+  // digest, not the nonce, not the client address a proxy reported.
+  for (const secret of [LINKED, sha256(LINKED), clientNonce(1), sha256(clientNonce(1)), CLIENT_IP]) {
+    assert.ok(!call.raw.includes(secret), `${secret.slice(0, 12)} is not sent to the verifier`);
+  }
+  assert.deepEqual(Object.keys(call.fields).sort(), ['idempotency_key', 'response', 'secret']);
+  assert.equal(call.fields.idempotency_key, op(1), 'the operation id, so the same token can be re-verified');
+});
+
+test('a missing token is refused, and nothing is read about the address, written or sent', async (t) => {
+  const logged = muteConsoleError(t);
+  const limiter = budgets();
+  const verify = verifier();
+  const h = harness({ rateLimit: limiter, verify });
+  const response = await ask(h, { ...attempt(1, LINKED), captchaToken: undefined });
+
+  const body = await expectEnvelope(response, {
+    status: 400,
+    code: 'validation_failed',
+    retryable: false,
+    extraKeys: ['reason'],
+  });
+  assert.equal(body.reason, 'verification_required', 'a reason the client can switch on');
+  assert.deepEqual(body.field_errors, [{
+    field: 'captchaToken',
+    code: 'verification_required',
+    message: body.message,
+  }]);
+  assert.equal(verify.calls.length, 0, 'no token means nothing to ask the provider about');
+  await h.runAfter();
+  assert.equal(h.db.rows('operations').length, 0, 'the attempt is not claimed');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'no challenge is opened');
+  assert.equal(h.db.generatedLinks.length, 0, 'and no message is sent');
+  assert.deepEqual(addressKeys(limiter), [], 'the address budget is never even consulted');
+  assert.equal(loggedText(logged), '', 'and nothing is logged');
+});
+
+test('a token the verifier rejects is refused, and nothing is written', async (t) => {
+  const logged = muteConsoleError(t);
+  const limiter = budgets();
+  const verify = verifier({ success: false, codes: ['invalid-input-response'] });
+  const h = harness({ rateLimit: limiter, verify });
+  const response = await ask(h, attempt(1, LINKED));
+
+  const body = await expectEnvelope(response, {
+    status: 400,
+    code: 'validation_failed',
+    retryable: false,
+    extraKeys: ['reason'],
+  });
+  assert.equal(body.reason, 'verification_failed', 'distinct from having sent no token at all');
+  assert.equal(body.field_errors[0].code, 'verification_failed');
+  assert.equal(verify.calls.length, 1, 'the provider was asked');
+  await h.runAfter();
+  assert.equal(h.db.rows('operations').length, 0);
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+  assert.equal(h.db.generatedLinks.length, 0);
+  assert.deepEqual(addressKeys(limiter), [], 'a rejected token spends no address budget either');
+  assert.equal(loggedText(logged), '', 'nothing is logged');
+  assert.ok(!JSON.stringify(body).includes('invalid-input-response'), 'the provider\'s own codes stay on the server');
+  assert.ok(!JSON.stringify(body).includes(TOKEN), 'and so does the token');
+});
+
+test('the two refusals are distinguishable from each other and identical for every address', async () => {
+  // Both halves matter. The client has to be able to tell "you sent no token"
+  // from "your token did not verify", so it can offer a route forward rather
+  // than a dead end; and neither refusal may differ for an address that
+  // resolves and one that does not, or the refusal becomes the oracle the
+  // pending body is not.
+  const seen = {};
+  for (const reason of ['verification_required', 'verification_failed']) {
+    const texts = [];
+    for (const [index, email] of [LINKED, UNLINKED].entries()) {
+      const h = harness({ verify: verifier({ success: reason === 'verification_required' }) });
+      const body = reason === 'verification_required'
+        ? { ...attempt(index + 1, email), captchaToken: undefined }
+        : attempt(index + 1, email);
+      const response = await ask(h, body);
+      assert.equal(response.status, 400);
+      texts.push(await refusalText(response));
+    }
+    assert.equal(texts[0], texts[1], `${reason}: byte-identical for both addresses`);
+    assert.ok(texts[0].includes(`"reason":"${reason}"`));
+    seen[reason] = texts[0];
+  }
+  assert.notEqual(seen.verification_required, seen.verification_failed, 'and the two cases differ');
+
+  // Not vacuous: that address really does resolve, in the same harness shape.
+  const control = harness();
+  await complete(control, attempt(9, LINKED));
+  assert.equal(control.db.rows('recovery_challenges').length, 1, 'the linked address resolves and opens a challenge');
+});
+
+test('verification runs before any statement or provider call that depends on the address', async () => {
+  // The same method Task 5 proves its timing mitigation with: compare the
+  // statements made and the provider calls attempted, not wall-clock timing.
+  // At the moment the verifier is asked, nothing has been claimed, written or
+  // sent, and what was read before it does not depend on the address.
+  const before = [];
+  for (const [index, email] of [LINKED, UNLINKED].entries()) {
+    let atVerify = null;
+    const verify = verifier({
+      onCall: () => {
+        atVerify = { statements: statements(h), links: h.db.generatedLinks.length };
+      },
+    });
+    const h = harness({ verify });
+    const response = await ask(h, attempt(index + 1, email));
+
+    assert.equal(response.status, 200);
+    assert.ok(atVerify, 'the verifier was asked');
+    assert.equal(atVerify.links, 0, 'the provider was not resolved before the token was verified');
+    assert.deepEqual(
+      atVerify.statements.filter((entry) => entry.operation !== 'select'),
+      [],
+      'nothing was written before the token was verified',
+    );
+    before.push(atVerify.statements);
+  }
+  assert.deepEqual(before[0], before[1], 'and the reads before verification are the same either way');
+});
+
+test('a verifier that cannot answer fails closed, in every way it can fail to answer', async (t) => {
+  const logged = muteConsoleError(t);
+  const cases = [
+    { name: 'the network is dead', options: { reject: true } },
+    { name: 'the provider answers 500', options: { status: 500 } },
+    { name: 'the provider answers 429', options: { status: 429 } },
+    { name: 'the answer is not JSON', options: { body: 'not json at all' } },
+    { name: 'the answer is JSON but not an object', options: { body: '"yes"' } },
+    { name: 'success is a string rather than true', options: { body: JSON.stringify({ success: 'true' }) } },
+    { name: 'success is missing', options: { body: JSON.stringify({ 'error-codes': [] }) } },
+  ];
+  for (const [index, item] of cases.entries()) {
+    const verify = verifier(item.options);
+    const h = harness({ verify });
+    const response = await complete(h, attempt(index + 1, LINKED));
+    const body = await expectEnvelope(response, {
+      status: 400,
+      code: 'validation_failed',
+      retryable: false,
+      extraKeys: ['reason'],
+    });
+    assert.equal(body.reason, 'verification_failed', item.name);
+    assert.equal(verify.calls.length, 1, `${item.name}: the provider was asked`);
+    assert.equal(h.db.rows('recovery_challenges').length, 0, `${item.name}: nothing was opened`);
+    assert.equal(h.db.generatedLinks.length, 0, `${item.name}: nothing was sent`);
+  }
+  assert.equal(loggedText(logged), '', 'and no failure leaves a line');
+});
+
+test('a token that could not be one is refused without asking the provider at all', async () => {
+  const verify = verifier();
+  const h = harness({ verify });
+  for (const captchaToken of [null, 42, '', '   ', { token: 'x' }, ['x'], 'x'.repeat(2049), `ab\ncd${'x'.repeat(40)}`]) {
+    const response = await ask(h, { ...attempt(1, LINKED), captchaToken });
+    const body = await expectEnvelope(response, {
+      status: 400,
+      code: 'validation_failed',
+      retryable: false,
+      extraKeys: ['reason'],
+    });
+    assert.equal(body.reason, 'verification_required', `${JSON.stringify(captchaToken)} is refused locally`);
+    assert.equal(body.field_errors[0].field, 'captchaToken');
+  }
+  assert.equal(verify.calls.length, 0, 'a token this route can see is unusable is not worth a round trip');
+  assert.equal(h.db.rows('operations').length, 0);
+});
+
+test('a token at the provider\'s documented maximum length is still sent to be verified', async () => {
+  const verify = verifier();
+  const h = harness({ verify });
+  const long = `0.${'t'.repeat(2046)}`;
+  assert.equal(long.length, 2048, 'the documented ceiling, not one character under it');
+  const response = await complete(h, { ...attempt(1, LINKED), captchaToken: long });
+  assert.equal(response.status, 200);
+  assert.equal(verify.calls[0].fields.response, long);
+  assert.equal(h.db.rows('recovery_challenges').length, 1);
+});
+
+test('the route really does call out to the provider, which a test can prove without reaching it', async () => {
+  // `verify: null` leaves the harness's blocking fetch in place: it records the
+  // attempt and fails like a dead network. So this pins the endpoint the route
+  // asks, and that a dead provider is a refusal rather than a pass.
+  const h = harness({ verify: null });
+  const response = await ask(h, attempt(1, LINKED));
+  const body = await expectEnvelope(response, {
+    status: 400,
+    code: 'validation_failed',
+    retryable: false,
+    extraKeys: ['reason'],
+  });
+  assert.equal(body.reason, 'verification_failed');
+  assert.deepEqual(h.blockedFetches, [SITEVERIFY], 'one outbound verification, to Cloudflare\'s siteverify endpoint');
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+});
+
+test('the token reaches no row, no response and no log line, and neither does the verifier\'s answer', async (t) => {
+  const logged = muteConsoleError(t);
+  const marker = 'VERIFIER-SAID-THIS';
+  const verify = verifier({ body: JSON.stringify({ success: true, hostname: marker, 'error-codes': [] }) });
+  const h = harness({ verify });
+  const response = await complete(h, attempt(1, LINKED));
+
+  // The request really was accepted and really did write, or there would be
+  // nothing for the token to be absent from.
+  assert.equal(response.status, 200);
+  assert.equal(h.db.rows('recovery_challenges').length, 1);
+  assert.equal(h.db.rows('operations').length, 1);
+  const text = await response.text();
+  const stored = JSON.stringify([h.db.rows('recovery_challenges'), h.db.rows('operations')]);
+  for (const value of [TOKEN, marker]) {
+    assert.ok(!text.includes(value), `${value} is not in the response`);
+    assert.ok(!stored.includes(value), `${value} is not stored`);
+    assert.ok(!loggedText(logged).includes(value), `${value} is not logged`);
+  }
+  assert.ok(!stored.includes(sha256(TOKEN)), 'not even as a digest: the token is used and dropped');
+});
+
+test('a settled operation replays without burning a second token', async () => {
+  // The real client reuses one operationId for a retried request and holds one
+  // token, which the provider will only accept once. A replay does no work, so
+  // it asks for no second proof: the answer is already recorded.
+  const verify = verifier();
+  const h = harness({ verify });
+  const first = await complete(h, attempt(1, LINKED));
+  const again = await complete(h, { ...attempt(1, LINKED), captchaToken: undefined });
+
+  assert.equal(again.status, first.status);
+  assert.equal(await again.text(), await first.text(), 'the first outcome, replayed verbatim');
+  assert.equal(verify.calls.length, 1, 'the provider is asked once, however many times the client asks');
+  assert.equal(h.db.generatedLinks.length, 1, 'and no second verification is sent');
+  assert.equal(h.db.rows('recovery_challenges').length, 1);
+});
+
+test('an operation that never settled is not a free pass', async () => {
+  // Both unsettled shapes. A fresh pending row is work in flight; a stale one
+  // is a dead attempt the ledger reports as unknown. Neither has a recorded
+  // outcome to replay, so neither may skip the check.
+  for (const [index, created] of [ago(0), ago(10 * 60 * 1000)].entries()) {
+    const verify = verifier();
+    const h = harness({
+      verify,
+      operations: [{
+        operation_id: op(index + 1),
+        status: 'pending',
+        created_at: created,
+        request_hash: null,
+        result: null,
+      }],
+    });
+    const refused = await ask(h, { ...attempt(index + 1, LINKED), captchaToken: undefined });
+    const body = await expectEnvelope(refused, {
+      status: 400,
+      code: 'validation_failed',
+      retryable: false,
+      extraKeys: ['reason'],
+    });
+    assert.equal(body.reason, 'verification_required', 'an unsettled id still needs a token');
+    assert.equal(verify.calls.length, 0);
+
+    const withToken = await ask(h, attempt(index + 1, LINKED));
+    assert.equal(withToken.status, 200, 'and with one it is answered as the ledger says');
+    assert.equal(verify.calls.length, 1, 'the token really was verified');
+    assert.ok(['pending', 'unknown'].includes((await withToken.json()).status));
+  }
+});
+
+test('the token is not part of the operation fingerprint: the same id with another token is a replay', async () => {
+  // If the token were in the fingerprint, the replay below would be a 409
+  // mismatch instead of the first answer, and a person who re-solved the
+  // widget could never retry their own request.
+  const verify = verifier();
+  const h = harness({ verify });
+  const first = await complete(h, attempt(1, LINKED));
+  const again = await complete(h, { ...attempt(1, LINKED), captchaToken: `${TOKEN}-DIFFERENT` });
+
+  assert.equal(again.status, 200);
+  assert.equal(await again.text(), await first.text(), 'the first outcome, not a conflict');
+  assert.equal(h.db.generatedLinks.length, 1);
+  assert.equal(h.db.rows('operations').length, 1);
+  assert.ok(!JSON.stringify(h.db.rows('operations')).includes('DIFFERENT'), 'and no token is in the ledger');
+});
+
+test('verification is checked after the client budget, so a flood cannot be aimed at the provider', async () => {
+  const verify = verifier();
+  const h = harness({ rateLimit: () => false, verify });
+  const response = await ask(h, attempt(1, LINKED));
+  await expectEnvelope(response, { status: 429, code: 'rate_limited' });
+  assert.equal(verify.calls.length, 0, 'a shed request costs the provider nothing');
 });
 
 // ---------------------------------------------------------------------------
@@ -1069,10 +1459,60 @@ test('with the capability off the request is unavailable, and nothing is read or
   assert.equal(h.db.rows('recovery_challenges').length, 0);
 });
 
+test('with no verification secret the route is shut, and says exactly what the flag being off says', async (t) => {
+  // The decision BE-340 turns on. A capability that silently skips human
+  // verification because a key is absent is the failure the requirement names,
+  // so an unconfigured deployment is refused instead, in the same words and
+  // with the same envelope as the capability being off. The flag and the key
+  // compose as AND, never as "the flag is on, so the missing key is waived":
+  // nothing is read, nothing is written, and no request reaches the work.
+  const logged = muteConsoleError(t);
+  const verify = verifier();
+  const h = harness({ verify });
+  const unconfigured = await ask(h, attempt(1, LINKED), { env: { HALO_FEATURE_RECOVERY: 'on' } });
+  const shutText = await refusalText(unconfigured.clone());
+  await expectEnvelope(unconfigured, { status: 503, code: 'feature_unavailable', retryable: false });
+
+  const off = await ask(h, attempt(2, LINKED), { env: {} });
+  assert.equal(off.status, unconfigured.status);
+  assert.equal(
+    shutText,
+    await refusalText(off),
+    'the same refusal, so a stranger cannot read our configuration off it',
+  );
+
+  assert.equal(verify.calls.length, 0, 'the provider is never asked');
+  assert.deepEqual(h.blockedFetches, [], 'and nothing else is attempted either');
+  assert.deepEqual(h.db.queryLog, [], 'no table is read at all');
+  await h.runAfter();
+  assert.equal(h.db.rows('operations').length, 0);
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+  assert.equal(h.db.generatedLinks.length, 0, 'and no message is sent to anybody');
+  assert.equal(loggedText(logged), '');
+});
+
+test('a secret that is only whitespace is not a secret', async () => {
+  const h = harness();
+  for (const secret of ['', ' ', '\t\n']) {
+    const response = await ask(h, attempt(1, LINKED), { env: { ...ON, TURNSTILE_SECRET_KEY: secret } });
+    assert.equal(response.status, 503, `${JSON.stringify(secret)} leaves the route shut`);
+  }
+  assert.equal(h.db.rows('recovery_challenges').length, 0);
+});
+
+test('with the capability off the verifier is not asked either, whatever the request carries', async () => {
+  const verify = verifier();
+  const h = harness({ verify });
+  const response = await ask(h, attempt(1, LINKED), { env: { TURNSTILE_SECRET_KEY: 'turnstile-secret-key' } });
+  await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
+  assert.equal(verify.calls.length, 0, 'the flag is checked first, so a token costs the provider nothing');
+  assert.deepEqual(h.db.queryLog, []);
+});
+
 test('a misspelled flag value is off, like every other capability flag', async () => {
   const h = harness();
   for (const value of ['1', 'yes', 'ON ', '']) {
-    const response = await ask(h, attempt(1, LINKED), { env: { HALO_FEATURE_RECOVERY: value } });
+    const response = await ask(h, attempt(1, LINKED), { env: { ...ON, HALO_FEATURE_RECOVERY: value } });
     const status = value.trim().toLowerCase() === 'on' ? 200 : 503;
     assert.equal(response.status, status, `${JSON.stringify(value)}`);
   }

@@ -58,7 +58,7 @@ const ROUTE_COVERAGE = {
   'GET /api/operations': 'routesOperations: another household\'s operation id is the identical 404, recovery is not readable here, stale pending reads as unknown',
   'PUT /api/notifications': 'isolation: only the caller\'s preferences change; smuggled profile_id rejected',
   'POST /api/onboard': 'isolation: 403 for a foreign profile_id; flows: move, backfill, lookup failure touch only the caller, with and without the 0016 function',
-  'POST /api/recovery/request': 'routesRecoveryRequest: public and unauthenticated, so nothing in the request names whose account is touched; an Authorization header changes nothing, the answer is the same pending body for a linked and an unlinked address, and a stranger asking about an address touches no row of the household it resolves to',
+  'POST /api/recovery/request': 'routesRecoveryRequest: public and unauthenticated, so nothing in the request names whose account is touched; an Authorization header changes nothing, the answer is the same pending body for a linked and an unlinked address, and a stranger asking about an address touches no row of the household it resolves to; human verification is checked before the address is touched and its refusals are identical for an address that resolves and one that does not',
   'GET /api/profile': 'isolation: read matrix, identity-from-token',
   'PATCH /api/profile': 'isolation: only the caller\'s profile and home change, id in the body ignored, with and without the 0016 functions',
   'POST /api/push/subscribe': 'flows: a foreign endpoint is not taken over and the answer matches a fresh success',
