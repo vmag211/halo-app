@@ -38,6 +38,8 @@ import { haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 
+const { featureDisabledReason } = await import('../lib/features.js');
+
 const ROUTE = '/api/luna/capabilities';
 const TABLES = haloTables('profiles', 'luna_conversations', 'luna_turns', 'luna_runs');
 
@@ -236,25 +238,49 @@ test('no conversation, turn or run is read to answer what the deployment can do'
 // The capability flag, and before migration 0020
 // ---------------------------------------------------------------------------
 
-test('with the capability off the route refuses, reads nothing and writes nothing', async () => {
+test('with the capability off the answer reports it off, with the reason, and nothing else', async () => {
   const h = harness();
-  const body = await expectEnvelope(await h.call(ROUTE, 'GET', { as: 'alice' }), {
-    status: 503,
-    code: 'feature_unavailable',
-    retryable: false,
-  });
-  // Not a capabilities answer at all: no `available` to be misread as a
-  // working service, and nothing that invites a retry that cannot help.
-  assert.ok(!('available' in body), 'an off capability is not answered with a capability snapshot');
-  assert.equal(body.message.includes(EM_DASH), false, 'app-facing copy uses no em dash');
+  const response = await h.call(ROUTE, 'GET', { as: 'alice' });
+  // RULING L11. The endpoint whose job is to REPORT availability reports it;
+  // the endpoints that ACT refuse. So this one answers, and it answers 200.
+  assert.equal(response.status, 200, 'reporting that Luna is off is not a refusal to report');
+  const body = await response.json();
+  assertLunaCapabilities(body);
+
+  // `available: false` is right here, and only here. Ruling L7's prohibition
+  // was about the case where Luna DOES answer and only the tool half is
+  // absent: there, `blocked` would wrongly disable answering. When the whole
+  // capability is off, disabling answering is accurate, not a dead screen.
+  assert.equal(body.available, false);
+  assert.equal(body.reason, featureDisabledReason('luna'), "the reason, in the words lib/features.js already has for it");
+  // And the person actually reads it: the client renders the two verbatim
+  // slots as one sentence pair and appends the period itself (`:90`), so this
+  // pair composes exactly that reason. The assertion is what stops the halves
+  // drifting from the helper.
+  assert.equal(`${body.providerLabel}. ${body.retentionSummary}`, featureDisabledReason('luna'));
+  assert.equal(body.reason.includes(EM_DASH), false, 'app-facing copy uses no em dash');
+
+  // Nothing else. No tool, no context and no retrieval is claimed for a
+  // capability that is off, and no conversation is read to say so.
+  assert.deepEqual(body.tools, []);
+  assert.deepEqual(body.context, { tasks: false, home: false, projects: false });
+  assert.equal(body.publicRetrieval, false);
+  assert.deepEqual(
+    Object.keys(body).sort(),
+    ['available', 'context', 'providerLabel', 'publicRetrieval', 'reason', 'retentionSummary', 'tools'],
+    'the seven members the contract requires, plus the reason, and nothing more',
+  );
   assert.deepEqual(h.db.queryLog, [], 'off means off: nothing is read while the capability is off');
 });
 
-test('the flag must be explicitly on, so a misspelling fails closed', async () => {
+test('the flag must be explicitly on, so a misspelling reports the capability off', async () => {
   const h = harness();
   for (const value of ['off', 'false', '1', 'yes', '', 'onn']) {
     const response = await h.call(ROUTE, 'GET', { as: 'alice', env: { HALO_FEATURE_LUNA: value } });
-    assert.equal(response.status, 503, `HALO_FEATURE_LUNA=${JSON.stringify(value)} is off`);
+    assert.equal(response.status, 200, `HALO_FEATURE_LUNA=${JSON.stringify(value)}`);
+    const body = await response.json();
+    assertLunaCapabilities(body);
+    assert.equal(body.available, false, `HALO_FEATURE_LUNA=${JSON.stringify(value)} is off`);
   }
 });
 

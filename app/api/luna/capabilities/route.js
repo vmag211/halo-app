@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { requestIdFor, internalError } from '@/lib/apiErrors';
-import { featureEnabled } from '@/lib/features';
+import { featureEnabled, featureDisabledReason } from '@/lib/features';
 import { LUNA_FEATURE, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
 
 /**
@@ -61,12 +61,24 @@ import { LUNA_FEATURE, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
  * `public`), the owner still comes only from the verified token, and the one
  * statement this route makes is scoped to that owner.
  *
- * Degrading: the capability flag is off by default and off means off (BE-351),
- * and until migration 0020 is applied the schema is not there. Both are the
- * same non-retryable 503 `feature_unavailable` every Luna route answers with
- * (lib/luna.js `lunaUnavailable`), never a capabilities answer: `available:
- * true` over a missing schema would be a lie the person pays for, because
- * every question they typed would fail after they sent it.
+ * WHEN THE CAPABILITY IS OFF, THIS ROUTE STILL ANSWERS (Ruling L11). The
+ * endpoint whose job is to REPORT availability reports it; the endpoints that
+ * ACT refuse. So the flag being off is a 200 carrying `available: false` and
+ * the reason, while `runs/status` and `runs/cancel` keep the non-retryable
+ * 503. This is not the trap above: Ruling L7's prohibition on
+ * `available: false` was about the case where Luna DOES answer and only the
+ * tool half is absent, where `blocked` would wrongly disable answering. When
+ * the whole capability is off, disabling answering is accurate. It is also
+ * what `GET /api/account` already does with the same flag mechanism
+ * (`recoverySnapshot({ enabled: false, reason: featureDisabledReason(...) })`),
+ * and it is the one case `featureDisabledReason('luna')` exists for.
+ *
+ * A MISSING MIGRATION IS NOT THE SAME FACT, and stays a non-retryable 503
+ * (lib/luna.js `lunaUnavailable`). "The capability is switched off" is
+ * something the product chose and can report; "0020 is not applied" is a
+ * deployment fault, and answering `available: true` over it would be a lie
+ * the person pays for, because every question they typed would fail after
+ * they sent it. Neither answer ever implies a working service.
  */
 
 /**
@@ -113,6 +125,26 @@ const CAPABILITIES = Object.freeze({
 });
 
 /**
+ * What the answer says while the capability is off (Ruling L11).
+ *
+ * `providerLabel` and `retentionSummary` are the only two slots a person
+ * actually reads, and the client renders them as one sentence pair with the
+ * period between them (`:90`), so this pair composes exactly
+ * `featureDisabledReason('luna')`. The `reason` field carries that same
+ * sentence whole, for a reader that wants it in one piece, the way
+ * `GET /api/account` reports a disabled capability. A test pins the pair
+ * against the helper, so the halves cannot drift from it.
+ *
+ * Everything else keeps its off-state value from `CAPABILITIES`: no tool, no
+ * context and no retrieval is claimed for a capability that is not running.
+ */
+const OFF = Object.freeze({
+  available: false,
+  providerLabel: 'Luna is not available yet',
+  retentionSummary: 'You can still use HALO directly.',
+});
+
+/**
  * Proves migration 0020 is applied before the route claims Luna can answer,
  * scoped to the caller like every other statement here. A head count returns
  * no rows, so this reads nobody's conversation: it only asks whether the table
@@ -132,9 +164,13 @@ export async function GET(request) {
   try {
     const { userId } = await requireUser(request);
 
-    // Off by default, and off means off: nothing read, nothing written,
-    // nothing disclosed, and no claim that the service works.
-    if (!featureEnabled(LUNA_FEATURE)) return lunaUnavailable(requestId);
+    // Off by default, and off means off: nothing read, nothing written and
+    // nothing disclosed. What it is NOT is silent, because reporting
+    // availability is this route's whole job (Ruling L11).
+    if (!featureEnabled(LUNA_FEATURE)) {
+      const reason = featureDisabledReason(LUNA_FEATURE);
+      return NextResponse.json({ ...CAPABILITIES, ...OFF, reason }, { headers });
+    }
 
     await requireLunaSchema(supabaseAdmin, userId);
 
