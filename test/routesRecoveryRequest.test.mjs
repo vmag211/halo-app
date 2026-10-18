@@ -633,7 +633,7 @@ test('a body that is not an object, and one that is too large, are refused', asy
       env: ON,
       headers: { 'X-Forwarded-For': CLIENT_IP, 'content-type': 'application/json' },
     });
-    await expectEnvelope(malformed, { status: 400, code: 'validation_failed', retryable: false });
+    await expectEnvelope(malformed, { status: 400, code: 'bad_request', retryable: false });
   }
 
   const huge = await h.call(ROUTE, 'POST', {

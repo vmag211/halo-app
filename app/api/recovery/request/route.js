@@ -204,7 +204,7 @@ const KIND = 'recovery.request';
 const UNATTRIBUTED = 'unattributed';
 
 const MESSAGES = Object.freeze({
-  limited: 'Too many recovery requests from this device. Please wait a few minutes and try again.',
+  limited: 'Too many recovery requests from this device. Please wait and try again later.',
   mismatch: 'That request was already made with different details. Please start again.',
   email: 'Enter an email address in the form name@example.com.',
   nonce: 'That request is missing the value that identifies this browser. Please start again.',
@@ -392,9 +392,7 @@ export async function POST(request) {
 
     const body = await readJsonBody(request, { maxBytes: MAX_BYTES });
     if (!body.ok) {
-      return body.status === 400
-        ? validationError([{ field: 'body', code: body.code, message: body.message }], requestId)
-        : apiError({ status: body.status, code: body.code, message: body.message, requestId });
+      return apiError({ status: body.status, code: body.code, message: body.message, requestId });
     }
 
     const unknown = Object.keys(body.value).filter((key) => !BODY_KEYS.includes(key)).sort();
