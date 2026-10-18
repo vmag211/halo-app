@@ -53,6 +53,8 @@ const ROUTE_COVERAGE = {
   'GET /api/account': 'routesAccountRead: the challenge and unresolved operations are read for the caller only; a profile_id in the query changes nothing; off by the flag nothing is read at all',
   'POST /api/account/commands': 'routesAccountCommands: every statement is scoped to the caller, another household\'s challenge id is the identical failure to a missing one, a body naming another profile is refused and a query naming one is ignored; a collision fails without merging and discloses nothing about the other identity',
   'GET /api/learn': 'isolation: read matrix (household note from the caller\'s composition)',
+  'GET /api/luna/conversations': 'routesLunaConversations: only the caller\'s conversation and turns are read, a query naming another household changes nothing, every statement is scoped to the caller, and off by the flag nothing is read or written',
+  'POST /api/luna/conversations/clear': 'routesLunaConversations: another household\'s conversation id is the identical conflict to one that never existed and deletes nothing, a body naming another profile is refused and a query naming one is ignored, and clearing touches no row outside the caller\'s own Luna conversation',
   'GET /api/map': 'isolation: read matrix (no household data)',
   'GET /api/notifications': 'isolation: read matrix',
   'GET /api/operations': 'routesOperations: another household\'s operation id is the identical 404, recovery is not readable here, stale pending reads as unknown',
