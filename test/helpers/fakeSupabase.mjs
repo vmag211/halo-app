@@ -31,6 +31,8 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   const rpcHandlers = new Map();
   const rpcCalls = [];
   const queryLog = [];
+  const generatedLinks = [];
+  let linkCount = 0;
   let authOutage = 'off';
   let maxRows = Infinity;
 
@@ -181,6 +183,65 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
           return { data: { user: adminUser(next) }, error: null };
         },
 
+        /**
+         * `auth.admin.generateLink({ type: 'magiclink', email })`, the one
+         * email-keyed admin call the installed client offers that does not
+         * create an identity (`inviteUserByEmail` does, and `listUsers` takes
+         * only a page and a page size, so it cannot look an address up).
+         * POST /api/recovery/request uses it for both halves of its one
+         * provider step: it resolves the address to an existing identity, and
+         * the provider's own mailer is what delivers the verification.
+         *
+         * Modelled on the documented shape: `{ data: { user, properties },
+         * error }`, with `properties` carrying the one-time link and token.
+         * Those are proof-bearing (BE-201) and a test asserts none of them
+         * reaches a response, a row or a log line, so they are distinct per
+         * call and deliberately recognisable.
+         *
+         * An address no identity holds is `user_not_found`, which is what makes
+         * "resolves to a linked identity" answerable at all. Only 'magiclink'
+         * is modelled: a route reaching for another type, or for a call that
+         * could create an identity, should break a test rather than pass one.
+         *
+         * What this CANNOT model, and what the local-only boundary excludes:
+         * whether the installed GoTrue actually sends mail for this call. The
+         * fake records that the provider was asked.
+         */
+        generateLink: async ({ type, email } = {}) => {
+          if (authOutage === 'thrown') throw new Error(AUTH_OUTAGE_MESSAGE);
+          if (authOutage === 'returned') {
+            return { data: { user: null, properties: null }, error: authError(503, AUTH_OUTAGE_MESSAGE) };
+          }
+          if (type !== 'magiclink') {
+            throw new Error(`fakeSupabase: generateLink type "${type}" is not modelled`);
+          }
+          const wanted = String(email ?? '').toLowerCase();
+          if (!wanted.includes('@')) {
+            return {
+              data: { user: null, properties: null },
+              error: authError(422, 'Unable to validate email address: invalid format', { code: 'validation_failed' }),
+            };
+          }
+          const holder = (user) => typeof user.email === 'string' && user.email.toLowerCase() === wanted;
+          const user = [...users.values()].find(holder);
+          if (!user) {
+            return {
+              data: { user: null, properties: null },
+              error: authError(404, 'User not found', { code: 'user_not_found' }),
+            };
+          }
+          linkCount += 1;
+          const secret = `s3cret-${linkCount}-${user.id}`;
+          const properties = {
+            action_link: `https://provider.example.invalid/auth/v1/verify?token=${secret}&type=magiclink`,
+            email_otp: `otp-${linkCount}-000000`,
+            hashed_token: `hashed-${secret}`,
+            verification_type: 'magiclink',
+          };
+          generatedLinks.push({ type, email: wanted, id: user.id, properties });
+          return { data: { user: adminUser(user), properties }, error: null };
+        },
+
         /** Removes the user and cascades to every table declaring an ownerColumn. */
         deleteUser: async (id) => {
           if (!users.delete(id)) {
@@ -211,6 +272,14 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
 
     /** Adds rows to a table (declaring it if new). Constraints apply, so a bad row throws. */
     seed: (name, rows) => { declare(name).seed(rows); },
+
+    /**
+     * Every verification the routes asked the provider to generate, in order:
+     * { type, email, id, properties }. The provider's own mailer is what would
+     * deliver them, which this cannot model, so this is the record of what was
+     * asked for rather than of what arrived.
+     */
+    generatedLinks,
 
     /** A copy of a table's rows, for assertions. Throws for an undeclared table. */
     rows: (name) => {

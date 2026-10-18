@@ -95,6 +95,26 @@ test('generateLink and verifyOtp each take the single options object the two-ste
   assert.equal(supabase.auth.verifyOtp.length, 1, 'verifyOtp takes one options argument');
 });
 
+test('no installed admin call can look an address up without sending to it, which is why the recovery request resolves through generateLink', () => {
+  // Task 5's POST /api/recovery/request has to answer "does this address
+  // resolve to a linked identity" with no session and without creating one.
+  // `listUsers` is the only other admin read keyed by anything but an id, and
+  // the installed implementation sends page and per_page and nothing else, so
+  // it cannot select one address: the alternative would be paging the whole
+  // user table per request. `generateLink({ type: 'magiclink' })` therefore
+  // does both halves of that step, resolve and send, which is the design
+  // decision this evidence supports.
+  const source = readFileSync(
+    new URL('../node_modules/@supabase/auth-js/dist/main/GoTrueAdminApi.js', import.meta.url),
+    'utf8',
+  );
+  const body = /async listUsers\(params\) \{[\s\S]*?\n {4}\}/.exec(source)?.[0];
+  assert.ok(body, 'the installed listUsers was found');
+  assert.match(body, /\/admin\/users/, 'it reads the admin user list');
+  assert.match(body, /per_page/, 'with a page size');
+  assert.ok(!/filter|email/.test(body), 'and nothing that could select a single address');
+});
+
 test('the admin calls take the id separately, so they can only ever touch the identity named', () => {
   const supabase = client();
   // `remove-recovery` uses updateUserById and every read uses getUserById. The
