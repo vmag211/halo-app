@@ -110,6 +110,34 @@ function budgets({ client = CLIENT_BUDGET, address = ADDRESS_BUDGET } = {}) {
   return decide;
 }
 
+/**
+ * Makes ONE kind of statement on one table fail, the way a database error
+ * would, and leaves every other statement working. Patching `from` so that
+ * every statement on a table fails is not the same thing: the route runs
+ * several, and the first one to fail is then the only path a test can reach.
+ *
+ * Returns the list of statements that failed, so a test can assert the path it
+ * meant to exercise was the one that broke.
+ */
+function failOnly(db, table, operation) {
+  const real = db.from.bind(db);
+  const failed = [];
+  db.from = (name) => {
+    const builder = real(name);
+    if (name !== table) return builder;
+    const start = builder[operation].bind(builder);
+    builder[operation] = (...args) => {
+      const chained = start(...args);
+      failed.push(operation);
+      chained.then = (resolve) =>
+        Promise.resolve({ data: null, count: null, error: { code: '08006', message: 'connection failure' } }).then(resolve);
+      return chained;
+    };
+    return builder;
+  };
+  return failed;
+}
+
 /** Collects the client keys the route asked about, allowing every request. */
 function clientKeys() {
   const seen = [];
@@ -634,20 +662,76 @@ test('a forged chain cannot vary the client key from request to request', async 
   assert.deepEqual([...new Set(keys.seen)], [`recovery:client:${sha256(CLIENT_IP)}`], 'one bucket for all three');
 });
 
-test('a header the proxy sets is preferred over the one a caller can forge', async () => {
+/**
+ * The client keys one request produced, with exactly these headers and no
+ * default forwarding chain, so each case says precisely what it sends.
+ */
+async function keysFor(headers) {
   const keys = clientKeys();
   const h = harness({ rateLimit: keys.decide });
-  await complete(h, attempt(1, UNLINKED), {
-    headers: { 'X-Vercel-Forwarded-For': CLIENT_IP, 'X-Forwarded-For': FORGED },
+  const response = await h.call(ROUTE, 'POST', {
+    body: attempt(1, UNLINKED),
+    env: ON,
+    headers: { 'Idempotency-Key': op(1), ...headers },
   });
-  await complete(h, attempt(2, UNLINKED), {
-    headers: { 'X-Real-IP': CLIENT_IP, 'X-Forwarded-For': FORGED },
-  });
+  assert.equal(response.status, 200);
+  await h.runAfter();
+  return keys.seen;
+}
+
+test('the client address is taken from the header a caller has least influence over (Ruling 21)', async () => {
+  // The order is: the platform's own header, because it exists only where that
+  // platform sets it; then the RIGHTMOST forwarded hop, which is what a proxy
+  // in front appends; then x-real-ip, and only when no chain was forwarded at
+  // all, because it is a single value with no hop structure and any caller can
+  // send one. Preferring x-real-ip over a forwarded chain, which is what this
+  // route did before, hands the bucket back to the caller on every front that
+  // appends to x-forwarded-for without setting x-real-ip itself.
+  const cases = [
+    {
+      name: 'the platform header wins over a forged chain',
+      headers: { 'X-Vercel-Forwarded-For': CLIENT_IP, 'X-Forwarded-For': FORGED },
+    },
+    {
+      name: 'the platform header wins over a forged x-real-ip',
+      headers: { 'X-Vercel-Forwarded-For': CLIENT_IP, 'X-Real-IP': FORGED },
+    },
+    {
+      name: 'the rightmost forwarded hop wins over a forged x-real-ip',
+      headers: { 'X-Forwarded-For': `${FORGED}, 198.51.100.9, ${CLIENT_IP}`, 'X-Real-IP': FORGED },
+    },
+    {
+      name: 'a single forwarded hop also wins over a forged x-real-ip',
+      headers: { 'X-Forwarded-For': CLIENT_IP, 'X-Real-IP': FORGED },
+    },
+    {
+      name: 'x-real-ip is used only when no chain was forwarded',
+      headers: { 'X-Real-IP': CLIENT_IP },
+    },
+    {
+      name: 'and when the chain is forwarded empty, which carries no hop',
+      headers: { 'X-Forwarded-For': '', 'X-Real-IP': CLIENT_IP },
+    },
+  ];
+  for (const item of cases) {
+    assert.deepEqual(await keysFor(item.headers), [`recovery:client:${sha256(CLIENT_IP)}`], item.name);
+  }
+});
+
+test('a forged x-real-ip cannot vary the bucket while a chain carries the real peer', async () => {
+  const keys = clientKeys();
+  const h = harness({ rateLimit: keys.decide });
+  for (let n = 1; n <= 3; n += 1) {
+    await complete(h, attempt(n, UNLINKED), {
+      headers: { 'X-Forwarded-For': `10.0.0.${n}, ${CLIENT_IP}`, 'X-Real-IP': `192.0.2.${n}` },
+    });
+  }
   assert.deepEqual(
     [...new Set(keys.seen)],
     [`recovery:client:${sha256(CLIENT_IP)}`],
-    'both vendor headers win over a forged forwarding chain',
+    'one bucket for all three, whatever the caller claims to be',
   );
+  assert.equal(keys.seen.length, 3);
 });
 
 // ---------------------------------------------------------------------------
@@ -803,22 +887,41 @@ test('a provider failure is not reported to the caller, and leaves no line to co
 
 test('a challenge that cannot be written leaves no line to count either', async (t) => {
   // The same oracle, one statement later: an insert can only fail for an
-  // address that resolved to a linked identity.
+  // address that resolved to a linked identity. Only the INSERT is made to
+  // fail, so that path is genuinely entered: failing every statement on the
+  // table would stop at the supersede, which runs first and returns, and this
+  // test would then be about that instead (review Ruling 22).
   const logged = muteConsoleError(t);
   const h = harness();
   const response = await ask(h, attempt(1, LINKED));
   assert.equal(response.status, 200);
-  h.db.from = ((real) => (name) => {
-    const builder = real(name);
-    if (name !== 'recovery_challenges') return builder;
-    builder.then = (resolve) =>
-      Promise.resolve({ data: null, count: null, error: { code: '08006', message: `connection failure for ${LINKED}` } }).then(resolve);
-    return builder;
-  })(h.db.from.bind(h.db));
+  const failed = failOnly(h.db, 'recovery_challenges', 'insert');
   await h.runAfter();
 
+  assert.deepEqual(failed, ['insert'], 'the insert is what failed, and it was reached');
   assert.equal(h.db.generatedLinks.length, 1, 'the provider was asked');
-  assert.equal(loggedText(logged), '', 'and the failed write is not a line per existing address');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'and no challenge exists');
+  assert.equal(loggedText(logged), '', 'the failed write is not a line per existing address');
+});
+
+test('a supersede that fails writes nothing, rather than leaving two live rows for one nonce', async (t) => {
+  // The one-live-row invariant is the point of the supersede, so if it cannot
+  // run, inserting anyway would produce exactly what it exists to prevent. The
+  // person keeps the challenge their earlier request opened.
+  const logged = muteConsoleError(t);
+  const h = harness({
+    challenges: [{ id: CHALLENGE, intent: 'recover', nonce_hash: sha256(clientNonce(1)), email_hash: sha256(LINKED) }],
+  });
+  const before = h.db.rows('recovery_challenges');
+  const response = await ask(h, attempt(1, LINKED));
+  assert.equal(response.status, 200);
+  const failed = failOnly(h.db, 'recovery_challenges', 'delete');
+  await h.runAfter();
+
+  assert.deepEqual(failed, ['delete'], 'the supersede is what failed');
+  assert.equal(h.db.generatedLinks.length, 1, 'the provider was asked');
+  assert.deepEqual(h.db.rows('recovery_challenges'), before, 'and the table is exactly as it was');
+  assert.equal(loggedText(logged), '', 'with no line to count');
 });
 
 test('an address that resolves to nothing is not logged at all, because that is the enumeration-sensitive case', async (t) => {

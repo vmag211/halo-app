@@ -137,8 +137,14 @@ import { CHALLENGE_INTENT, hashToken, isRecoveryUnavailable, linkedMethod } from
  * one digest and a single-row lookup there could not resolve it. So this route
  * supersedes its own prior UNCONSUMED row for the same `(profile_id,
  * nonce_hash)` before inserting, which leaves exactly one. The invariant is
- * therefore: AT MOST ONE UNCONSUMED `recover` ROW PER (profile_id, nonce_hash).
- * A consumed row is never touched, because `consumed_at` is the evidence that a
+ * therefore: AT MOST ONE UNCONSUMED `recover` ROW PER (profile_id, nonce_hash),
+ * INCLUDING A VERIFIED ONE. The condition is "unconsumed", not "unverified", so
+ * a same-nonce re-request does delete a `verified` row whose restore token the
+ * person is still holding. That is required by the invariant and is only
+ * reachable by the browser that holds the nonce, but it has a consequence
+ * tasks 7 and 8 must honour: "no row found" and "wrong token" have to be
+ * answered identically, or the difference between them is an oracle. A
+ * CONSUMED row is never touched, because `consumed_at` is the evidence that a
  * restore token was spent and single use depends on it, so a lookup there must
  * filter on `consumed_at is null` to be certain of one row. Another browser's
  * nonce, and another household's rows, are out of scope of the delete by
@@ -254,12 +260,32 @@ const ADDRESS_KEY = 'recovery:address:';
 const UNATTRIBUTED = 'unattributed';
 
 /**
- * Where a client address is taken from, in order of how much a caller can
- * influence it. The first two are set by the platform in front of this route;
- * `x-forwarded-for` is a list anyone may send, and only the hop nearest the
- * proxy is of any use. See `clientDigest`.
+ * Where a client address is looked for, in order, taking the first header that
+ * yields a hop. What is actually known about each, rather than assumed
+ * (Ruling 21):
+ *
+ *   x-vercel-forwarded-for  a vendor-specific name, so it is present only where
+ *                           that platform puts it there. Nothing here verifies
+ *                           that it does; it is first because a name no generic
+ *                           proxy uses is the one a caller gains least by
+ *                           sending.
+ *   x-forwarded-for         a list anyone may send. Only its RIGHTMOST entry is
+ *                           worth anything, because that is the one the nearest
+ *                           proxy appends IF a proxy is in front. It is
+ *                           consulted before x-real-ip because an append-style
+ *                           front (nginx, and most non-platform fronts) puts
+ *                           the real peer here and sets nothing else: ordering
+ *                           x-real-ip above this hands the bucket straight back
+ *                           to the caller on exactly those deployments, with
+ *                           the trustworthy value sitting unread.
+ *   x-real-ip               a convention some proxies set. A single value with
+ *                           no hop structure, so a forged one is
+ *                           indistinguishable from a real one. Last, and
+ *                           reached only when no chain was forwarded at all.
+ *
+ * None of this is verified against the deployment. See `clientDigest`.
  */
-const CLIENT_ADDRESS_HEADERS = Object.freeze(['x-vercel-forwarded-for', 'x-real-ip', 'x-forwarded-for']);
+const CLIENT_ADDRESS_HEADERS = Object.freeze(['x-vercel-forwarded-for', 'x-forwarded-for', 'x-real-ip']);
 
 const MESSAGES = Object.freeze({
   limited: 'Too many recovery requests from this device. Please wait and try again later.',
@@ -341,7 +367,11 @@ function parseNonce(value) {
  *
  * Two rules, both because the raw header is caller-supplied text (Ruling 19):
  *
- *   1. A header the platform sets is preferred over the one anyone can send.
+ *   1. The headers are tried in the order of `CLIENT_ADDRESS_HEADERS` above,
+ *      which puts the one a caller gains least by sending first and the one a
+ *      caller gains most by sending last. A single-valued header is never
+ *      preferred over a forwarded chain, because a chain at least has an end a
+ *      proxy appends and a single value does not (Ruling 21).
  *   2. Within whichever header is used, the hop NEAREST the proxy is taken,
  *      which is the rightmost entry. A proxy appends the peer it received the
  *      request from, so the rightmost value is the one the hop closest to us
