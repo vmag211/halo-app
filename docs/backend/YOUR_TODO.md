@@ -495,6 +495,39 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: no challenge row is deleted, but which intent wrote each one is lost for good. If you reapply 0019 afterwards, every surviving row reads as a `link` row, because that is the only answer the column can give once the distinction is gone. In practice that means a recovery attempt that was in flight during the back-out can be superseded by the owner linking an address, which is exactly the problem the column exists to prevent, so prefer backing out 0018 (2.4) if you want recovery off altogether.
 
+### 2.9 Apply 0020 (Luna's conversations, turns and runs)
+
+**Not applied yet.** Needs 0019 first (only because the migrations are applied in order; 0020 touches nothing 0018 or 0019 created).
+
+Quiet, like 2.3 and 2.4: it creates three new tables and one index and does not read or write any existing table, so nothing else is blocked while it runs. Creating the foreign keys to `profiles` takes a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment.
+
+What it is for: Luna, the conversational assistant, holds the conversation on the server. The browser sends one new sentence per turn and never puts the person's own message on the screen itself, so the stored transcript, including their own turn, is the only thing that can give their question back to them. A run is one attempt to answer one turn: `POST /api/luna/messages` has to answer inside the browser's 20 second timeout, so it records the question, starts a run and returns it, and the answer is collected afterwards by polling.
+
+**Applying this does not turn Luna on.** The capability stays behind a server-enforced feature flag that is off by default (BE-351), so nothing is reachable until `HALO_FEATURE_LUNA` is set to `on` in an environment deliberately. Two more things are open before Luna ships: no retention period for a stored conversation turn has been approved (see Part 3 item 4 and the three `luna_*` rows in `docs/backend/privacy-and-retention.md`), and the model ids must be set explicitly in the deployment (`ASSISTANT_EMBED_MODEL` and `ASSISTANT_CHAT_MODEL`; an unset one now fails loudly instead of quietly selecting a paid OpenAI model).
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0020_luna_conversations.sql` and run it. Safe to re-run.
+2. Run the verification query in the comment at the end of that file. Expect one row, all five columns true. `no_client_access` false is the one that matters here: a turn is free text somebody typed, so if it comes back false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, every Luna route answers 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the Luna routes report the feature as unavailable. The existing app is unaffected, and so is the older assistant at `/api/assistant`, which does not use these tables and is not being replaced.
+
+#### If you need to back out 0020
+
+Every Luna route goes back to answering a non-retryable 503 `feature_unavailable`, exactly as before it was applied, so this disables Luna rather than breaking the existing app. The three drops are in child-first order. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0020 -->
+
+```sql
+drop table if exists public.luna_runs;
+drop table if exists public.luna_turns;
+drop table if exists public.luna_conversations;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every conversation, every turn and every run is deleted for good, which means every question somebody asked Luna and every answer it gave. A run still in flight can no longer be collected by the browser waiting on it; it is told the feature is unavailable rather than given a stale answer. No owned household record is touched, because nothing outside these three tables references them.
+
+
 ---
 
 ## Part 3. Decisions only you can make

@@ -22,6 +22,9 @@ export const alertId = (who, n) => `${PREFIX[who]}-1111-4000-8000-${hex12(n)}`;
 export const contextId = (who, n) => `${PREFIX[who]}-2222-4000-8000-${hex12(n)}`;
 export const operationId = (who, n) => `${PREFIX[who]}-3333-4000-8000-${hex12(n)}`;
 export const challengeId = (who, n) => `${PREFIX[who]}-4444-4000-8000-${hex12(n)}`;
+export const lunaConversationId = (who) => `${PREFIX[who]}-5555-4000-8000-${hex12(1)}`;
+export const lunaTurnId = (who, n) => `${PREFIX[who]}-6666-4000-8000-${hex12(n)}`;
+export const lunaRunId = (who, n) => `${PREFIX[who]}-7777-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
 // On the Web Push hosts the subscribe route accepts (lib/pushInput.js), so a test can re-register them.
@@ -79,6 +82,7 @@ export function markersOf(who, identity) {
     `${upper}-ALERT-TITLE`, `${upper}-ALERT-MESSAGE`, `${upper}-DISMISSED-MARKER`,
     UTILITY[who].pws_name, ENDPOINT[who], `${upper}-P256DH-MARKER`, `${upper}-AUTH-MARKER`,
     `${upper}-HOME-RISK-MARKER`, `${upper}-POLLUTANT-MARKER`, entryId(who, 1), alertId(who, 1), contextId(who, 1),
+    `${upper}-LUNA-QUESTION-MARKER`, `${upper}-LUNA-ANSWER-MARKER`, lunaConversationId(who), lunaTurnId(who, 1), lunaRunId(who, 1),
   ];
 }
 
@@ -92,7 +96,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -131,6 +135,33 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       status: 'pending', attempts: 0,
       expires_at: `${day(-1)}T12:00:00Z`,
       created_at: `${day(1)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
+    });
+    // One answered Luna conversation each (migration 0020): the person's own
+    // turn, Luna's cited answer and the settled run that produced it, so a
+    // cascade or isolation check on any of the three cannot pass vacuously.
+    // The question and the answer are free text, which is what makes these
+    // the most sensitive rows in the seed.
+    rows.luna_conversations.push({
+      id: lunaConversationId(who), profile_id: id, revision: 3,
+      created_at: `${day(2)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
+    });
+    rows.luna_turns.push(
+      {
+        id: lunaTurnId(who, 1), conversation_id: lunaConversationId(who), profile_id: id, seq: 1,
+        role: 'user', body: `${upper}-LUNA-QUESTION-MARKER`, created_at: `${day(1)}T12:00:00Z`,
+      },
+      {
+        id: lunaTurnId(who, 2), conversation_id: lunaConversationId(who), profile_id: id, seq: 2,
+        role: 'assistant', body: `${upper}-LUNA-ANSWER-MARKER`,
+        sources: [{ title: `${upper}-LUNA-SOURCE-MARKER`, url: `https://sources.example.test/${who}` }],
+        evidence: [{ kind: 'fact', text: `${upper}-LUNA-ANSWER-MARKER`, sourceIndexes: [0] }],
+        created_at: `${day(1)}T12:00:01Z`,
+      },
+    );
+    rows.luna_runs.push({
+      id: lunaRunId(who, 1), profile_id: id, conversation_id: lunaConversationId(who),
+      turn_id: lunaTurnId(who, 1), client_message_id: lunaRunId(who, 9), status: 'completed',
+      created_at: `${day(1)}T12:00:00Z`, updated_at: `${day(1)}T12:00:01Z`, settled_at: `${day(1)}T12:00:01Z`,
     });
     rows.ucmr5_utilities.push({
       pwsid: UTILITY[who].pwsid,

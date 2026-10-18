@@ -38,6 +38,9 @@ const OWNED_TABLES = {
   home_contexts: 'profile_id',      // 0016
   operations: 'profile_id',         // 0017 (nullable only for the unauthenticated 'recovery' domain)
   recovery_challenges: 'profile_id', // 0018
+  luna_conversations: 'profile_id', // 0020
+  luna_turns: 'profile_id',         // 0020
+  luna_runs: 'profile_id',          // 0020
 };
 
 /**
@@ -60,6 +63,9 @@ const OWNER_DIRECT_ACCESS = {
   home_contexts: ['select'],      // 0016: written through its two service-role functions only; anon may not even select
   operations: [],                 // 0017: no policy at all. Receipts are read back only through GET /api/operations, which uses the service role.
   recovery_challenges: [],        // 0018: no policy at all. The caller is not signed in while a challenge is live, and the owner has no reason to read it either: status comes from POST /api/recovery/status, which checks the client nonce first.
+  luna_conversations: [],         // 0020: no policy at all. A conversation is read back only through the Luna routes, which use the service role.
+  luna_turns: [],                 // 0020: no policy at all. A turn is free text a person typed, so the service role is the only reader.
+  luna_runs: [],                  // 0020: no policy at all. A run's status is reported by GET /api/luna/runs/status, never read from the browser.
 };
 
 /**
@@ -74,6 +80,9 @@ const OWNER_DIRECT_ACCESS = {
 const SERVICE_ONLY_OWNED = new Set([
   'operations', // 0017: receipts are replayed through GET /api/operations only
   'recovery_challenges', // 0018: hashes of an unauthenticated ownership proof; the service role is the only reader
+  'luna_conversations', // 0020: served only by the Luna routes, which read it with the service role after verifying the token
+  'luna_turns', // 0020: free text a person typed and the answers Luna gave; nothing in the browser reads it directly
+  'luna_runs', // 0020: the answer is collected through GET /api/luna/runs/status, never from the table
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -99,6 +108,9 @@ const ALICE = 'a11ce000-0000-4000-8000-000000000001';
 const BOB = 'b0b00000-0000-4000-8000-000000000002';
 const CAROL = 'ca201000-0000-4000-8000-000000000003';
 const DAVE = 'da5e0000-0000-4000-8000-000000000004';
+
+/** A uuid derived from the owner's, so 0020's parent and child rows can be written without passing ids around. */
+const lunaId = (owner, suffix) => `${owner.slice(0, 24)}${'0'.repeat(12 - suffix.length)}${suffix}`;
 
 /** Who inserts "their own" new row: dave for profiles (he has none), carol for the rest (her profile exists). */
 const newcomerFor = (table) => (table === 'profiles' ? DAVE : CAROL);
@@ -134,6 +146,25 @@ const OWNED_ROW = {
     domain: 'actions',
     kind: 'actions.commit',
     status: 'pending',
+  }),
+  // 0020: one conversation per household, its turns ordered by seq, and one
+  // run per turn. The ids are derived from the owner so the child rows can
+  // point at the parent without the seed having to pass ids around, and the
+  // composite foreign keys in 0020 refuse any other pairing.
+  luna_conversations: (owner) => ({ id: lunaId(owner, 'c0de'), profile_id: owner }),
+  luna_turns: (owner, n) => ({
+    id: lunaId(owner, `ab0${n}`),
+    conversation_id: lunaId(owner, 'c0de'),
+    profile_id: owner,
+    seq: n + 1,
+    role: 'user',
+    body: `Test question ${n}`,
+  }),
+  luna_runs: (owner, n) => ({
+    profile_id: owner,
+    conversation_id: lunaId(owner, 'c0de'),
+    turn_id: lunaId(owner, `ab0${n}`),
+    client_message_id: lunaId(owner, `cd0${n}`),
   }),
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
@@ -171,6 +202,9 @@ const PROBE_COLUMN = {
   home_contexts: 'water_source',
   operations: 'request_hash',
   recovery_challenges: 'attempts',
+  luna_conversations: 'revision',
+  luna_turns: 'body',
+  luna_runs: 'message',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

@@ -3,6 +3,8 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0020   undoes 0020 (Luna conversations, turns and runs)
+ *   backout-0019   undoes 0019 (which intent wrote a recovery challenge)
  *   backout-0018   undoes 0018 (recovery challenges)
  *   backout-0017   undoes 0017 (operation ledger)
  *   backout-0016   undoes 0016 (home contexts)
@@ -66,6 +68,7 @@ let audit16;
 let audit17;
 let audit18;
 let audit19;
+let audit20;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -109,7 +112,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -354,6 +357,60 @@ test('after the back-out, 0019 applies again and gives exactly the schema one pa
     (await db.query(`select intent, count(*)::int as n from public.recovery_challenges group by intent order by intent`)).rows,
     [{ intent: 'link', n: 2 }],
   );
+});
+
+// ---- 0020: Luna's three tables, which reference each other and profiles and
+// which nothing outside them references. Backing them out is three drops in
+// child-first order, and what is lost is every conversation, turn and run.
+// These pick up where the 0019 tests leave the database, at the 0019 schema.
+
+test('0020 applies on top of 0019 and adds exactly its three tables', async () => {
+  await db.applyMigration(migration(20));
+  audit20 = await runAudit(db);
+
+  for (const table of ['luna_conversations', 'luna_turns', 'luna_runs']) {
+    assert.equal(await exists(`to_regclass('public.${table}') is not null`), true, `${table} exists`);
+  }
+  // Something to lose: one conversation with the person's own turn, Luna's
+  // answer, and the run that produced it.
+  await db.exec(
+    `insert into public.luna_conversations (id, profile_id)
+       values ('00000000-0000-4000-8000-00000000a001', '${ALICE}');
+     insert into public.luna_turns (id, conversation_id, profile_id, role, body)
+       values ('00000000-0000-4000-8000-00000000a002', '00000000-0000-4000-8000-00000000a001', '${ALICE}', 'user', 'What is radon?'),
+              ('00000000-0000-4000-8000-00000000a003', '00000000-0000-4000-8000-00000000a001', '${ALICE}', 'assistant', 'Radon is a gas.');
+     insert into public.luna_runs (conversation_id, profile_id, turn_id, client_message_id, status, settled_at)
+       values ('00000000-0000-4000-8000-00000000a001', '${ALICE}', '00000000-0000-4000-8000-00000000a002', 'client-message-1', 'completed', now());`,
+  );
+});
+
+test('backing out 0020 removes the three tables and leaves the 0001..0019 schema exactly', async () => {
+  await db.exec(docBlock('backout-0020'));
+
+  for (const table of ['luna_conversations', 'luna_turns', 'luna_runs']) {
+    assert.equal(await exists(`to_regclass('public.${table}') is not null`), false, `${table} is gone`);
+  }
+  // Nothing outside the three tables referenced them: the owned records and
+  // the other B02 tables are untouched.
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.equal(await exists(`to_regclass('public.operations') is not null`), true, 'the ledger stays');
+  assert.equal(await exists(`to_regclass('public.recovery_challenges') is not null`), true, 'the challenge table stays');
+  assert.deepEqual(await runAudit(db), audit19);
+});
+
+test('backing out 0020 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0020'));
+  assert.deepEqual(await runAudit(db), audit19);
+});
+
+test('after the back-out, 0020 applies again and gives exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(20));
+  assert.deepEqual(await runAudit(db), audit20);
+  // Reapplied empty: the conversation, both turns and the run really were
+  // deleted, not hidden.
+  for (const table of ['luna_conversations', 'luna_turns', 'luna_runs']) {
+    assert.deepEqual((await db.query(`select count(*)::int as n from public.${table}`)).rows, [{ n: 0 }], table);
+  }
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.
