@@ -109,10 +109,19 @@ const badField = (field, result, requestId) =>
 
 /**
  * 503 for an attempt on this id that has not settled, so the outcome is not
- * known. `upstream_unavailable` because that is the one 503 code in this
- * repository that does not claim the capability is absent: it is present, and
- * the thing that has not answered is the earlier attempt. Retryable, unlike the
- * missing-migration 503, because the earlier attempt will settle.
+ * known.
+ *
+ * DO NOT "FIX" THIS INTO A 200. The status is the message: this client maps any
+ * 5xx on a mutation to `unknown_outcome` (runtime.ts:144) and shows "The result
+ * is not confirmed. Check its status before trying again." (runtime.ts:96),
+ * which is exactly what is true here and is the client's own designed path for
+ * an indeterminate write. A 200 would have to carry a conversation, and the
+ * only two it could carry are a lie (an invented empty one) or a receipt the
+ * client discards (a non-empty one). No `ERROR_CODES` entry says "outcome
+ * unknown" in words, so the code is `upstream_unavailable`, the one 503 code
+ * here that does not claim the capability is absent: it is present, and the
+ * thing that has not answered is the earlier attempt. Retryable, unlike the
+ * missing-migration 503, because that earlier attempt will settle.
  */
 const inFlight = (requestId) =>
   apiError({

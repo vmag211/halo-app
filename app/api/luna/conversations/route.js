@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { internalError, requestIdFor } from '@/lib/apiErrors';
 import { featureEnabled } from '@/lib/features';
-import { conversationPayload, isLunaUnavailable, lunaUnavailable, startConversation } from '@/lib/luna';
+import { conversationPayload, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
 
 /**
  * GET /api/luna/conversations?current=true
@@ -22,14 +22,24 @@ import { conversationPayload, isLunaUnavailable, lunaUnavailable, startConversat
  * name another household; identity comes from the verified session token alone,
  * and the query below is scoped to it.
  *
- * A household that has never asked anything still gets a conversation. The
- * client needs an id and a positive integer revision it can hold (a revision of
- * 0 is rejected by its validator), and `messages: []` is explicitly valid, so
- * the honest empty state is an empty conversation rather than a shape the
- * contract has no words for. That is one insert, idempotent per household: the
- * unique key on `luna_conversations.profile_id` makes "start one if there is
- * none" atomic rather than a read-then-write race between two panels, both of
- * which call this route (ProductionLunaConversation and SettingsPanels).
+ * RULING L10: THIS READ WRITES NOTHING. A household that has never asked
+ * anything is answered `{ conversation: null }`, and no row is created.
+ *
+ * There is no valid empty conversation to answer with: `validLunaConversation`
+ * needs a non-empty `id` and a `revision` above 0 (luna-service.ts:21-27), so
+ * any "empty" object would have to be a real stored conversation. Starting one
+ * here would mean a GET with a side effect, and worse, both
+ * ProductionLunaConversation and SettingsPanels call this route, so merely
+ * opening Settings would manufacture a conversation record for somebody who has
+ * never used Luna. Retention for a conversation turn is undecided and is the
+ * most sensitive of the open retention questions, which makes inventing those
+ * records the wrong default.
+ *
+ * The absent state is already the one the client handles: the component sends
+ * `conversationId: conversation?.id ?? null` and `null` means "start one", so
+ * whether it never validated this body or validated and discarded it, it ends
+ * up asking POST /api/luna/messages to start the conversation. Starting belongs
+ * there, with the first thing anyone actually said.
  *
  * This is also the reload path, and that is why it carries more than a
  * transcript. Luna's drafts are plain React state, so a page reload loses the
@@ -53,13 +63,16 @@ import { conversationPayload, isLunaUnavailable, lunaUnavailable, startConversat
  */
 
 /**
- * Proves the tables a path is about to use are really there, scoped to the
- * caller like every other statement here.
+ * Proves the tables this answer depends on are really there, scoped to the
+ * caller like every other statement here. A count with `head: true` returns no
+ * rows, so this discloses nothing and changes nothing.
  *
- * Only ever called on the cold path below, where this household has no
- * conversation yet and one is about to be written. Reading an existing
- * conversation already touches all three tables before it answers, so the hot
- * path pays nothing for this.
+ * Only ever called when this household has no conversation, and it is what
+ * keeps must-pass 10's distinction intact: without it, a half-applied 0020
+ * would be reported as "this household has no conversation", which is a
+ * different answer and not the true one. Reading an existing conversation
+ * touches all three tables on the way to answering, so the hot path pays
+ * nothing for this.
  */
 async function requireLunaTables(supabase, profileId, tables) {
   for (const table of tables) {
@@ -87,15 +100,11 @@ export async function GET(request) {
     const existing = await conversationPayload(supabaseAdmin, { profileId: userId });
     if (existing) return NextResponse.json(existing, { headers });
 
-    // Nothing asked yet. The remaining two tables are proved BEFORE the insert,
-    // so a 503 from a half-applied migration has not left a conversation row
-    // behind it.
+    // Nothing asked yet. The other two tables are still proved, because this
+    // answer is a claim about the household and not about the schema: a
+    // half-applied 0020 must say so (503) rather than borrow this sentence.
     await requireLunaTables(supabaseAdmin, userId, ['luna_turns', 'luna_runs']);
-    const started = await startConversation(supabaseAdmin, { profileId: userId });
-    return NextResponse.json(
-      await conversationPayload(supabaseAdmin, { profileId: userId, conversation: started }),
-      { headers },
-    );
+    return NextResponse.json({ conversation: null }, { headers });
   } catch (err) {
     if (isLunaUnavailable(err)) return lunaUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);

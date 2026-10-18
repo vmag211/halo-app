@@ -325,30 +325,85 @@ const assertNoEmDash = (value, label) =>
 /** Only the Luna tables: the ledger settles by its own primary key (see routesAccountCommands). */
 const lunaQueries = (h) => h.db.queryLog.filter((entry) => entry.table.startsWith('luna_'));
 
+/**
+ * No table is written. A read with a side effect is a surprise to the next
+ * person who opens the file, and Ruling L10 forbids it here for a sharper
+ * reason: retention for a conversation turn is undecided, and it is the most
+ * sensitive of the open retention questions, so a read must not manufacture
+ * conversation records for a household that never conversed.
+ */
+const assertNoWrite = (h, label) =>
+  assert.deepEqual(
+    h.db.queryLog
+      .filter((entry) => ['insert', 'upsert', 'update', 'delete'].includes(entry.operation))
+      .map((entry) => `${entry.operation} ${entry.table}`),
+    [],
+    `${label}: a read writes nothing`,
+  );
+
 // ---------------------------------------------------------------------------
 // GET /api/luna/conversations
 // ---------------------------------------------------------------------------
 
-test('a household that has never asked anything gets an empty conversation, not an error', async () => {
+test('a household that has never asked anything is told so, and the read starts nothing (Ruling L10)', async () => {
   const h = harness({ aliceConversation: false });
   const response = await read(h, 'alice');
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, 'having asked nothing yet is a state, not an error');
   const body = await response.json();
-  assertLunaConversation(body);
-  assert.deepEqual(body.messages, [], 'nothing has been said yet');
-  assert.equal(body.pendingRequest, null, 'and nothing is in flight');
-  assert.deepEqual(body.unresolvedOperations, {}, 'there are no proposals in this package, but the key is read on reload');
-  assert.ok(body.revision >= 1, 'the client rejects a revision of 0');
-  assertNoEmDash(body, 'the empty conversation');
-  // The cold path writes, so it is audited too: the conversation that was
-  // started belongs to the caller, and every statement on the way there was
-  // narrowed to them.
-  auditOwnerScope(lunaQueries(h), h.identities.alice.id, 'GET /api/luna/conversations (first time)');
-  assert.deepEqual(
-    h.db.rows('luna_conversations').filter((row) => row.profile_id === h.identities.alice.id).map((row) => row.id),
-    [body.id],
-    'exactly one conversation was started, and it is the caller\'s own',
+  assert.deepEqual(body, { conversation: null }, 'the absent state, said in as few words as it can be');
+
+  // Deliberately NOT a conversation: the contract has no valid empty one,
+  // because `validLunaConversation` needs a non-empty id and a revision above
+  // 0 (luna-service.ts:21-27). The component computes
+  // `conversation?.id ?? null` and sends null to mean "start one", so an
+  // absent conversation is the state it already handles, and starting one
+  // belongs to POST /api/luna/messages.
+  assert.throws(() => assertLunaConversation(body), 'the client will not mistake this for a conversation');
+
+  assertNoWrite(h, 'GET with no conversation');
+  assert.equal(
+    h.db.rows('luna_conversations').filter((row) => row.profile_id === h.identities.alice.id).length,
+    0,
+    'a read does not create a row',
   );
+  auditOwnerScope(lunaQueries(h), h.identities.alice.id, 'GET /api/luna/conversations (nothing asked yet)');
+  assertNoEmDash(body, 'the absent state');
+});
+
+test('the read has no side effect, whether or not there is a conversation (Ruling L10)', async () => {
+  for (const aliceConversation of [true, false]) {
+    const h = harness({
+      aliceConversation,
+      runs: aliceConversation
+        ? [
+            {
+              id: RUN,
+              profile_id: 'alice',
+              turn_id: turnId(3),
+              client_message_id: CLIENT_MSG,
+              status: 'generating',
+              created_at: ago(2_000),
+            },
+          ]
+        : [],
+    });
+    const snapshot = () =>
+      JSON.stringify([
+        h.db.rows('luna_conversations'),
+        h.db.rows('luna_turns'),
+        h.db.rows('luna_runs'),
+        h.db.rows('operations'),
+      ]);
+    const before = snapshot();
+    await read(h, 'alice');
+    await read(h, 'alice');
+    assertNoWrite(h, `GET (conversation ${aliceConversation ? 'present' : 'absent'})`);
+    assert.equal(
+      snapshot(),
+      before,
+      'two reads in a row leave every row as it was, which is what the two panels calling this do',
+    );
+  }
 });
 
 test('an existing conversation comes back in the contract shape with its turns in order', async () => {
@@ -462,9 +517,8 @@ test('without migration 0020 the read reports the feature unavailable, never a f
     const body = await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
     assert.ok(!('messages' in body), `with ${missing} absent the route must not answer with a conversation`);
     assert.ok(!('id' in body), 'and must not hand out a conversation id it cannot support');
-    if (missing !== 'luna_conversations') {
-      assert.equal(h.db.rows('luna_conversations').length, 0, `a partial schema (${missing} absent) starts no conversation`);
-    }
+    assert.ok(!('conversation' in body), 'a half-applied migration is not "this household has no conversation"');
+    assertNoWrite(h, `GET with ${missing} absent`);
   }
 });
 
