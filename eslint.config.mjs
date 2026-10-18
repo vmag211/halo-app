@@ -17,6 +17,10 @@ const eslintConfig = defineConfig([
     "docs/onboarding/approved/**",
     "playwright-report/**",
     "test-results/**",
+    // Agent worktrees under .claude/worktrees/ are full checkouts of this same
+    // repository, so without this every file is linted twice and a concurrent
+    // agent's in-progress work is reported as errors in this one's gate.
+    ".claude/**",
   ]),
 ]);
 
