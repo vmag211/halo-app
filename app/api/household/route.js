@@ -4,6 +4,7 @@ import { normalizeBands } from '@/lib/household';
 import { readJsonBody } from '@/lib/validate';
 import { requestIdFor, apiError, validationError, internalError } from '@/lib/apiErrors';
 import { parseHouseholdBody } from '@/lib/profileInput';
+import { afterLegacySettingsWrite } from '@/lib/settings';
 
 /**
  * Household composition (§8, §16.2).
@@ -25,6 +26,13 @@ import { parseHouseholdBody } from '@/lib/profileInput';
  * function) it saves in two steps as before, logs one warning per process and
  * says `transactional: false`. Any other failure of the function is a 500 and
  * nothing is saved.
+ *
+ * After the save (migration 0021): the composition, renter_mode and locale are
+ * inside the settings snapshot, so the save advances the settings revision
+ * (B04 Ruling S5), and a renter_mode that contradicts the stored three-state
+ * tenure clears that tenure to unanswered in one conditional, owner-scoped
+ * update (Ruling S7). Neither can fail the request, and before 0021 neither
+ * does anything (lib/settings.js afterLegacySettingsWrite).
  *
  * Owner-scoped: identity is the verified session token. Composition never
  * changes a measurement or a score — only which wording and actions appear.
@@ -140,6 +148,10 @@ export async function PUT(request) {
 
     const transaction = await saveInOneTransaction(userId, input.value);
     const saved = transaction ?? (await saveInTwoSteps(userId, input.value));
+    // The bands and renter_mode are inside the settings snapshot: keep tenure
+    // from contradicting renter_mode (Ruling S7) and advance the settings
+    // revision (Ruling S5). Never fails this request, whose save is made.
+    await afterLegacySettingsWrite(supabaseAdmin, userId, { renterMode: input.value.renter_mode, requestId });
 
     // renter_mode and locale are echoed only when they were sent, as before.
     return NextResponse.json(

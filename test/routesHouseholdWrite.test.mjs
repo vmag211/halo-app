@@ -222,7 +222,18 @@ test('with save_household available the whole save is one call: the route runs n
     locale: 'es',
     transactional: true,
   });
-  assert.deepEqual(h.db.queryLog, [], 'no two-step write next to the transaction');
+  // No two-step write next to the transaction. The only statements are the two B04 follow-ups
+  // to a save that sent renter_mode: the Ruling S7 tenure check (one conditional update of the
+  // caller's profile, clearing a contradicting tenure) and the Ruling S5 settings revision read,
+  // which finds no profile_preferences table here (0021 not applied) and so stops there.
+  assert.deepEqual(
+    h.db.queryLog.map((q) => [q.table, q.operation, q.values]),
+    [['profiles', 'update', { tenure: null }], ['profile_preferences', 'select', null]],
+  );
+  assert.deepEqual(h.db.queryLog[0].filters, [
+    { type: 'cmp', column: 'id', op: 'eq', value: h.identities.alice.id },
+    { type: 'cmp', column: 'tenure', op: 'in', value: ['renter'] },
+  ]);
   assert.equal(warn.mock.callCount(), 0);
 });
 

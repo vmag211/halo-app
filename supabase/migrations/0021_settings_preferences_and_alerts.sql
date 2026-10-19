@@ -104,17 +104,17 @@
 --   * tenure is NULLABLE with no default, and nothing is backfilled. A backfill
 --     from renter_mode would have to write 'owner' for every household that is
 --     not a renter, which is precisely the claim the boolean cannot support.
---     NULL means "the three-state question was never asked". How a route
---     reports that is NOT settled here, and it must not be 'owner' (Ruling
---     S8): reading 'owner' on every request makes the same unsupported claim
---     a backfill would. The client's validator cannot express "unanswered" at
---     all: validSettingsSnapshot requires home.tenure to be exactly 'owner',
---     'renter' or 'other' and rejects null, a missing key and a boolean
+--     NULL means "the three-state question was never asked", and it must
+--     never be reported as 'owner' (Ruling S8): reading 'owner' on every
+--     request makes the same unsupported claim a backfill would. The client's
+--     validator cannot express "unanswered" at all: validSettingsSnapshot
+--     requires home.tenure to be exactly 'owner', 'renter' or 'other' and
+--     rejects null, a missing key and a boolean
 --     (lib/frontend/production/preferences-service.ts:10 on the frontend
---     branch; contract digest section 2.2). The nearest word the client has is
---     'other', which its select labels "Other / Not sure"
---     (lib/frontend/copy/app-polish.ts:8), but choosing it is a decision for
---     the controller, not something this migration prescribes.
+--     branch; contract digest section 2.2). So the route reports a NULL as
+--     'other', which the client's select labels "Other / Not sure"
+--     (lib/frontend/copy/app-polish.ts:8) and which is its own default; that
+--     is the controller's ruling (S8 as amended), applied in lib/settings.js.
 --   * there is deliberately NO check tying tenure to renter_mode (Ruling S7).
 --     Existing writers that predate tenure, save_household (0015) and the
 --     two-step fallback in app/api/household/route.js, write renter_mode
