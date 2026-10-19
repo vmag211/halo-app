@@ -28,13 +28,16 @@
  *     well-formed `HH:MM` for `from` and `to` even when `enabled` is false, so
  *     a null would make the whole snapshot unreadable.
  *  5. Luna's context switches default to off, so a row created before anybody
- *     answered does not hand Luna the household by accident.
- *  6. `profiles.tenure` has the three states the contract needs, is left null
- *     for a household that was never asked, and cannot drift out of step with
- *     the `renter_mode` boolean every existing reader still uses (Ruling S3).
- *  7. An alert's `revision` is not null and at least 1 on every row, including
- *     the rows that existed before this migration, because the client rejects
- *     a snapshot containing any row whose revision is not a positive integer.
+ *     answered does not hand Luna the household by accident, and both zones
+ *     default to the client's America/New_York (Ruling S9).
+ *  6. `profiles.tenure` has the three states the contract needs and is left
+ *     null for a household that was never asked (Ruling S3). Nothing ties it
+ *     to `renter_mode` in the schema, so a legacy household save that writes
+ *     only `renter_mode` still succeeds once tenure is set (Ruling S7).
+ *  7. An alert's `revision` is not null, defaults to 1 and is at least 1,
+ *     because the client rejects a snapshot containing any row whose revision
+ *     is not a positive integer. That a row which existed before 0021 gets 1
+ *     is proven by the reapply test in test/migrationBackout.test.mjs.
  *  8. An alert's category and navigation target can only hold the values the
  *     client's `validAlertSnapshot` accepts, and the `today` tab admits no
  *     destination at all.
@@ -55,6 +58,7 @@ const API_ROLES = ['anon', 'authenticated'];
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
 const BOB = 'b0b00000-0000-4000-8000-000000000002';
 const CAROL = 'ca201000-0000-4000-8000-000000000003';
+const DAVE = 'da7e0000-0000-4000-8000-000000000004';
 
 const MIGRATION = listMigrations().find((migration) => migration.number === 21);
 
@@ -225,7 +229,7 @@ test('a household gets one preferences row, keyed by the profile, and a second c
   assert.match(String(second.message), /profile_id|unique|duplicate key/i);
 });
 
-test('a fresh row is a valid snapshot on its own, with Luna\'s context switches off', async () => {
+test('a fresh row is a valid snapshot on its own, with Luna\'s context switches off and the client\'s zone', async () => {
   const row = await preferencesFor(CAROL);
   assert.equal(row.revision, 1, 'the first revision the client accepts is 1');
   assert.deepEqual(
@@ -244,8 +248,10 @@ test('a fresh row is a valid snapshot on its own, with Luna\'s context switches 
   assert.equal(row.quiet_enabled, false);
   assert.match(row.quiet_from, /^([01]\d|2[0-3]):[0-5]\d$/);
   assert.match(row.quiet_to, /^([01]\d|2[0-3]):[0-5]\d$/);
-  assert.ok(row.quiet_zone, 'a zone the client can read back');
-  assert.ok(row.calendar_zone);
+  // The zone the client's own initialSettings and displayZones lead with (Ruling S9).
+  assert.equal(row.quiet_zone, 'America/New_York');
+  assert.equal(row.calendar_zone, 'America/New_York');
+  // Nothing is linked, so claiming it is would be false (Ruling S9).
   assert.deepEqual([row.calendar_streak, row.calendar_linked], [false, false]);
   // Nothing is handed to Luna until somebody says so.
   assert.deepEqual(
@@ -385,24 +391,6 @@ test('tenure stores owner, renter and other, and nothing else', async () => {
   );
 });
 
-test('tenure cannot drift out of step with renter_mode, so the two never contradict each other', async () => {
-  const both = (tenure, renter) =>
-    write(`update public.profiles set tenure = $2, renter_mode = $3 where id = $1`, [BOB, tenure, renter]);
-
-  for (const [tenure, renter] of [['owner', false], ['other', false], ['renter', true]]) {
-    assert.equal(await both(tenure, renter), null, `${tenure} with renter_mode ${renter}`);
-  }
-  for (const [tenure, renter] of [['owner', true], ['other', true], ['renter', false]]) {
-    const error = await both(tenure, renter);
-    assert.ok(error, `${tenure} with renter_mode ${renter} is refused`);
-    assert.match(String(error.message), /tenure/);
-  }
-  // Unanswered says nothing about the boolean, so neither value is a contradiction.
-  for (const renter of [true, false]) {
-    assert.equal(await both(null, renter), null, `unanswered with renter_mode ${renter}`);
-  }
-});
-
 test('every profile that existed before 0021 reads as unanswered rather than as an owner', async () => {
   assert.equal(
     await count(`select count(*)::int as n from public.profiles where tenure is not null`),
@@ -411,11 +399,60 @@ test('every profile that existed before 0021 reads as unanswered rather than as 
   );
 });
 
+test('a legacy household save that changes renter_mode still succeeds once tenure is set, bands included (Ruling S7)', async () => {
+  // The scenario review finding 1 reproduced as a 23514 rollback. PUT
+  // /api/household writes renter_mode through save_household (0015) without
+  // touching tenure, and renter_mode is part of the published B01 contract. A
+  // schema rule tying the two columns together would turn that valid request
+  // into a 500 and lose the band change with it. 0021 therefore holds no such
+  // rule: the two may disagree for a moment, and Task 2a reconciles them on
+  // write (Ruling S7).
+  await db.exec(`insert into auth.users (id, is_anonymous) values ('${DAVE}', true)`);
+  assert.equal(
+    await write(`update public.profiles set tenure = 'owner', renter_mode = false where id = $1`, [DAVE], { commit: true }),
+    null,
+  );
+
+  const { rows } = await db.asService(
+    (tx) =>
+      tx.query('select public.save_household($1, $2::jsonb, $3, $4) as saved', [
+        DAVE,
+        JSON.stringify({ has_adult: true, has_child: true }),
+        true,
+        null,
+      ]),
+    { commit: true },
+  );
+  assert.equal(rows[0].saved.renter_mode, true, 'the save answers with the renter_mode it was given');
+  assert.deepEqual(
+    (await db.query(
+      `select p.tenure, p.renter_mode, hb.has_adult, hb.has_child
+         from public.profiles p join public.household_bands hb on hb.profile_id = p.id
+        where p.id = $1`,
+      [DAVE],
+    )).rows,
+    [{ tenure: 'owner', renter_mode: true, has_adult: true, has_child: true }],
+    'the band change persists, and tenure is left exactly as it was for Task 2a to reconcile',
+  );
+
+  // The pre-0015 two-step path writes the profile on its own; it may disagree too.
+  assert.equal(
+    await write(`update public.profiles set renter_mode = false where id = $1`, [DAVE]),
+    null,
+    'a direct renter_mode write is not refused either',
+  );
+  assert.equal(
+    await write(`update public.profiles set tenure = 'renter', renter_mode = false where id = $1`, [DAVE]),
+    null,
+    'no combination of a valid tenure and either boolean is refused by the schema',
+  );
+});
+
 // ---------------------------------------------------------------------------
 // The alerts columns
 // ---------------------------------------------------------------------------
 
-test('every alert carries a positive revision, including the rows that existed before 0021', async () => {
+test('every alert carries a positive revision, 1 until it is patched (pre-0021 rows: see the migrationBackout reapply test)', async () => {
   const columns = await columnsOf('alerts');
   for (const column of ['revision', 'category', 'target_tab', 'target_destination', 'target_learn']) {
     assert.ok(columns[column], `alerts has ${column}`);

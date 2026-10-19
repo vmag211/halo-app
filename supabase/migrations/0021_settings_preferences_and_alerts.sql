@@ -7,7 +7,7 @@
 -- public.alerts. Every added column has either no default or a constant one, so
 -- Postgres records it in the catalog rather than rewriting either table and no
 -- existing row is scanned; the ACCESS EXCLUSIVE lock on each is held for the
--- moment the catalog is written. The two checks on profiles and the four on
+-- moment the catalog is written. The one check on profiles and the four on
 -- alerts are added validated rather than NOT VALID, which does scan those two
 -- tables, because no existing row can fail them: every new column starts null
 -- on an existing row, and alerts.revision starts at the constant 1. Both tables
@@ -82,7 +82,18 @@
 -- LUNA'S CONTEXT SWITCHES DEFAULT TO OFF. luna_tasks, luna_home and
 -- luna_projects say what Luna may be told about this household. A row created
 -- before anybody answered must not hand it over by accident, so the default is
--- false for all three, in the same spirit as 0020's Ruling L2.
+-- false for all three, in the same spirit as 0020's Ruling L2. This is a fail
+-- safe, not a product choice: whether household data reaches a model at all is
+-- Vibhav's open decision 2, and the client's own preview defaults differ
+-- (lib/frontend/settings-preview.ts:20 on the frontend branch has tasks and
+-- projects on). Ruling S9 keeps them off until that decision is made.
+--
+-- THE ZONES DEFAULT TO America/New_York (Ruling S9), the zone the client's own
+-- initialSettings and displayZones lead with (lib/frontend/settings-preview.ts:19
+-- and :22), so a household that never opened the panel sees what the UI
+-- already shows. calendar_linked defaults to false, unlike the client's draft
+-- default of true (components/expanded/SettingsWorkspace.tsx:40), because
+-- nothing is linked and true would be a false claim.
 --
 -- TENURE IS A NEW COLUMN BESIDE THE OLD ONE (Ruling S3). The contract needs
 -- 'owner' | 'renter' | 'other' and profiles.renter_mode boolean cannot tell
@@ -93,13 +104,30 @@
 --   * tenure is NULLABLE with no default, and nothing is backfilled. A backfill
 --     from renter_mode would have to write 'owner' for every household that is
 --     not a renter, which is precisely the claim the boolean cannot support.
---     NULL means "the three-state question was never asked"; a route reports
---     the derived answer (renter_mode -> 'renter', otherwise 'owner') and must
---     not pretend the household chose it.
---   * a check keeps the two in step, so they can never contradict each other:
---     once tenure is set, renter_mode must equal (tenure = 'renter'). A writer
---     therefore sets both in one statement. While tenure is null the check says
---     nothing, so neither boolean value is a contradiction.
+--     NULL means "the three-state question was never asked". How a route
+--     reports that is NOT settled here, and it must not be 'owner' (Ruling
+--     S8): reading 'owner' on every request makes the same unsupported claim
+--     a backfill would. The client's validator cannot express "unanswered" at
+--     all: validSettingsSnapshot requires home.tenure to be exactly 'owner',
+--     'renter' or 'other' and rejects null, a missing key and a boolean
+--     (lib/frontend/production/preferences-service.ts:10 on the frontend
+--     branch; contract digest section 2.2). The nearest word the client has is
+--     'other', which its select labels "Other / Not sure"
+--     (lib/frontend/copy/app-polish.ts:8), but choosing it is a decision for
+--     the controller, not something this migration prescribes.
+--   * there is deliberately NO check tying tenure to renter_mode (Ruling S7).
+--     Existing writers that predate tenure, save_household (0015) and the
+--     two-step fallback in app/api/household/route.js, write renter_mode
+--     without touching tenure, and renter_mode is part of the published B01
+--     PUT /api/household contract. A cross-column check would turn that valid
+--     request into a 500 and roll the band change back with it. So once this
+--     is applied, a legacy writer CAN leave tenure and renter_mode disagreeing.
+--     Consistency is a write-side rule owned by Task 2a: PATCH /api/settings
+--     writes renter_mode = (tenure = 'renter') in the same statement as tenure,
+--     and PUT /api/household, when it writes a renter_mode that contradicts
+--     the stored tenure, clears tenure to null in a conditional, owner-scoped
+--     update. The worst case is a momentary disagreement, never a 500 or a
+--     lost write.
 --
 -- THE ALERTS COLUMNS. revision is NOT NULL DEFAULT 1 because the client rejects
 -- any snapshot containing a row whose revision is not a positive integer, and
@@ -125,11 +153,16 @@
 -- key. These migrations are applied by hand; an unused column is not free. If a
 -- producer appears, it gets its own migration and its own review.
 --
--- Degrades cleanly: until this is applied, GET/PATCH /api/settings and
--- GET /api/alerts plus POST /api/alerts/state answer a non-retryable 503
+-- Degrades cleanly (Ruling S10): until this is applied, GET/PATCH
+-- /api/settings and POST /api/alerts/state answer a non-retryable 503
 -- feature_unavailable, the same convention 0016, 0017, 0018, 0019 and 0020 use.
--- The existing GET /api/alerts fields, /api/notifications and /api/household
--- are unaffected.
+-- GET /api/alerts never answers 503 for a missing 0021: it keeps every legacy
+-- key the current app reads (alerts, count, unread, truncated) and degrades only
+-- the new fields (the added item fields and unresolvedOperations).
+-- PUT /api/notifications reads nothing this migration adds. PUT /api/household
+-- reads nothing it adds either, but once it is applied that route's
+-- renter_mode write can leave tenure disagreeing until Task 2a reconciles it;
+-- see the tenure notes above.
 --
 -- Retention: a preferences row is kept until the owner is deleted
 -- (ON DELETE CASCADE). No purge job is defined here on purpose, and no period
@@ -162,14 +195,20 @@ create table if not exists public.profile_preferences (
   quiet_enabled      boolean     not null default false,
   quiet_from         text        not null default '21:00',
   quiet_to           text        not null default '08:00',
-  quiet_zone         text        not null default 'UTC',
+  -- The zone the client leads with (Ruling S9), not UTC.
+  quiet_zone         text        not null default 'America/New_York',
   -- calendar.*
-  calendar_zone      text        not null default 'UTC',
+  -- The zone the client leads with (Ruling S9), not UTC.
+  calendar_zone      text        not null default 'America/New_York',
   calendar_streak    boolean     not null default false,
+  -- False because nothing is linked; true would be a false claim (Ruling S9).
   calendar_linked    boolean     not null default false,
-  -- values.luna.*: what Luna may be told about this household. Off by default.
+  -- values.luna.*: what Luna may be told about this household.
+  -- Off: a fail safe pending Vibhav's decision 2 on household data to a model.
   luna_tasks         boolean     not null default false,
+  -- Off: a fail safe pending Vibhav's decision 2 on household data to a model.
   luna_home          boolean     not null default false,
+  -- Off: a fail safe pending Vibhav's decision 2 on household data to a model.
   luna_projects      boolean     not null default false,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
@@ -245,15 +284,11 @@ begin
   end if;
 
   -- Ruling S3: three states, and null for a household that was never asked.
+  -- Deliberately no check against renter_mode (Ruling S7): a legacy household
+  -- save writes renter_mode alone, and must not fail. See the header.
   if not exists (select 1 from pg_constraint where conname = 'profiles_tenure_check') then
     alter table public.profiles add constraint profiles_tenure_check
       check (tenure is null or tenure in ('owner', 'renter', 'other'));
-  end if;
-  -- renter_mode stays the derived boolean every existing reader uses, so it may
-  -- not contradict the answer tenure records. Null tenure constrains nothing.
-  if not exists (select 1 from pg_constraint where conname = 'profiles_tenure_renter_mode_check') then
-    alter table public.profiles add constraint profiles_tenure_renter_mode_check
-      check (tenure is null or renter_mode = (tenure = 'renter'));
   end if;
 
   -- `Number.isSafeInteger(item.revision) && item.revision > 0` in
@@ -335,15 +370,21 @@ revoke all on table public.profile_preferences from anon, authenticated;
 -- The settings and alerts-state routes go back to answering a non-retryable
 -- 503 feature_unavailable, exactly as they do before this is applied, so
 -- backing out disables the two new surfaces rather than breaking the existing
--- app. The existing GET /api/alerts fields, PUT /api/notifications and
--- PUT /api/household keep working, because none of them reads anything this
--- migration added.
+-- app. GET /api/alerts keeps every legacy key and drops only the new fields,
+-- and never answers 503 (Ruling S10). PUT /api/notifications and
+-- PUT /api/household keep working, because neither reads anything this
+-- migration added; with tenure gone, nothing is left for PUT /api/household's
+-- renter_mode write to disagree with.
 --
 -- What is lost: every household's display, quiet-hours, calendar and
 -- Luna-context choices, and the settings revision with them, because the whole
 -- table is dropped. Every alert keeps its id, title, body, read and dismissed
 -- state; what goes is each one's revision, category and navigation target, so a
 -- client holding a revision can no longer patch against it and has to reload.
+-- Revisions restart at 1 when 0021 is reapplied, for alerts and for the
+-- settings row alike, so once a row has been patched back up to the number a
+-- stale client still holds, that client's revision check would pass again.
+-- After a back-out and reapply, have every open client reload.
 -- The tenure answer is lost too, and reapplying leaves every household
 -- unanswered again rather than guessing from renter_mode. Nothing cascades:
 -- renter_mode, the notification preferences and the household bands are

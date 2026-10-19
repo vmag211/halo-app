@@ -432,7 +432,6 @@ const ADDED_0021 = [
 ];
 const CHECKS_0021 = [
   'profiles_tenure_check',
-  'profiles_tenure_renter_mode_check',
   'alerts_revision_check',
   'alerts_category_check',
   'alerts_target_check',

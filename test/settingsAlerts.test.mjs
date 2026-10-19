@@ -16,6 +16,10 @@
  * for an 'other'. Without alerts.revision there is no optimistic-concurrency
  * contract at all, so a patch could silently overwrite a newer change.
  * Answering "unavailable" is the only truthful option in both cases.
+ *
+ * Who answers it (Ruling S10): GET/PATCH /api/settings and
+ * POST /api/alerts/state. GET /api/alerts never answers 503 before 0021; it
+ * uses the predicate only to leave out the new fields and keeps every legacy key.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
