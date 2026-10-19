@@ -84,6 +84,16 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
 
 ## Known live risks
 
+- **One abandoned operation locks a surface read-only forever, and no task owns the fix.**
+  `effectiveStatus` only reports a stale pending row as `unknown` (`lib/operations.js:104-109`) while
+  `listUnresolvedOperations` filters stored `status = pending` (`:226-244`), and no reaper exists:
+  `settle(..., failed)` (`:168`) runs only when `execute` throws in-process, so a serverless timeout
+  leaves the row pending for good. `unresolvedOperations` is a lock, so such a row disables its whole
+  surface. Reach today is just `lib/account.js:200` (domain `account`); it becomes a real freeze when
+  B04 adds `settings` and `alerts` and B05 adds `summary`. A reaper must settle to `failed`, never
+  `cancelled` (`validSummaryReceipt` rejects `cancelled` though the CHECK allows it). Verified in the
+  tree, not relayed. Do not fix this by widening the filter; Ruling S1 is right that the filter is.
+
 - **Push on Apple devices does not work** and is accepted as pending: iOS web push needs an installed
   Home Screen app and there is no install flow. Android works. So on iOS the in-app alert surface is the
   only delivery path, and no alert may be designed assuming a push arrives.
