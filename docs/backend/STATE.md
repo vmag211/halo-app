@@ -114,8 +114,10 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
 - **B05 dropped `community.read` and `map.brief`** (no consumer, validator or type on the frontend ref),
   and **blocked `organizations.search`** (no participation content, a disjoint cause vocabulary, no
   stated meaning for `complete`) and **the summaries trio** (no record collections to freeze). The plan
-  lists what unblocks each. **Task 6, a public read for the map routes, did not run**: it waits on
-  Vibhav's open question 1, so the default `/map` renders no live data and only `?access=owned` works.
+  lists what unblocks each. **Task 6, the public cache-only read for the map routes, is built**
+  (Vibhav's yes to open question 1, 2026-10-19): with no Authorization header `/api/map`, `/api/district`
+  and `/api/map/comparison` answer from what is stored, else 503, limited to 60 a minute per visitor.
+  The CDN's handling of the shared-cache header is a staging check (`YOUR_TODO.md` 1.4).
 - **`map.comparison` can never say "Aligned".** Every pair is "Not comparable", with reasons. That is the
   truth about the data HALO holds (no method, release or non-detect qualifier), not a defect. Only data
   acquisition under HO-074 changes it.
@@ -138,8 +140,8 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
    where the suite pins only relationships and every integer from 21 to 89 passes.
 7. **Whether Luna and Explore generation are in v1.** They are the largest remaining surfaces and the
    denominator moves more by cutting them than by any implementation speed.
-8. **B05's five open questions** (detail in `checkpoint.md`): public map access (Q1, gates Task 6),
-   city and ZIP search (Q2), shipping a comparison that never aligns and whether to acquire the UCMR
+8. **B05's open questions** (detail in `checkpoint.md`): public map access (Q1, answered 2026-10-19,
+   Task 6 built), city and ZIP search (Q2), shipping a comparison that never aligns and whether to acquire the UCMR
    qualifiers (Q3), retention for `explore_areas` rows (Q4), and applying 0022 (Q5).
 9. **B04's two settings defaults** (detail in `checkpoint.md`): Luna's context switches default off,
    the fail-safe answer to decision 2, and `calendar_linked` defaults false, because nothing is linked.

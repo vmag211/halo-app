@@ -45,7 +45,9 @@ Some schema constraints are statements about this release, not about the operati
 
 Two operational notes. While the stored air layer is stale, `/api/map` can answer a live air build while the comparison answers 503, and the client then shows its blocked copy. And 2,000 comparison ids pass the server cap but exceed common URL limits (finding F4).
 
-Run `node --test test/contractsB05.test.mjs`. Migration 0022 is applied nowhere, and the map operations are not public (Ruling D1), so nothing here has run against a real Supabase project.
+Version `b05-2` (B05 Task 6, approved 2026-10-19) makes the three map operations public. A request with no Authorization header is an anonymous, cache-only read: answered only from what is stored, never built, stored or fetched, and a 503 when nothing is stored. The anonymous district answer is `MapDistrictPublic`, which forbids `household_county`. Each map operation documents the visitor limiter's 429 (60 a minute, `Retry-After: 60`) and `Cache-Control` and `Vary` on every status: `public, max-age=0, s-maxage=600` on a successful anonymous answer and `private, no-store` on everything else. Any Authorization header is checked as before, so the 401 now means a header that is not a valid session.
+
+Run `node --test test/contractsB05.test.mjs`. Migration 0022 is applied nowhere, and the CDN's handling of the cache headers is a staging check for a person (`YOUR_TODO.md` 1.4), so nothing here has run against a real Supabase project or CDN.
 
 ## B03 Luna contract
 

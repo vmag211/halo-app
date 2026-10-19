@@ -109,6 +109,32 @@ grep -rnE "\.from\(['\"](profiles|household_bands|symptom_logs|notification_pref
 
 4. If you see a browser file (anything under `components/`, `lib/frontend/`, or a page under `app/` outside `app/api/`) calling `.from('profiles')`, `.from('symptom_logs')`, `.from('household_bands')` or `.from('notification_prefs')` with insert, update, upsert or delete, STOP and tell Claude before doing Part 2.
 
+### 1.4 Staging check: the public map's shared cache (B05 Task 6)
+
+Read only. Do this on a **named staging (Preview) deployment** of `vmag211/backend`, never on production, after the daily job has run there at least once (so `map_layers` holds the layers) and with Upstash configured. Everything the tests can prove offline is proved (`test/routesMapPublic.test.mjs`). What they cannot prove is what the CDN in front of the deployment does with the headers, so tracker row BE-047 (the CDN row) stays open until you have done this. Replace `STAGING` with the staging URL.
+
+1. Anonymous answers are cached for 10 minutes. Run this twice, a few seconds apart:
+
+```sh
+curl -s -D - -o /dev/null "https://STAGING/api/map?layer=radon"
+```
+
+   Expected: status 200 both times, `vary: Authorization`, and the CDN's cache header saying the second one was served from its cache (on Vercel, `x-vercel-cache: HIT`). The `cache-control` the route sends is `public, max-age=0, s-maxage=600`; a CDN may rewrite it on the way out, which is fine.
+
+2. A signed-in answer is never cached. Take a session token for a test household on staging (from the browser's developer tools on the staging site, never a production one), then run this twice:
+
+```sh
+curl -s -D - -o /dev/null -H "Authorization: Bearer TOKEN" "https://STAGING/api/district"
+```
+
+   Expected: `cache-control: private, no-store` and never a cache hit. Then run `curl -s "https://STAGING/api/district"` with no token: the body must have **no** `household_county` key. If it has one, the CDN served a signed-in answer to a visitor. Stop and tell Claude.
+
+3. A refusal is never cached. Ask for something with nothing stored, for example `curl -s -D - -o /dev/null "https://STAGING/api/map?layer=water&quarter=1999Q1"` right after a deploy (an anonymous water quarter needs the geography cache warm, so it may be a 503). Whatever the status, a 503 or 429 must show `cache-control: private, no-store` and never a cache hit.
+
+4. The limiter. From one machine, run 61 anonymous requests within a minute, with a different `layer` or `ids` each time so the CDN cannot answer them from its cache: `for i in $(seq 1 61); do curl -s -o /dev/null -w "%{http_code}\n" "https://STAGING/api/map/comparison?layer=radon&ids=%5B%22$i%22%5D"; done`. Expected: 200s, then a 429 with `retry-after: 60` once that machine has made 60. A request from a second network is still answered.
+
+Tell Claude the results; the tracker row moves only on them.
+
 ---
 
 ## Part 2. Database changes (apply by hand, in this order)
@@ -742,7 +768,7 @@ None of this blocks the backend; all the API changes are additive.
 
 From B05 (discovery). File and line references are to `origin/codex/october15-review-refinement`. The contract is `docs/backend/contracts/b05.openapi.json`, with fixtures under `docs/backend/contracts/fixtures/b05/`.
 
-8. **The public map, an alternative to a backend change (D1).** The registry marks `map.layer`, `map.comparison`, `map.district` and `map.brief` public, and `/map` builds a credential-free runtime unless `?access=owned` (`components/production/PublicFrontend.tsx:14-16,23`). Every map route requires a session, so the default `/map` shows no live layer, district or comparison today. Vibhav is deciding whether the backend gets a reviewed cache-only public read (open question 1). The alternative needs no backend change and BE-047 permits it: reuse the anonymous bootstrap on `/map`, so the visitor has a session. The cost is one anonymous auth user per visitor.
+8. **The public map now answers, with no frontend change (D1, decided 2026-10-19).** Vibhav chose the backend's cache-only public read (B05 Task 6), so the anonymous-bootstrap alternative is not needed. `/map`'s credential-free runtime (`components/production/PublicFrontend.tsx`) sends no Authorization header, and `/api/map`, `/api/district` and `/api/map/comparison` now answer such a request from what is stored. Three things the frontend should know. The anonymous district answer has **no** `household_county` key (not null). With nothing stored, an anonymous request is a 503, which the runtime already maps to `unavailable`. And a visitor making more than 60 map requests a minute gets a 429 with `Retry-After: 60` (`rate_limited`). The public runtime must keep sending no Authorization header at all: any header, even an empty one, is checked as a session and is a 401.
 9. **(9.3) `organizations.search` cannot say "directory unavailable".** It is not built. When it is, an unreadable directory will be a 5xx, never `items: []`. The contract also needs an availability field like `opportunities.search` has (`lib/frontend/production/explore-service.ts:42,55`), so that a failed read is not shown as "no matches".
 10. **(9.4) Treat a `cancelled` summary operation as terminal.** The operation ledger allows `cancelled`, but `validSummaryReceipt` rejects it, so `useProductionSummary` re-parks the operation for ever. The backend will never settle a `summary` operation as `cancelled`, and the reaper settles to `failed`. The client should still not lock on the word.
 11. **(9.7) `X-Halo-Home-Context` is sent, and B05 ignores it.** The saved discovery area belongs to the household, not to a home context, so a foreign or unknown value changes nothing. Which home context a summary uses is Vibhav's decision when summaries are planned.
