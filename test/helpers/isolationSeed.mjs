@@ -36,12 +36,12 @@ export const ENDPOINT = {
 const PROFILE = {
   alice: {
     lat: 35.40881, lng: -80.57952, county: 'Cabarrus County', state: 'NC', zip: '28025', pwsid: 'NC9990001',
-    water_source: 'utility', home_year: 1988, renter_mode: false, locale: 'en',
+    water_source: 'utility', home_year: 1988, renter_mode: false, tenure: 'owner', locale: 'en',
     onboard_request_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   },
   bob: {
     lat: 35.22712, lng: -80.84313, county: 'Mecklenburg County', state: 'NC', zip: '28202', pwsid: 'NC9990002',
-    water_source: 'utility', home_year: 1962, renter_mode: true, locale: 'es',
+    water_source: 'utility', home_year: 1962, renter_mode: true, tenure: 'renter', locale: 'es',
     onboard_request_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   },
 };
@@ -54,6 +54,38 @@ const BANDS = {
 const PREFS = {
   alice: { weather_advisory: false },
   bob: { air_quality_change: false, new_water_results: false, radon_season: false },
+};
+
+/**
+ * The settings values migration 0021 keeps (display, quiet hours, calendar and
+ * Luna's context switches) plus the settings aggregate revision, one row per
+ * household so no cascade or isolation check on the table can pass vacuously.
+ *
+ * Every column here is an enum, a boolean, a zone name or a clock time, so
+ * unlike the journal or an alert there is no free text that could carry a
+ * readable marker. Each household's row therefore differs from the other's in
+ * EVERY value instead, the same approach the hashed recovery columns take: that
+ * is what a cascade or an isolation check needs. The values are deliberately
+ * not added to `markersOf`, because a zone name or the word `dark` would match
+ * responses that have nothing to do with either household.
+ */
+const SETTINGS = {
+  alice: {
+    revision: 4,
+    display_appearance: 'light', display_palette: 'ocean', display_ambient: true,
+    display_scale: '115', display_motion: 'reduce', display_contrast: true,
+    quiet_enabled: true, quiet_from: '22:15', quiet_to: '07:45', quiet_zone: 'America/New_York',
+    calendar_zone: 'America/New_York', calendar_streak: true, calendar_linked: false,
+    luna_tasks: true, luna_home: false, luna_projects: false,
+  },
+  bob: {
+    revision: 9,
+    display_appearance: 'dark', display_palette: 'forest', display_ambient: false,
+    display_scale: '150', display_motion: 'system', display_contrast: false,
+    quiet_enabled: false, quiet_from: '20:30', quiet_to: '06:05', quiet_zone: 'America/Chicago',
+    calendar_zone: 'America/Chicago', calendar_streak: false, calendar_linked: true,
+    luna_tasks: false, luna_home: true, luna_projects: true,
+  },
 };
 
 const UTILITY = {
@@ -96,7 +128,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -106,6 +138,12 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
     rows.profiles.push({ id, ...PROFILE[who] });
     rows.household_bands.push({ profile_id: id, ...BANDS[who] });
     rows.notification_prefs.push({ profile_id: id, ...PREFS[who] });
+    // Migration 0021: the settings values that live nowhere else, with a
+    // revision each household has already advanced past 1.
+    rows.profile_preferences.push({
+      profile_id: id, ...SETTINGS[who],
+      created_at: `${day(30)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
+    });
     rows.home_risks.push({ profile_id: id, summary: `${upper}-HOME-RISK-MARKER` });
     // The current home (migration 0016), matching the profile.
     const { lat, lng, county, state, pwsid, water_source, home_year, onboard_request_id } = PROFILE[who];
@@ -249,4 +287,4 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
   return rows;
 }
 
-export { PROFILE, BANDS, PREFS, UTILITY };
+export { PROFILE, BANDS, PREFS, SETTINGS, UTILITY };

@@ -41,6 +41,7 @@ const OWNED_TABLES = {
   luna_conversations: 'profile_id', // 0020
   luna_turns: 'profile_id',         // 0020
   luna_runs: 'profile_id',          // 0020
+  profile_preferences: 'profile_id', // 0021
 };
 
 /**
@@ -66,6 +67,7 @@ const OWNER_DIRECT_ACCESS = {
   luna_conversations: [],         // 0020: no policy at all. A conversation is read back only through the Luna routes, which use the service role.
   luna_turns: [],                 // 0020: no policy at all. A turn is free text a person typed, so the service role is the only reader.
   luna_runs: [],                  // 0020: no policy at all. A run's status is reported by GET /api/luna/runs/status, never read from the browser.
+  profile_preferences: [],        // 0021: no policy at all. The display, quiet-hours, calendar and Luna-context values come back through GET /api/settings, which reads them with the service role.
 };
 
 /**
@@ -83,6 +85,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'luna_conversations', // 0020: served only by the Luna routes, which read it with the service role after verifying the token
   'luna_turns', // 0020: free text a person typed and the answers Luna gave; nothing in the browser reads it directly
   'luna_runs', // 0020: the answer is collected through GET /api/luna/runs/status, never from the table
+  'profile_preferences', // 0021: served only by GET/PATCH /api/settings, which read and write it with the service role after verifying the token
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -166,6 +169,9 @@ const OWNED_ROW = {
     turn_id: lunaId(owner, `ab0${n}`),
     client_message_id: lunaId(owner, `cd0${n}`),
   }),
+  // 0021: every other column has a default that is already a valid snapshot
+  // value, so the owner is the whole row.
+  profile_preferences: (owner) => ({ profile_id: owner }),
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,
@@ -205,6 +211,7 @@ const PROBE_COLUMN = {
   luna_conversations: 'revision',
   luna_turns: 'body',
   luna_runs: 'message',
+  profile_preferences: 'display_appearance',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

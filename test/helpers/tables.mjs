@@ -74,11 +74,16 @@ export const HALO_TABLES = {
       updated_at: now,
     },
   },
+  // 0021 adds `revision` (not null, default 1, the whole optimistic-concurrency
+  // contract for alerts.update), and the nullable `category`, `target_tab`,
+  // `target_destination` and `target_learn`. Only `revision` has a default: a
+  // null category or target means the producer named none, and the route
+  // supplies one for the row's kind.
   alerts: {
     primaryKey: 'id',
     unique: [['profile_id', 'dedupe_key']], // partial unique index (0006): NULL keys never collide
     ownerColumn: 'profile_id',
-    defaults: { id: uuid, fired_at: now, read: false, dismissed: false, created_at: now },
+    defaults: { id: uuid, fired_at: now, read: false, dismissed: false, revision: 1, created_at: now },
   },
   notification_prefs: {
     primaryKey: 'profile_id',
@@ -163,6 +168,40 @@ export const HALO_TABLES = {
     unique: [['turn_id'], ['profile_id', 'client_message_id']],
     ownerColumn: 'profile_id',
     defaults: { id: uuid, status: 'queued', created_at: now, updated_at: now },
+  },
+
+  // 0021: the settings values that have nowhere else to live (display, quiet
+  // hours, calendar, Luna's context switches) plus the settings aggregate
+  // `revision`, one row per household. Every default below is the migration's
+  // own, because a route reads the row straight back as a snapshot the client
+  // must accept: `revision` starts at 1, the display values are the contract's
+  // neutral ones, the quiet times are well formed even while quiet hours are
+  // off (the client's validator requires that), and Luna's three switches are
+  // off. `display_palette` has no default on purpose: null means the response
+  // omits the key, which the client accepts, while `palette: null` it rejects.
+  profile_preferences: {
+    primaryKey: 'profile_id',
+    ownerColumn: 'profile_id',
+    defaults: {
+      revision: 1,
+      display_appearance: 'system',
+      display_ambient: false,
+      display_scale: '100',
+      display_motion: 'system',
+      display_contrast: false,
+      quiet_enabled: false,
+      quiet_from: '21:00',
+      quiet_to: '08:00',
+      quiet_zone: 'UTC',
+      calendar_zone: 'UTC',
+      calendar_streak: false,
+      calendar_linked: false,
+      luna_tasks: false,
+      luna_home: false,
+      luna_projects: false,
+      created_at: now,
+      updated_at: now,
+    },
   },
 
   // Reference and system tables: no owner, nothing cascades.

@@ -527,6 +527,45 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every conversation, every turn and every run is deleted for good, which means every question somebody asked Luna and every answer it gave. A run still in flight can no longer be collected by the browser waiting on it; it is told the feature is unavailable rather than given a stale answer. No owned household record is touched, because nothing outside these three tables references them.
 
+### 2.10 Apply 0021 (settings preferences, tenure, and the alerts columns)
+
+**Not applied yet.** Needs 0020 first (only because the migrations are applied in order; 0021 touches nothing 0020 created).
+
+Quieter than 2.3 and 2.4, and a little busier than 2.8. It creates one new table, adds one column to `profiles` and five to `alerts`. Every added column has either no default or a constant one, so Postgres records it in the catalog instead of rewriting either table and no existing row is scanned; the lock it takes on each of those two tables is held for the moment the catalog is written. Its two checks on `profiles` and four on `alerts` are added as full constraints rather than `NOT VALID`, which does scan those two tables, because no existing row can fail them: a new column starts null on an existing row, and `alerts.revision` starts at the constant 1. Both tables are small (one row per household, a handful of alerts each). Creating the foreign key to `profiles` takes a brief SHARE ROW EXCLUSIVE on it, so a new anonymous sign-up could wait a moment.
+
+What it is for: neither of this package's two surfaces can be served from the tables that already exist.
+
+- **Settings.** The snapshot's year, water source, language, five notification booleans and seven household bands already have homes (`profiles`, `notification_prefs`, `household_bands`) and are left exactly where they are. Its display choices, quiet hours, calendar values and the three switches that say what Luna may be told have none, and neither does the one `revision` a save is checked against. Those go in the new `public.profile_preferences`, one row per household, keyed by the profile. Nothing already housed is copied into it.
+- **Tenure.** The contract needs `owner`, `renter` or `other`, and `profiles.renter_mode boolean` cannot tell an owner from an other. `profiles.tenure` is the new three-value column. `renter_mode` is left exactly as it is, because every existing reader uses it, and **nothing is backfilled**: a backfill would have to call every non-renter an owner, which is the very claim the boolean cannot support. A household reads as unanswered until somebody is asked, and a check stops the two columns ever contradicting each other.
+- **Alerts.** Each alert gains `revision` (not null, 1 on every existing row), which is the whole optimistic-concurrency contract for marking one read or dismissed, plus `category` and a navigation target (`target_tab`, `target_destination`, `target_learn`). The four presentation columns start null, meaning "no producer named one".
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0021_settings_preferences_and_alerts.sql` and run it. Safe to re-run.
+2. Run the verification query in the comment at the end of that file. Expect one row, all six columns true. `no_client_access` false is the one that matters: it means the browser roles can still reach the preferences table, and you should send Claude the row rather than leaving it.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, `GET` and `PATCH /api/settings`, and `POST /api/alerts/state`, answer 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the settings and alerts-state routes report the feature as unavailable. The existing app is unaffected: the current `GET /api/alerts`, `PUT /api/notifications` and `PUT /api/household` read nothing this migration adds. One visible change after it is applied: the current `GET /api/alerts` reads with `select *`, so each alert in its response gains `revision` and nulls for the four presentation columns. That is additive and no approved screen reads those keys.
+
+#### If you need to back out 0021
+
+The settings and alerts-state routes go back to answering a non-retryable 503 `feature_unavailable`, exactly as before it was applied, so this disables the two new surfaces rather than breaking the existing app. The table is dropped first, then the columns. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0021 -->
+
+```sql
+drop table if exists public.profile_preferences;
+alter table public.alerts
+  drop column if exists target_learn,
+  drop column if exists target_destination,
+  drop column if exists target_tab,
+  drop column if exists category,
+  drop column if exists revision;
+alter table public.profiles drop column if exists tenure;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every household's display, quiet-hours, calendar and Luna-context choices are deleted for good, and the settings revision with them, because the whole table goes. Every alert keeps its title, message, read and dismissed state; what is lost is each one's revision, category and navigation target, so a browser holding a revision can no longer mark that alert read and has to reload. The tenure answer is lost too, and reapplying leaves every household unanswered again rather than guessing from `renter_mode`. Nothing cascades: `renter_mode`, the notification preferences and the household bands are untouched, so the existing settings screens keep their values.
+
 
 ---
 

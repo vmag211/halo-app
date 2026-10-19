@@ -3,6 +3,7 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0021   undoes 0021 (settings preferences, tenure, alerts columns)
  *   backout-0020   undoes 0020 (Luna conversations, turns and runs)
  *   backout-0019   undoes 0019 (which intent wrote a recovery challenge)
  *   backout-0018   undoes 0018 (recovery challenges)
@@ -69,6 +70,7 @@ let audit17;
 let audit18;
 let audit19;
 let audit20;
+let audit21;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -112,7 +114,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -411,6 +413,98 @@ test('after the back-out, 0020 applies again and gives exactly the schema one pa
   for (const table of ['luna_conversations', 'luna_turns', 'luna_runs']) {
     assert.deepEqual((await db.query(`select count(*)::int as n from public.${table}`)).rows, [{ n: 0 }], table);
   }
+});
+
+// ---- 0021: one new table plus one column on profiles and five on alerts.
+// Backing it out is a drop table and two drop-column statements, and what is
+// lost is every household's settings choices, its tenure answer, and each
+// alert's revision, category and target. The alerts and profiles rows
+// themselves stay. These pick up where the 0020 tests leave the database, at
+// the 0020 schema.
+
+const ADDED_0021 = [
+  ['profiles', 'tenure'],
+  ['alerts', 'revision'],
+  ['alerts', 'category'],
+  ['alerts', 'target_tab'],
+  ['alerts', 'target_destination'],
+  ['alerts', 'target_learn'],
+];
+const CHECKS_0021 = [
+  'profiles_tenure_check',
+  'profiles_tenure_renter_mode_check',
+  'alerts_revision_check',
+  'alerts_category_check',
+  'alerts_target_check',
+  'alerts_target_learn_check',
+];
+const PATCHED_ALERT = '00000000-0000-4000-8000-00000000b001';
+const columnExists = ([table, column]) =>
+  exists(`exists (select 1 from pg_attribute where attrelid = 'public.${table}'::regclass
+            and attname = '${column}' and not attisdropped)`);
+
+test('0021 applies on top of 0020 and adds exactly its table, its tenure column and its five alerts columns', async () => {
+  await db.applyMigration(migration(21));
+  audit21 = await runAudit(db);
+
+  assert.equal(await exists(`to_regclass('public.profile_preferences') is not null`), true, 'the preferences table exists');
+  for (const added of ADDED_0021) assert.equal(await columnExists(added), true, added.join('.'));
+  // Something to lose: one household's settings, its tenure answer, and one
+  // alert that has been patched twice and carries a category and a target.
+  await db.exec(
+    `insert into public.profile_preferences
+       (profile_id, revision, display_appearance, quiet_enabled, quiet_from, quiet_to, quiet_zone, calendar_zone, luna_home)
+       values ('${ALICE}', 6, 'dark', true, '22:00', '07:00', 'America/New_York', 'America/New_York', true);
+     update public.profiles set tenure = 'renter', renter_mode = true where id = '${ALICE}';
+     insert into public.alerts
+       (id, profile_id, type, title, message, dedupe_key, revision, category, target_tab, target_destination, target_learn)
+       values ('${PATCHED_ALERT}', '${ALICE}', 'new_water_results', 'New results',
+               'Your utility published new results.', 'backout-0021', 3, 'Home', 'home', 'tests', 'pfas');`,
+  );
+});
+
+test('backing out 0021 removes the table and the six columns and leaves the 0001..0020 schema exactly', async () => {
+  await db.exec(docBlock('backout-0021'));
+
+  assert.equal(await exists(`to_regclass('public.profile_preferences') is not null`), false, 'the preferences table is gone');
+  for (const added of ADDED_0021) assert.equal(await columnExists(added), false, `${added.join('.')} is gone`);
+  for (const name of CHECKS_0021) {
+    assert.equal(await exists(`exists (select 1 from pg_constraint where conname = '${name}')`), false, `${name} went with its column`);
+  }
+  // The alert and the profile stay; only what 0021 added to them is lost, and
+  // renter_mode keeps the value it had, because nothing migrated it away.
+  assert.deepEqual(
+    (await db.query(`select title, read from public.alerts where id = $1`, [PATCHED_ALERT])).rows,
+    [{ title: 'New results', read: false }],
+    'the alert itself survives',
+  );
+  assert.deepEqual(
+    (await db.query(`select renter_mode from public.profiles where id = $1`, [ALICE])).rows,
+    [{ renter_mode: true }],
+    'renter_mode is untouched, so every existing reader keeps working',
+  );
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.deepEqual(await runAudit(db), audit20);
+});
+
+test('backing out 0021 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0021'));
+  assert.deepEqual(await runAudit(db), audit20);
+});
+
+test('after the back-out, 0021 applies again and gives exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(21));
+  assert.deepEqual(await runAudit(db), audit21);
+  // Reapplied empty: the settings choices really were deleted, not hidden.
+  assert.deepEqual((await db.query(`select count(*)::int as n from public.profile_preferences`)).rows, [{ n: 0 }]);
+  // Every household reads as unanswered again rather than being guessed from
+  // renter_mode, and every surviving alert is back at revision 1.
+  assert.deepEqual((await db.query(`select count(*)::int as n from public.profiles where tenure is not null`)).rows, [{ n: 0 }]);
+  assert.deepEqual(
+    (await db.query(`select revision from public.alerts where id = $1`, [PATCHED_ALERT])).rows,
+    [{ revision: 1 }],
+    'the alert is back at revision 1, so a client holding revision 3 has to reload',
+  );
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.
