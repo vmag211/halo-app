@@ -1,0 +1,740 @@
+{
+  "approvalDate": "2026-10-01",
+  "sourceCommit": "d703965f8348757b599fb04ef3b27b2a9d89916a",
+  "repositorySourceCommit": "72a2c5150ecfe354fa6b534781e8b6b090d0bda1",
+  "siteVersion": 8,
+  "algorithm": "SHA-256",
+  "policy": "Immutable. New visual approvals belong in a new archive; do not regenerate these baselines.",
+  "files": [
+    {
+      "path": "INDEX.md",
+      "bytes": 8332,
+      "sha256": "e7f5131a909770a4d4d938cd103db3c3ac13de77c4c7620619855220ed9f8dbf"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4778,
+      "sha256": "690734183b96b634ccd05e8f4bb393d888db51240e838e206d5246700ad57a23"
+    },
+    {
+      "path": "approved-export.tar.gz",
+      "bytes": 3708200,
+      "sha256": "2883b7319319d3706897af50380cceba255a73bafa4e8cec142e90f3720700e1"
+    },
+    {
+      "path": "capture-report.json",
+      "bytes": 1381819,
+      "sha256": "07217c3061c14ae8753e3b9c146fab329c30676997a1fec920f5de93c00277e9"
+    },
+    {
+      "path": "capture.cjs",
+      "bytes": 10816,
+      "sha256": "34853d82d88b15334b5d32baf9897f94b74881b76ca644b75c963c3946b8aac2"
+    },
+    {
+      "path": "export-manifest.json",
+      "bytes": 25339,
+      "sha256": "333ac2fe978f7c74335b9085315024e3f0f58cd806f8b8987e463d3e39f89fcc"
+    },
+    {
+      "path": "replay-verification.json",
+      "bytes": 377,
+      "sha256": "ad2a3bc6be99d523b05591752715227c2af03395584a24191d45685b1cb8a862"
+    },
+    {
+      "path": "screenshots/dark-320-factor-air.png",
+      "bytes": 475218,
+      "sha256": "cc7cedd4814acb3caea78319cfd5e09425f0dca86b26d0f97acda2ae1c17020c"
+    },
+    {
+      "path": "screenshots/dark-320-factor-lead.png",
+      "bytes": 460238,
+      "sha256": "22fa7bf6e795dedb92751167fb6caaf1b709652b05b8e9f86e4930b791f3635b"
+    },
+    {
+      "path": "screenshots/dark-320-factor-mold.png",
+      "bytes": 509350,
+      "sha256": "f0ff335e09285ec407a7791e465c7185e661b1cf3155b7c53fcb7f3ead1b08b7"
+    },
+    {
+      "path": "screenshots/dark-320-factor-pfas.png",
+      "bytes": 524791,
+      "sha256": "b68b2d45e8f84172c7e4a16b62301f3f410538045bc15340a10df77bf62ae56f"
+    },
+    {
+      "path": "screenshots/dark-320-factor-pollen.png",
+      "bytes": 461609,
+      "sha256": "83c9a3d9b8d12017d085bc3dcfefcceec812f070dbf08c6c6e7442f7782877c3"
+    },
+    {
+      "path": "screenshots/dark-320-factor-radon.png",
+      "bytes": 500541,
+      "sha256": "8445f66a1644f8f277c1d045c94a87faaa838a51bf26d7c984fb6837311e0667"
+    },
+    {
+      "path": "screenshots/dark-320-factor-uv.png",
+      "bytes": 489407,
+      "sha256": "cb251adb324d8bf49a4527e7964e603f339fd320462d911942858322c0e2b76d"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-adult.png",
+      "bytes": 378496,
+      "sha256": "a71c324e440de3b5914a51f4e1833c98259bb28cfbce9c7f7dfe1b53f3027b5a"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-child.png",
+      "bytes": 374317,
+      "sha256": "703d373beeb6d96ec1a84ddc861f45c38122835400cbe52c9f69ee8fa8f51435"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-contribution-zero.png",
+      "bytes": 381986,
+      "sha256": "980b4e908de3e72893e5fd6a1665ade117b822004705d55df7c095a788da1a10"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-no-data.png",
+      "bytes": 386062,
+      "sha256": "bf582f95913ae1e65c52232bdaeb2458e8bc47c0ac6a31f19dc25a1fa7e4126c"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-offline.png",
+      "bytes": 374379,
+      "sha256": "bc418baedf33ed8553ada85fa2e1c0443a5cacf077360e4ded1598215c248fce"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-partial.png",
+      "bytes": 382461,
+      "sha256": "3645d8d17756059683791bd0cd8188e68fbe5c7a9eb849680321c0bab2898aa8"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-pregnant.png",
+      "bytes": 394152,
+      "sha256": "369a8d87b6b64b83629d5b4f7a75c00f763fd26e0db38848c89fbe2b56c4877d"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-respiratory.png",
+      "bytes": 398104,
+      "sha256": "7abe490b1a71682d03782fe973badda6e75a7da9a1f8df1333089c9261470904"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-score-zero.png",
+      "bytes": 374223,
+      "sha256": "fe79cdace7fdc1cb6e600e3edbd10242d483945d34a35208e8f52a424a83558e"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-senior.png",
+      "bytes": 394771,
+      "sha256": "70c640745ec228f8fb93a2eecc18e578df47502504f31b1f5bcd63e775e3514b"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-teen.png",
+      "bytes": 376104,
+      "sha256": "4be8daf1b27866d6c9918713d1aff9e75253386b6c943180b52731735c737162"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard-toddler.png",
+      "bytes": 388636,
+      "sha256": "64da5fcae8d0348030dfb476bd6f308adacf0693c91f6258a19ad882f5b40ef9"
+    },
+    {
+      "path": "screenshots/dark-320-homeguard.png",
+      "bytes": 374840,
+      "sha256": "4654831706ba54f78c7bfa51cc7c3a26aefaa5696b2d026da83e4d4adabfd1a6"
+    },
+    {
+      "path": "screenshots/dark-320-luna-home-conversation.png",
+      "bytes": 60443,
+      "sha256": "d0f3fa31c219a2a61f6230d69790c9497e0e2c4bc0636239a83a82d1bf8893a2"
+    },
+    {
+      "path": "screenshots/dark-320-luna-home-initial.png",
+      "bytes": 64456,
+      "sha256": "10da15507bac1e69034a7b8422cc1e5080792195bf82a362593247c290fbed49"
+    },
+    {
+      "path": "screenshots/dark-320-luna-missing.png",
+      "bytes": 67977,
+      "sha256": "523ec537d350b0f76ac0751779d32db18c8efc0248f20f80b698816b644b8049"
+    },
+    {
+      "path": "screenshots/dark-320-luna-offline.png",
+      "bytes": 66984,
+      "sha256": "5dfb410f6d2ebbc8b606b45fb7c25695bc69e3bf774eb0717100d58741c066a9"
+    },
+    {
+      "path": "screenshots/dark-320-luna-today-conversation.png",
+      "bytes": 64958,
+      "sha256": "9e09065159baa290a08b5dbd6ee0b27101d47e16380ebf458d68b7aaf2541ec0"
+    },
+    {
+      "path": "screenshots/dark-320-luna-today-initial.png",
+      "bytes": 65854,
+      "sha256": "59ba00f1eca034dd547c7b0e21e2d481629c1889951565314e93c885ab944376"
+    },
+    {
+      "path": "screenshots/dark-320-today-contribution-zero.png",
+      "bytes": 324539,
+      "sha256": "1b7200cf227433ba1863dd8bf0d08a5e7818dffdb714f90f62d98c475992b09b"
+    },
+    {
+      "path": "screenshots/dark-320-today-family.png",
+      "bytes": 568221,
+      "sha256": "273de3c3a5c80d7da67448e950f26f7fec6ee149b7c42299d1b280c036c17db5"
+    },
+    {
+      "path": "screenshots/dark-320-today-no-data.png",
+      "bytes": 326862,
+      "sha256": "bbf4156457c0f176ffa606c0929510646868dffd632fdbd356c3f7de15db5182"
+    },
+    {
+      "path": "screenshots/dark-320-today-offline.png",
+      "bytes": 309414,
+      "sha256": "af1125cd7dd9b96dfcf21d9681112ea6802ca2d4d6262e79b63e3fe93199d01c"
+    },
+    {
+      "path": "screenshots/dark-320-today-partial.png",
+      "bytes": 308331,
+      "sha256": "70b1f127528c7ffa3518b18861980e586a98ee2287207c57f212ca731e7db7ca"
+    },
+    {
+      "path": "screenshots/dark-320-today-score-zero.png",
+      "bytes": 319038,
+      "sha256": "85ab3568b51c450ec1f11e9edeeed2eff64fcec5eea0834810abd18e53275de0"
+    },
+    {
+      "path": "screenshots/dark-320-today.png",
+      "bytes": 314476,
+      "sha256": "fbc5255467b16d5fc0140f5c5681c0334059963f00a7dfe5608e3ec56163a299"
+    },
+    {
+      "path": "screenshots/dark-375-factor-air.png",
+      "bytes": 520272,
+      "sha256": "68c6543fb1feeb1c4f5edfbcc417b639e5a47981ceadfd9957b3b23c806cf2b2"
+    },
+    {
+      "path": "screenshots/dark-375-factor-lead.png",
+      "bytes": 499857,
+      "sha256": "5b8c8f79e6ef2a32acb26c313f024062363285eddf829ea68b6ac737921e5ae8"
+    },
+    {
+      "path": "screenshots/dark-375-factor-mold.png",
+      "bytes": 539755,
+      "sha256": "56195aca3fbadf6f02e6dbba823b47f7de5a3bf206be5e9651b112732b1c0d07"
+    },
+    {
+      "path": "screenshots/dark-375-factor-pfas.png",
+      "bytes": 564299,
+      "sha256": "ff25c225fe52cbfa81ea1791ce3b549f92b6cdcea9a7800c43f1dc65887e19fe"
+    },
+    {
+      "path": "screenshots/dark-375-factor-pollen.png",
+      "bytes": 496837,
+      "sha256": "1aa7ddfa8d63ce59ce4ae413c226c42bf2e392154add4eb5e20eb4b7ca6533af"
+    },
+    {
+      "path": "screenshots/dark-375-factor-radon.png",
+      "bytes": 541541,
+      "sha256": "b6f92e7b7e5d433da890626f675e9afb8232fbb60b36aa4e0b71ed84a408e889"
+    },
+    {
+      "path": "screenshots/dark-375-factor-uv.png",
+      "bytes": 526274,
+      "sha256": "60c32274477d14aad1face0485ca47c502779bc48b31a921d27784ff0ddc21f0"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-adult.png",
+      "bytes": 407104,
+      "sha256": "cf278a79ca94b8be25bb81ca043fbd684e33258a3f927c2b5f103140a189e83c"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-child.png",
+      "bytes": 394890,
+      "sha256": "3f7c3f4fb881ad6cee31ca7c22324cb729daf1cec4574c161de35925a68d126c"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-contribution-zero.png",
+      "bytes": 425281,
+      "sha256": "e785b3e3ba4e8960bd664a067680eed8130ddeb9abac714042334dfda3efb69d"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-no-data.png",
+      "bytes": 417792,
+      "sha256": "6b40460aeabaef9a200036df8219ae465a66455495522cd6e37cb60e0be1c1d9"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-offline.png",
+      "bytes": 420112,
+      "sha256": "04b423a5947276e24edd56bc501803ae9b98aadc10501d38255af5b7d009dcfd"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-partial.png",
+      "bytes": 422617,
+      "sha256": "dbb3f44ac3c2e57c163cc12bb9bd7bf82d10426a22898d2a54433d0ea08abcab"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-pregnant.png",
+      "bytes": 429690,
+      "sha256": "d4ac9a019cdddacb8a05484aa2558689a5bac911369446765a28aa3fb0e6b9f0"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-respiratory.png",
+      "bytes": 432828,
+      "sha256": "29cebefcef21da80226d56e7ea7d39cf0bdd52e92d7cf5a8b6bffe80ff28fda7"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-score-zero.png",
+      "bytes": 418473,
+      "sha256": "dc21ae424707577623f2ae73331a8630a167b6adf5b3b209a477b1e149b1c232"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-senior.png",
+      "bytes": 425827,
+      "sha256": "0b74ce6a7605b29115d9a6216457ffc7cf40576cf5abf3e97d7fa91d79eac354"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-teen.png",
+      "bytes": 397275,
+      "sha256": "c6172dd5a304e3a8b070c46e9199f0d474875e64b4145bf4c23f708e664a0964"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard-toddler.png",
+      "bytes": 416272,
+      "sha256": "6102983dbb78ac5058c75f364decf83d3a6fbaa6a6e6619421b5b3cea1ec48de"
+    },
+    {
+      "path": "screenshots/dark-375-homeguard.png",
+      "bytes": 418778,
+      "sha256": "38ac67edc8328fedb9288dafac9288a8c7f5ab6fa1a6f2ca21770eae06ea657a"
+    },
+    {
+      "path": "screenshots/dark-375-luna-home-conversation.png",
+      "bytes": 66696,
+      "sha256": "b3cf3b89694282e55ca24341d703aa6352bc2edb2084ff8829af37b362d7b1a3"
+    },
+    {
+      "path": "screenshots/dark-375-luna-home-initial.png",
+      "bytes": 64742,
+      "sha256": "d06b2b822d3b60e99fe8de673db6b0cd42f313374cdc4609408dbf34fe3c0dac"
+    },
+    {
+      "path": "screenshots/dark-375-luna-missing.png",
+      "bytes": 68334,
+      "sha256": "a82ab94e4914c24716195ce00a861969ef49f3c19c91d326e3dfee1576471d89"
+    },
+    {
+      "path": "screenshots/dark-375-luna-offline.png",
+      "bytes": 71638,
+      "sha256": "8a386be99cc50e962f3b5dc7d4829901dfa8df917bfad296a6ad6cf75891d48f"
+    },
+    {
+      "path": "screenshots/dark-375-luna-today-conversation.png",
+      "bytes": 68023,
+      "sha256": "94d0263fe2f653a98c69ec4001ae531987b00e6054ddf06261c2a9ec85440ad3"
+    },
+    {
+      "path": "screenshots/dark-375-luna-today-initial.png",
+      "bytes": 65587,
+      "sha256": "0aadd8b5e4ff48a2e474332e733d351b1ad0232c2ef3a4d8792f284e6b5915be"
+    },
+    {
+      "path": "screenshots/dark-375-today-contribution-zero.png",
+      "bytes": 364528,
+      "sha256": "b3c0b56a4c4454dc4954f1a46120b4ca869b6931679f7aa163ef2977a606c7ab"
+    },
+    {
+      "path": "screenshots/dark-375-today-family.png",
+      "bytes": 626144,
+      "sha256": "239b82747416c7511fa4c1a8588d2cd764f7415f3fe264da8df3433bde01ae20"
+    },
+    {
+      "path": "screenshots/dark-375-today-no-data.png",
+      "bytes": 354765,
+      "sha256": "a0cc47419020d0e553970fb8adae05fca0038874b8c5899ce9246b16afd35124"
+    },
+    {
+      "path": "screenshots/dark-375-today-offline.png",
+      "bytes": 352910,
+      "sha256": "fd0bf326276c8ad66617e636098adcf2e5f5650fe09eff09eca643a85601f178"
+    },
+    {
+      "path": "screenshots/dark-375-today-partial.png",
+      "bytes": 352539,
+      "sha256": "320174aeb0331f5e476458f3b707c62c4fc2d851946cf9c2c8c149178f1cb3c4"
+    },
+    {
+      "path": "screenshots/dark-375-today-score-zero.png",
+      "bytes": 362971,
+      "sha256": "34724b2a6c359ff836d708c14ad463718653c13e95e858c475d545c911395862"
+    },
+    {
+      "path": "screenshots/dark-375-today.png",
+      "bytes": 355844,
+      "sha256": "5d8171a055afbc85074f0ebf176fe116d49a32c0077cf5eb9c8601b91b540431"
+    },
+    {
+      "path": "screenshots/light-320-factor-air.png",
+      "bytes": 478562,
+      "sha256": "ff20ffd39162e0f0451d56bdb2aa603027d48708377f1037c2d7da2dd182e144"
+    },
+    {
+      "path": "screenshots/light-320-factor-lead.png",
+      "bytes": 467213,
+      "sha256": "534836c4bac50b0fcdbb0e716daac2146930d8c675786a6f419598bd9cb3c96a"
+    },
+    {
+      "path": "screenshots/light-320-factor-mold.png",
+      "bytes": 519224,
+      "sha256": "c675c04d03fc334d539768e82d852e80b4fde82eeb6239472db9c883e64f52fd"
+    },
+    {
+      "path": "screenshots/light-320-factor-pfas.png",
+      "bytes": 525634,
+      "sha256": "65a57b4c15e64d8af9ef615fabdf2acea66a1a5e3a22671e35bd8cbcfa547d83"
+    },
+    {
+      "path": "screenshots/light-320-factor-pollen.png",
+      "bytes": 464405,
+      "sha256": "482979f769a224c02cd4ef9a4f4904fb32a50fed2c30b10d0444d9f00ddb13c6"
+    },
+    {
+      "path": "screenshots/light-320-factor-radon.png",
+      "bytes": 509091,
+      "sha256": "fffc0f69845c28cabfd763b5bc9b3c61c44fa91979f98f25d0e5f61fdfc9a7c8"
+    },
+    {
+      "path": "screenshots/light-320-factor-uv.png",
+      "bytes": 497414,
+      "sha256": "0245919eca3f7c2d1c05c4daf8fdd4eb4cc4c38e4091c6e10fa8e6a4fde44ff7"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-adult.png",
+      "bytes": 382404,
+      "sha256": "6d22f02ed95b1290ab4070654fd6a48bd8804880eae8f9dc8177fb4442b049ec"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-child.png",
+      "bytes": 377139,
+      "sha256": "7cb755250ef828fbd036d29f56504f87a8384a03c261af1086f49affe6d187ec"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-contribution-zero.png",
+      "bytes": 385254,
+      "sha256": "d16f1ca62a9ab36424c74e63427661eaba9260c1dee78f996067686c8f36e002"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-no-data.png",
+      "bytes": 389452,
+      "sha256": "bc242c4e627ca0fb818fb93cab35dff62df0c70a2c5f13f3087dc3bf17ec3f5b"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-offline.png",
+      "bytes": 376165,
+      "sha256": "62bd86b4e66211796ff37bde6b9feaec06184c926e051f13b924bae401b00b59"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-partial.png",
+      "bytes": 384220,
+      "sha256": "56da20c8f586ab8ffc132111dc3b09218ea75b4391a8709991c89e90dd73ccf1"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-pregnant.png",
+      "bytes": 396684,
+      "sha256": "63af9e44f80c6922f88b04cbce5b7a20d020ab13be4214ca33e50e051574267e"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-respiratory.png",
+      "bytes": 400606,
+      "sha256": "38618e9c8ba200aac4b076ec36625cc6ec6c26806760f6dc05fbbbb7ab586152"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-score-zero.png",
+      "bytes": 376493,
+      "sha256": "1fd61f784f24a540a68a1af2f5096de376ec8b3581b9b30db8c926587bd86665"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-senior.png",
+      "bytes": 398038,
+      "sha256": "026fd5a35f736a2e20b45c837963b837b23e3d6b337d85b3ad09244296f04091"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-teen.png",
+      "bytes": 380249,
+      "sha256": "4b8c9812842ce78cd7b4286d6cb9a7576da55a8e7c26ea9e3f949b35acc8025e"
+    },
+    {
+      "path": "screenshots/light-320-homeguard-toddler.png",
+      "bytes": 389989,
+      "sha256": "131562b225c91e2e25450f7f8410f296a43352aae5edcf3c9274e0eb35bdf5f5"
+    },
+    {
+      "path": "screenshots/light-320-homeguard.png",
+      "bytes": 376864,
+      "sha256": "285678a01763cb264dd9ce450ac0ca9ab7fc93f13dd394edb337505757d7377b"
+    },
+    {
+      "path": "screenshots/light-320-luna-home-conversation.png",
+      "bytes": 63237,
+      "sha256": "a7e27f1a89904ce7545ec2a870f467f01980c241720dd0c971c7ea5e97c16d14"
+    },
+    {
+      "path": "screenshots/light-320-luna-home-initial.png",
+      "bytes": 65886,
+      "sha256": "45521e934325d70b566e7d1c39e50e1122f9315d80d13bbbf6f498cba043efa8"
+    },
+    {
+      "path": "screenshots/light-320-luna-missing.png",
+      "bytes": 70417,
+      "sha256": "4d0e9c175c31d7967aef65c8f28ab2dc438504eaf5e5d30aa982ba6d2b384017"
+    },
+    {
+      "path": "screenshots/light-320-luna-offline.png",
+      "bytes": 68215,
+      "sha256": "413f57216f77ad553be4fa55398ce650792a5d81c92fc7c4582f6536bcf055af"
+    },
+    {
+      "path": "screenshots/light-320-luna-today-conversation.png",
+      "bytes": 67164,
+      "sha256": "c851db31a916108a3d3c5a9d680db0108bb5724a86ff017408009e45f52800ed"
+    },
+    {
+      "path": "screenshots/light-320-luna-today-initial.png",
+      "bytes": 66910,
+      "sha256": "d782b053b3637fc056ab055ffc6eea352dbb3036754a7487881f29e0daf7ffa2"
+    },
+    {
+      "path": "screenshots/light-320-today-contribution-zero.png",
+      "bytes": 323239,
+      "sha256": "759af4b592fc0c2c5eec3a98ddf4c554ee77265e51565e13a08807746eab8d72"
+    },
+    {
+      "path": "screenshots/light-320-today-family.png",
+      "bytes": 568602,
+      "sha256": "d9d039807585a6ddf3d366c1aba2a54ac51024a4b9cdc53632fa2ddd471ac80f"
+    },
+    {
+      "path": "screenshots/light-320-today-no-data.png",
+      "bytes": 325174,
+      "sha256": "0cceaa0f809e3e9bcb25e667417214d7fd983f5603fdc8491227a5fbea356518"
+    },
+    {
+      "path": "screenshots/light-320-today-offline.png",
+      "bytes": 308333,
+      "sha256": "37f5c7d4caaa74d6607a3afc38cdaf7f9aae8218782d66860b0001d4b9247275"
+    },
+    {
+      "path": "screenshots/light-320-today-partial.png",
+      "bytes": 308898,
+      "sha256": "7b1f90cd516249e4ed3224f2456ed4da0d9f6942d142a42fe6617e13c65662e4"
+    },
+    {
+      "path": "screenshots/light-320-today-score-zero.png",
+      "bytes": 317522,
+      "sha256": "3b2a7a1dd2f536800c633df410079faeab319f060a6a0f27d1edc20a2d3af8f6"
+    },
+    {
+      "path": "screenshots/light-320-today.png",
+      "bytes": 315290,
+      "sha256": "baedb24078f9a2c50a46a2480f3b58fd29ada9e510e19433e8cc0ca625bf88f9"
+    },
+    {
+      "path": "screenshots/light-375-factor-air.png",
+      "bytes": 525693,
+      "sha256": "b9fd777d460e8ee0c899ea0a14073d99a1663eef0de5196609451534eab280d8"
+    },
+    {
+      "path": "screenshots/light-375-factor-lead.png",
+      "bytes": 508033,
+      "sha256": "a952697ec601af6352ff8582b0e6ae66e15db492cd3f5686b3a744b8b05cfec7"
+    },
+    {
+      "path": "screenshots/light-375-factor-mold.png",
+      "bytes": 552390,
+      "sha256": "40ee25287f414a55cddb6b24f4a4a4a309d24cbeefd96e31b7db5bb82d4673bd"
+    },
+    {
+      "path": "screenshots/light-375-factor-pfas.png",
+      "bytes": 565956,
+      "sha256": "30dcb597a66a45f1bb622c7cf4b1b7e2211e3b8459c0be025ae27f982de451e1"
+    },
+    {
+      "path": "screenshots/light-375-factor-pollen.png",
+      "bytes": 501388,
+      "sha256": "88d73b505fc575b65ead44636c87e6f6c510c538071e499cdca22f00f2c1ff5a"
+    },
+    {
+      "path": "screenshots/light-375-factor-radon.png",
+      "bytes": 551438,
+      "sha256": "6516f6c573e0f9cd8d2c4639002b323bfcc755f48b6348d057a46c5ea927570f"
+    },
+    {
+      "path": "screenshots/light-375-factor-uv.png",
+      "bytes": 534412,
+      "sha256": "b9087412ac09e73e8bcad87f1283279b8dd182360410ed9f73c13a9d22f31fe1"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-adult.png",
+      "bytes": 413631,
+      "sha256": "9daa4611b1377ffea9584f8f349db10f4e6112af8172e3050fd810844d944f99"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-child.png",
+      "bytes": 400675,
+      "sha256": "81e5ae3e79a6b373a592dc727ca4aeb509d253471d42a02591dd37618761ffee"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-contribution-zero.png",
+      "bytes": 430585,
+      "sha256": "184244ee100cfdc513250a4ffd9d59bf8fc2f25a73fc6e08de6917254d682cd2"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-no-data.png",
+      "bytes": 423014,
+      "sha256": "dfe596732ea69a085bcd1a5aa9c2c20aca2704b89a7ef4829391f80ff7516a3a"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-offline.png",
+      "bytes": 422519,
+      "sha256": "2076541256d49d8d4bffa6efb9470b48f2d51c5f92be5cf73aeedb491c9ac97b"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-partial.png",
+      "bytes": 425695,
+      "sha256": "6a70814b721122bb90914ce5c975b9da3dfa19c96a53fcd9f8ad69f237e076b5"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-pregnant.png",
+      "bytes": 435862,
+      "sha256": "1427ef30d58b31191344d66f25dafe672b1507f777e49a36446f840b6af844b7"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-respiratory.png",
+      "bytes": 439100,
+      "sha256": "4ad13c2ed616913738ed68e193c7f9e55def98411d362bee3804b5a83a9c201a"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-score-zero.png",
+      "bytes": 423230,
+      "sha256": "59f5d6f4f5693beb815ea1ea1b8381ea70f0c60e45be65baf94fa1ccc11dd920"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-senior.png",
+      "bytes": 432805,
+      "sha256": "3398e781ee86b07ce8c8b1797b75675fcea53aaabdc0967fd4e8ad1260359248"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-teen.png",
+      "bytes": 404126,
+      "sha256": "fee803c904ea2e65c8c7a6fd5373032588e130ca399a9d42f7c660c50e50a039"
+    },
+    {
+      "path": "screenshots/light-375-homeguard-toddler.png",
+      "bytes": 421212,
+      "sha256": "e0683ed953356e0612f7f504ff124dffbf24c6c6e551e47825444bcf3e2742f6"
+    },
+    {
+      "path": "screenshots/light-375-homeguard.png",
+      "bytes": 423402,
+      "sha256": "0f3a4a202f6a9ba3d246988e7344bd7962954fd22e428b750a1ba4defa020480"
+    },
+    {
+      "path": "screenshots/light-375-luna-home-conversation.png",
+      "bytes": 69537,
+      "sha256": "358d06c8abc515b45c49dd9e25f92276d2696a6574754803aa1e8b4244e670c8"
+    },
+    {
+      "path": "screenshots/light-375-luna-home-initial.png",
+      "bytes": 66335,
+      "sha256": "e60b7e65d5be2782dccc617abd7db88d3f1dd4420fc12528b56a32dce2b1ee4c"
+    },
+    {
+      "path": "screenshots/light-375-luna-missing.png",
+      "bytes": 70477,
+      "sha256": "dfe1bb7f12ae0b23de1bef39565614f964710063b452a3cd6100ba6fb01be4f3"
+    },
+    {
+      "path": "screenshots/light-375-luna-offline.png",
+      "bytes": 72926,
+      "sha256": "ee32fd16fa77e4e57898467f96e5874a47e6f617c78623237bfd0820fb74eba3"
+    },
+    {
+      "path": "screenshots/light-375-luna-today-conversation.png",
+      "bytes": 70103,
+      "sha256": "959aec9cbb58fad6354f82f68c915d87894830618b18ef9be7b971a84c56f0a3"
+    },
+    {
+      "path": "screenshots/light-375-luna-today-initial.png",
+      "bytes": 67146,
+      "sha256": "e54de1cdaab28ab1b3c843b624e92e33bde2f89415aae316a8beda538cab1d76"
+    },
+    {
+      "path": "screenshots/light-375-today-contribution-zero.png",
+      "bytes": 364639,
+      "sha256": "f52cab6bd04fe3e46cc0883b08a60c7b0afb00a0f3404262af2d7dc1ccd43505"
+    },
+    {
+      "path": "screenshots/light-375-today-family.png",
+      "bytes": 625223,
+      "sha256": "fc65509e6f940e736c7c49c344b5b6293ac98cea65408868efdfea558e64cb1e"
+    },
+    {
+      "path": "screenshots/light-375-today-no-data.png",
+      "bytes": 354731,
+      "sha256": "8d214a6b575cae2df25d2f4c9ee0aae63afec060ad5cb8ed35c557c188ae05d2"
+    },
+    {
+      "path": "screenshots/light-375-today-offline.png",
+      "bytes": 353975,
+      "sha256": "3333f05ea18f8c2c44c082bc685cc4576396402af92be770353d92ea95203f12"
+    },
+    {
+      "path": "screenshots/light-375-today-partial.png",
+      "bytes": 353202,
+      "sha256": "0c5bd3c2ef032c20c0d52a83af5640d4098d44e19a6a5fe814d103187218ec9c"
+    },
+    {
+      "path": "screenshots/light-375-today-score-zero.png",
+      "bytes": 363601,
+      "sha256": "35badcf3091fdb8c055a8366eea70adfb726d63340e278173cf9479e972ee3f6"
+    },
+    {
+      "path": "screenshots/light-375-today.png",
+      "bytes": 357445,
+      "sha256": "e4bf82a3109df69f1dd5b306bcb651df405ace86e0866f0ccd402730c962dce9"
+    },
+    {
+      "path": "seal.cjs",
+      "bytes": 7137,
+      "sha256": "e5a9915cff7ec06e783e28ae01505deed0fb29af01b74660ef8158e3ea5e0eda"
+    },
+    {
+      "path": "site-source-manifest.json",
+      "bytes": 14489,
+      "sha256": "bb918c49bceab0658b73f129c9b4609d322d716f6a054c027b062ebc1aa46902"
+    },
+    {
+      "path": "site-source.zip",
+      "bytes": 3352860,
+      "sha256": "ddb1c7ffda89b9a9ee1b25ee8a33ecedffcf77be1ac9cdf58ce479d52673e103"
+    },
+    {
+      "path": "source-manifest.json",
+      "bytes": 18793,
+      "sha256": "5ec6b2b6f24d68256fdb7361e9a005baa06267551e8be1e4bf50d888d3dabcd3"
+    },
+    {
+      "path": "source.zip",
+      "bytes": 4106222,
+      "sha256": "5313a92440074635970fd797dcb141be2efb6a4bb7bae4053d7dc21f0edbe494"
+    },
+    {
+      "path": "verify.cjs",
+      "bytes": 2331,
+      "sha256": "8674eb9613b6b2b37c4ada4b57e9aa3046ee0898f93e05f30eeb725db8d1c74c"
+    },
+    {
+      "path": "visual-cases.cjs",
+      "bytes": 1313,
+      "sha256": "5322a47edcc4502dd3aa00e9493a4fa74980c2727219e6aa96738524dbbf2865"
+    }
+  ]
+}

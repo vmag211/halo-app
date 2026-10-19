@@ -1,0 +1,27 @@
+/* A short editorial scene replaces the large portrait block; guidance stays intact. */
+.halo-home-member .halo-household-editorial { padding:0 0 18px; gap:13px; justify-items:start; text-align:left; border-radius:0; background:none; }
+.halo-household-editorial-art { width:100%; position:relative; }
+.halo-household-editorial-art .halo-editorial-scene { height:176px; border-radius:12px 12px 0 0; }
+.halo-household-editorial-motion { position:absolute; right:8px; top:8px; border-radius:50%; background:light-dark(#e5f4f0e8,#10313cea); }
+.halo-household-editorial-heading { display:flex; align-items:center; gap:15px; margin-top:-9px; position:relative; }
+.halo-household-editorial-heading > div:last-child { display:grid; gap:8px; }
+.halo-household-editorial .halo-home-member-portrait { width:57px; height:69px; min-width:57px; background:transparent; border:0; border-radius:0; }
+.halo-household-editorial .halo-home-member-portrait .halo-home-figure { width:53px; height:65px; }
+.halo-household-editorial .halo-home-member-portrait .halo-home-breathing { width:25px; height:25px; top:23px; right:-3px; }
+.halo-household-editorial .halo-home-member-portrait .halo-home-breathing > span { width:17px; height:17px; }
+.halo-f-app .halo-household-editorial .halo-ph-kicker { font-size:calc(.67rem * var(--halo-text-scale)); line-height:1.45; }
+.halo-f-app .halo-household-editorial h2 { font:650 calc(1.65rem * var(--halo-text-scale))/1.15 var(--font-onest),sans-serif; }
+.halo-f-app .halo-home-member .halo-household-editorial-heading h2 { text-align:left; }
+.halo-f-app .halo-household-editorial > p { font-size:calc(.91rem * var(--halo-text-scale)); line-height:1.65; margin:0; }
+.halo-household-editorial .halo-home-member-tag { border:0; padding:4px 0; font-size:calc(.72rem * var(--halo-text-scale)); }
+.halo-home-member:has(.halo-household-editorial) .halo-home-member-focus { padding:18px; text-align:left; gap:10px; border:0; border-left:2px solid light-dark(#658d81,#93c6b0); border-radius:0 10px 10px 0; background:linear-gradient(105deg,light-dark(#d9eae350,#284d453d),transparent); }
+.halo-home-member:has(.halo-household-editorial) .halo-home-member-focus h2 { line-height:1.45; }
+.halo-home-member:has(.halo-household-editorial) .halo-home-member-focus p { font-size:calc(.84rem * var(--halo-text-scale)); line-height:1.65; }
+.halo-home-member:has(.halo-household-editorial) .halo-home-member-action h3 { text-align:left; }
+.halo-home-member:has(.halo-household-editorial) .halo-home-member-limits { padding:21px 16px; border-radius:10px; text-align:left; justify-items:start; background:light-dark(#e6e9f240,#33355025); }
+.halo-home-member:has(.halo-household-editorial) .halo-home-member-switch a { border:1px solid var(--halo-border); border-radius:10px; }
+.halo-family-guidance-item > .halo-family-topic-art { height:98px; margin:0 0 14px; border-radius:10px 10px 0 0; --editorial-floor:var(--ph-page); }
+.halo-f-app[data-contrast="high"] .halo-household-editorial-art { display:none; }
+.halo-f-app[data-contrast="high"] .halo-household-editorial-heading { margin-top:0; }
+@media(max-width:350px) { .halo-household-editorial-art .halo-editorial-scene { height:150px; } .halo-household-editorial-heading { gap:11px; } }
+@media(forced-colors:active) { .halo-household-editorial-art { display:none; } .halo-household-editorial-heading { margin-top:0; } .halo-home-member:has(.halo-household-editorial) .halo-home-member-focus { border:1px solid CanvasText; } }

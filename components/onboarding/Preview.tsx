@@ -2,6 +2,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import OnboardingScreen from '@/app/OnboardingScreen';
 import Button from '@/components/ui/Button';
+import Link from 'next/link';
 import { createMockOnboardingApi, mockScenarios, type MockScenario } from '@/lib/frontend/mock';
 import { copy } from '@/lib/frontend/copy';
 
@@ -16,5 +17,5 @@ export default function Preview({initialScenario='default',initialDesign='approv
   return <><aside className="halo-preview-toolbar" aria-label={copy.preview.title}>
     <p>{copy.preview.disclaimer}</p><label>{copy.preview.scenario}<select value={scenario} onChange={event=>{setScenario(event.target.value as MockScenario);restart();}}>{mockScenarios.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
     <label>Design<select value={design} onChange={event=>setDesign(event.target.value as 'approved'|'mobile')}><option value="approved">Previous design</option><option value="mobile">Approved mobile design</option></select></label>
-  </aside><div className={design==='mobile'?'halo-mobile-shell':undefined}>{completed?<main className="halo-app halo-handoff"><h1>{copy.preview.complete}</h1><p>{copy.preview.handoff}</p><Button onClick={restart}>{copy.preview.restart}</Button></main>:<OnboardingScreen key={`${scenario}-${run}`} api={api} preview stackedWelcomeSubtitle={design==='mobile'} onComplete={complete} />}</div></>;
+  </aside><div className={design==='mobile'?'halo-mobile-shell':undefined}>{completed?<main className="halo-app halo-handoff"><h1>{copy.preview.complete}</h1><p>{copy.preview.handoff}</p><Link className="halo-button halo-button-primary" href="/foundation/preview/expanded/?tab=plan">Continue to My Week</Link><Button onClick={restart}>{copy.preview.restart}</Button></main>:<OnboardingScreen key={`${scenario}-${run}`} api={api} preview stackedWelcomeSubtitle={design==='mobile'} onComplete={complete} />}<nav className="halo-onboarding-public" aria-label="Other ways to explore"><Link href="/foundation/preview/expanded/?access=public">Browse without a home</Link></nav></div></>;
 }

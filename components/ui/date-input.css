@@ -1,0 +1,34 @@
+.halo-date { display:block; position:relative; min-width:0; width:100%; margin-top:5px; }
+/* Keep icon space above legacy form rules with two :not() attributes, regardless of CSS load order. */
+.halo-date input.halo-date-input.halo-date-input[type="date"] { width:100%; min-width:0; min-height:48px; box-sizing:border-box; margin:0; padding:11px 49px 11px 12px; border:1px solid var(--halo-border,#ccd8d5); border-radius:8px; background:var(--halo-card,#fff); color:var(--halo-ink,#173e3b); font:inherit; font-variant-numeric:tabular-nums; color-scheme:inherit; }
+.halo-date input.halo-date-input.halo-date-input[type="date"]::-webkit-calendar-picker-indicator { display:none; }
+.halo-date input.halo-date-input.halo-date-input[type="date"]::-webkit-date-and-time-value { text-align:left; }
+.halo-date .halo-date-trigger { position:absolute; inset:2px 2px 2px auto; display:flex; justify-content:center; align-items:center; width:44px; min-width:44px; min-height:44px; margin:0; padding:0; border:0; border-radius:6px; background:transparent; color:var(--halo-primary,#127d78); cursor:pointer; }
+.halo-date .halo-date-trigger:hover { background:var(--halo-tint,#eaf4f1); }
+.halo-date[data-disabled="true"] { opacity:.6; }
+.halo-date .halo-date-trigger:disabled { cursor:default; }
+.halo-date-popover.halo-date-popover { position:fixed; inset:auto; margin:0; box-sizing:border-box; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow:auto; padding:8px 12px 4px; border:1px solid var(--halo-border,#ccd8d5); border-radius:12px; color:var(--halo-ink,#173e3b); background:var(--halo-card,#fff); box-shadow:0 14px 50px rgb(0 0 0 / .24); font:400 calc(.85rem * var(--halo-text-scale,1))/1.35 var(--font-instrument),Arial,sans-serif; text-align:left; z-index:100; }
+.halo-date-popover.halo-date-popover:popover-open { display:block; }
+.halo-date-popover .halo-date-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.halo-date-popover .halo-date-eyebrow { color:var(--halo-secondary,#567371); font-size:calc(.7rem * var(--halo-text-scale,1)); font-weight:550; }
+.halo-date-popover .halo-date-icon { display:flex; justify-content:center; align-items:center; flex-shrink:0; width:44px; min-height:44px; border:0; padding:0; border-radius:6px; background:transparent; color:var(--halo-primary,#127d78); cursor:pointer; }
+.halo-date-popover .halo-date-icon:hover { background:var(--halo-tint,#eaf4f1); }
+.halo-date-popover .halo-date-month { display:flex; align-items:center; gap:2px; min-height:48px; }
+.halo-date-popover .halo-date-heading { display:flex; flex:1; justify-content:center; align-items:center; gap:0; min-width:0; }
+.halo-date-popover .halo-date-heading select { appearance:none; width:auto; max-width:65%; min-width:0; min-height:44px; margin:0; padding:4px 5px; border:0; border-radius:4px; background:transparent; color:var(--halo-ink,#173e3b); cursor:pointer; font:600 calc(.94rem * var(--halo-text-scale,1))/1.2 var(--font-instrument),Arial,sans-serif; text-align:center; }
+.halo-date-popover .halo-date-heading select:last-child { font-variant-numeric:tabular-nums; max-width:40%; font-size:calc(.82rem * var(--halo-text-scale,1)); font-weight:500; color:var(--halo-secondary,#567371); }
+.halo-date-popover .halo-date-heading option { color:var(--halo-ink,#173e3b); background:var(--halo-card,#fff); }
+.halo-date-popover .halo-date-weekdays { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); padding:8px 0; color:var(--halo-secondary,#567371); font-size:calc(.66rem * var(--halo-text-scale,1)); text-align:center; border-top:1px solid var(--halo-border,#ccd8d5); }
+.halo-date-popover .halo-date-row { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+.halo-date-popover .halo-date-row > span { min-width:0; }
+.halo-date-popover .halo-date-row button { position:relative; width:100%; min-height:42px; display:flex; align-items:center; justify-content:center; margin:0; padding:4px 0; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--halo-ink,#173e3b); cursor:pointer; font:550 calc(.84rem * var(--halo-text-scale,1))/1.1 var(--font-onest),Arial,sans-serif; font-variant-numeric:tabular-nums; }
+.halo-date-popover .halo-date-row button[data-outside="true"] { color:var(--halo-secondary,#567371); opacity:.57; }
+.halo-date-popover .halo-date-row button[aria-current="date"]::after { content:""; position:absolute; bottom:5px; left:calc(50% - 2px); width:4px; height:4px; border-radius:50%; background:currentColor; }
+.halo-date-popover .halo-date-row button[aria-pressed="true"] { background:var(--halo-primary,#127d78); color:var(--halo-on-primary,#fff); opacity:1; }
+.halo-date-popover .halo-date-row button:not(:disabled):not([aria-pressed="true"]):hover { background:var(--halo-tint,#eaf4f1); }
+.halo-date-popover .halo-date-row button:disabled { opacity:.25; cursor:default; }
+.halo-date-popover .halo-date-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; border-top:1px solid var(--halo-border,#ccd8d5); }
+.halo-date-popover .halo-date-text { min-height:44px; border:0; margin:0; padding:6px 3px; background:transparent; color:var(--halo-primary,#127d78); cursor:pointer; font:600 calc(.78rem * var(--halo-text-scale,1))/1.3 var(--font-instrument),Arial,sans-serif; }
+.halo-date-popover :is(.halo-date-icon,.halo-date-text):disabled { opacity:.35; cursor:default; }
+.halo-date-popover :is(button,select):focus-visible,.halo-date :is(input,button):focus-visible { outline:2px solid var(--halo-primary,#127d78); outline-offset:1px; }
+.halo-date-popover .halo-date-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }

@@ -1,0 +1,2 @@
+/** The static site's root owns the shared preview providers. */
+export default function PreviewLayout({children}:{children:React.ReactNode}){return children;}

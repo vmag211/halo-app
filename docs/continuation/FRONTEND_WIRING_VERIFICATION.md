@@ -1,0 +1,87 @@
+# Frontend wiring verification, October 16
+
+This receipt separates controlled frontend checks from real backend/provider acceptance. Current branch: `codex/october15-review-refinement`.
+
+## Completed checks
+
+- Unit suite: 709/709 passed.
+- Production-boundary browser suite: 113/113 passed against isolated authentication and service responses.
+- New public Learn recovery browser tests: 4/4 passed, covering pending verification, explicit account-switch approval, collision, unknown request reconciliation and expired/failed retry. These are controlled-service tests, not real recovery-email delivery.
+- Production-shaped Next build: compilation, TypeScript and route generation passed. Its fake-auth configuration is test-only and must not be deployed.
+- Scoped ESLint passed for the new ring component, its consumer and score tests.
+- Read-only backend operation audit: 72 registry operations, 45 feature groups and all 1,630 substantive requirement IDs found; no unregistered literal operation calls. Dynamic dispatch was manually traced below.
+- Latest backend fetch: `88b01b005ad783c7a719fd87a02c317c613b4b71`. Virtual merge against the frontend base completed with no textual conflicts. Main is an ancestor of the frontend branch. No branch merge or schema migration was performed.
+
+## Dynamic operation audit
+
+- `ProductionLunaConversation`: cancel/status/confirm dispatch resolves to registered Luna operations.
+- `ProductionWeekUpdates`: operation status and week acknowledgment use their registered endpoints.
+- `ProductionContext`: generic dispatch is validated by the operation registry at runtime.
+- `ProductionPrivacyControls`: export/clear dispatch uses the two registered privacy operations.
+- `ProductionRestoreAccessFlow`: request/status/complete map to the three recovery operations.
+- Production resource adapter: fish catalogue, food/published-food evidence, grower resources and water stewardship map to registered fish/food/grower/water reads.
+- `stage-api.ts` legacy request paths, including history, contextual Learn and assistant, are separately covered by legacy contracts and stage tests rather than counted as new registry operations.
+
+## Reproduce the handoff inventory
+
+The final source fingerprint register uses staged Git bytes, excluding unrelated local edits. On a clean checkout of the frontend commit, run:
+
+```sh
+node scripts/audit-frontend-wiring.mjs
+node scripts/audit-backend-handoff.mjs --index --output tmp/backend-handoff-wrap
+node scripts/build-backend-wiring-packet.mjs
+node scripts/build-backend-wiring-packet.mjs --verify
+```
+
+The first command records current fetched refs. Regeneration on a later commit intentionally updates those references and the packet hash; it does not establish that backend services are connected. The historical packet's own `--verify` comparison remains tied to its October 13 source snapshot, so do not rewrite its archived appendices just to make that old comparison pass.
+
+## Limits
+
+Automated source coverage and controlled services do not prove that every possible combination is bug-free. Real database/RLS, provider credentials, recovery verification, live models/retrieval, geocoding/source freshness, reminders/email/push, physical devices and scientific scoring acceptance remain integration gates. Visit-local intentions need the documented persistence adapters before they may claim durable success. The complete original backend snapshot and its earlier failed Windows checks remain historical evidence, not overwritten by these frontend results.
+
+## Final regression and publication
+
+- Full review run: **802 scenarios**, initially 795 passed, four failed and three hosted-only checks skipped. The four failures were investigated: two old exact score accessible names, a date-picker expectation missing the dynamic “today” suffix, and a send test interacting with the outgoing page before navigation completed. Updated expectations and explicit destination waits preserve the assertions. All four rechecks passed; the uncertain-send navigation then passed **five consecutive repetitions**. No failing case was discarded or marked skipped. Evidence: `test-results-frontend-wrap-review/run.json`, `test-results-wrap-rechecks/`, `test-results-send-synchronized/`.
+- Score-specific browser coverage: **10/10 passed**, including real Web Animations interpolation, exact end values, legend equivalence, zero/full/partial/missing, tiny/single contribution, device reduction and forced colors. Initial test-only normalization/timing issues were corrected by comparing numeric SVG values and pausing the observed animation atomically. Evidence: `test-results-score-release/`.
+- Stage boundary suite: initially **35/37 passed**. Two old tests expected pre-review navigation URLs or attempted to reopen an already deep-linked Settings panel. Corrected to the current `/app` aliases and direct panel state. The complete six-test navigation/settings recheck passed. Evidence: `test-results-stage-wrap-final/`, `test-results-stage-recheck/`. An earlier launch timed out starting a redundant test server; the actual suite used the existing isolated server.
+- Exact static export: **21/21 passed**, including all three hosted-only checks, no backend/provider requests on main review tabs, score motion/states, household routes, theme save/cancel, light/dark, Forest/Iris, enlarged text and contrast. Evidence: `test-results-wrap-static/run.json`.
+- Static Next export passed compilation, TypeScript and all 22 generated pages. The retained template uses the direct Next webpack build because its Windows npm-wrapper helper had failed previously; packaging uses the supported Sites source helper.
+- Final scoped ESLint: zero errors and zero warnings. Approved archives: **204 onboarding files and 146 foundation files unchanged**. Git diff whitespace check passed.
+- Final `tsc --noEmit` passed after adding the recovery tests and removing the temporary build-directory configuration.
+- Final source inventory: **170 JSX files, 1,800 controls, 248 exported types and 248 fingerprinted files**, from staged Git source. The single assembled packet has **19 complete source parts**, all 45 feature groups, all 25 integration journeys and all 1,630 named baseline requirements. Its mechanical verifier checks source inclusion, manifest/hash consistency, completeness marker and credential-like patterns.
+
+The review is a static public design preview, not the fake-auth test build or a production backend deployment. **Version 55 published successfully** at `https://halo-wireframe-review.yogirajapaturi.chatgpt.site`, using verified Site source commit `474eb3dd778fea3caff03ed12b94e3c1bc654bcf` and preserving the audience. The frontend commit is saved separately from the backend lane; no merge or message to Vibhav is implied. Branch publication and final compatibility check are reported in the task's completion message.
+
+## Later October 16 presentation update
+
+The shared expanded preview now omits its review banner by default. Add `review=tools` to its URL for developer controls and review qualifications; app navigation retains that parameter. Legacy component review and production behavior remain unchanged. Scenario tests explicitly request developer controls. This requires no backend contract or service changes.
+
+The static export build and TypeScript passed. Nine targeted presentation/hosted/network scenarios were checked; eight passed initially and the developer-control selector was corrected to use its accessible combobox role. The complete four-test hosted recheck then passed, including clean navigation and working developer scenario selection. Scoped lint passed. Current source fingerprints were regenerated for this component change. Evidence: `test-results-preview-banner/` and `test-results-preview-banner-release/`.
+
+## Short hosted URLs
+
+The static review now has `/app` for HALO and `/tools` for developer controls on the same hosting domain. Both are directly rendered static pages; primary tab links retain the short path. Existing long links remain supported. Static-only wrapper templates under `scripts/hosted-preview/` preserve one memory scope across the short pages and legacy factor/household/map pages. Production authentication and its existing `/app` routes are unchanged, and no backend contract is added.
+
+The 24-page static export build, main TypeScript and scoped lint passed. All nine targeted short-URL, existing-link and network-isolation browser checks passed, including trailing slashes, tab navigation, developer controls and saved-task continuity through a legacy factor page. Evidence: `test-results-short-urls/`. Interface fingerprints were refreshed without changing the requirement inventory.
+
+## October 17 image motion update
+
+Today and Homeguard use a wider 12-second one-way camera sweep, replacing the previous 26-second movement. All five My Week landscapes use a bounded 12-second sweep, with the photograph and source-coordinate water overlay inside the same moving wrapper. The scene frame, score text, calendar and controls remain stationary. Editorial images have a gentler 16-second sweep; smaller week activity photos gain photo-only hover/focus movement and a slight brightness lift. No image files, scientific values, API payloads or backend fields changed.
+
+All 20 focused browser scenarios have passing results: 11 existing week ambience checks, five scene checks and four new camera/alignment checks. Coverage includes all five images, frame coverage, aligned image/canvas geometry, pause, device reduction, offscreen/hidden behavior, 30-second eligible rotation, save-data/contrast, loading failures, canvas fallback and responsive layouts. The initial camera assertions were corrected to select the CSS camera animation instead of a simultaneous lighting transition and to sample its keyframes deterministically. Two older scene checks now request the developer tools explicitly. Evidence: `test-results-panorama-refresh/`, `test-results-panorama-release/` and `test-results-panorama-scene-release/`.
+
+Six relevant scene/crop/water unit checks, main TypeScript, scoped lint and the 24-page static export build passed. The current source/control fingerprints and assembled wiring packet were refreshed. The pre-existing local waterline and unrelated documentation edits remain outside this update. Existing backend wiring requirements are unchanged.
+
+Static preview version 58 published successfully on the existing HALO Site, from Site source commit `fd8a53a7543ad2e934dff8c94ea5bba8dc8c3791`. The `/app` and `/tools` links remain valid.
+
+## October 17 loading refinement
+
+The shared orbital loading mark uses the approved HALO logo, palette-aware arcs, a quiet indeterminate horizon and skeleton shimmer. Startup and route fallbacks, production readings/explanations, home resources and record saves, project generation, opportunity discovery, Luna, settings, alerts, Journal/history/forecast and map loading use shared visuals or the upgraded existing spinner. Luna keeps its finite wave-to-hexagon gesture while the surrounding orbit continues for a genuinely pending request. Device/app reduction and forced colors retain a still readable status. The 520ms page-arrival flourish is decorative, does not block interaction and does not force a service delay or fabricate progress. No request timeout, save receipt, error, cancellation, revision or unknown-outcome authority is replaced by an animation timer.
+
+Controlled slow-service testing found a real existing Homeguard issue: a ready auxiliary collection could suppress the main loading state while test records were still pending. Pending tests now stay in loading, and partial collection loading has an inline indicator while ready records remain usable. This requires no new API, backend field or provider operation.
+
+Verification has passing evidence for **42 distinct focused browser cases**: 14 final static loading/Luna/navigation/palette checks, three final controlled-service pending/error/retry/partial-data checks, five production settings cases, and 20 Explore/settings regressions. The generation motion test now selects the replacement orbit instead of the removed leaf illustration. Initial production test setup used a superseded route and a build from before the accessible-name addition; these were corrected rather than skipped. A subsequent held-request test exposed the Homeguard issue above, which was fixed and covered with separate independent-collection tests. Evidence: `test-results-loading-final/`, `test-results-loading-home-release/`, `test-results-loading-production-final/`, `test-results-loading-regression/` and `test-results-loading-cancel/`.
+
+The final isolated production build (42 generated pages/routes) and static export (24 pages) passed compilation and TypeScript. Scoped lint passed. The two immutable archives remain unchanged (204 onboarding and 146 foundation files). The staged interface inventory remains 1,800 controls and 248 exported types, now across 172 JSX files and 250 fingerprinted files. The current complete wiring packet and manifest are regenerated from staged frontend source; unrelated local documentation and waterline edits are excluded. Controlled services, desktop Chromium and a published static preview do not establish live backend/provider or physical-device acceptance. Existing release gates remain in force.
+
+Static preview **version 59** published successfully on the existing HALO Site, from verified Site source commit `e32f41675b668294d3ea7aded6aee0f2640e1d6a`, retaining the public audience and clean `/app` and developer `/tools` entries. Both frontend and Site source commits use YogiBearstc attribution. No backend branch was merged or messaged.

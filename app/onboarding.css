@@ -58,8 +58,6 @@
   .halo-app .halo-chip[aria-pressed="true"] { background:var(--halo-tint); border-color:var(--halo-primary); }
   .halo-app .halo-chip-mark { display:flex; flex:0 0 17px; align-items:center; justify-content:center; color:var(--halo-secondary); }
   .halo-app .halo-chip[aria-pressed="true"] .halo-chip-mark { color:var(--halo-primary); }
-  .halo-app .halo-spinner { display:inline-block; width:18px; height:18px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:halo-working-spin 900ms linear infinite; }
-  @keyframes halo-working-spin { to { transform:rotate(360deg); } }
   .halo-app .halo-working { display:inline-flex; gap:8px; align-items:center; }
   .halo-app .halo-reveal-head { padding:36px var(--halo-gutter) 20px; }
   .halo-app .halo-reveal-logo { width:65px; height:65px; margin:0 auto; background:var(--halo-primary); mask:url("/halo-logo-mark.png") center/contain no-repeat; }

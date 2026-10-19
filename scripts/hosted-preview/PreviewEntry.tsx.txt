@@ -1,0 +1,19 @@
+'use client';
+import { useEffect, useState } from 'react';
+import FoundationPreview from './foundation/FoundationPreview';
+import HaloLoading from '@/components/ui/HaloLoading';
+import { isFoundationScenario, type FoundationScenario } from '@/lib/frontend/foundation-preview';
+import { readPreviewPreferences, type FactorKey, type PreviewPreferences } from '@/lib/frontend/factor-preview';
+import type { HomeMemberKey } from '@/lib/frontend/home-household';
+export default function PreviewEntry({ initialFactor, initialFamily = false, initialMember, forceExpanded = false }: { initialFactor?: FactorKey; initialFamily?: boolean; initialMember?: HomeMemberKey; forceExpanded?: boolean }) {
+  const [review, setReview] = useState<{ scenario: FoundationScenario; preferences: PreviewPreferences } | null>(null);
+  useEffect(() => {
+    const params = Object.fromEntries(new URLSearchParams(window.location.search));
+    setReview({
+      scenario: isFoundationScenario(params.scenario) ? params.scenario : 'shell',
+      preferences: readPreviewPreferences({ edition: 'expanded', ...params, ...(forceExpanded ? { edition: 'expanded' } : {}) }),
+    });
+  }, [forceExpanded]);
+  if (!review) return <div className="halo-app halo-f-app"><HaloLoading layout="screen" label="Opening HALO" /></div>;
+  return <FoundationPreview initialScenario={review.scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} preferences={review.preferences} />;
+}

@@ -1,0 +1,187 @@
+'use client';
+import DateInput from '@/components/ui/DateInput';
+
+import { useEffect, useRef, useState } from 'react';
+import {sanitizeNotePhoto} from '@/lib/frontend/note-photo-preview';
+import { ClipboardList, Droplets, Pencil, Search, Wrench } from 'lucide-react';
+import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
+import { BottomSheet } from '@/components/ui/Foundation';
+import { factorKeys, factorReadings } from '@/lib/frontend/factor-preview';
+import { assetError, blankAsset, blankObservation, localDay, maintenanceTransition, observationError, sampleAssets, sampleObservations, scheduleDescription, type HomeAsset, type MaintenanceEvent, type MoistureObservation } from '@/lib/frontend/home-maintenance-preview';
+import { useHomeCollection, useHomeDraft, useHomeWorkspace } from './HomeWorkspaceState';
+import { ActionButton, Confirm, DeleteButton, Empty, Field, PageIntro, RecordForm, SourceNote, WorkspaceLink, type WorkspaceProps } from './HomeWorkspaceUI';
+import './records-polish.css';
+import './home-record-workflows.css';
+import { usePrivateUpload } from './usePrivateUpload';
+import { PrivateAttachmentDownload } from './PrivateAttachments';
+
+const observationLabels: Record<MoistureObservation['kind'], string> = { dampness: 'Dampness', leak: 'Leak', condensation: 'Condensation', humidity: 'Humidity measurement', other: 'Other observation' };
+
+export default function MaintenanceWorkspace(props: WorkspaceProps) {
+  const assets = useHomeCollection<HomeAsset>('assets', sampleAssets);
+  const observations = useHomeCollection<MoistureObservation>('observations', sampleObservations);
+  const { collections } = useHomeWorkspace();
+  const [, setObservationEntry] = useHomeDraft<'moisture' | 'suspected-mold'>('observation:entry', 'moisture');
+  const selected = assets.records.find(record => record.id === props.recordId);
+  const observation = observations.records.find(record => record.id === props.recordId);
+  if (props.view === 'create' || props.view === 'edit') return <AssetForm key={`${props.view}-${props.recordId ?? 'new'}`} {...props} record={selected} save={assets.save} tests={collections.tests ?? []} />;
+  if (props.view === 'observation' || props.view === 'observation-edit') return <ObservationForm key={`${props.view}-${props.recordId ?? 'new'}`} {...props} record={observation} save={observations.save} assets={assets.records} tests={collections.tests ?? []} />;
+  if (props.view === 'observation-detail') {
+    if (!observation) return <Empty title="Observation unavailable" action={<button onClick={() => props.navigate('list')}>Back to maintenance</button>}>This record may have been removed. Other observations are still available.</Empty>;
+    return <ObservationDetail {...props} record={observation} remove={observations.remove} />;
+  }
+  if (props.view === 'detail' || props.view === 'occurrence') {
+    if (!selected) return <Empty title="Routine unavailable" action={<button onClick={() => props.navigate('list')}>Back to maintenance</button>}>This record may have been removed. Your other routines are still available.</Empty>;
+    return <AssetDetail {...props} record={selected} save={assets.save} remove={assets.remove} />;
+  }
+  return <div className="hg-care-workbench">
+    <PageIntro eyebrow="Homeguard" title="Maintenance & moisture" description="Keep the work and the evidence together." icon={<Wrench />} />
+    <div className="hg-care-columns"><div className="hg-care-column">
+    <WorkspaceLink title="Add a routine" detail="A schedule for filters and home care." artwork="maintenance" onClick={() => props.navigate('create')} />
+    <section className="hg-stack hg-care-group" data-care-group="routines"><header><Wrench size={20} aria-hidden="true" /><h2>Your routines</h2></header>
+      {assets.records.length ? assets.records.map(asset => <WorkspaceLink key={asset.id} deletion={{ remove: () => assets.remove(asset.id), description: 'This removes this routine, its schedule and service history. Separate moisture observations, tests and saved My Week actions are kept.' }} title={asset.title} detail={`${asset.status === 'active' ? asset.nextDue ? `Due ${asset.snoozedUntil || asset.nextDue}` : 'Routine ended' : asset.status === 'paused' ? 'Paused' : 'Replaced'} · ${scheduleDescription(asset)}`} icon={<Wrench />} onClick={() => props.navigate('detail', asset.id)} />) : <Empty title="No routines yet">Add equipment only when keeping its instructions or service history is useful.</Empty>}
+    </section>
+    </div><div className="hg-care-column"><WorkspaceLink title="Record moisture" detail="A leak, dampness or measured humidity." artwork="moisture" onClick={() => { setObservationEntry('moisture'); props.navigate('observation'); }} />
+    <section className="hg-stack hg-care-group" data-care-group="moisture"><header><Droplets size={20} aria-hidden="true" /><h2>Moisture observations</h2></header><p className="hg-meta">Your indoor observations, separate from the outdoor mold estimate.</p>
+      {observations.records.length ? observations.records.map(record => <WorkspaceLink key={record.id} deletion={{ remove: () => observations.remove(record.id), description: 'This removes this observation and its local photo. Linked routines, tests and saved My Week actions are kept.' }} title={record.title} detail={`${record.observedAt.replace('T', ' ')} · ${record.room || 'Room not supplied'} · User reported`} icon={<Droplets />} onClick={() => props.navigate('observation-detail', record.id)} />) : <Empty title="No observations recorded">A note, time and optional measurement can help you follow up.</Empty>}
+    </section>
+    <button type="button" className="hg-button-secondary hg-suspected-mold-entry" onClick={() => { setObservationEntry('suspected-mold'); props.navigate('observation'); }}><Search size={17} aria-hidden="true" />Record suspected mold</button>
+    <p className="hg-meta">Save an observation to follow up, not a mold identification.</p>
+    </div></div><SourceNote>Logged work does not confirm a hazard is resolved.</SourceNote>
+  </div>;
+}
+
+function AssetForm({ record, save, tests, ...props }: WorkspaceProps & { record?: HomeAsset; save: (record: HomeAsset) => Promise<boolean>; tests: { id: string; title: string }[] }) {
+  const [draft, setDraft, clearDraft] = useHomeDraft<HomeAsset>(`asset:${record?.id ?? 'new'}`, record ?? blankAsset(props.factor));
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [discard, setDiscard] = useState(false);
+  const update = (patch: Partial<HomeAsset>) => setDraft({ ...draft, ...patch });
+  if (props.view === 'edit' && !record) return <Empty title="Routine unavailable" action={<button onClick={() => props.navigate('list')}>Back to maintenance</button>} />;
+  async function submit() {
+    const invalid = assetError(draft); setError(invalid ?? ''); if (invalid || busy) return;
+    setBusy(true);
+    const changed = record && (record.interval !== draft.interval || record.unit !== draft.unit || record.policy !== draft.policy || record.nextDue !== draft.nextDue || record.endDate !== draft.endDate);
+    const next: HomeAsset = { ...draft, id: record?.id || crypto.randomUUID(), title: draft.title.trim(), calendarAnchor: changed || !record ? draft.nextDue : draft.calendarAnchor, history: changed ? [...draft.history, { id: crypto.randomUUID(), kind: 'cadence changed', date: localDay(), due: record.nextDue, note: `Future occurrences: ${scheduleDescription(draft)} First due ${draft.nextDue}.` }] : draft.history };
+    if (await save(next)) { clearDraft(); props.navigate('detail', next.id); }
+    setBusy(false);
+  }
+  return <><PageIntro eyebrow="Maintenance" title={record ? 'Edit your routine' : 'Add a routine'} description="Name the task, choose when it repeats and keep any useful instructions." icon={<Wrench />} />
+    <RecordForm onSubmit={submit} busy={busy} submitLabel={record ? 'Save routine changes' : 'Save routine'} onCancel={() => props.navigate(record ? 'detail' : 'list', record?.id)}>
+      <Field label="Asset or routine label"><input required maxLength={160} value={draft.title} onChange={e => update({ title: e.target.value })} placeholder="For example, kitchen filter upkeep" /></Field>
+      <details className="hg-filter-details"><summary>Equipment details · Optional</summary><div className="hg-fields"><Field label="Product or model (optional)"><input maxLength={160} value={draft.model} onChange={e => update({ model: e.target.value })} /></Field>
+      <div className="hg-grid"><Field label="Installation date (optional)"><DateInput value={draft.installed} onChange={e => update({ installed: e.target.value })} /></Field><Field label="Service date (optional)"><DateInput value={draft.serviced} onChange={e => update({ serviced: e.target.value })} /></Field></div></div></details>
+      <Field label="Factor or use"><select value={draft.factor} onChange={e => update({ factor: e.target.value as HomeAsset['factor'] })}>{factorKeys.map(key => <option key={key} value={key}>{factorReadings[key].title}</option>)}</select></Field>
+      <Field label="Instructions or source (optional for your own choice)" hint="Record the original instruction or link. A model name alone does not verify certification."><textarea rows={3} maxLength={2000} value={draft.instructions} onChange={e => update({ instructions: e.target.value })} /></Field>
+      <Field label="Why this interval?"><select value={draft.basis} onChange={e => update({ basis: e.target.value as HomeAsset['basis'] })}><option value="user">My own choice</option><option value="manufacturer">Product instructions</option><option value="reviewed">Other guidance I supplied</option></select></Field>
+      <fieldset className="hg-fieldset"><legend>Repeat schedule</legend><Field label="Schedule basis"><select value={draft.policy} onChange={e => update({ policy: e.target.value as HomeAsset['policy'] })}><option value="calendar">Fixed calendar interval</option><option value="completion">After I record completion</option></select></Field><div className="hg-grid"><Field label="Repeat every"><input type="number" min={1} max={365} required value={draft.interval} onChange={e => update({ interval: Number(e.target.value) })} /></Field><Field label="Interval unit"><select value={draft.unit} onChange={e => update({ unit: e.target.value as HomeAsset['unit'] })}><option value="days">Days</option><option value="months">Months</option></select></Field></div><Field label="First or next due date"><DateInput required value={draft.nextDue} onChange={e => update({ nextDue: e.target.value })} /></Field><Field label="End date (optional)"><DateInput value={draft.endDate} onChange={e => update({ endDate: e.target.value })} /></Field><p>{scheduleDescription(draft)}</p><p className="hg-meta">{draft.policy === 'calendar' ? 'Completing late keeps the calendar schedule. Passed dates are not silently marked complete.' : 'The next due date starts from the date you record completing the work. Skipping does not count as completion.'} {record && 'Changes apply to future occurrences. Completed history stays intact.'}</p></fieldset>
+      <Field label="Linked test (optional)"><select value={draft.testId} onChange={e => update({ testId: e.target.value })}><option value="">No linked test</option>{draft.testId && !tests.some(test => test.id === draft.testId) && <option value={draft.testId}>Previously linked test (removed)</option>}{tests.map(test => <option key={test.id} value={test.id}>{test.title}</option>)}</select></Field>
+      <p className="hg-meta">Use the product&apos;s instructions for its schedule. HALO does not verify equipment certification.</p>
+      {error && <p role="alert">{error}</p>}
+    </RecordForm><button className="hg-text-button" onClick={() => setDiscard(true)}>Discard this draft</button>{discard && <Confirm title="Discard routine draft?" onCancel={() => setDiscard(false)} onConfirm={() => { clearDraft(); props.navigate(record ? 'detail' : 'list', record?.id); }}>Your saved routine and completion history are kept.</Confirm>}</>;
+}
+
+function AssetDetail({ record, save, remove, ...props }: WorkspaceProps & { record: HomeAsset; save: (record: HomeAsset) => Promise<boolean>; remove: (id: string) => Promise<boolean> }) {
+  const [operation, setOperation] = useState<MaintenanceEvent['kind'] | null>(null); const [date, setDate] = useState(localDay()); const [note, setNote] = useState(''); const [snooze, setSnooze] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [eventId, setEventId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { collections } = useHomeWorkspace();
+  const linkedTest = collections.tests?.some(test => test.id === record.testId);
+  const selectedEvent = record.history.find(event => event.id === eventId);
+  const actionState = useExpandedPreview();
+  const linkedActions = actionState?.actions.filter(action => action.key === `home:${record.id}`) ?? [];
+  async function act() {
+    if (!operation || busy) return;
+    try { const next = maintenanceTransition(record, operation, date, note, snooze); setBusy(true); if (await save(next)) { setOperation(null); setNote(''); setError(''); } } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not update this occurrence.'); } finally { setBusy(false); }
+  }
+  return <><PageIntro eyebrow="Your maintenance record" title={record.title} description={record.status === 'replaced' ? 'Replaced equipment keeps its original service history.' : scheduleDescription(record)} icon={<Wrench />} />
+    <section className="hg-card hg-routine-overview"><span className="hg-badge">{record.status === 'active' ? 'Active routine' : record.status === 'paused' ? 'Paused' : 'Replaced or retired'}</span><h2>{record.status === 'active' ? record.nextDue ? `Next due ${record.snoozedUntil || record.nextDue}` : 'No future occurrence' : record.status === 'paused' ? 'Future reminders paused' : 'Replaced asset'}</h2><p>Last completed: {record.lastCompleted || 'Not recorded'}</p><p className="hg-meta">{record.snoozedUntil && `This occurrence was snoozed. Original due date: ${record.nextDue}. `}Schedule basis: {record.basis === 'user' ? 'Your own choice' : record.basis === 'manufacturer' ? 'Manufacturer instructions supplied by you' : 'Guidance supplied by you'}.</p>
+      {record.status === 'active' && record.nextDue && <div className="hg-routine-actions">{(['completed', 'skipped', 'snoozed'] as const).map(kind => <button type="button" key={kind} className={kind === 'completed' ? 'hg-primary' : 'hg-text-button'} onClick={() => { setOperation(kind); setError(''); }}>{kind === 'completed' ? 'Record completion' : kind === 'skipped' ? 'Skip occurrence' : 'Snooze occurrence'}</button>)}</div>}
+      {record.status !== 'replaced' && <details className="hg-record-tools"><summary>Manage routine</summary><div className="hg-routine-management"><button type="button" className="hg-text-button" onClick={() => props.navigate('edit', record.id)}><Pencil size={16} aria-hidden="true" />Edit schedule & details</button><button type="button" className="hg-text-button" onClick={() => { setError(''); setOperation(record.status === 'paused' ? 'resumed' : 'paused'); }}>{record.status === 'paused' ? 'Resume routine' : 'Pause routine'}</button><button type="button" className="hg-text-button" onClick={() => { setError(''); setOperation('replaced'); }}>Replace or retire equipment</button></div></details>}
+      {record.status === 'replaced' && <button onClick={() => props.navigate('create')}>Add the replacement asset</button>}
+    </section>
+    {operation && <Confirm revisionKey={`${record.id}:${record.revision}`} title={operation === 'completed' ? 'Record what you completed' : operation === 'skipped' ? 'Skip this occurrence?' : operation === 'snoozed' ? 'Snooze this occurrence' : operation === 'paused' ? 'Pause future reminders?' : operation === 'resumed' ? 'Resume this routine?' : 'Replace or retire this asset?'} onCancel={() => { if (!busy) setOperation(null); }} onConfirm={act} danger={operation === 'replaced'} confirmLabel="Confirm">
+      <Field label="Record date"><DateInput required value={date} onChange={e => setDate(e.target.value)} /></Field>{operation === 'snoozed' && <Field label="Snooze until"><DateInput min={date} value={snooze} onChange={e => setSnooze(e.target.value)} /></Field>}<Field label="What happened (optional)"><textarea rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} /></Field>
+      <p>{operation === 'completed' ? 'This records your work, not proof that a hazard is resolved.' : operation === 'skipped' ? 'This occurrence stays in history as skipped. Last completion is unchanged.' : operation === 'snoozed' ? 'Only this occurrence moves. The repeating schedule remains unchanged.' : operation === 'replaced' ? 'Stop this asset’s future reminders and retain all past records. You can add its replacement separately.' : operation === 'paused' ? 'History and due dates are kept.' : 'The retained due date becomes active again, including any overdue occurrence.'}</p>{busy && <p role="status">Saving occurrence...</p>}{error && <p role="alert">{error}</p>}
+    </Confirm>}
+    <details className="hg-card hg-record-tools"><summary>Equipment & instructions</summary><dl className="hg-details"><dt>Model</dt><dd>{record.model || 'Not supplied'}</dd><dt>Installed</dt><dd>{record.installed || 'Unknown'}</dd><dt>Last service date</dt><dd>{record.serviced || 'Not supplied'}</dd><dt>Factor</dt><dd>{factorReadings[record.factor].title}</dd><dt>Instructions</dt><dd>{record.instructions || 'No product instructions supplied.'}</dd></dl><p className="hg-meta">Certification and remaining filter performance: unknown.</p></details>
+    <section className="hg-card hg-stack"><h2>Connected follow-up</h2>{record.testId && linkedTest ? <WorkspaceLink title="Open linked test" onClick={() => props.go('tests', 'detail', record.testId)} /> : <WorkspaceLink title="Review tests and records" detail={record.testId ? 'The linked test was removed. Your routine is still here.' : 'No test is linked to this routine.'} onClick={() => props.go('tests')} />}<ActionButton title={`Follow up on ${record.title}`} reason="Review the supplied instructions and decide on your next practical step." factor={record.factor} originId={record.id} />{linkedActions.map(action => <p className="hg-meta" key={action.id}>{action.title}: {action.state}{action.date ? `, ${action.date}` : ', saved for later'}</p>)}<p className="hg-meta">Renting? Save a request to your landlord or maintenance provider if equipment work needs their involvement.</p></section>
+    <section className="hg-card"><h2>Routine history</h2>{record.history.length ? <ol className="hg-history">{[...record.history].reverse().map(event => <li key={event.id}><strong>{event.kind.charAt(0).toUpperCase() + event.kind.slice(1)}</strong><span>{event.date}{event.due ? ` · Due ${event.due}` : ''}</span>{event.note && <p>{event.note}</p>}<button type="button" className="hg-text-button" aria-label={`View ${event.kind} occurrence on ${event.date}`} onClick={() => setEventId(event.id)}>View details</button></li>)}</ol> : <p>No completed or skipped tasks yet.</p>}</section>
+    <div className="hg-record-footer" role="group" aria-label="Routine record tools"><p className="hg-meta">{record.status === 'replaced' ? 'This retired routine keeps its original service history unless you delete it.' : 'Want to keep its history? Use Pause or Replace in Manage routine.'}</p><DeleteButton label="Delete routine" onClick={() => setDeleting(true)} disabled={busy} /></div>
+    {deleting && <Confirm revisionKey={`${record.id}:${record.revision}`} title="Delete this routine?" danger onCancel={() => { if (!busy) setDeleting(false); }} onConfirm={async () => { if (busy) return; setBusy(true); try { if (await remove(record.id)) props.navigate('list'); } finally { setBusy(false); } }}><p>This deletes “{record.title}”, its schedule and service history. It cannot be undone. Separate moisture observations, tests and saved My Week actions are kept.</p>{busy && <p role="status">Removing routine...</p>}</Confirm>}
+    {selectedEvent && <BottomSheet id={`maintenance-occurrence-${record.id}`} title="Occurrence details" height="content" onClose={() => setEventId(null)}><div className="hg-stack"><p className="hg-kicker">{record.title}</p><dl className="hg-facts"><div><dt>Recorded state</dt><dd>{selectedEvent.kind.charAt(0).toUpperCase() + selectedEvent.kind.slice(1)}</dd></div><div><dt>Recorded date</dt><dd>{selectedEvent.date}</dd></div><div><dt>Due date for this occurrence</dt><dd>{selectedEvent.due || 'No due date recorded'}</dd></div><div><dt>Recorded note</dt><dd className="hg-preserve-lines">{selectedEvent.note || 'No note recorded'}</dd></div></dl><SourceNote>This is a user-reported history entry. Viewing it does not change the routine or establish that a hazard was resolved.</SourceNote><button type="button" className="hg-button-secondary" onClick={() => setEventId(null)}>Back to occurrence history</button></div></BottomSheet>}
+  </>;
+}
+
+function ObservationForm({ record, save, assets, tests, ...props }: WorkspaceProps & { record?: MoistureObservation; save: (record: MoistureObservation) => Promise<boolean>; assets: HomeAsset[]; tests: { id: string; title: string }[] }) {
+  const workspace = useHomeWorkspace(), upload = usePrivateUpload();
+  const [entry, , clearEntry] = useHomeDraft<'moisture' | 'suspected-mold'>('observation:entry', 'moisture');
+  const [photoReviewed, setPhotoReviewed] = useState(false);
+  const [recordId] = useState(() => record?.id || crypto.randomUUID());
+  const [draft, setDraft, clearDraft] = useHomeDraft<MoistureObservation>(`observation:${record?.id ?? 'new'}`, record ?? (entry === 'suspected-mold' ? { ...blankObservation(), kind: 'other', title: 'Suspected mold', source: 'Visual observation by household', unit: '' } : blankObservation()));
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [photoBusy, setPhotoBusy] = useState(false); const [discard, setDiscard] = useState(false);
+  const photoRequest=useRef<AbortController|null>(null);
+  useEffect(()=>()=>photoRequest.current?.abort(),[]);
+  const update = (patch: Partial<MoistureObservation>) => setDraft({ ...draft, ...patch });
+  if (props.view === 'observation-edit' && !record) return <Empty title="Observation unavailable" action={<button onClick={() => props.navigate('list')}>Back to maintenance</button>} />;
+  async function submit() {
+    const invalid = observationError(draft); setError(invalid ?? ''); if (invalid || busy || photoBusy || upload.busy || upload.unknown) return;
+    if (workspace.mode === 'production' && draft.photoData && (!photoReviewed || draft.photoMetadataRemoved !== true)) { setError('Review the private photo before saving it.'); return; }
+    setBusy(true);
+    try {
+      const next = { ...draft, id: recordId, title: draft.title.trim() };
+      if (workspace.mode === 'production' && draft.photoData) {
+        const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(draft.photoData);
+        if (!match) { setError('Prepare a supported private photo again.'); return; }
+        const bytes = Uint8Array.from(atob(match[2]), char => char.charCodeAt(0));
+        const attachment = upload.attachment?.status === 'ready' ? upload.attachment : await upload.upload({ collection: 'observations', recordId, file: new Blob([bytes], { type: match[1] }), name: draft.photoName, metadataRemoved: true, reviewed: photoReviewed });
+        if (attachment?.status !== 'ready') return;
+        next.photoAttachmentId = attachment.id; next.photoAttachmentRevision = attachment.revision; next.photoData = '';
+      }
+      if (await save(next)) { clearDraft(); clearEntry(); props.navigate('observation-detail', next.id); }
+    } catch { setError('Your observation could not be saved. Your draft is kept.'); }
+    finally { setBusy(false); }
+  }
+  async function selectPhoto(file?: File) {
+    if (!upload.reset()) return; setPhotoReviewed(false);
+    photoRequest.current?.abort();if (!file){setPhotoBusy(false);return;}
+    const request=new AbortController();photoRequest.current=request;setPhotoBusy(true);setError('');
+    try{const photo=await sanitizeNotePhoto(file,request.signal);if(!request.signal.aborted)setDraft(current=>({...current,photoName:photo.name,photoData:photo.data,photoMetadataRemoved:true}));}
+    catch(error){if(!request.signal.aborted)setError(error instanceof Error?error.message:'The image could not be read. Choose another file.');}
+    finally{if(photoRequest.current===request)setPhotoBusy(false);}
+  }
+  return <div className="hg-observation-editor"><PageIntro eyebrow="Moisture observation" title={record ? 'Edit observation' : 'What did you notice?'} description="Record what you saw or measured. A photo cannot identify mold or establish indoor safety." icon={<Droplets />} />
+    {!record && entry === 'suspected-mold' && <div className="hg-observation-intent"><Search size={19} aria-hidden="true" /><div><strong>Suspected mold</strong><p>Use Other observation. Describe what you noticed without identifying a species or making a diagnosis. Any existing draft is kept.</p><button type="button" className="hg-text-button" onClick={() => update({ kind:'other', title:draft.title || 'Suspected mold', source:draft.source || 'Visual observation by household' })}>Use suspected-mold observation</button></div></div>}
+    {upload.unknown && <div className="hg-error" role="status"><p>{upload.message}</p><button type="button" disabled={upload.busy} onClick={() => void upload.upload()}>Check upload status</button></div>}
+    {!upload.unknown && upload.message && <p role="status">{upload.message}</p>}
+    <RecordForm onSubmit={submit} busy={busy || photoBusy || upload.busy || upload.unknown} submitLabel="Save observation" onCancel={() => props.navigate(record ? 'observation-detail' : 'list', record?.id)}>
+      {workspace.mode === 'production' && draft.photoData && <label className="hg-check"><input type="checkbox" checked={photoReviewed} onChange={event => setPhotoReviewed(event.target.checked)} />I reviewed visible faces, signs and places and agree to store this private photo.</label>}
+      {workspace.mode === 'production' && draft.photoAttachmentId && !draft.photoData && <div className="hg-stack"><PrivateAttachmentDownload attachmentId={draft.photoAttachmentId} revision={draft.photoAttachmentRevision ?? 1} name={draft.photoName} image /><button type="button" onClick={() => update({ photoAttachmentId: undefined, photoAttachmentRevision: undefined, photoName: '', photoData: '' })}>Remove photo when saving</button></div>}
+      <Field label="Observation label"><input maxLength={160} required value={draft.title} onChange={e => update({ title: e.target.value })} /></Field><Field label="Observation type"><select value={draft.kind} onChange={e => update({ kind: e.target.value as MoistureObservation['kind'] })}><option value="dampness">Dampness</option><option value="leak">Leak</option><option value="condensation">Condensation</option><option value="humidity">Humidity measurement</option><option value="other">Other observation</option></select></Field>
+      <Field label="Observed date and time"><input required type="datetime-local" value={draft.observedAt} onChange={e => update({ observedAt: e.target.value })} /></Field><Field label="Observation timezone"><input required value={draft.timezone} onChange={e => update({ timezone: e.target.value })} /></Field><Field label="Room or site label (optional)"><input maxLength={160} value={draft.room} onChange={e => update({ room: e.target.value })} /></Field>
+      <div className="hg-grid"><Field label="Measured reading (optional)"><input type="number" step="any" min={0} value={draft.reading} onChange={e => update({ reading: e.target.value })} /></Field><Field label="Original unit"><input value={draft.unit} maxLength={40} onChange={e => update({ unit: e.target.value })} /></Field></div><Field label="Measurement or observation source" hint="Required for a measured value. For example, your hygrometer or visual observation."><input value={draft.source} maxLength={160} onChange={e => update({ source: e.target.value })} /></Field><p className="hg-meta">Relative humidity is a user-entered measurement. No automatic mold detection or weather-derived indoor reading.</p>
+      <Field label="Private note (optional)"><textarea rows={3} maxLength={2000} value={draft.note} onChange={e => update({ note: e.target.value })} /></Field><Field label="Private photo (optional)" hint={workspace.mode === 'production' ? 'JPEG, PNG or WebP, up to 5 MB. Embedded metadata is removed. Only your reviewed copy is uploaded when you save.' : 'JPEG, PNG or WebP, up to 5 MB. Embedded metadata is removed. Review visible faces, signs and places before saving. Nothing is uploaded.'}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => selectPhoto(e.target.files?.[0])} /></Field>{photoBusy && <div role="status">Preparing a private image copy...<button type="button" onClick={()=>{photoRequest.current?.abort();setPhotoBusy(false);}}>Cancel photo preparation</button></div>}{draft.photoData && <div className="hg-local-photo"><p>{draft.photoName} · Local image</p>{/* eslint-disable-line @next/next/no-img-element */}<img src={draft.photoData} alt="Selected observation attachment" style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain' }} /><button type="button" onClick={() => { if (upload.reset()) { setPhotoReviewed(false); update({ photoName: '', photoData: '' }); } }}>Remove photo</button></div>}
+      <Field label="Linked routine (optional)"><select value={draft.assetId} onChange={e => update({ assetId: e.target.value })}><option value="">No linked routine</option>{draft.assetId && !assets.some(asset => asset.id === draft.assetId) && <option value={draft.assetId}>Previously linked routine (removed)</option>}{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></Field><Field label="Linked test (optional)"><select value={draft.testId} onChange={e => update({ testId: e.target.value })}><option value="">No linked test</option>{draft.testId && !tests.some(test => test.id === draft.testId) && <option value={draft.testId}>Previously linked test (removed)</option>}{tests.map(test => <option key={test.id} value={test.id}>{test.title}</option>)}</select></Field>{error && <p role="alert">{error}</p>}
+    </RecordForm><button className="hg-text-button" onClick={() => setDiscard(true)}>Discard observation draft</button>{discard && <Confirm title="Discard observation draft?" onCancel={() => setDiscard(false)} onConfirm={() => { clearDraft(); clearEntry(); props.navigate(record ? 'observation-detail' : 'list', record?.id); }}>Unsaved text and the selected local photo will be removed from this draft.</Confirm>}</div>;
+}
+
+function ObservationDetail({ record, remove, ...props }: WorkspaceProps & { record: MoistureObservation; remove: (id: string) => Promise<boolean> }) {
+  const [deleting, setDeleting] = useState(false); const [busy, setBusy] = useState(false);
+  const { collections } = useHomeWorkspace();
+  const linkedRoutine = collections.assets?.some(asset => asset.id === record.assetId);
+  const linkedTest = collections.tests?.some(test => test.id === record.testId);
+  return <>
+    <PageIntro eyebrow="User-reported observation" title={record.title} description={`${record.observedAt.replace('T', ' ')} · ${record.timezone}`} icon={<Droplets />} />
+    <section className="hg-card hg-observation-record">
+      <dl className="hg-details"><dt>Type</dt><dd>{observationLabels[record.kind]}</dd><dt>Room or site</dt><dd>{record.room || 'Not supplied'}</dd><dt>Reading</dt><dd>{record.reading !== '' ? `${record.reading} ${record.unit} · User entered` : 'No measured reading supplied'}</dd><dt>Source</dt><dd>{record.source || 'Not supplied'}</dd><dt>Private note</dt><dd className="hg-preserve-lines">{record.note || 'None'}</dd></dl>
+      {record.photoAttachmentId && <PrivateAttachmentDownload attachmentId={record.photoAttachmentId} revision={record.photoAttachmentRevision ?? 1} name={record.photoName} image />}
+      {record.photoData && <details><summary>Local photo: {record.photoName}</summary>{/* eslint-disable-line @next/next/no-img-element */}<img src={record.photoData} alt="User-selected moisture observation" style={{ maxWidth: '100%', maxHeight: 280, objectFit: 'contain' }} /><p className="hg-meta">{record.photoMetadataRemoved?'Processed local copy. Embedded camera/location metadata was removed; visible identifying details remain.':'Local attachment; metadata is not inspected.'} No automated interpretation.</p></details>}
+      <div className="hg-record-toolbar" role="group" aria-label="Observation tools"><button type="button" className="hg-button-secondary" onClick={() => props.navigate('observation-edit', record.id)}><Pencil size={16} aria-hidden="true" />Edit observation</button><DeleteButton label="Delete observation" disabled={busy} onClick={() => setDeleting(true)} /></div>
+    </section>
+    <section className="hg-card hg-stack"><h2>Follow up</h2><ActionButton title={`Follow up on ${record.title}`} reason="Record a practical repair or review step for this observation. Completion does not confirm that a hazard is resolved." factor="mold" originId={record.id} />
+      {record.assetId && (linkedRoutine ? <WorkspaceLink title="Open linked routine" icon={<Wrench />} onClick={() => props.navigate('detail', record.assetId)} /> : <p className="hg-meta">The linked routine was removed. This observation is still available.</p>)}
+      {record.testId && (linkedTest ? <WorkspaceLink title="Open linked test" icon={<ClipboardList />} onClick={() => props.go('tests', 'detail', record.testId)} /> : <p className="hg-meta">The linked test was removed. This observation is still available.</p>)}
+      <p>Renting? A saved maintenance request can keep the observation and your follow-up together.</p>
+    </section>
+    <SourceNote>This observation is separate from the outdoor mold estimate. It is not a mold identification or a diagnosis.</SourceNote>
+    {deleting && <Confirm revisionKey={`${record.id}:${record.revision}`} title="Delete this observation?" danger onCancel={() => { if (!busy) setDeleting(false); }} onConfirm={async () => { if (busy) return; setBusy(true); try { if (await remove(record.id)) props.navigate('list'); } finally { setBusy(false); } }}><p>The observation and local photo will be removed from this review. You cannot undo it here. Any separately saved action stays in My Week.</p>{busy && <p role="status">Removing observation...</p>}</Confirm>}
+  </>;
+}

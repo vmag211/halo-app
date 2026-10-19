@@ -1,0 +1,110 @@
+/* Purpose-built Explore destinations and workspaces. All imagery is contextual. */
+.halo-f-app .halo-explore { gap:var(--halo-space-6,24px); }
+.halo-explore .ex-overview-heading { display:grid; gap:6px; }
+.halo-f-app .halo-explore .ex-overview-heading h2 { text-align:left; margin:0; font:650 calc(1.6rem * var(--halo-text-scale))/1.2 var(--font-instrument),sans-serif; letter-spacing:-.035em; }
+.halo-explore .ex-overview-heading p { color:var(--halo-secondary); font-size:calc(.86rem * var(--halo-text-scale)); }
+.halo-explore .ex-fieldwork-layout { gap:var(--halo-space-5,20px); align-items:start; }
+.halo-explore .ex-destination { display:grid; grid-template-columns:minmax(0,1fr); width:100%; height:100%; min-width:0; padding:0; border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); overflow:hidden; background:var(--halo-card); color:var(--halo-ink); text-align:left; transition:border-color .18s ease,background .18s ease; }
+.halo-explore .ex-destination > .ex-photo { width:100%; height:210px; border-radius:0; min-height:210px; }
+.halo-explore .ex-destination-copy { display:grid; align-content:start; gap:7px; padding:var(--halo-space-4,16px); min-width:0; }
+.halo-explore .ex-destination-category { color:var(--halo-secondary); font-size:calc(.68rem * var(--halo-text-scale)); }
+.halo-f-app .halo-explore .ex-destination h3 { margin:0; text-align:left; font:650 calc(1.12rem * var(--halo-text-scale))/1.2 var(--font-instrument),sans-serif; letter-spacing:-.02em; }
+.halo-explore .ex-destination-description { font-size:calc(.8rem * var(--halo-text-scale)); line-height:1.5; }
+.halo-explore .ex-destination-location { display:flex; gap:5px; align-items:center; color:var(--halo-secondary); font-size:calc(.71rem * var(--halo-text-scale)); line-height:1.45; }
+.halo-explore .ex-destination-location svg { flex:none; }
+.halo-explore .ex-destination-action { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:4px; color:var(--halo-primary); font-size:calc(.8rem * var(--halo-text-scale)); font-weight:650; }
+.halo-explore .ex-destination:is(:hover,:focus-visible) { border-color:var(--halo-primary); background:color-mix(in srgb,var(--halo-primary) 7%,var(--halo-card)); }
+.halo-f-app[data-interface-motion="on"] .ex-destination .ex-photo img { transition:transform .22s ease; }
+.halo-f-app[data-interface-motion="on"] .ex-destination:is(:hover,:focus-visible) .ex-photo img { transform:scale(1.025); }
+.halo-explore .ex-place-context { display:grid; gap:var(--halo-space-4,16px); min-width:0; }
+.halo-explore .ex-place-context .ex-mini-map { margin:0; padding:var(--halo-space-4,16px); border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); background:var(--halo-card); }
+.halo-f-app .halo-explore .ex-place-context .ex-mini-map-canvas { height:170px; }
+.halo-explore .ex-map-preview-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 12px; }
+.halo-explore .ex-place-context .ex-community-bridge { display:grid; padding:0; grid-template-columns:64px minmax(0,1fr) 17px; min-height:80px; gap:12px; border:0; }
+.halo-explore .ex-place-context .ex-community-bridge .ex-photo { min-height:76px; height:76px; }
+.halo-f-app .halo-explore .ex-community-bridge strong { font:600 calc(.92rem * var(--halo-text-scale))/1.35 var(--font-instrument),sans-serif; }
+.halo-explore .ex-community-bridge > span > svg { display:none; }
+.halo-explore .ex-continue-strip { border-block:1px solid var(--halo-border); padding-block:8px; }
+.halo-explore .ex-generated-library { gap:var(--halo-space-5,20px); }
+.halo-explore .ex-project-interest { padding:var(--halo-space-4,16px); border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); background:color-mix(in srgb,var(--halo-primary) 6%,var(--halo-card)); }
+.halo-explore .ex-project-interest textarea { min-height:78px; }
+.halo-explore .ex-generated-list { gap:var(--halo-space-4,16px); border:0; }
+.halo-explore .ex-generated-item { border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); overflow:hidden; background:var(--halo-card); }
+.halo-explore .ex-generated-open { grid-template-columns:86px minmax(0,1fr) 18px; padding:12px; gap:12px; }
+.halo-explore .ex-generated-open > .ex-photo { width:86px; height:102px; border-radius:var(--halo-control-radius,8px); }
+.halo-explore .ex-generated-reason { padding:0 12px 4px; }
+.halo-explore .ex-generated-open:is(:hover,:focus-visible) { background:color-mix(in srgb,var(--halo-primary) 6%,var(--halo-card)); }
+.halo-explore .ex-project-intro,.halo-explore .ex-project-intro-copy { display:grid; gap:var(--halo-space-4,16px); min-width:0; }
+.halo-explore .ex-project-intro-copy { align-content:start; gap:12px; }
+.halo-explore .ex-project-guide-facts { display:flex; flex-wrap:wrap; gap:8px 16px; color:var(--halo-secondary); font-size:calc(.77rem * var(--halo-text-scale)); }
+.halo-explore .ex-project-intro .ex-detail-photo { height:260px; }
+.halo-explore .ex-guide-cover-caption { font-size:calc(.67rem * var(--halo-text-scale)); }
+.halo-explore .ex-project-guide-desk { display:grid; gap:var(--halo-space-5,20px); min-width:0; }
+.halo-explore .ex-step-outline { min-width:0; }
+.halo-explore .ex-step-outline h4 { margin-bottom:10px; font-size:calc(.9rem * var(--halo-text-scale)); }
+.halo-explore .ex-step-outline ol { display:flex; gap:8px; overflow-x:auto; margin:0; padding:0 0 8px; list-style:none; scrollbar-width:thin; }
+.halo-explore .ex-step-outline li { min-width:160px; max-width:210px; flex:0 0 auto; }
+.halo-explore .ex-step-outline button { display:flex; align-items:flex-start; gap:8px; min-height:52px; width:100%; padding:10px; border:1px solid var(--halo-border); border-radius:var(--halo-control-radius,8px); color:var(--halo-secondary); background:transparent; text-align:left; font:500 calc(.76rem * var(--halo-text-scale))/1.45 var(--font-instrument),sans-serif; }
+.halo-explore .ex-step-outline button > span { display:grid; place-items:center; min-width:21px; min-height:21px; font-variant-numeric:tabular-nums; color:var(--halo-primary); }
+.halo-explore .ex-step-outline button[aria-current] { background:color-mix(in srgb,var(--halo-primary) 12%,var(--halo-card)); border-color:var(--halo-primary); color:var(--halo-ink); }
+.halo-explore .ex-guide-current-step { border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); background:var(--halo-card); min-width:0; }
+.halo-explore .ex-guide-instructions { gap:18px; font-size:calc(.9rem * var(--halo-text-scale)); line-height:1.65; }
+.halo-explore .ex-guide-checkpoint { border:0; padding:14px; border-radius:var(--halo-control-radius,8px); background:color-mix(in srgb,var(--halo-primary) 8%,var(--halo-card)); }
+.halo-explore .ex-opportunity-photo { position:relative; }
+.halo-explore .ex-opportunity-photo .ex-photo { height:clamp(230px,27vw,350px); }
+.halo-explore .ex-opportunity-photo > small { position:absolute; right:8px; bottom:8px; padding:4px 7px; background:#081d23; color:#fff; font-size:calc(.65rem * var(--halo-text-scale)); border-radius:4px; }
+.halo-explore .ex-opportunity-at-a-glance { border:0; padding:var(--halo-space-4,16px); border-radius:var(--halo-panel-radius,12px); background:color-mix(in srgb,var(--halo-primary) 7%,var(--halo-card)); }
+.halo-explore .ex-opportunity-decision { display:grid; gap:24px; min-width:0; }
+.halo-explore .ex-opportunity-work ol { display:grid; gap:10px; margin:0; padding-left:20px; font-size:calc(.86rem * var(--halo-text-scale)); line-height:1.55; }
+.halo-explore .ex-opportunity-work li::marker { color:var(--halo-primary); font-weight:650; }
+.halo-explore .ex-opportunity-safety { font-size:calc(.8rem * var(--halo-text-scale)); color:var(--halo-secondary); padding-left:12px; border-left:2px solid var(--halo-primary); }
+.halo-explore .ex-opportunity-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.halo-explore .ex-secondary-button { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; padding:12px; border:1px solid var(--halo-border); border-radius:var(--halo-control-radius,8px); background:var(--halo-card); color:var(--halo-primary); font:600 calc(.8rem * var(--halo-text-scale))/1.4 var(--font-instrument),sans-serif; }
+.halo-explore .ex-secondary-button:is(:hover,:focus-visible) { border-color:var(--halo-primary); }
+.halo-explore .ex-secondary-button:disabled { opacity:.5; cursor:not-allowed; }
+.halo-explore .ex-opportunity-finder { max-width:none; }
+.halo-explore .ex-opportunity-list { gap:12px; }
+.halo-explore .ex-opportunity-card { border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,12px); padding:14px; background:var(--halo-card); }
+.halo-f-app .halo-explore .ex-opportunity-card strong { font:650 calc(1rem * var(--halo-text-scale))/1.35 var(--font-instrument),sans-serif; }
+.halo-explore .ex-opportunity-card:is(:hover,:focus-visible) { border-color:var(--halo-primary); }
+.halo-explore .ex-opportunity-search { border:1px solid var(--halo-border); border-radius:var(--halo-control-radius,8px); background:var(--halo-card); padding:4px 12px; }
+.halo-explore .ex-community-topic-frame { min-height:180px; }
+@container explore-workspace (min-width:650px) {
+  .halo-explore .ex-fieldwork-layout { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .halo-explore .ex-fieldwork-layout > .ex-place-context { grid-column:1 / -1; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); align-items:center; }
+  .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); grid-template-rows:240px auto; height:auto; }
+  .halo-explore .ex-destination > .ex-photo { height:240px; min-height:240px; }
+  .halo-explore .ex-destination-copy { padding:20px; }
+  .halo-explore .ex-generated-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .halo-explore .ex-project-intro { grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); align-items:center; }
+  .halo-explore .ex-project-guide-desk { grid-template-columns:210px minmax(0,1fr); align-items:start; }
+  .halo-explore .ex-step-outline { position:sticky; top:20px; }
+  .halo-explore .ex-step-outline ol { display:grid; overflow:visible; }
+  .halo-explore .ex-step-outline li { min-width:0; max-width:none; }
+  .halo-explore .ex-opportunity-decision { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .halo-explore .ex-opportunity-at-a-glance { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .halo-explore .ex-opportunity-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@container explore-workspace (min-width:960px) {
+  .halo-explore .ex-fieldwork-layout { grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+  .halo-explore .ex-fieldwork-layout > .ex-place-context { grid-column:auto; grid-template-columns:minmax(0,1fr); align-content:start; }
+  .halo-f-app .halo-explore .ex-place-context .ex-mini-map-canvas { height:154px; }
+  .halo-explore .ex-destination { grid-template-rows:250px auto; }
+  .halo-explore .ex-destination > .ex-photo { height:250px; }
+}
+@media(max-width:359px) {
+  .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); }
+  .halo-explore .ex-destination-copy { padding:12px; }
+  .halo-explore .ex-generated-open { grid-template-columns:64px minmax(0,1fr) 14px; gap:9px; }
+  .halo-explore .ex-generated-open > .ex-photo { width:64px; height:88px; }
+}
+.halo-f-app[data-text-scale="150"] .halo-explore .ex-generated-open { grid-template-columns:60px minmax(0,1fr); }
+.halo-f-app[data-text-scale="150"] .halo-explore .ex-generated-open > .ex-photo { width:60px; height:100px; }
+.halo-f-app[data-contrast="high"] .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); }
+.halo-f-app[data-motion="reduce"] .ex-destination .ex-photo img { transform:none; filter:none; transition:none; }
+@media(prefers-reduced-motion:reduce) { .halo-explore .ex-destination { transition:none; } .halo-f-app .ex-destination .ex-photo img { transform:none !important; filter:none; transition:none; } }
+@media(forced-colors:active) {
+  .halo-explore .ex-destination { grid-template-columns:minmax(0,1fr); }
+  .halo-explore :is(.ex-destination,.ex-generated-item,.ex-secondary-button,.ex-opportunity-card) { border:1px solid ButtonText; background:Canvas; }
+  .halo-explore .ex-opportunity-photo { display:none; }
+}

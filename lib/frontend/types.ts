@@ -11,11 +11,13 @@ export interface LocationProfile {
   water_source?: string | null; home_year?: number | null;
   renter_mode?: boolean; locale?: string | null;
   onboard_request_id?: string | null;
+  home_context_id?: string | null; context_revision?: number;
 }
 export interface ProfileResponse {
   onboarded?: boolean; onboarding_complete?: boolean;
   profile?: LocationProfile | null;
   household?: Partial<Household> | null; household_set?: boolean;
+  home_context?: { id: string; revision?: number; [key: string]: unknown } | null;
 }
 export interface OnboardResponse extends LocationProfile {
   service_area_status?: "measured" | "outside_known_area" | "lookup_failed" | null;
@@ -39,11 +41,13 @@ export interface HomeResponse {
   score?: { display_score?: number | null; severity?: string | null; [key: string]: unknown } | null;
   lead?: unknown; action_plan?: unknown[]; breakdown?: unknown[];
   retrieved_at?: string | null; assembled_at?: string | null;
+  home_context_id?: string | null; context_revision?: number;
 }
 export interface DailyResponse {
   air?: { aqi?: number | null; severity?: string | null; sentence?: string | null; source?: string | null; is_measured?: boolean | null; [key: string]: unknown } | null;
   uv?: unknown; pollen?: unknown; mold?: unknown; score?: unknown;
   retrieved_at?: string | null; cached?: boolean;
+  home_context_id?: string | null; context_revision?: number;
 }
 export interface OnboardingApi {
   ensureSession(): Promise<void>;
