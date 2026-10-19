@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { apiError, internalError, loggableError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
-import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, runOperation } from '@/lib/operations';
+import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
 import { CLEAR_SCOPES, fingerprintTables } from '@/lib/privacyInventory';
 import { privacyReviewKey, readReviewSelection, verifyReviewToken } from '@/lib/privacyToken';
 import {
@@ -73,7 +73,9 @@ import {
  * answered with its stored outcome instead (P15): succeeded as stored, either
  * failed shape (a refusal, a reap, an in-process throw) as 200 failed, a
  * pending or unknown row as the retryable 503 in-flight. The same id with a
- * different token is 409 operation_mismatch.
+ * different token is 409 operation_mismatch. An unverified token never
+ * reaches runOperation, so it never claims or writes a ledger row, even when
+ * the recorded row disappears between the lookup and the answer.
  *
  * THE RECEIPT carries no record content and no unresolvedOperations (P17):
  * {operationId, status, scope}, exactly what the function stored, and no
@@ -139,6 +141,43 @@ function receiptBody(operationId, outcome) {
   return null;
 }
 
+/** The response for a recorded outcome: its receipt, the in-flight 503, or a logged 500 for a receipt this route never writes. */
+function outcomeResponse(operationId, outcome, requestId, headers) {
+  const answer = receiptBody(operationId, outcome);
+  if (answer) return NextResponse.json(answer, { headers });
+  if (outcome.status === 'pending' || outcome.status === 'unknown') return inFlight(requestId);
+  console.error(`privacy clear: unrecognized stored receipt (request ${requestId}, ledger status ${outcome.status})`);
+  return internalError(requestId);
+}
+
+/**
+ * The answer to a request whose token does not verify (P15, REPLAYS), with
+ * no claim and nothing written: 409 review_changed when this household has
+ * no privacy row under this id, 409 operation_mismatch when it has one for
+ * a different request (compared by request_hash before anything else, so a
+ * mismatched replay reaps nothing, as lib/operations.js replayExisting does),
+ * and otherwise the row's own outcome through readOperation (which reaps it
+ * if it is a stale pending claim). A row that vanishes between the two reads
+ * (a purge, or a clear all deleting a journal receipt) is review_changed.
+ */
+async function answerRecorded({ userId, operationId, reviewToken, scope, requestId, headers }) {
+  const { data: row, error } = await supabaseAdmin
+    .from('operations')
+    .select('request_hash')
+    .eq('operation_id', operationId)
+    .eq('profile_id', userId)
+    .eq('domain', PRIVACY_DOMAIN)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) return conflict(MESSAGES.reviewChanged, requestId, 'review_changed');
+  if (row.request_hash && row.request_hash !== requestHash({ reviewToken, scope })) {
+    return conflict(MESSAGES.mismatch, requestId, 'operation_mismatch');
+  }
+  const recorded = await readOperation(supabaseAdmin, { operationId, profileId: userId, domain: PRIVACY_DOMAIN });
+  if (!recorded) return conflict(MESSAGES.reviewChanged, requestId, 'review_changed');
+  return outcomeResponse(operationId, recorded, requestId, headers);
+}
+
 export async function POST(request) {
   const requestId = requestIdFor(request);
   const headers = { 'X-Request-Id': requestId };
@@ -184,9 +223,9 @@ export async function POST(request) {
     if (!verified.ok) {
       if (verified.reason === 'unavailable') return privacyUnavailable(requestId);
       if (verified.reason === 'malformed') return badField('reviewToken', 'invalid_token', MESSAGES.token, requestId);
-      // A recorded request is answered from the ledger, not refused (see REPLAYS).
-      const recorded = await readOperation(supabaseAdmin, { operationId: operationId.value, profileId: userId, domain: PRIVACY_DOMAIN });
-      if (!recorded) return conflict(MESSAGES.reviewChanged, requestId, 'review_changed');
+      // Never a claim on an unverified token (P15): a recorded request is
+      // answered from the ledger as it stands, anything else is refused.
+      return answerRecorded({ userId, operationId: operationId.value, reviewToken, scope, requestId, headers });
     }
 
     const outcome = await runOperation(
@@ -199,9 +238,6 @@ export async function POST(request) {
         input: { reviewToken, scope },
       },
       async () => {
-        // Reached unverified only if the recorded row vanished between the
-        // lookup above and this claim (a purge): nothing is deleted then.
-        if (!verified.ok) return { status: 'failed', reason: PRIVACY_REFUSALS.HALO_REVIEW_CHANGED };
         try {
           const { receipt } = await clearHouseholdRecords(supabaseAdmin, {
             profileId: userId,
@@ -218,12 +254,7 @@ export async function POST(request) {
       },
     );
 
-    const answer = receiptBody(operationId.value, outcome);
-    if (answer) return NextResponse.json(answer, { headers });
-    if (outcome.status === 'pending' || outcome.status === 'unknown') return inFlight(requestId);
-    // A receipt this route never writes: what it did is not known here.
-    console.error(`privacy clear: unrecognized stored receipt (request ${requestId}, ledger status ${outcome.status})`);
-    return internalError(requestId);
+    return outcomeResponse(operationId.value, outcome, requestId, headers);
   } catch (err) {
     if (err?.message === OPERATION_INPUT_MISMATCH) return conflict(MESSAGES.mismatch, requestId, 'operation_mismatch');
     if (isPrivacyUnavailable(err) || isOperationsUnavailable(err)) return privacyUnavailable(requestId);

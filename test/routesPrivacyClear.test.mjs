@@ -31,6 +31,9 @@ import { auditOwnerScope } from './helpers/isolationKit.mjs';
 import { ACCEPT_SIGNATURE, ACCEPT_SOURCE, COMPONENT, MESSAGES, privacyPanel } from './helpers/privacyClearClient.mjs';
 import { fingerprintTables } from '../lib/privacyInventory.js';
 import { REVIEW_TOKEN_TTL_MS, mintReviewToken } from '../lib/privacyToken.js';
+import { RUNTIME_MESSAGES } from './helpers/frontendB04.mjs';
+
+const { requestHash } = await import('../lib/operations.js');
 
 const ROUTE = '/api/privacy/clear';
 const ROUTE_FILE = path.join(REPO_ROOT, 'app/api/privacy/clear/route.js');
@@ -261,32 +264,106 @@ for (const [label, options, called] of [
   });
 }
 
-test('a recorded request whose row is purged between the ledger lookup and the claim is not cleared on an unverified token', async () => {
+/**
+ * An unverified token with a recorded row (P15): the token no longer verifies
+ * (a journal entry since review), and a settled row for this id exists. The
+ * route must answer from the ledger and never claim. `purgeAfter` deletes the
+ * row right after the route's Nth statement on operations: 1 is after the
+ * request_hash read, 2 after readOperation's fetch, which is the moment a
+ * claim would otherwise have followed.
+ */
+function recordedWorld({ hash } = {}) {
   const h = harness();
   const body = clearBody(h);
-  // The token no longer verifies (a journal entry since review), and a settled
-  // row for this id exists, so the route answers from the ledger instead of
-  // refusing. The purge then removes that row before the claim, so the claim
-  // succeeds and the operation runs with nothing verified.
   h.db.seed('symptom_logs', [{ id: crypto.randomUUID(), profile_id: h.identities.alice.id, entry_date: '2026-10-02', symptoms: ['sneeze'] }]);
-  h.db.seed('operations', [{ operation_id: body.operationId, profile_id: h.identities.alice.id, domain: 'privacy', kind: 'privacy.clear.journal', status: 'succeeded', result: { operationId: body.operationId, status: 'succeeded', scope: 'journal' } }]);
-  const fakeFrom = h.db.from;
-  let armed = true;
-  h.db.from = (name) => {
-    const builder = fakeFrom(name);
-    if (name !== 'operations') return builder;
-    const then = builder.then.bind(builder);
-    builder.then = (ok, fail) => then(async (result) => {
-      if (armed) { armed = false; await fakeFrom('operations').delete().eq('operation_id', body.operationId); }
-      return result;
-    }).then(ok, fail);
-    return builder;
-  };
-  const answer = await (await send(h, body)).json();
-  assert.equal(armed, false, 'the purge ran after the lookup');
-  assert.deepEqual(answer, { operationId: body.operationId, status: 'failed', reason: 'review_changed' });
-  assert.deepEqual(calls(h, 'clear_household_records'), [], 'the clear function was never called');
-  assert.equal(h.db.rows('symptom_logs').length, 3, 'nothing deleted');
+  h.db.seed('operations', [{
+    operation_id: body.operationId, profile_id: h.identities.alice.id, domain: 'privacy', kind: 'privacy.clear.journal', status: 'succeeded',
+    request_hash: hash ?? requestHash({ reviewToken: body.reviewToken, scope: 'journal' }),
+    result: { operationId: body.operationId, status: 'succeeded', scope: 'journal' },
+  }]);
+  return { h, body };
+}
+
+for (const [purgeAfter, expected] of [[1, 'review_changed'], [2, 'succeeded']]) {
+  test(`an unverified token never claims: the recorded row purged after the route's statement ${purgeAfter} on the ledger answers ${expected} and no row is written`, async () => {
+    const { h, body } = recordedWorld();
+    const fakeFrom = h.db.from;
+    let seen = 0;
+    h.db.from = (name) => {
+      const builder = fakeFrom(name);
+      if (name !== 'operations') return builder;
+      const then = builder.then.bind(builder);
+      builder.then = (ok, fail) => then(async (result) => {
+        seen += 1;
+        if (seen === purgeAfter) await fakeFrom('operations').delete().eq('operation_id', body.operationId);
+        return result;
+      }).then(ok, fail);
+      return builder;
+    };
+    const from = h.db.queryLog.length;
+    const response = await send(h, body);
+    const panel = privacyPanel();
+    if (expected === 'review_changed') {
+      const envelope = await expectEnvelope(response.clone(), { status: 409, code: 'conflict', extraKeys: ['reason'] });
+      assert.equal(envelope.reason, 'review_changed');
+      await panel.answer(response, 'journal', body.operationId);
+      assert.deepEqual([panel.message, panel.unknown], [MESSAGES.conflict, null]);
+    } else {
+      assert.deepEqual(await response.clone().json(), { operationId: body.operationId, status: 'succeeded', scope: 'journal' }, 'the outcome as it was read');
+      await panel.answer(response, 'journal', body.operationId);
+      assert.deepEqual([panel.message, panel.unknown], [MESSAGES.journal, null]);
+    }
+    assert.ok(seen >= purgeAfter, 'the purge ran');
+    assert.deepEqual(ledger(h), [], 'no ledger row was written for the unverified request');
+    assert.deepEqual(h.db.queryLog.slice(from).filter((q) => q.table === 'operations' && q.operation !== 'select' && q.operation !== 'delete'), [], 'no claim, no settle');
+    assert.deepEqual(calls(h, 'clear_household_records'), [], 'the clear function was never called');
+    assert.equal(h.db.rows('symptom_logs').length, 3, 'nothing deleted');
+  });
+}
+
+test('an unverified token for a recorded row of another request is 409 operation_mismatch, read before anything is reaped or claimed', async () => {
+  const { h, body } = recordedWorld({ hash: 'f'.repeat(64) });
+  const before = structuredClone(ledger(h));
+  const from = h.db.queryLog.length;
+  const envelope = await expectEnvelope(await send(h, body), { status: 409, code: 'conflict', extraKeys: ['reason'] });
+  assert.equal(envelope.reason, 'operation_mismatch');
+  assert.deepEqual(ledger(h), before);
+  assert.deepEqual(h.db.queryLog.slice(from).filter((q) => q.table === 'operations').map((q) => q.operation), ['select'], 'one read, nothing else');
+  assert.deepEqual(calls(h, 'clear_household_records'), []);
+});
+
+/**
+ * Task 6 review, finding 2: what the panel shows for each refusal. 401 asks
+ * for the session, 400 asks to check the details, 413 (a status the runtime
+ * does not map) is unavailable, and a 503 on a mutation is unknown_outcome,
+ * which locks the panel. Its reconcile then finds no row (nothing was
+ * claimed), so the panel says the service is unavailable and stays locked
+ * until a reload (P11 accepts this: privacy.status reports the 503 first).
+ */
+test('the panel after a refusal: 401, 400, 413 and 503, and the 503\'s reconcile', async () => {
+  const cases = [
+    ['401', harness(), { as: null }, RUNTIME_MESSAGES.session, false],
+    ['400', harness(), { headers: { 'if-match': '1' } }, RUNTIME_MESSAGES.validation, false],
+    ['413', harness(), { big: true }, RUNTIME_MESSAGES.unavailable, false],
+    ['503', harness({ env: {} }), {}, RUNTIME_MESSAGES.unknown_outcome, true],
+  ];
+  for (const [label, h, { big, ...options }, message, locked] of cases) {
+    const body = clearBody(h);
+    if (big) body.reviewToken = `${body.reviewToken}${'x'.repeat(4100)}`;
+    const response = await send(h, body, options);
+    assert.equal(String(response.status), label);
+    const panel = privacyPanel();
+    panel.review = { scope: 'journal' };
+    await panel.answer(response, 'journal', body.operationId);
+    assert.equal(panel.message, message, `${label}: the message`);
+    assert.deepEqual(panel.unknown, locked ? { id: body.operationId, scope: 'journal' } : null, `${label}: the lock`);
+    assert.deepEqual(panel.review, { scope: 'journal' }, `${label}: the review stays open`);
+    assert.deepEqual(ledger(h), [], `${label}: nothing recorded`);
+    if (locked) {
+      await panel.reconcile((id) => h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${id}&domain=privacy` }));
+      assert.deepEqual([panel.message, panel.unknown], [RUNTIME_MESSAGES.unavailable, { id: body.operationId, scope: 'journal' }], 'reconcile is a 404: unavailable, still locked');
+    }
+  }
 });
 
 test('503 when the ledger table is missing (0017): the claim fails and nothing is cleared', async () => {
