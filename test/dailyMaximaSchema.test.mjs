@@ -626,6 +626,24 @@ test('the station rule over every source and station: the CHECK and the recorder
   });
 });
 
+test('a duplicate is a whole-batch refusal even when the duplicate also breaks a rule: HALO_INVALID_INPUT, nothing written', async () => {
+  await scenario(async (tx) => {
+    const error = await recordRefusal(tx, [row(), measured({ profile_id: BOB, home_context_id: BOB_HOME }), row({ hours_observed: 10 })]);
+    assert.equal(error.message, 'HALO_INVALID_INPUT');
+    assert.equal(error.detail, 'a home, date and factor appear twice');
+    assert.equal(await countOf(tx), 0);
+  });
+});
+
+test('a row before recording_from is a whole-batch refusal even when it also breaks a rule: HALO_BEFORE_RECORDING, nothing written', async () => {
+  await scenario(async (tx) => {
+    const error = await recordRefusal(tx, [row(), measured({ profile_id: BOB, home_context_id: BOB_HOME }), uv({ local_date: '2026-10-19', hours_observed: 10 })]);
+    assert.equal(error.message, 'HALO_BEFORE_RECORDING');
+    assert.equal(error.detail, 'a row is dated before recording_from');
+    assert.equal(await countOf(tx), 0);
+  });
+});
+
 test('a row breaking several CHECKs counts once, under the first rule in the table\'s order', async () => {
   await scenario(async (tx) => {
     const out = await recordContained(tx, [row({ factor: 'pollen', unit: 'category', hours_observed: 10, time_zone: 'UTC' }), uv()]);
