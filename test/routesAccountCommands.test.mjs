@@ -664,8 +664,9 @@ test('an address already on the identity is refused, not turned into a challenge
  * been promoted to the address itself. Unconfirmed is the staged state, where
  * the address is only `new_email`.
  */
-function pendingLink({ confirmed = false, emailHash } = {}) {
+function pendingLink({ confirmed = false, emailHash, operations } = {}) {
   return harness({
+    operations,
     identities: {
       alice: confirmed
         ? { email: FRESH, emailConfirmedAt: VERIFIED_AT }
@@ -1669,4 +1670,122 @@ test('an address written straight to the identity is also only waited on while t
   })).json();
   assert.equal(receipt.status, 'failed');
   assert.equal(h.db.rows('recovery_challenges').length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// A receipt never lists its own operation as unresolved
+// ---------------------------------------------------------------------------
+//
+// The receipt's snapshot is built inside the ledger's claimed operation, while
+// that operation's own row is still 'pending'. The client copies the
+// snapshot's unresolvedOperations into the ids it waits on and disables the
+// account surface until each is reconciled (useAccountService.ts on
+// origin/codex/october15-review-refinement), and reconciling replays this same
+// stored receipt, so a receipt that listed itself would lock the surface with
+// no way out but a reload. Another request's genuinely pending work must still
+// be listed.
+
+/** Another request's account work, recorded and still running. */
+const ELSEWHERE = op(90);
+const runningElsewhere = () => [
+  { operation_id: ELSEWHERE, kind: 'account.check-recovery', status: 'pending', created_at: ago(1000) },
+];
+
+const VERIFIED_ALICE = {
+  alice: { email: FRESH, emailConfirmedAt: VERIFIED_AT },
+  bob: { email: null, isAnonymous: true },
+  carol: { email: TAKEN, emailConfirmedAt: VERIFIED_AT },
+};
+
+/** Every action that answers with a snapshot, through each path that does. */
+const SUCCEEDING = [
+  {
+    name: 'request-recovery',
+    setup: (operations) => harness({ operations }),
+    action: 'request-recovery',
+    payload: () => ({ email: FRESH }),
+  },
+  {
+    name: 'request-recovery for the address already verified',
+    setup: (operations) => harness({ operations, identities: VERIFIED_ALICE }),
+    action: 'request-recovery',
+    payload: () => ({ email: FRESH }),
+  },
+  {
+    name: 'check-recovery on a confirmed address',
+    setup: (operations) => pendingLink({ confirmed: true, operations }),
+    action: 'check-recovery',
+    payload: () => ({ challengeId: CHALLENGE }),
+  },
+  {
+    name: 'check-recovery while still in flight',
+    setup: (operations) => pendingLink({ operations }),
+    action: 'check-recovery',
+    payload: () => ({ challengeId: CHALLENGE }),
+  },
+  {
+    name: 'cancel-recovery',
+    setup: (operations) => pendingLink({ operations }),
+    action: 'cancel-recovery',
+    payload: () => ({ challengeId: CHALLENGE }),
+  },
+  {
+    name: 'remove-recovery',
+    setup: (operations) => harness({ operations, identities: VERIFIED_ALICE }),
+    action: 'remove-recovery',
+    payload: (revision) => ({ id: 'email', revision }),
+  },
+];
+
+for (const { name, setup, action, payload } of SUCCEEDING) {
+  test(`${name}: the receipt does not list its own operation as unresolved`, async () => {
+    const h = setup([]);
+    const receipt = await succeed(h, 'alice', { action, payload: payload(0), expectedRevision: 0, operationId: op(1) });
+    assert.ok(!receipt.snapshot.unresolvedOperations.includes(op(1)), 'the operation this receipt settles is not unresolved');
+    assert.deepEqual(receipt.snapshot.unresolvedOperations, [], 'and nothing else is outstanding');
+  });
+
+  test(`${name}: another request's pending work is still listed in the receipt`, async () => {
+    const h = setup(runningElsewhere());
+    const receipt = await succeed(h, 'alice', { action, payload: payload(1), expectedRevision: 1, operationId: op(1) });
+    assert.deepEqual(receipt.snapshot.unresolvedOperations, [ELSEWHERE], 'the other request is genuinely unresolved');
+  });
+}
+
+test('the stored receipt, its replay and GET /api/operations all leave the settled operation out', async () => {
+  const h = harness({ operations: runningElsewhere() });
+  const body = { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 1, operationId: op(1) };
+  await succeed(h, 'alice', body);
+
+  const stored = h.db.rows('operations').find((row) => row.operation_id === op(1));
+  assert.equal(stored.status, 'succeeded');
+  assert.deepEqual(stored.result.snapshot.unresolvedOperations, [ELSEWHERE], 'the receipt the ledger keeps');
+
+  const replay = await succeed(h, 'alice', body);
+  assert.deepEqual(replay.snapshot.unresolvedOperations, [ELSEWHERE], 'the replayed receipt');
+
+  const response = await h.call('/api/operations', 'GET', {
+    as: 'alice',
+    url: `/api/operations?operationId=${op(1)}&domain=account`,
+    env: ON,
+  });
+  assert.equal(response.status, 200);
+  const reconciled = await response.json();
+  assertAccountReceipt(reconciled, op(1));
+  assert.equal(reconciled.status, 'succeeded');
+  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [ELSEWHERE], 'the receipt the client reconciles with');
+});
+
+test('GET /api/account still lists genuinely pending account work after a command succeeds', async () => {
+  const h = harness({ operations: runningElsewhere() });
+  await succeed(h, 'alice', {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 1,
+    operationId: op(1),
+  });
+  const response = await h.call('/api/account', 'GET', { as: 'alice', url: '/api/account?feature=recovery', env: ON });
+  assert.equal(response.status, 200);
+  const read = await response.json();
+  assert.deepEqual(read.unresolvedOperations, [ELSEWHERE], 'the other request is listed and the settled one is not');
 });
