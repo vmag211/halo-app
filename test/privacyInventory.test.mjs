@@ -26,9 +26,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createDb, listMigrations } from './db/pgliteHarness.mjs';
 import { OWNED_TABLES } from './helpers/tables.mjs';
 import {
+  BASE_META_KEYS,
   CLEAR_ACTIONS,
   CLEAR_SCOPES,
   EXPORT_GROUPS,
@@ -36,6 +38,7 @@ import {
   INVENTORY_COPY,
   OWN_OPERATION,
   PRIVACY_INVENTORY,
+  PRIVATE_META_KEYS,
   PRIVATE_ONLY_GROUPS,
   PROFILE_KEPT_COLUMNS,
   PROFILE_RESET_COLUMNS,
@@ -67,10 +70,14 @@ const DENIED_EXPORT_COLUMNS = Object.freeze([
  * Names that look like a secret or identity material. An exported column
  * matching one needs an entry in SECRET_NAME_EXCEPTIONS with its reason.
  * Substrings for words that never appear innocently inside another word;
- * whole underscore-separated words for the short ones (`auth`, `key`, `ip`).
+ * whole underscore-separated words for the short ones (`auth`, `key`, `ip`,
+ * `code`), plurals included (`keys`, as in `api_keys` or `push_keys`).
  */
-const SECRET_SUBSTRINGS = ['token', 'hash', 'secret', 'passw', 'p256dh', 'endpoint', 'nonce', 'credential', 'signature', 'cookie', 'jwt', 'fingerprint', 'email', 'challenge'];
-const SECRET_WORDS = ['auth', 'key', 'salt', 'otp', 'session', 'ip', 'pin', 'private', 'request'];
+const SECRET_SUBSTRINGS = [
+  'token', 'hash', 'secret', 'passw', 'p256dh', 'endpoint', 'nonce', 'credential', 'signature', 'cookie', 'jwt',
+  'fingerprint', 'email', 'challenge', 'apikey', 'verifier', 'digest', 'cipher', 'encrypted', 'user_agent',
+];
+const SECRET_WORDS = ['auth', 'key', 'keys', 'salt', 'otp', 'session', 'ip', 'pin', 'private', 'request', 'code'];
 function secretNamed(column) {
   const name = column.toLowerCase();
   return SECRET_SUBSTRINGS.some((part) => name.includes(part)) || name.split('_').some((word) => SECRET_WORDS.includes(word));
@@ -94,6 +101,61 @@ function stringsIn(value, out = []) {
 }
 
 const sameWhere = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/** The filters of a `where`: none (every row), one, or several that must all hold. */
+const filtersOf = (where) => (where == null ? [] : Array.isArray(where) ? where : [where]);
+
+/** A well formed filter: a column and exactly one of equals, notEquals or a non-empty `in`. */
+function filterProblem(filter) {
+  if (!filter || typeof filter !== 'object' || typeof filter.column !== 'string' || !filter.column) return 'a filter without a column';
+  const tests = ['equals', 'notEquals', 'in'].filter((name) => Object.hasOwn(filter, name));
+  if (tests.length !== 1) return `a filter on ${filter.column} without exactly one test`;
+  if (tests[0] === 'in' && !(Array.isArray(filter.in) && filter.in.length)) return `an empty in filter on ${filter.column}`;
+  return null;
+}
+
+/**
+ * Whether two filters can never both hold for one row. False whenever that
+ * cannot be shown from the filters alone: different columns, or two
+ * notEquals, which always leave rows in common.
+ */
+function filtersExclude(a, b) {
+  if (a.column !== b.column) return false;
+  const values = (f) => (Object.hasOwn(f, 'equals') ? { only: [f.equals] } : Object.hasOwn(f, 'in') ? { only: [...f.in] } : { not: [f.notEquals] });
+  const x = values(a);
+  const y = values(b);
+  if (x.only && y.only) return !x.only.some((value) => y.only.includes(value));
+  if (x.only && y.not) return x.only.every((value) => y.not.includes(value));
+  if (x.not && y.only) return y.only.every((value) => x.not.includes(value));
+  return false;
+}
+
+/** Two parts cover disjoint rows when some filter of one excludes some filter of the other. */
+const partsDisjoint = (a, b) => filtersOf(a.where).some((fa) => filtersOf(b.where).some((fb) => filtersExclude(fa, fb)));
+
+/**
+ * The rows guard (Task 2 review, finding 1). Within one table, two parts that
+ * may cover the same rows must export no column in common (a part split by
+ * columns, like the profile's home and preferences parts, is fine), and above
+ * all no column may be private in one and base in the other: that is how
+ * journal-derived season-summary text would reach an export without private
+ * text.
+ */
+function partRowProblems(table, parts) {
+  const problems = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    for (let j = i + 1; j < parts.length; j += 1) {
+      const [a, b] = [parts[i], parts[j]];
+      if (partsDisjoint(a, b)) continue;
+      const columnsA = [...a.base, ...a.private];
+      const shared = [...b.base, ...b.private].filter((column) => columnsA.includes(column));
+      if (shared.length) problems.push(`${table}: parts ${a.group} and ${b.group} may cover the same rows and both export ${shared.join(', ')}`);
+      const crossed = [...a.private.filter((column) => b.base.includes(column)), ...b.private.filter((column) => a.base.includes(column))];
+      if (crossed.length) problems.push(`${table}: ${crossed.join(', ')} private in one part and base in an overlapping sibling`);
+    }
+  }
+  return problems;
+}
 
 // ---------------------------------------------------------------------------
 // The pure guard
@@ -147,15 +209,19 @@ function inventoryProblems({
       if (PRIVATE_ONLY_GROUPS.includes(part.group) && (part.base.length || counted)) {
         problems.push(`${table}: exported in ${part.group} without private text`);
       }
-      for (const [column, keys] of Object.entries(part.privateKeys ?? {})) {
-        if (!part.base.includes(column)) problems.push(`${table}: private keys of ${column}, which the base tier does not export`);
-        if (!Array.isArray(keys) || !keys.length) problems.push(`${table}: empty private keys for ${column}`);
+      if (Object.hasOwn(part, 'privateKeys')) problems.push(`${table}: privateKeys is a denylist; name the base keys instead (baseKeys)`);
+      for (const [column, keys] of Object.entries(part.baseKeys ?? {})) {
+        if (!part.base.includes(column)) problems.push(`${table}: base keys of ${column}, which the base tier does not export`);
+        if (!Array.isArray(keys) || !keys.length) problems.push(`${table}: empty base keys for ${column}`);
       }
       for (const column of part.rounded ?? []) if (!columns.includes(column)) problems.push(`${table}: rounds ${column}, which it does not export`);
-      if (part.where && !columns.includes(part.where.column) && columns.length) {
-        problems.push(`${table}: filters on ${part.where.column} without exporting it`);
+      for (const filter of filtersOf(part.where)) {
+        const malformed = filterProblem(filter);
+        if (malformed) problems.push(`${table}: ${malformed}`);
+        else if (!columns.includes(filter.column) && columns.length) problems.push(`${table}: filters on ${filter.column} without exporting it`);
       }
     }
+    problems.push(...partRowProblems(table, (placement.parts ?? []).filter((part) => Array.isArray(part.base) && Array.isArray(part.private))));
     if (placement.withheldAll !== undefined && !isReason(placement.withheldAll)) problems.push(`${table}: withheldAll without a reason`);
     for (const [column, reason] of Object.entries(placement.withheld ?? {})) {
       if (!isReason(reason)) problems.push(`${table}.${column}: withheld without a reason`);
@@ -184,8 +250,18 @@ function inventoryProblems({
         continue;
       }
       if (action.action === 'keep' && !isReason(action.reason)) problems.push(`${table}: kept by clear ${scope} without a reason`);
-      if (action.action === 'delete-filtered' && (!action.where || !isReason(action.reason))) {
+      if (action.action === 'delete-filtered' && (!filtersOf(action.where).length || !isReason(action.reason))) {
         problems.push(`${table}: a filtered clear ${scope} without its filter and reason`);
+      }
+      for (const filter of [...filtersOf(action.where), ...filtersOf(action.refuseWhen?.where)]) {
+        const malformed = filterProblem(filter);
+        if (malformed) problems.push(`${table}: clear ${scope}: ${malformed}`);
+      }
+      if (action.refuseWhen !== undefined) {
+        if (action.action !== 'delete-filtered') problems.push(`${table}: clear ${scope} refuses, but is not a filtered delete`);
+        if (!filtersOf(action.refuseWhen.where).length || !/^HALO_[A-Z_]+$/.test(action.refuseWhen.refusal ?? '')) {
+          problems.push(`${table}: clear ${scope} refuses without its filter and refusal code`);
+        }
       }
       if (action.action === 'reset') {
         if (table !== 'profiles') problems.push(`${table}: only the profile is reset`);
@@ -395,7 +471,15 @@ test('the decisions are encoded: D-P1 keeps only the login, D-P4 clears the jour
   const keptByAll = Object.keys(PRIVACY_INVENTORY).filter((table) => clearActionFor(table, 'all').action === 'keep').sort();
   assert.deepEqual(keptByAll, ['auth.users', 'recovery_challenges']);
   assert.equal(clearActionFor('profiles', 'all').action, 'reset');
-  assert.equal(clearActionFor('operations', 'all').where.notEquals, OWN_OPERATION);
+  // The ledger: settled rows only, the clear's own receipt kept, and a pending row refuses (0024 steps 4 and 5).
+  assert.deepEqual(clearActionFor('operations', 'all').where, [
+    { column: 'status', notEquals: 'pending' },
+    { column: 'operation_id', notEquals: OWN_OPERATION },
+  ]);
+  assert.deepEqual(clearActionFor('operations', 'all').refuseWhen, {
+    where: [{ column: 'status', equals: 'pending' }, { column: 'operation_id', notEquals: OWN_OPERATION }],
+    refusal: 'HALO_BUSY',
+  });
   // D-P4: symptom logs and season summaries, nothing else stored.
   const journal = Object.keys(PRIVACY_INVENTORY).filter((table) => clearActionFor(table, 'journal').action !== 'keep').sort();
   assert.deepEqual(journal, ['alerts', 'symptom_logs']);
@@ -426,12 +510,26 @@ test('no string the inventory carries has an em dash', () => {
 });
 
 test('the secret-name check recognises the names it exists for', () => {
-  for (const name of ['endpoint', 'p256dh', 'auth', 'restore_token_hash', 'email_hash', 'nonce_hash', 'request_hash', 'api_key', 'client_secret', 'session_id', 'password', 'email']) {
+  for (const name of [
+    'endpoint', 'p256dh', 'auth', 'restore_token_hash', 'email_hash', 'nonce_hash', 'request_hash', 'api_key', 'client_secret', 'session_id', 'password', 'email',
+    // Task 2 review, finding 4: plurals, compounds and the other names of key material.
+    'push_keys', 'api_keys', 'keys', 'apikey', 'recovery_code', 'verification_code', 'code', 'pkce_verifier', 'code_verifier',
+    'digest', 'body_digest', 'cipher', 'ciphertext', 'encrypted', 'encrypted_note', 'user_agent',
+  ]) {
     assert.ok(secretNamed(name), name);
   }
-  for (const name of ['title', 'author_note', 'state', 'updated_at', 'lat', 'place_id', 'has_pregnant']) {
+  for (const name of ['title', 'author_note', 'state', 'updated_at', 'lat', 'place_id', 'has_pregnant', 'county', 'zone', 'reason']) {
     assert.ok(!secretNamed(name), name);
   }
+});
+
+test('the secret-name list trips no exported column without its reasoned exception, and no exception is stale', () => {
+  // inventoryProblems holds both directions; this names what the list matches today, so a widened list is reviewed.
+  const flagged = [];
+  for (const [table, entry] of Object.entries(PRIVACY_INVENTORY)) {
+    for (const column of exportedColumns(entry)) if (secretNamed(column)) flagged.push(`${table}.${column}`);
+  }
+  assert.deepEqual(flagged.sort(), Object.keys(SECRET_NAME_EXCEPTIONS).sort());
 });
 
 // ---------------------------------------------------------------------------
@@ -632,6 +730,65 @@ test('negative control: the fingerprint list out of step with the flags fails', 
     .some((line) => line.startsWith('fingerprint:')));
 });
 
+test('negative control R1: the home alerts part without its season-summary filter fails the rows guard', () => {
+  const inventory = clone(PRIVACY_INVENTORY);
+  const home = inventory.alerts.export.parts.find((part) => part.group === 'home');
+  delete home.where;
+  const problems = inventoryProblems({ inventory });
+  assert.ok(problems.includes('alerts: message private in one part and base in an overlapping sibling'), problems.join('\n'));
+  assert.ok(problems.includes('alerts: parts home and journal may cover the same rows and both export type, title, fired_at, message'));
+});
+
+test('negative control R2: the season-summary filter widened to notEquals none fails the rows guard', () => {
+  const inventory = clone(PRIVACY_INVENTORY);
+  inventory.alerts.export.parts.find((part) => part.group === 'home').where = { column: 'type', notEquals: 'none' };
+  assert.ok(inventoryProblems({ inventory }).includes('alerts: message private in one part and base in an overlapping sibling'));
+});
+
+test('the rows guard: what it proves disjoint, and what it does not', () => {
+  const part = (where, base = ['x'], extra = {}) => ({ group: 'home', base, private: [], ...(where ? { where } : {}), ...extra });
+  const disjoint = (a, b) => partRowProblems('t', [a, b]).length === 0;
+  // Proved disjoint: an equals against its own notEquals, distinct values, non-overlapping lists.
+  assert.ok(disjoint(part({ column: 'type', equals: 'a' }), part({ column: 'type', notEquals: 'a' })));
+  assert.ok(disjoint(part({ column: 'type', equals: 'a' }), part({ column: 'type', equals: 'b' })));
+  assert.ok(disjoint(part({ column: 'k', in: ['a', 'b'] }), part({ column: 'k', in: ['c'] })));
+  assert.ok(disjoint(part({ column: 'k', in: ['a'] }), part({ column: 'k', notEquals: 'a' })));
+  // One filter of a conjunction is enough.
+  assert.ok(disjoint(part([{ column: 's', notEquals: 'z' }, { column: 'type', equals: 'a' }]), part({ column: 'type', equals: 'b' })));
+  // Not proved: no filter, another column, two notEquals, overlapping lists, an in list wider than the excluded value.
+  assert.ok(!disjoint(part(null), part({ column: 'type', equals: 'a' })));
+  assert.ok(!disjoint(part({ column: 'type', equals: 'a' }), part({ column: 'kind', notEquals: 'a' })));
+  assert.ok(!disjoint(part({ column: 'type', notEquals: 'a' }), part({ column: 'type', notEquals: 'b' })));
+  assert.ok(!disjoint(part({ column: 'k', in: ['a', 'b'] }), part({ column: 'k', in: ['b', 'c'] })));
+  assert.ok(!disjoint(part({ column: 'k', in: ['a', 'b'] }), part({ column: 'k', notEquals: 'a' })));
+  // Overlapping rows are fine when the parts split the columns, as the profile's home and preferences parts do.
+  assert.ok(disjoint(part(null, ['lat']), part(null, ['locale'])));
+  assert.deepEqual(partRowProblems('profiles', PRIVACY_INVENTORY.profiles.export.parts), []);
+  // But never one column private in one and base in the other.
+  assert.deepEqual(partRowProblems('t', [part(null, ['a']), { group: 'journal', base: [], private: ['a'] }]), [
+    't: parts home and journal may cover the same rows and both export a',
+    't: a private in one part and base in an overlapping sibling',
+  ]);
+});
+
+test('negative control: a meta denylist, empty base keys, base keys of an unexported column, and a malformed filter fail', () => {
+  const inventory = clone(PRIVACY_INVENTORY);
+  const tasks = inventory.household_actions.export.parts[0];
+  tasks.privateKeys = { meta: ['note', 'history'] };
+  tasks.baseKeys = { meta: [] };
+  inventory.household_action_preferences.export.parts[0].where = { column: 'pref_key', in: [] };
+  inventory.operations.clear.all.refuseWhen = { where: [{ column: 'status' }], refusal: 'busy' };
+  const problems = inventoryProblems({ inventory });
+  assert.ok(problems.includes('household_actions: privateKeys is a denylist; name the base keys instead (baseKeys)'));
+  assert.ok(problems.includes('household_actions: empty base keys for meta'));
+  assert.ok(problems.includes('household_action_preferences: an empty in filter on pref_key'));
+  assert.ok(problems.includes('operations: clear all: a filter on status without exactly one test'));
+  assert.ok(problems.includes('operations: clear all refuses without its filter and refusal code'));
+  const unexported = clone(PRIVACY_INVENTORY);
+  unexported.household_actions.export.parts[0].baseKeys = { details: ['a'] };
+  assert.ok(inventoryProblems({ inventory: unexported }).includes('household_actions: base keys of details, which the base tier does not export'));
+});
+
 test('negative control: an em dash in an inventory string fails', () => {
   const inventory = clone(PRIVACY_INVENTORY);
   inventory.operations.export.excluded = `Ledger ${EM_DASH} internal`;
@@ -691,7 +848,7 @@ test('exportParts: without private text, private columns, private-only rows and 
   assert.equal(prefs.length, 1);
   assert.ok(!prefs[0].where.in.includes('week:focus') && !prefs[0].where.in.includes('outdoorPlan'));
   const tasks = withoutPrivate.find((part) => part.table === 'household_actions');
-  assert.deepEqual(tasks.strip, { meta: ['note', 'history'] });
+  assert.deepEqual(tasks.baseKeys, { meta: [...BASE_META_KEYS] });
   assert.deepEqual(withoutPrivate.find((part) => part.table === 'push_subscriptions').countAs, 'deviceDelivery');
   const risks = withoutPrivate.find((part) => part.table === 'home_risks');
   assert.equal(risks.countOnly, true);
@@ -700,13 +857,13 @@ test('exportParts: without private text, private columns, private-only rows and 
 
   const withPrivate = exportParts([...EXPORT_GROUPS], true);
   assert.deepEqual(withPrivate.filter((part) => part.group === 'conversation').map((part) => part.table), ['luna_conversations', 'luna_turns', 'luna_runs']);
-  assert.deepEqual(withPrivate.find((part) => part.table === 'household_actions').strip, {});
+  assert.deepEqual(withPrivate.find((part) => part.table === 'household_actions').baseKeys, {});
   assert.equal(withPrivate.filter((part) => part.table === 'household_action_preferences').length, 2);
   assert.deepEqual(exportParts(['explore'], false).map((part) => part.table), ['explore_areas']);
   assert.throws(() => exportParts(['tasks'], 'yes'), TypeError);
 });
 
-test('projectRow keeps only allowlisted columns, rounds coordinates and strips private keys', () => {
+test('projectRow keeps only allowlisted columns, rounds coordinates and keeps only the base keys of meta', () => {
   const home = exportParts(['home'], false).find((part) => part.table === 'profiles');
   const row = { id: 'x', lat: 35.123456, lng: -80.987654, address: '1 Main St', zip: '28144', county: 'Rowan', locale: 'en' };
   assert.deepEqual(projectRow(home, row), { lat: 35.123, lng: -80.988, county: 'Rowan' });
@@ -716,6 +873,38 @@ test('projectRow keeps only allowlisted columns, rounds coordinates and strips p
   assert.deepEqual(projected, { id: 't1', title: 'Test', meta: { time: '09:00' } });
   const tasksPrivate = exportParts(['tasks'], true).find((part) => part.table === 'household_actions');
   assert.deepEqual(projectRow(tasksPrivate, { meta: { note: 'private', history: ['a'] } }), { meta: { note: 'private', history: ['a'] } });
-  // A null meta passes through as null.
+  // A null meta passes through as null; a non-object (0023 forbids one) is left out without private text.
   assert.deepEqual(projectRow(tasks, { meta: null }), { meta: null });
+  assert.deepEqual(projectRow(tasks, { title: 'Test', meta: ['free text'] }), { title: 'Test' });
+  assert.deepEqual(projectRow(tasks, { title: 'Test', meta: 'free text' }), { title: 'Test' });
+});
+
+test('meta is an allowlist: an unknown free-text key is private text, kept only with private text (Task 2 review, finding 2)', () => {
+  const meta = {
+    paused: false, archived: false, completedOn: '2026-10-01', time: '09:00', duration: 45, estimateSet: true,
+    zone: 'America/New_York', recurrence: 'weekly', reminder: true,
+    note: 'Call the landlord about the mold', history: ['Moved from Monday'],
+    description: 'My neighbour, Sam, has the spare key', // a key the client might add later
+  };
+  const base = exportParts(['tasks'], false).find((part) => part.table === 'household_actions');
+  const { meta: exported } = projectRow(base, { meta });
+  assert.deepEqual(Object.keys(exported).sort(), [...BASE_META_KEYS].sort());
+  assert.ok(!JSON.stringify(exported).includes('Sam'), 'the unknown key leaked without private text');
+  assert.ok(!JSON.stringify(exported).includes('landlord'));
+  const full = exportParts(['tasks'], true).find((part) => part.table === 'household_actions');
+  assert.deepEqual(projectRow(full, { meta }).meta, meta);
+});
+
+test('the meta allowlist and the private keys together are exactly the WeekMeta type (lib/frontend/week-preview.ts)', () => {
+  const source = readFileSync(new URL('../lib/frontend/week-preview.ts', import.meta.url), 'utf8');
+  const body = source.match(/export type WeekMeta = \{([^}]*)\}/)?.[1];
+  assert.ok(body, 'WeekMeta is no longer declared as one object type in week-preview.ts');
+  const keys = [...body.matchAll(/(\w+)\??\s*:/g)].map((match) => match[1]);
+  assert.ok(keys.length >= 10, 'the parse found the WeekMeta keys');
+  assert.deepEqual(
+    [...BASE_META_KEYS, ...PRIVATE_META_KEYS].sort(),
+    [...keys].sort(),
+    'WeekMeta changed: place each new key in BASE_META_KEYS (exported without private text) or PRIVATE_META_KEYS',
+  );
+  assert.ok(!BASE_META_KEYS.some((key) => PRIVATE_META_KEYS.includes(key)));
 });
