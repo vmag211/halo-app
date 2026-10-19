@@ -1,0 +1,17 @@
+{
+  "_fixture": {
+    "provider": "Open-Meteo forecast API, error object",
+    "recorded": "https://api.open-meteo.com/v1/forecast?latitude=35.23&longitude=-80.84&hourly=temperature_2m&models=ncep_gfs013&timeformat=unixtime&forecast_days=99",
+    "retrieved": "2026-10-19",
+    "docs": [
+      "https://open-meteo.com/en/docs",
+      "https://open-meteo.com/en/docs/gfs-api"
+    ],
+    "note": "The docs: a JSON error object with \"error\": true and a \"reason\", sent with HTTP 400.",
+    "edits": "none; recorded body as received"
+  },
+  "response": {
+    "error": true,
+    "reason": "Forecast days is invalid. Allowed range 0 to 16. Given 16."
+  }
+}
