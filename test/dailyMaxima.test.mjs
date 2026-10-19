@@ -288,6 +288,9 @@ test('AirNow: -999 and negative values are dropped, and do not count as hours or
     { ...ozone[0], Latitude: '35.0' }, { ...ozone[0], FullAQSCode: undefined, IntlAQSCode: undefined }, { ...ozone[0], Parameter: '' }, null,
   ];
   assert.equal(oneDay(malformed).stationFound, false);
+  // An empty FullAQSCode falls back to IntlAQSCode, as the map parser does (lib/mapLayers.js:91).
+  const intl = oneDay(airRows({ id: '370710016', aqi: 26 }).map((r) => ({ ...r, FullAQSCode: '' })));
+  assert.deepEqual([intl.stationId, intl.value], ['840370710016', 26]);
   assert.equal(oneDay(airRows({ aqi: 0 })).value, 0, 'a reported 0 is a 0');
   assert.deepEqual(airNowDailyMaxima('not rows', HOME, [NORMAL])[0].stationFound, false);
 });
@@ -300,68 +303,115 @@ test('AirNow: one call\'s rows serve several days, each judged on its own hours'
   assert.throws(() => airNowDailyMaxima(rows, HOME, ['2026-13-01']), TypeError);
 });
 
-/** Open-Meteo local hourly stamps for a day, as the API gives them with a time zone. */
-const localHour = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
-function stamps(date) {
-  return localDaySlots(date).map((s) => {
-    const p = Object.fromEntries(localHour.formatToParts(new Date(s)).map((x) => [x.type, x.value]));
-    return `${p.year}-${p.month}-${p.day}T${p.hour}:00`;
-  });
-}
-/** An Open-Meteo `hourly` answer (W: lib/backfill.js:63-75) for one or more days. */
-function meteo(date, fields, times = null) {
-  const time = times ?? stamps(date);
+/**
+ * An Open-Meteo `hourly` answer as the recorder requests it (E2, R1):
+ * `past_days=3&forecast_days=1&timeformat=unixtime`, no `timezone`, so GMT.
+ * The run is on `runDay` (default: the day after `date`); `time` is Unix
+ * seconds from 00:00Z three days before it to 23:00Z on it, 96 hours. Each
+ * field's function gets the slot index within `date`'s New York day, or is
+ * not called for an hour outside it, which takes `outside`.
+ */
+function meteo(date, fields, { runDay = addDays(date, 1), outside = 1, utcOffset = 0, timezone = 'GMT' } = {}) {
+  const start = Date.parse(`${addDays(runDay, -3)}T00:00:00Z`) / 1000;
+  const time = range(96).map((i) => start + i * 3600);
+  const slots = localDaySlots(date);
   const hourly = { time };
-  for (const [name, fn] of Object.entries(fields)) hourly[name] = time.map((_, i) => (typeof fn === 'function' ? fn(i) : fn));
-  return { latitude: HOME.lat, longitude: HOME.lng, generationtime_ms: 0.1, timezone: 'America/New_York', hourly };
+  for (const [name, fn] of Object.entries(fields)) {
+    hourly[name] = time.map((t) => {
+      const i = slots.indexOf(new Date(t * 1000).toISOString());
+      return i < 0 ? outside : typeof fn === 'function' ? fn(i) : fn;
+    });
+  }
+  return { latitude: HOME.lat, longitude: HOME.lng, generationtime_ms: 0.1, utc_offset_seconds: utcOffset, timezone, timezone_abbreviation: timezone, hourly_units: { time: 'unixtime' }, hourly };
 }
+const epoch = (iso) => Date.parse(iso) / 1000;
 
 test('Open-Meteo: the day\'s largest modeled value, AQI an integer and UV to 0.1', () => {
-  const [air] = openMeteoDailyMaxima(meteo(NORMAL, { us_aqi: (i) => (i === 14 ? 57.4 : 21) }), 'us_aqi', [NORMAL]);
-  assert.deepEqual(air, { date: NORMAL, aligned: true, value: 57, hoursExpected: 24, hoursObserved: 24 });
+  const [air] = openMeteoDailyMaxima(meteo(NORMAL, { us_aqi: (i) => (i === 14 ? 57.4 : 21) }, { outside: 300 }), 'us_aqi', [NORMAL]);
+  assert.deepEqual(air, { date: NORMAL, value: 57, hoursExpected: 24, hoursObserved: 24 }, 'hours of other days never count');
   const [uv] = openMeteoDailyMaxima(meteo(NORMAL, { uv_index: (i) => (i === 13 ? 6.46 : 0) }), 'uv_index', [NORMAL]);
   assert.equal(uv.value, 6.5);
   const [night] = openMeteoDailyMaxima(meteo(NORMAL, { uv_index: 0 }), 'uv_index', [NORMAL]);
   assert.equal(night.value, 0, 'a modeled 0 is a 0');
   assert.throws(() => openMeteoDailyMaxima(meteo(NORMAL, { pm10: 1 }), 'pm10', [NORMAL]), TypeError);
-  assert.throws(() => openMeteoDailyMaxima({ hourly: { time: ['2026-10-18T00:00'], us_aqi: [] } }, 'us_aqi', [NORMAL]), TypeError);
+  assert.throws(() => openMeteoDailyMaxima({ hourly: { time: [epoch('2026-10-18T04:00:00Z')], us_aqi: [] } }, 'us_aqi', [NORMAL]), TypeError, 'lengths differ');
   assert.throws(() => openMeteoDailyMaxima({}, 'us_aqi', [NORMAL]), TypeError);
 });
 
+test('Open-Meteo: an answer that is not whole hours in Unix seconds is refused, not read as gaps', () => {
+  const good = meteo(NORMAL, { us_aqi: 30 });
+  const withTimes = (time) => ({ ...good, hourly: { ...good.hourly, time } });
+  // A request that forgot timeformat=unixtime: ISO local stamps.
+  const iso = good.hourly.time.map((t) => new Date(t * 1000).toISOString().slice(0, 16));
+  assert.throws(() => openMeteoDailyMaxima(withTimes(iso), 'us_aqi', [NORMAL]), /Unix seconds/);
+  assert.throws(() => openMeteoDailyMaxima(withTimes(good.hourly.time.map(String)), 'us_aqi', [NORMAL]), /Unix seconds/);
+  assert.throws(() => openMeteoDailyMaxima(withTimes(good.hourly.time.map((t) => t + 1800)), 'us_aqi', [NORMAL]), /Unix seconds/, 'half hours');
+  assert.throws(() => openMeteoDailyMaxima(withTimes(good.hourly.time.map((t) => t + 0.5)), 'us_aqi', [NORMAL]), /Unix seconds/);
+  const repeated = [...good.hourly.time];
+  repeated[40] = repeated[39];
+  assert.throws(() => openMeteoDailyMaxima(withTimes(repeated), 'us_aqi', [NORMAL]), /repeats an hour/);
+  // Order does not matter, and hours outside the requested days are ignored.
+  const reversed = { ...good, hourly: { time: [...good.hourly.time].reverse(), us_aqi: [...good.hourly.us_aqi].reverse() } };
+  assert.deepEqual(openMeteoDailyMaxima(reversed, 'us_aqi', [NORMAL]), openMeteoDailyMaxima(good, 'us_aqi', [NORMAL]));
+});
+
 test('Open-Meteo, E3: 17 of 24 is a gap and 18 of 24 is not; nulls and negatives are not hours', () => {
-  const at = (n) => openMeteoDailyMaxima(meteo(NORMAL, { us_aqi: (i) => (i < n ? 30 : i % 2 ? null : -1) }), 'us_aqi', [NORMAL])[0];
+  const at = (n) => openMeteoDailyMaxima(meteo(NORMAL, { us_aqi: (i) => (i < n ? 30 : i % 2 ? null : -1) }, { outside: 30 }), 'us_aqi', [NORMAL])[0];
   assert.equal(at(17).value, null);
   assert.equal(at(17).hoursObserved, 17);
   assert.equal(at(18).value, 30);
+  assert.equal(at(18).hoursObserved, 18);
 });
 
-test('Open-Meteo, E2: 23 stamps on spring-forward and 25 on fall-back are whole days; 24 are not', () => {
-  const spring = stamps(SPRING);
-  assert.equal(spring.length, 23);
-  assert.equal(spring.includes('2026-03-08T02:00'), false, 'there is no 02:00');
-  const fall = stamps(FALL);
-  assert.equal(fall.filter((t) => t === '2026-11-01T01:00').length, 2, '01:00 twice');
-  const [s] = openMeteoDailyMaxima(meteo(SPRING, { us_aqi: 30 }), 'us_aqi', [SPRING]);
-  assert.deepEqual([s.aligned, s.value, s.hoursObserved, s.hoursExpected], [true, 30, 23, 23]);
-  const [f] = openMeteoDailyMaxima(meteo(FALL, { us_aqi: 30 }), 'us_aqi', [FALL]);
-  assert.deepEqual([f.aligned, f.value, f.hoursObserved, f.hoursExpected], [true, 30, 25, 25]);
+test('Open-Meteo, E2: 8 March is 23 real hours and takes a value on the first run', () => {
+  const answer = meteo(SPRING, { us_aqi: (i) => (i === 22 ? 61 : 30) }, { outside: 200 });
+  const [s] = openMeteoDailyMaxima(answer, 'us_aqi', [SPRING]);
+  assert.deepEqual(s, { date: SPRING, value: 61, hoursExpected: 23, hoursObserved: 23 });
+  assert.equal(settleDay({ attempt: 1, coverage: s, providerOk: true, kind: 'open_meteo_cams' }).value, 61, 'complete, not a gap');
+  // The day before the change: 05:00Z on 7 March to 04:00Z on 8 March, 24 hours.
+  const before = meteo('2026-03-07', { us_aqi: 30 }, { runDay: SPRING, outside: 140 });
+  const [b] = openMeteoDailyMaxima(before, 'us_aqi', ['2026-03-07']);
+  assert.deepEqual([b.value, b.hoursObserved, b.hoursExpected], [30, 24, 24], '04:00Z on 7 March is 23:00 on 6 March');
+});
 
-  // A normal day's 24 stamps (00:00 to 23:00) on each DST date.
-  const normal24 = (date) => range(24).map((h) => `${date}T${String(h).padStart(2, '0')}:00`);
-  const [s24] = openMeteoDailyMaxima(meteo(SPRING, { us_aqi: 30 }, normal24(SPRING)), 'us_aqi', [SPRING]);
-  assert.deepEqual([s24.aligned, s24.value, s24.hoursObserved], [false, null, 0], 'more stamps than the day has hours cannot be aligned');
-  for (const attempt of [1, 2, 3]) assert.equal(settleDay({ attempt, coverage: s24, providerOk: true, kind: 'open_meteo_cams' }).value, null);
-  const [f24] = openMeteoDailyMaxima(meteo(FALL, { us_aqi: 30 }, normal24(FALL)), 'us_aqi', [FALL]);
-  assert.deepEqual([f24.aligned, f24.value, f24.hoursObserved, f24.hoursExpected], [true, 30, 24, 25]);
+test('Open-Meteo, E2: 31 October does not take 1 November\'s first hour, and 1 November is 25 hours', () => {
+  // The run on 1 November at 12:00Z (EST by then) covers 29 to 31 October.
+  const run = completedDays(new Date('2026-11-01T12:00:00Z'));
+  assert.deepEqual(run, ['2026-10-29', '2026-10-30', '2026-10-31']);
+  const leak = epoch('2026-11-01T04:00:00Z'); // 00:00 EDT on 1 November
+  const own = epoch('2026-10-31T04:00:00Z'); // 00:00 EDT on 31 October
+  const answer = meteo('2026-10-31', { us_aqi: 30 }, { runDay: FALL, outside: 30 });
+  answer.hourly.us_aqi[answer.hourly.time.indexOf(leak)] = 150;
+  answer.hourly.us_aqi[answer.hourly.time.indexOf(own)] = 45;
+  // A response that also carried the request-time offset reads the same: it is ignored.
+  for (const [utcOffset, timezone] of [[0, 'GMT'], [-18000, 'America/New_York']]) {
+    const days = openMeteoDailyMaxima({ ...answer, utc_offset_seconds: utcOffset, timezone }, 'us_aqi', run);
+    const oct31 = days[2];
+    assert.deepEqual([oct31.value, oct31.hoursObserved, oct31.hoursExpected], [45, 24, 24], `offset ${utcOffset}`);
+    assert.equal(settleDay({ attempt: 1, coverage: oct31, providerOk: true, kind: 'open_meteo_cams' }).value, 45);
+  }
+  // 1 November, from the run on 2 November: 04:00Z to 04:00Z the next day, 25 hours.
+  const fall = meteo(FALL, { us_aqi: (i) => (i === 2 ? 77 : 20) }, { outside: 300 });
+  const days = openMeteoDailyMaxima(fall, 'us_aqi', completedDays(new Date('2026-11-02T12:00:00Z')));
+  assert.deepEqual(days.map((d) => d.date), ['2026-10-30', '2026-10-31', FALL]);
+  assert.deepEqual(days[2], { date: FALL, value: 77, hoursExpected: 25, hoursObserved: 25 }, 'the second 01:00 counts');
+  assert.equal(settleDay({ attempt: 1, coverage: days[2], providerOk: true, kind: 'open_meteo_cams' }).value, 77, 'complete on the first run');
+  const short = { ...fall, hourly: { ...fall.hourly, us_aqi: fall.hourly.us_aqi.map((v, i) => (fall.hourly.time[i] === epoch('2026-11-02T04:00:00Z') ? null : v)) } };
+  const [, , f24] = openMeteoDailyMaxima(short, 'us_aqi', completedDays(new Date('2026-11-02T12:00:00Z')));
+  assert.deepEqual([f24.hoursObserved, f24.hoursExpected], [24, 25]);
   assert.equal(settleDay({ attempt: 1, coverage: f24, providerOk: true, kind: 'open_meteo_cams' }).missing_code, 'pending', '24 of 25 is not complete');
-  assert.equal(settleDay({ attempt: 2, coverage: f24, providerOk: true, kind: 'open_meteo_cams' }).value, 30, 'but it is covered');
+  assert.equal(settleDay({ attempt: 2, coverage: f24, providerOk: true, kind: 'open_meteo_cams' }).value, 77, 'but it is covered');
 });
 
-test('Open-Meteo: a past_days answer is split by local date', () => {
-  const days = ['2026-10-16', '2026-10-17', NORMAL];
-  const time = [...days.flatMap(stamps), ...stamps(TODAY)];
-  const json = meteo(null, { us_aqi: (i) => Math.floor(i / 24) * 10 + (i % 24 === 9 ? 5 : 0) }, time);
-  assert.deepEqual(openMeteoDailyMaxima(json, 'us_aqi', days).map((d) => d.value), [5, 15, 25]);
+test('Open-Meteo: one past_days answer serves the run\'s three days, each its own hours', () => {
+  const days = completedDays(new Date(`${TODAY}T12:00:00Z`));
+  const answer = meteo(NORMAL, { us_aqi: 0 });
+  answer.hourly.us_aqi = answer.hourly.time.map((t) => {
+    const at = new Date(t * 1000).toISOString();
+    const day = days.findIndex((d) => localDaySlots(d).includes(at));
+    return day < 0 ? 999 : (day + 1) * 10 + (localDaySlots(days[day]).indexOf(at) === 9 ? 5 : 0);
+  });
+  assert.deepEqual(openMeteoDailyMaxima(answer, 'us_aqi', days).map((d) => [d.value, d.hoursObserved]), [[15, 24], [25, 24], [35, 24]]);
 });
 
 // ---------------------------------------------------------------------------
@@ -625,6 +675,18 @@ test('snapshot, E8: measured and modeled Air are never one series, and rows are 
   // A measured home's gap row with no station beside its measured values is one series.
   assert.doesNotThrow(() => patterns([mixed[0], stored({ local_date: '2026-10-11', value: null, missing_code: 'source_gap', source_code: null })]));
   assert.throws(() => patterns([stored({ home_context_id: '22222222-2222-4222-8222-222222222222' })]), /another home context/);
+  const unscoped = stored();
+  delete unscoped.home_context_id;
+  assert.throws(() => patterns([unscoped]), /another home context/, 'a row without its context is refused, not trusted');
+  assert.throws(() => patterns(undefined), /rows must be/, 'a missing list is a bug, not an empty household');
+  assert.throws(() => patterns({}), /rows must be/);
+  // Every Air row that names a source counts, valued or not (M1).
+  const otherKindGap = stored({ local_date: '2026-10-11', value: null, missing_code: 'source_gap', source_code: 'open_meteo_cams' });
+  assert.throws(() => patterns([mixed[0], otherKindGap]), /measured and modeled Air are mixed/);
+  const twoNulls = [stored({ local_date: '2026-10-10', value: null, missing_code: 'pending', source_code: 'airnow_station', station_id: 'S' }), otherKindGap];
+  assert.throws(() => patterns(twoNulls), /measured and modeled Air are mixed/);
+  // Outside the range too: the home has one kind, wherever its rows fall.
+  assert.throws(() => patterns([mixed[0], stored({ local_date: '2026-01-05', source_code: 'open_meteo_cams' })]), /measured and modeled Air are mixed/);
   assert.throws(() => patterns([stored({ factor: 'pollen' })]), TypeError);
   assert.throws(() => patterns([stored({ factor: 'uv', source_code: 'open_meteo_cams' })]), TypeError);
   assert.throws(() => patterns([stored(), stored()]), /two stored rows/);
@@ -666,6 +728,9 @@ test('E24: no U+2014 in any string the module can emit, or anywhere in its sourc
   assert.equal(SOURCE.includes('\\u2014'), false);
   const snaps = [patterns([stored({ local_date: '2026-10-01', value: null, missing_code: 'source_gap' })]), buildHistorySnapshot({ from: '2026-06-01', to: '2026-08-31', today: TODAY, context: CONTEXT, rows: [], recordingFrom: '2026-08-15' })];
   for (const snap of snaps) assert.equal(JSON.stringify(snap).includes(EM_DASH), false);
+  // The window reason outranks Recorded from: 1 July is both outside the window and before 15 August.
+  assert.equal(find(snaps[1], '2026-07-01', 'Air')[0].missing, 'Outside the twelve-week history window');
+  assert.equal(find(snaps[1], '2026-08-01', 'Air')[0].missing, 'Recorded from 2026-08-15. Earlier days have no daily maximum.');
   assert.ok(Object.isFrozen(MISSING) && Object.isFrozen(SOURCE_LABELS) && Object.isFrozen(HISTORY_FACTORS));
 });
 
