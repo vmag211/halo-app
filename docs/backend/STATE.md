@@ -3,20 +3,19 @@
 One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for how to work, then the
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
-Updated 2026-10-19 (B04 Task 3, the contracts task, committed on its worktree branch on top of
-`6a11adc`, awaiting review and merge). That tip, the Task 3 fix-round commit, is 135 commits ahead
-of `origin/main`, nothing merged to main. On it **3,255 tests pass**, 0 fail, 0 skipped;
-`npm run typecheck` clean; `npm run lint` 0 errors and 5 pre-existing warnings (district, backfill,
-assistantRag.test, uploadData, daily-score).
-`vmag211/backend` has meanwhile moved to `b5e978c` (B06 Task 4), so re-run the gate on the merge.
+Updated 2026-10-19: B04, B05 and B06 complete and merged (B06 Task 6 merged as `3e7b2b8`).
+`vmag211/backend` is 145 commits ahead of `origin/main`, nothing merged to main. On the merged head
+**3,384 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
+pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score).
 
 ## What exists
 
-42 route files under `app/api` at the B04 Task 3 tip, exporting 55 method handlers. The frontend
+43 route files under `app/api` on `vmag211/backend`, exporting 56 method handlers. The frontend
 registry declares **72 operations**, each with a path and a method (`lib/frontend/production/runtime.ts`
-on `origin/codex/october15-review-refinement`). **24 have a backend route at the declared path and
-method; 48 do not. Of the 24, 23 answer**: `actions.load` answers 503 while the `tasks` flag is off.
-Re-measured 2026-10-19 at that tip, not quoted (B04 Task 3 added no route). Method: every
+on `origin/codex/october15-review-refinement`). **25 have a backend route at the declared path and
+method; 47 do not. Of the 25, 23 answer**: `actions.load` and `actions.commit` answer 503 while the
+`tasks` flag is off. Measured 2026-10-19 by the B04 Task 3 reviewer on `b5e978c` plus B04 Task 3; B06
+Task 6 added no route. Method: every
 `'<op>': {path, method}` entry of `productionOperations` (the method defaults to GET), matched as an exact
 method-and-path pair against every `export ... GET|POST|PUT|PATCH|DELETE` in `app/api/**/route.js`, read
 with `git grep` on the tip being measured. A match means only that a route exists at that path and
@@ -33,9 +32,8 @@ are what show that. The 23, by the package that made them answer:
 | B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
 | B06 Task 5 | `week.changes`, `week.acknowledge` |
 
-B06 Task 3 (`actions.load`) is merged behind the `tasks` flag, which answers 503 while off, so it is not
-counted as answering. B06 Task 4 (`actions.commit`, on `vmag211/backend` at `b5e978c`, not in the tip
-measured above) is behind the same flag. The count was 14 of 72 on 2026-10-18, and the frontend
+B06 `actions.load` and `actions.commit` are merged behind the `tasks` flag, which answers 503 while
+off, so they are not counted as answering. The count was 14 of 72 on 2026-10-18, and the frontend
 closeout note's 68 operations is four short.
 
 **The remaining work is backend, not wiring.** The frontend half is already written. Components call
@@ -55,9 +53,9 @@ design-breaking mismatches before implementation. They are not a substitute for 
 | B01 baseline, identity, home context | Complete |
 | B02 identity linking and recovery | Complete except two tasks dropped on purpose, see below |
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
-| B04 settings and alerts | Complete, Task 3 awaiting review and merge. Four operations (`settings.read`, `settings.save`, `alerts.read`, `alerts.update`), contract `b04-1` with the reconcile, Rulings S1 to S16. `GET /api/capabilities` and `GET /api/evidence` dropped, see below |
+| B04 settings and alerts | Complete. Four operations (`settings.read`, `settings.save`, `alerts.read`, `alerts.update`), contract `b04-1` with the reconcile, Rulings S1 to S16. `GET /api/capabilities` and `GET /api/evidence` dropped, see below |
 | B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-1` |
-| B06 My Week (tasks) | In progress. Tasks 1 (migration 0023), 2 (rules and planner), 3 (`actions.load`) and 5 (week routes) merged; Task 4 (`actions.commit`) next. Behind the `tasks` flag, off until task retention is approved (Vibhav, 2026-10-18) |
+| B06 My Week (tasks) | Complete. `actions.load`, `actions.commit`, `week.changes`, `week.acknowledge` and the `actions` reconcile, migration 0023, contract `b06-1`, Rulings H1 to H33. `actions.*` behind the `tasks` flag, off until task retention is approved (Vibhav, 2026-10-18); the week strip is ungated |
 
 ## Migrations
 
