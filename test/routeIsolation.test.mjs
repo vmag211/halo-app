@@ -73,6 +73,7 @@ const ROUTE_COVERAGE = {
   'POST /api/luna/runs/cancel': 'routesLunaRuns: another household\'s run id settles nothing of theirs and is the identical failed run to a missing one; the ledger receipt is owned by the caller and holds the run id only, never conversation text; off by the flag nothing is read and nothing is written; before 0020 no operation id is claimed and no run is reported, and before 0017 the run is left exactly as it was',
   'POST /api/luna/messages': 'routesLunaMessages: the turn, the run and the conversation are written and read for the caller only, each scoped on the query itself, and no household table is read at all (Ruling L2); another household\'s conversation id is the identical 404 to a missing one, and their clientMessageId answers no run and starts none; a body naming another profile is refused and a query naming one is ignored; off by the flag nothing is read, and before 0020 nothing is written and no operation id is claimed',
   'GET /api/map': 'isolation: read matrix (no household data)',
+  'GET /api/map/comparison': 'routesMapComparison: reads no household table (only map_layers and ucmr5_utilities), so two households get the identical answer and nothing in it is anyone\'s',
   'GET /api/notifications': 'isolation: read matrix',
   'GET /api/operations': 'routesOperations: another household\'s operation id is the identical 404, recovery is not readable here, stale pending reads as unknown',
   'PUT /api/notifications': 'isolation: only the caller\'s preferences change; smuggled profile_id rejected',
