@@ -3,35 +3,35 @@
 One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for how to work, then the
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
-Updated 2026-10-19 (B05 Task 7). Branch `vmag211/backend`, at `3d54cdc` 112 commits ahead of
-`origin/main`, nothing merged to main. B05 Task 7 was built on `48e4b11` (the B05 follow-ups merge), where
-**2,848 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
-pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score). Merging it onto
-`3d54cdc` adds B04 2b's tests; re-run the gate on the merge and record that count here.
+Updated 2026-10-19 (B05 Task 7 merged as `bf5f2b8`). Branch `vmag211/backend`, 120 commits ahead of
+`origin/main`, nothing merged to main. On the merged head **3,100 tests pass**, 0 fail, 0 skipped;
+`npm run typecheck` clean; `npm run lint` 0 errors and 5 pre-existing warnings (district, backfill,
+assistantRag.test, uploadData, daily-score).
 
 ## What exists
 
-40 route files under `app/api` on `vmag211/backend` at `3d54cdc`, exporting 52 method handlers. The
+41 route files under `app/api` on `vmag211/backend` at `5354ccd`, exporting 54 method handlers. The
 frontend registry declares **72 operations**, each with a path and a method
-(`lib/frontend/production/runtime.ts` on `origin/codex/october15-review-refinement`). **21 have a backend
-route at the declared path and method; 51 do not.** Re-measured 2026-10-19, not quoted. Method: every
+(`lib/frontend/production/runtime.ts` on `origin/codex/october15-review-refinement`). **23 have a backend
+route at the declared path and method; 49 do not.** Re-measured 2026-10-19, not quoted. Method: every
 `'<op>': {path, method}` entry of `productionOperations` (the method defaults to GET), matched as an exact
 method-and-path pair against every `export ... GET|POST|PUT|PATCH|DELETE` in `app/api/**/route.js`, read
 with `git grep` on the `vmag211/backend` tip. A match means only that a route exists at that path and
 method. It does not mean the body passes the operation's validator: the per-package conformance suites
-are what show that. The 21, by the package that made them answer:
+are what show that. The 23, by the package that made them answer:
 
 | Package | Operations |
 | --- | --- |
 | Before the packages | `map.layer`, `map.district`, `alerts.read` (the legacy inbox route) |
 | B02 | `operations.read`, `account.read`, `account.command`, `recovery.request`, `recovery.status` |
 | B03 | `luna.capabilities`, `luna.conversations`, `luna.clear`, `luna.message`, `luna.run`, `luna.cancel` |
+| B04 2a | `settings.read`, `settings.save` (`GET`/`PATCH /api/settings`) |
 | B04 2b | `alerts.update` (`POST /api/alerts/state`), and `GET /api/alerts` extended to the contract read |
 | B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
 | B06 Task 5 | `week.changes`, `week.acknowledge` |
 
-B04 2a (`settings.read`, `settings.save`) is still in review on its own branch and is not counted. The
-previous line said 14 of 72, and the frontend closeout note's 68 operations is four short.
+B06 Task 3 (`actions.load`) is in review and not counted. The count was 14 of 72 on 2026-10-18, and the
+frontend closeout note's 68 operations is four short.
 
 **The remaining work is backend, not wiring.** The frontend half is already written. Components call
 `runtime.request('<operation>')`, the registry resolves the path, and a validator checks the response, so
@@ -50,9 +50,9 @@ design-breaking mismatches before implementation. They are not a substitute for 
 | B01 baseline, identity, home context | Complete |
 | B02 identity linking and recovery | Complete except two tasks dropped on purpose, see below |
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
-| B04 settings and alerts | In progress. Migration 0021 merged (reviewed, Rulings S7 to S10); 2b (alerts) merged; 2a (settings) in review |
+| B04 settings and alerts | Routes merged: 2a settings (`85c0b2a`, atomic `save_settings`, database-owned revision, Rulings S11 to S13) and 2b alerts. One follow-up in flight (S14 stored receipts carry no lock list, S15 settings settles its own ledger row, 0021 nits incl. a deadlock to fix before apply), then the contracts task |
 | B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-1` |
-| B06 | In progress. Task 5 (`week.changes`, `week.acknowledge`) merged |
+| B06 My Week (tasks) | In progress. Tasks 1 (migration 0023), 2 (rules and planner) and 5 (week routes) merged; Task 3 (`actions.load`) in review; Task 4 (`actions.commit`) next. Behind the `tasks` flag, off until task retention is approved (Vibhav, 2026-10-18) |
 
 ## Migrations
 
@@ -60,7 +60,7 @@ design-breaking mismatches before implementation. They are not a substitute for 
 validated; 0017 and 0018 the same day; the `TRUNCATE` privilege remedy in `YOUR_TODO.md` 2.7 also
 applied). Use the state query in `YOUR_TODO.md` 2.6 rather than trusting any document, including this one.
 
-**0019, 0020, 0021 and 0022 are written and applied nowhere** (0021 merged 2026-10-18; it no longer carries a tenure/renter_mode cross-check, Ruling S7; 0022, `explore_areas`, merged 2026-10-18 for B05). All four are additive and none rewrites data.
+**0019 to 0023 are written and applied nowhere** (0021 merged 2026-10-18 and amended 2026-10-19 with `save_settings` and the revision and tenure triggers, Rulings S11 to S13, and carries no tenure/renter_mode cross-check, Ruling S7; 0022, `explore_areas`, for B05; 0023, My Week's tasks, `YOUR_TODO.md` 2.12). All five are additive and none rewrites data. **Do not apply 0021 until the B04 follow-up lands**: it fixes a deadlock between a first-time notifications write and `save_settings`.
 Apply them as one batch when ready; each has apply steps and a tested back-out block in `YOUR_TODO.md`
 (0022 is 2.11). Until 0022 is applied both Explore area verbs answer a non-retryable 503.
 
