@@ -656,12 +656,92 @@ test('the same operation id with different input is a conflict, never a wrong re
   assert.equal(h.db.rows('luna_conversations').find((row) => row.id === ALICE_CONV).revision, 5, 'nothing happened twice');
 });
 
-test('an attempt that never settled is reported as unconfirmed, and is not cleared a second time to find out', async () => {
+/** The copy for an earlier attempt that is over but did not finish. */
+const INCOMPLETE_COPY = 'That earlier clear did not finish. Please review the conversation and try again.';
+
+/** A ledger row for alice's clear of her own conversation at revision 4. */
+const aliceClearRow = (overrides) => ({
+  operation_id: OP,
+  profile_id: 'alice',
+  domain: 'luna',
+  kind: 'luna.clear',
+  request_hash: requestHash({ id: ALICE_CONV, revision: 4 }),
+  ...overrides,
+});
+
+/**
+ * A replay that met an earlier attempt which is over but did not finish: a
+ * terminal 409 carrying `reason`, in words that are true. The conversation
+ * exists, so neither the reason nor the copy may say it was not found, and
+ * nothing is cleared a second time.
+ */
+async function assertIncompleteReplay(h, reason, label) {
+  const response = await clearAs(h, 'alice', { id: ALICE_CONV, revision: 4 });
+  const body = await expectEnvelope(response, { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+  assert.equal(body.reason, reason, `${label}: the reason is the one that happened`);
+  assert.equal(body.message, INCOMPLETE_COPY, `${label}: the person is told the earlier clear did not finish`);
+  assert.notEqual(body.reason, 'unknown_conversation', `${label}: the conversation exists`);
+  assert.ok(!/not found/i.test(body.message), `${label}: and the copy does not say otherwise`);
+  assert.ok(!('messages' in body), `${label}: a failed outcome is not answered with a conversation`);
+  assertNoEmDash(body, label);
+  assert.equal(h.db.rows('operations').find((row) => row.operation_id === OP).status, 'failed');
+  assert.equal(h.db.rows('luna_turns').filter((row) => row.conversation_id === ALICE_CONV).length, ALICE_TURNS.length,
+    `${label}: the transcript is untouched, because the earlier attempt owns this operation`);
+  assert.equal(h.db.rows('luna_conversations').find((row) => row.id === ALICE_CONV).revision, 4);
+  return body;
+}
+
+test('an attempt from a process that died is reaped on replay: a terminal 409 that says it did not finish', async () => {
+  // Past the ledger's staleness window, the replay reaps the claim to failed
+  // (lib/operations.js, reapIfAbandoned), so the client is given a terminal
+  // answer instead of the retryable 503 it would otherwise get for ever.
+  const h = harness({ operations: [aliceClearRow({ status: 'pending', created_at: ago(10 * 60 * 1000) })] });
+  await assertIncompleteReplay(h, 'abandoned', 'reaped on this replay');
+  assert.deepEqual(h.db.rows('operations').find((row) => row.operation_id === OP).result,
+    { status: 'failed', reason: 'abandoned' }, 'the reaped shape is what the route answered from');
+  // And it stays terminal: the second replay meets the settled reaped row.
+  await assertIncompleteReplay(h, 'abandoned', 'replayed again after the reap');
+});
+
+test('a row an earlier read already reaped is answered the same way', async () => {
+  const h = harness({
+    operations: [aliceClearRow({
+      status: 'failed',
+      result: { status: 'failed', reason: 'abandoned' },
+      created_at: ago(10 * 60 * 1000),
+    })],
+  });
+  await assertIncompleteReplay(h, 'abandoned', 'already reaped');
+});
+
+test('an earlier attempt that threw is a terminal 409, not a 503 for ever', async () => {
+  // runOperation settles an in-process throw as failed with a null result
+  // (lib/operations.js, the catch in runOperation). That attempt is over and
+  // will never settle into anything else, so the retryable "still being
+  // processed" 503 would be a lie that never ends.
+  const h = harness({
+    operations: [aliceClearRow({ status: 'failed', result: null, created_at: ago(5_000) })],
+  });
+  await assertIncompleteReplay(h, 'attempt_failed', 'threw in process');
+  await assertIncompleteReplay(h, 'attempt_failed', 'replayed again after the throw');
+});
+
+test('a failed receipt whose reason this route never writes is not reported as an unknown conversation', async () => {
+  const h = harness({
+    operations: [aliceClearRow({
+      status: 'failed',
+      result: { status: 'failed', reason: 'something_else' },
+      created_at: ago(5_000),
+    })],
+  });
+  await assertIncompleteReplay(h, 'attempt_failed', 'an unrecognised reason');
+});
+
+test('an attempt still running is reported as unconfirmed, and is not cleared a second time to find out', async () => {
   const hash = requestHash({ id: ALICE_CONV, revision: 4 });
-  // A concurrent attempt still running, and one from a process that died
-  // before it settled (past the ledger's staleness window, so a reader calls
-  // it 'unknown'). Neither has a receipt, and neither may be guessed at.
-  for (const createdAt of [ago(1_000), ago(10 * 60 * 1000)]) {
+  // A concurrent attempt still inside its window has no receipt, and may not
+  // be guessed at.
+  for (const createdAt of [ago(1_000)]) {
     const h = harness({
       operations: [
         {
@@ -778,6 +858,8 @@ test("another household's conversation id is not reachable, and the answer says 
   const unknownBody = await expectEnvelope(unknown, { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
 
   assert.equal(foreign.status, unknown.status, 'the same status for a foreign id and one that never existed');
+  assert.deepEqual([unknownBody.reason, unknownBody.message], ['unknown_conversation', 'That conversation was not found.'],
+    'an id that is not a conversation of theirs is the one case that says not found');
   assert.deepEqual(
     [foreignBody.code, foreignBody.message, foreignBody.reason],
     [unknownBody.code, unknownBody.message, unknownBody.reason],

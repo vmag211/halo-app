@@ -274,6 +274,23 @@ test('unresolved operations list this household unsettled account work, and nobo
   assert.deepEqual(body.unresolvedOperations, [PENDING_OP], 'settled work is resolved; another household is not listed');
 });
 
+test('an abandoned account operation does not lock the surface forever: the read reaps it to failed', async () => {
+  const h = harness({
+    operations: [
+      { operation_id: PENDING_OP, domain: 'account', kind: 'account.request-recovery', status: 'pending', created_at: ago(60 * 60 * 1000) },
+      { operation_id: OTHER_OP, profile_id: 'bob', domain: 'account', kind: 'account.request-recovery', status: 'pending', created_at: ago(60 * 60 * 1000) },
+    ],
+  });
+  const before = (await read(h, 'alice')).status;
+  assert.equal(before, 200);
+  const body = await (await read(h, 'alice')).json();
+  assert.deepEqual(body.unresolvedOperations, [], 'a dead claim is no longer outstanding');
+  assert.equal(body.revision, 1, 'the revision counts the attempt either way, so reaping cannot move a precondition');
+  const rows = h.db.rows('operations');
+  assert.equal(rows.find((row) => row.operation_id === PENDING_OP).status, 'failed');
+  assert.equal(rows.find((row) => row.operation_id === OTHER_OP).status, 'pending', "bob's row waits for bob's own read");
+});
+
 test('revision advances with every account command, so a later write can detect a conflict', async () => {
   const none = await (await read(harness(), 'alice')).json();
   assert.equal(none.revision, 0, 'no command recorded is revision zero');

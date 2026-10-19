@@ -910,6 +910,40 @@ test('the same operation id returns the first outcome and does not act twice', a
   assert.equal(h.db.rows('operations').length, 1, 'and is recorded once');
 });
 
+test('a replay of a command whose process died is answered as failed once a read has reaped it, and is not run again', async () => {
+  // The claim a killed instance leaves behind: recorded, never settled, long
+  // past its window. The hash is the one the route computes for this body, so
+  // the retry below is a genuine replay rather than a mismatch.
+  const { requestHash } = await import('../lib/operations.js');
+  const body = {
+    action: 'request-recovery',
+    payload: { email: FRESH },
+    expectedRevision: 0,
+    operationId: op(1),
+  };
+  const h = harness({
+    operations: [{
+      operation_id: op(1),
+      status: 'pending',
+      result: null,
+      request_hash: requestHash({ feature: 'recovery', action: body.action, payload: body.payload, expectedRevision: 0 }),
+      created_at: ago(60 * 60 * 1000),
+    }],
+  });
+
+  const snapshot = await (await h.call('/api/account', 'GET', { as: 'alice', url: '/api/account?feature=recovery', env: ON })).json();
+  assert.deepEqual(snapshot.unresolvedOperations, [], 'the read reaped it, so the surface is not locked');
+
+  const response = await command(h, 'alice', body);
+  assert.equal(response.status, 200);
+  const receipt = await response.json();
+  assertAccountReceipt(receipt, op(1));
+  assert.equal(receipt.status, 'failed', 'the settled outcome, so the client clears the id');
+  assert.equal(h.provider.length, 0, 'nothing was sent to the provider: the command was not run again');
+  assert.equal(h.db.rows('recovery_challenges').length, 0, 'and no challenge was opened');
+  assert.equal(h.db.rows('operations').length, 1);
+});
+
 test('a replay is answered even though the revision has moved on since the first call', async () => {
   // The precondition belongs to the first attempt. Re-checking it on a replay
   // would turn a lost response into a conflict the client cannot resolve.
@@ -959,7 +993,9 @@ test('an operation still running is reported as pending, so the client parks it 
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'and nothing is done a second time');
 });
 
-test('an attempt that was recorded and never settled is unknown, which is not a failure', async () => {
+test('an attempt that was recorded and never settled is reaped by its own replay and answered as failed, not run again', async () => {
+  // No read of the inventory happens first: the replay meets its own stale
+  // claim and settles it, so the client is not left parking an id for ever.
   const h = harness({
     operations: [
       { operation_id: op(1), kind: 'account.request-recovery', status: 'pending', created_at: ago(10 * 60 * 1000) },
@@ -971,8 +1007,11 @@ test('an attempt that was recorded and never settled is unknown, which is not a 
     expectedRevision: 1,
     operationId: op(1),
   })).json();
-  assert.equal(receipt.status, 'unknown');
+  assertAccountReceipt(receipt, op(1));
+  assert.equal(receipt.status, 'failed');
+  assert.equal(h.db.rows('operations')[0].status, 'failed', 'settled in the ledger, not only in the answer');
   assert.equal(h.db.rows('recovery_challenges').length, 0);
+  assert.equal(h.provider.length, 0, 'the provider was not asked again');
 });
 
 // ---------------------------------------------------------------------------

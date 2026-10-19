@@ -156,8 +156,10 @@ test('two concurrent calls with one id run the effect once; the loser is told pe
   assert.equal(runs, 1);
 });
 
-test('a pending row older than the window reports unknown, so a dead process never looks alive', async () => {
+test('a pending row older than the window is reaped by its replay to failed, so a dead process never looks alive', async () => {
   // A crash leaves the claim behind with no outcome, seeded here as the stale row.
+  // The owned replay settles it (lib/operations.js, reapIfAbandoned); the
+  // unowned recovery domain is never reaped and still reads 'unknown', below.
   const db = createFakeSupabase({
     tables: haloTables('profiles', 'operations'),
     seed: {
@@ -179,10 +181,43 @@ test('a pending row older than the window reports unknown, so a dead process nev
     { operationId: OP, profileId: ALICE, domain: 'actions', kind: 'actions.commit', input: {} },
     async () => { throw new Error('must not run'); },
   );
-  assert.equal(outcome.status, 'unknown');
-  assert.equal(outcome.result, null);
+  assert.equal(outcome.status, 'failed');
+  assert.equal(outcome.replayed, true);
+  assert.equal(outcome.result.operationId, OP);
   const read = await readOperation(db, { operationId: OP, profileId: ALICE, domain: 'actions' });
-  assert.equal(read.status, 'unknown', 'and a reader is told the same thing');
+  assert.equal(read.status, 'failed', 'and a reader is told the same thing');
+});
+
+test('an unowned recovery row past the window still reads unknown and is never written by a read', async () => {
+  const db = createFakeSupabase({
+    tables: haloTables('profiles', 'operations'),
+    seed: {
+      operations: [{
+        operation_id: OP,
+        profile_id: null,
+        domain: 'recovery',
+        kind: 'recovery.request',
+        status: 'pending',
+        request_hash: requestHash({}),
+        result: null,
+        created_at: new Date(Date.now() - DEFAULT_STALE_AFTER_MS - 1000).toISOString(),
+      }],
+    },
+  });
+  const read = await readOperation(db, { operationId: OP, domain: 'recovery' });
+  assert.equal(read.status, 'unknown');
+  const replay = await runOperation(
+    db,
+    { operationId: OP, domain: 'recovery', kind: 'recovery.request', input: {} },
+    async () => { throw new Error('must not run'); },
+  );
+  assert.equal(replay.status, 'unknown');
+  assert.equal(db.rows('operations')[0].status, 'pending');
+  assert.equal(
+    db.queryLog.filter((entry) => entry.operation === 'update').length,
+    0,
+    'POST /api/recovery/status promises a status read mutates nothing',
+  );
 });
 
 // ---------------------------------------------------------------------------
