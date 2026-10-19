@@ -50,14 +50,21 @@ import {
  * the list had settled before the snapshot was read, and its write is in the
  * snapshot. Read the other way round, a commit landing between the two reads
  * would be in neither, and the client would show a stale week with no check.
+ * The reverse case is the lesser one and is accepted: such a commit is listed
+ * although its write is already in the snapshot, so the client locks and
+ * reconciles it once, and GET /api/operations answers `succeeded` with a
+ * current snapshot (Ruling H18), "Saved. The existing task result was
+ * recovered."
  *
  * Ruling H24: the stored snapshot is returned exactly as read, never with a
  * row left out. Hiding a row the server's own validator would refuse (only
  * possible through time-zone data drift) would tell the person a task does
  * not exist. When the whole body fails the client's `validActionSnapshot`
  * (lib/actionRules.js), one line is logged naming only the offending task
- * ids and a reason code per finding (snapshotProblemLine), never a title, a
- * note or any other text a person typed.
+ * ids and a reason code per finding (snapshotProblemLine), and for a task or
+ * its planning details the code of the client's own fixed sentence for it
+ * (Ruling H31: `time` for a clock-change gap, `zone` for an unknown zone),
+ * never a title, a note or any other text a person typed.
  *
  * Identity comes only from the verified token. The query string is ignored
  * (the client sends none), and so is `X-Halo-Home-Context`: tasks belong to

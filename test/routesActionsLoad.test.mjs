@@ -396,7 +396,7 @@ test('a stored row the client would refuse is returned unchanged, never hidden, 
   const line = loggedText(logged);
   assert.equal(line,
     'actions load: the stored snapshot fails the client\'s load check and is returned unchanged '
-    + `(request h24-request-0001, 2 finding(s)): invalid_meta ${drifted.id}; invalid_preference week:review-preferences`);
+    + `(request h24-request-0001, 2 finding(s)): invalid_meta ${drifted.id} time; invalid_preference week:review-preferences`);
   for (const marker of ['PRIVATE-NOTE-MARKER', 'PRIVATE-TITLE-MARKER', 'PRIVATE-PLACE-MARKER', 'home:water', 'Mars', '02:30', 'Water first']) {
     assert.ok(!line.includes(marker), `${marker} is not logged`);
   }

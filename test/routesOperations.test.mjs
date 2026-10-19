@@ -242,3 +242,96 @@ test('without migration 0017 the route reports the feature unavailable, never a 
   const body = await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
   assert.ok(!('status' in body), 'an absent ledger must not be answered with an operation status');
 });
+
+// ---------------------------------------------------------------------------
+// B06 Ruling H18: a succeeded `actions` operation is answered with the current
+// snapshot. The client's reconcile requires a valid snapshot with the
+// unresolved array (adapters.ts:7,11), and the ledger holds ids and revisions
+// only (Ruling H3). The real 0023 function, with the PGlite ledger, is in
+// routesActionsCommitDb.test.mjs; here it is a stand-in, to show what this
+// route adds and that it adds nothing anywhere else.
+// ---------------------------------------------------------------------------
+
+const ACTIONS_OK = '88888888-8888-4888-8888-888888888881';
+const ACTIONS_FAILED = '88888888-8888-4888-8888-888888888882';
+const ACTIONS_PENDING = '88888888-8888-4888-8888-888888888883';
+const BOB_ACTIONS = '88888888-8888-4888-8888-888888888884';
+const TASK = { id: '7a7a7a7a-0000-4000-8000-000000000001', key: 'home:water', title: 'Test the tap', reason: 'Due', origin: 'home', date: '2026-10-20', state: 'saved', revision: 2 };
+
+/** alice has a succeeded, a refused and a pending save of tasks; bob has a succeeded one. */
+function actionsHarness({ env = { HALO_FEATURE_TASKS: 'on' }, withFunction = true } = {}) {
+  const h = createRouteHarness({
+    tables: haloTables('profiles', 'operations'),
+    env,
+    seed: ({ alice, bob }) => ({
+      profiles: [{ id: alice.id }, { id: bob.id }],
+      operations: [
+        { operation_id: ACTIONS_OK, profile_id: alice.id, domain: 'actions', kind: 'actions.commit', status: 'succeeded', request_hash: 'h1', result: { status: 'succeeded', affected: [{ id: TASK.id, revision: 2 }], removed: [], unresolvedOperations: [], operationId: ACTIONS_OK }, created_at: ago(5000) },
+        { operation_id: ACTIONS_FAILED, profile_id: alice.id, domain: 'actions', kind: 'actions.commit', status: 'failed', request_hash: 'h2', result: { status: 'failed', reason: 'stale_revision', revisions: [{ id: TASK.id, revision: 2 }], unresolvedOperations: [], operationId: ACTIONS_FAILED }, created_at: ago(4000) },
+        { operation_id: ACTIONS_PENDING, profile_id: alice.id, domain: 'actions', kind: 'actions.commit', status: 'pending', request_hash: 'h3', result: null, created_at: ago(1000) },
+        { operation_id: BOB_ACTIONS, profile_id: bob.id, domain: 'actions', kind: 'actions.commit', status: 'succeeded', request_hash: 'h4', result: { status: 'succeeded', affected: [], removed: [], operationId: BOB_ACTIONS }, created_at: ago(1000) },
+      ],
+    }),
+  });
+  if (withFunction) {
+    h.db.registerRpc('read_household_actions', (args) => (
+      args.p_profile_id === h.identities.alice.id
+        ? { version: 4, actions: [TASK], metas: {}, preferences: { 'week:focus': 'Water first' } }
+        : { version: 1, actions: [{ ...TASK, id: '7a7a7a7a-0000-4000-8000-0000000000b1', title: 'BOB-PRIVATE-TITLE' }], metas: {}, preferences: {} }
+    ), { args: ['p_profile_id'] });
+  }
+  return h;
+}
+
+test('H18: a succeeded actions operation is answered with the current snapshot and the live list, its own id left out', async () => {
+  const h = actionsHarness();
+  const response = await read(h, 'alice', `operationId=${ACTIONS_OK}&domain=actions`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, 'succeeded');
+  assert.equal(body.operationId, ACTIONS_OK);
+  assert.deepEqual(body.snapshot, { actions: [TASK], metas: {}, preferences: { 'week:focus': 'Water first' }, unresolvedOperations: [ACTIONS_PENDING] });
+  assert.deepEqual(body.unresolvedOperations, [ACTIONS_PENDING], 'S16: the live list overlays the stored [] at the top level too');
+  assert.deepEqual(h.db.rows('operations').find((row) => row.operation_id === ACTIONS_OK).result.unresolvedOperations, [], 'the stored copy keeps []');
+  assert.ok(!('data' in body));
+  assert.deepEqual(h.db.rpcCalls, [{ name: 'read_household_actions', args: { p_profile_id: h.identities.alice.id } }], 'the caller\'s own snapshot only');
+  // The client's reconcile takes it (adapters.ts:7,11) and the screen commits it (ExpandedPreviewState.tsx:113).
+  const { createActionAdapter, myWeek } = await import('./helpers/frontendB06.mjs');
+  const adapter = createActionAdapter({ request: async () => body });
+  const week = myWeek(adapter);
+  week.unknownOperation = ACTIONS_OK;
+  assert.equal(await week.reconcile(), true);
+  assert.deepEqual([week.unknownOperation, week.error, week.canMutate()], [ACTIONS_PENDING, 'Another earlier save needs checking.', false],
+    'S16: reconciling one operation keeps a different, genuinely pending one locked');
+});
+
+test('H18: every other actions status, and every other domain, is replayed as stored with no snapshot read', async () => {
+  const h = actionsHarness();
+  const failed = await (await read(h, 'alice', `operationId=${ACTIONS_FAILED}&domain=actions`)).json();
+  assert.deepEqual([failed.status, failed.reason, failed.revisions], ['failed', 'stale_revision', [{ id: TASK.id, revision: 2 }]]);
+  assert.ok(!('snapshot' in failed));
+  const pending = await (await read(h, 'alice', `operationId=${ACTIONS_PENDING}&domain=actions`)).json();
+  assert.equal(pending.status, 'pending');
+  assert.ok(!('snapshot' in pending));
+  const settings = await (await read(harness(), 'alice', `operationId=${OP}&domain=settings`)).json();
+  assert.deepEqual(settings.snapshot, { revision: 4 }, 'another domain\'s payload is untouched');
+  assert.deepEqual(h.db.rpcCalls, []);
+});
+
+test('H18: another household\'s actions operation is the identical 404, and nothing of theirs is read', async () => {
+  const h = actionsHarness();
+  const theirs = await expectEnvelope(await read(h, 'alice', `operationId=${BOB_ACTIONS}&domain=actions`), { status: 404, code: 'not_found' });
+  const never = await expectEnvelope(await read(h, 'alice', `operationId=${DEAD.replace(/5/g, '9')}&domain=actions`), { status: 404, code: 'not_found' });
+  assert.equal(theirs.message, never.message);
+  assert.deepEqual(h.db.rpcCalls, []);
+});
+
+test('H17, H18: with tasks off a succeeded actions operation is the non-retryable 503 and nothing is read; before 0023 likewise', async () => {
+  const off = actionsHarness({ env: {} });
+  await expectEnvelope(await read(off, 'alice', `operationId=${ACTIONS_OK}&domain=actions`), { status: 503, code: 'feature_unavailable', retryable: false });
+  assert.deepEqual(off.db.rpcCalls, []);
+  const refused = await (await read(off, 'alice', `operationId=${ACTIONS_FAILED}&domain=actions`)).json();
+  assert.equal(refused.status, 'failed', 'a refusal still replays: it discloses no task');
+  const missing = actionsHarness({ withFunction: false });
+  await expectEnvelope(await read(missing, 'alice', `operationId=${ACTIONS_OK}&domain=actions`), { status: 503, code: 'feature_unavailable', retryable: false });
+});
