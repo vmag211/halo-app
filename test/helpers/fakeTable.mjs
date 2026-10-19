@@ -9,6 +9,10 @@
  *                "<column> is not null" (nothing else is understood)
  *   ownerColumn  'profile_id'          rows cascade away with that auth user
  *   defaults     { id: () => uuid }    filled in for columns an insert omits
+ *   references   [{ column, table, key }]  a foreign key: a written row whose
+ *                column is not null must name a row of `table` by `key`, else
+ *                23503 and nothing is written. Checked only when `table` is
+ *                declared too, and never for a seed (test setup).
  *
  * Writes are statements: each one is planned against a copy and either commits
  * whole or returns an error and changes nothing, like a Postgres transaction.
@@ -47,8 +51,10 @@ function partialPredicate(where) {
 }
 
 export class FakeTable {
-  constructor(name, declaration = {}) {
+  constructor(name, declaration = {}, lookup = () => undefined) {
     this.name = name;
+    this.lookup = lookup;
+    this.references = declaration.references ?? [];
     this.primaryKey = toColumns(declaration.primaryKey);
     this.unique = (declaration.unique ?? []).map(toColumns);
     this.partialUnique = (declaration.partialUnique ?? []).map(({ name: constraint, columns, where }) => ({
@@ -122,6 +128,23 @@ export class FakeTable {
     return null;
   }
 
+  #foreignKeyError(rows) {
+    for (const { column, table, key } of this.references) {
+      const target = this.lookup(table);
+      if (!target) continue;
+      for (const row of rows) {
+        const value = row[column];
+        if (isNil(value) || target.rows.some((other) => compareValue('eq', other[key], value) === true)) continue;
+        return pgError(
+          '23503',
+          `insert or update on table "${this.name}" violates foreign key constraint "${this.name}_${column}_fkey"`,
+          `Key (${column})=(${value}) is not present in table "${table}".`,
+        );
+      }
+    }
+    return null;
+  }
+
   #plan(work, affected) {
     const fire = !this.seeding;
     if (fire) {
@@ -135,7 +158,7 @@ export class FakeTable {
         }
       }
     }
-    const error = this.#nullKeyError(work) ?? this.#uniqueError(work);
+    const error = this.#nullKeyError(work) ?? this.#uniqueError(work) ?? (fire ? this.#foreignKeyError(affected) : null);
     if (error) return { error };
     return {
       rows: affected.map(wire),

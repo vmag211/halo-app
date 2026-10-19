@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
+import { apiError, internalError, loggableError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody } from '@/lib/validate';
 import {
   OPERATION_INPUT_MISMATCH,
@@ -260,8 +260,9 @@ export async function POST(request) {
     if (isSettingsAlertsUnavailable(err) || isOperationsUnavailable(err)) return settingsAlertsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    // The detail goes to the log: a database message is not for the person.
-    console.error(`alerts state update failed (request ${requestId}):`, err);
+    // The code and message go to the log: a database message is not for the
+    // person, and its details, which can quote the refused row, go nowhere.
+    console.error(`alerts state update failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }

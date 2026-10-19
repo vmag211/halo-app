@@ -29,7 +29,8 @@ import { createDb } from './db/pgliteHarness.mjs';
 import { ledgerClient } from './db/pgliteLedger.mjs';
 import { pgliteSelect } from './db/pgliteSelect.mjs';
 import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
-import { haloTables } from './helpers/tables.mjs';
+import { createRouteHarness } from './helpers/routeHarness.mjs';
+import { HALO_TABLES, haloTables } from './helpers/tables.mjs';
 import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
 import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
 import { installSettingsDb } from './helpers/fakeSettingsDb.mjs';
@@ -306,6 +307,99 @@ test('review finding B: a value its column refuses is HALO_INVALID_INPUT naming 
   assert.equal((await saveError(sameEnds, await revisionOf(sameEnds), { preferences: { quiet_enabled: true } }))?.message, 'HALO_INVALID_INPUT');
   assert.equal(await everything(sameEnds), stored);
 });
+
+test('review N1: a household with no profile row can hold no preferences row and claim no settings operation (23503)', async () => {
+  // What GET and PATCH /api/settings answer as a 404 before writing anything: the
+  // route's fake declares the same foreign key (test/helpers/tables.mjs).
+  const id = crypto.randomUUID();
+  await db.exec(`insert into auth.users (id, is_anonymous) values ('${id}', true); delete from public.profiles where id = '${id}';`);
+  const create = await asService('insert into public.profile_preferences (profile_id) values ($1) on conflict (profile_id) do nothing', [id]).then(() => null, (error) => error);
+  assert.equal(create?.code, '23503', 'ensurePreferences\'s insert is refused by the foreign key');
+  const claim = await asService(`insert into public.operations (operation_id, profile_id, domain, kind) values ($1, $2, 'settings', 'settings.save')`, [crypto.randomUUID(), id]).then(() => null, (error) => error);
+  assert.equal(claim?.code, '23503', 'and so would the ledger claim be');
+  assert.equal((await saveError(id, 1, { operationId: crypto.randomUUID() }))?.message, 'HALO_OPERATION_NOT_PENDING', 'save_settings writes nothing');
+});
+
+// ---------------------------------------------------------------------------
+// Review N2: where home details go, in the profile route's JS and in this SQL
+// ---------------------------------------------------------------------------
+
+const HOME = 'a0e00000-0000-4000-8000-0000000000aa';
+const HOME_SAVE = 'a0e00000-0000-4000-8000-0000000000bb';
+/**
+ * One household state per rule: the profile's own point, and the point of a
+ * current home or null. A current home decides it whatever the profile holds;
+ * otherwise a stored point (both set, rounded to 3 decimals) makes the legacy
+ * home; anything else is the profile itself.
+ */
+const HOME_DETAIL_CASES = [
+  ['a current home', { lat: 35.41, lng: -80.61 }, { lat: 35.41, lng: -80.61 }, 'update_home_context_attributes'],
+  ['a current home, though the profile holds no point', { lat: null, lng: null }, { lat: 35.41, lng: -80.61 }, 'update_home_context_attributes'],
+  ['located at a stored point, with no home yet', { lat: 35.412, lng: -80.615 }, null, 'transition_home_context'],
+  ['not located', { lat: null, lng: null }, null, 'profile'],
+  ['located at a point not rounded to 3 decimals', { lat: 35.4567, lng: -80.5 }, null, 'profile'],
+  ['half a point', { lat: 35.5, lng: null }, null, 'profile'],
+];
+const ANSWERS = { water_source: 'well', home_year: 1975 };
+
+/** Where save_settings (0021) put a year change, read from what it changed. */
+async function sqlDestination(point, homePoint) {
+  const id = await household({ ...ANSWERS });
+  if (homePoint) {
+    await asService('select public.transition_home_context($1, $2::jsonb, $3::jsonb, null)', [id, JSON.stringify(homePoint), JSON.stringify(ANSWERS)]);
+  }
+  // The profile's own point last: the home function keeps the profile in step with the home.
+  await db.query('update public.profiles set lat = $2, lng = $3 where id = $1', [id, point.lat, point.lng]);
+  const homes = async () => (await db.query('select id, revision, origin, home_year from public.home_contexts where profile_id = $1 order by sequence', [id])).rows;
+  const before = await homes();
+  assert.equal((await save(id, await revisionOf(id), { home: { home_year: 2001 } })).saved, true);
+  const after = await homes();
+  assert.equal((await profileOf(id)).home_year, 2001, 'the profile has the answer whichever way it went');
+  if (before.length === 1 && after.length === 1 && after[0].revision === before[0].revision + 1 && after[0].home_year === 2001) return 'update_home_context_attributes';
+  if (before.length === 0 && after.length === 1 && after[0].origin === 'legacy_migration' && after[0].home_year === 2001) return 'transition_home_context';
+  if (JSON.stringify(after) === JSON.stringify(before)) return 'profile';
+  return `unexpected: ${JSON.stringify({ before, after })}`;
+}
+
+/** The rows a fake needs for this state, with the profile's id. */
+const fakeState = (id, point, homePoint) => ({
+  profiles: [{ id, ...point, ...ANSWERS, tenure: null }],
+  home_contexts: homePoint ? [{ id: HOME, profile_id: id, sequence: 1, revision: 1, origin: 'onboard', ...homePoint, ...ANSWERS, effective_to: null }] : [],
+});
+const HOME_FUNCTIONS = new Set(['update_home_context_attributes', 'transition_home_context']);
+
+/** Where PATCH /api/profile's JavaScript puts the same change: the function it calls, or none. */
+async function routeDestination(point, homePoint) {
+  const h = createRouteHarness({ tables: HALO_TABLES, seed: ({ alice }) => fakeState(alice.id, point, homePoint) });
+  registerHomeContextRpcs(h.db);
+  const res = await h.call('/api/profile', 'PATCH', { as: 'alice', body: { home_year: 2001 } });
+  assert.equal(res.status, 200, await res.clone().text());
+  return h.db.rpcCalls.map((call) => call.name).find((name) => HOME_FUNCTIONS.has(name)) ?? 'profile';
+}
+
+/** Where the route tests' stand-in for save_settings puts it (test/helpers/fakeSettingsDb.mjs). */
+async function fakeDestination(point, homePoint) {
+  const id = crypto.randomUUID();
+  const fake = createFakeSupabase({
+    tables: HALO_TABLES,
+    seed: { ...fakeState(id, point, homePoint), profile_preferences: [{ profile_id: id }], operations: [{ operation_id: HOME_SAVE, profile_id: id, domain: 'settings', kind: 'settings.save' }] },
+  });
+  registerHomeContextRpcs(fake);
+  installSettingsDb(fake);
+  const { data, error } = await fake.rpc('save_settings', {
+    p_profile_id: id, p_operation_id: HOME_SAVE, p_expected_revision: 1, p_preferences: {}, p_profile: null, p_home: { home_year: 2001 }, p_notifications: null, p_bands: null,
+  });
+  assert.deepEqual([error, data?.saved], [null, true]);
+  return fake.rpcCalls.map((call) => call.name).find((name) => HOME_FUNCTIONS.has(name)) ?? 'profile';
+}
+
+for (const [label, point, homePoint, expected] of HOME_DETAIL_CASES) {
+  test(`review N2: home details go to the same place from PATCH /api/profile, save_settings and its stand-in (${label})`, async (t) => {
+    t.mock.method(console, 'warn', () => {});
+    const [sql, route, fake] = [await sqlDestination(point, homePoint), await routeDestination(point, homePoint), await fakeDestination(point, homePoint)];
+    assert.deepEqual({ sql, route, fake }, { sql: expected, route: expected, fake: expected });
+  });
+}
 
 test('only the service role may call save_settings', async () => {
   for (const role of ['anon', 'authenticated']) {

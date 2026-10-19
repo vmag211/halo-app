@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { apiError, internalError, requestIdFor, ERROR_CODES } from '@/lib/apiErrors';
+import { apiError, internalError, loggableError, requestIdFor, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { isSettingsAlertsUnavailable, settingsAlertsUnavailable } from '@/lib/settingsAlerts';
@@ -9,6 +9,7 @@ import {
   changedFields,
   ensurePreferences,
   isSaveSettingsMissing,
+  isSettingsProfileMissing,
   parseSettingsSave,
   preferenceColumns,
   readBands,
@@ -90,6 +91,9 @@ import {
  *   409 conflict, reason 'operation_failed' or 'operation_abandoned': a
  *       replay of an id whose save failed, or was settled as abandoned by the
  *       ledger's reaper. Terminal: the same id never succeeds.
+ *   404 not_found for a household with no profile row (review N1): there are no
+ *       settings to read or save, and nothing was changed. Decided before the
+ *       operation id is claimed, which the ledger's own foreign key would refuse
  *   422 validation_failed with field_errors, before anything is read or written
  *   503 feature_unavailable until 0017 and 0021 are applied, decided before the
  *       operation id is claimed, so "nothing was changed" is true (and, should
@@ -98,6 +102,10 @@ import {
  *
  * Identity comes only from the verified session token. No field of the body or
  * the query names a household, and every statement is scoped to the caller.
+ *
+ * A failure is logged as its code and message only (lib/apiErrors.js
+ * loggableError): a database error's details can quote the whole row it
+ * refused, location included (review of 0021, finding B).
  */
 
 /**
@@ -119,7 +127,13 @@ const MESSAGES = Object.freeze({
   failed: 'That save did not complete. Review the latest settings before saving again.',
   ifMatch: 'Send the settings revision you are saving against in If-Match.',
   idempotency: 'The Idempotency-Key header and the operationId must be the same id.',
+  noProfile: 'Settings are not available until this household is set up. Nothing was changed.',
 });
+
+/** 404: the household has no profile row, so it has no settings (review N1). Not retryable. */
+function profileMissing(requestId) {
+  return apiError({ status: 404, code: ERROR_CODES.NOT_FOUND, message: MESSAGES.noProfile, retryable: false, requestId });
+}
 
 /** Thrown inside the operation when If-Match is not the stored revision. */
 class StaleRevisionError extends Error {
@@ -170,9 +184,10 @@ export async function GET(request) {
     return NextResponse.json(await readSettingsSnapshot(supabaseAdmin, userId), { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
     if (isSettingsAlertsUnavailable(err) || isOperationsUnavailable(err)) return settingsAlertsUnavailable(requestId);
+    if (isSettingsProfileMissing(err)) return profileMissing(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`Settings read failed (request ${requestId}):`, err);
+    console.error(`Settings read failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }
@@ -253,6 +268,8 @@ export async function PATCH(request) {
 
     // 0021 is proved here, before the operation id is claimed, so an
     // unavailable surface has written nothing when it says nothing was changed.
+    // So is the profile row: the preferences row's foreign key refuses a
+    // household without one (SettingsProfileMissingError, a 404 below).
     try {
       await ensurePreferences(supabaseAdmin, userId);
       await readSettingsProfile(supabaseAdmin, userId);
@@ -307,10 +324,12 @@ export async function PATCH(request) {
     if (isSettingsAlertsUnavailable(err) || isSaveSettingsMissing(err) || isOperationsUnavailable(err)) {
       return settingsAlertsUnavailable(requestId);
     }
+    if (isSettingsProfileMissing(err)) return profileMissing(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    // The detail goes to the log: a database message is not for the person.
-    console.error(`Settings save failed (request ${requestId}):`, err);
+    // The code and message go to the log: a database message is not for the
+    // person, and its details, which can quote the refused row, go nowhere.
+    console.error(`Settings save failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }

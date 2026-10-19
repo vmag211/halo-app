@@ -20,6 +20,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { inspect } from 'node:util';
 import { createRouteHarness, muteConsoleError, rpcError } from './helpers/routeHarness.mjs';
 import { HALO_TABLES, haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
@@ -131,7 +132,11 @@ const readBody = async (h, who = 'alice') => {
 /**
  * A save the way the real client builds it (SettingsWorkspace.tsx:88-90): the
  * whole `values` from the snapshot with only the group's slice edited, plus
- * household for home and display/calendar for display.
+ * household for home and display/calendar for display. The display block is
+ * the client's own (review N3): scale, motion and contrast as shown, the
+ * palette through `colorPalette`, so 'ocean' when none is stored, and the
+ * appearance and ambient drafts. productionPreferences below runs the
+ * client's whole save and reconcile logic.
  */
 function saveBody(snapshot, group, edit = {}, operationId = nextOp()) {
   const values = structuredClone(snapshot.values);
@@ -139,7 +144,8 @@ function saveBody(snapshot, group, edit = {}, operationId = nextOp()) {
   const body = { group, values, operationId };
   if (group === 'home') body.household = { ...Object.fromEntries(BAND_KEYS.map((key) => [key, false])), has_adult: true, ...edit.household };
   if (group === 'display') {
-    body.display = { ...snapshot.display, ...edit.display };
+    const { scale, motion, contrast, palette, appearance, ambient } = snapshot.display;
+    body.display = { scale, motion, contrast, palette: colorPalette(palette), appearance, ambient, ...edit.display };
     body.calendar = { ...snapshot.calendar, ...edit.calendar };
   }
   return body;
@@ -359,11 +365,16 @@ test('GET: a household that never saved settings gets the defaults at revision 1
   assert.equal(h.db.rows('profile_preferences').filter((row) => row.profile_id === h.identities.bob.id).length, 1);
 });
 
-test('GET: a household with no profile row still gets a valid snapshot', async () => {
+test('review N1: a household with no profile row is a 404 on GET and PATCH, writes nothing and claims nothing', async () => {
+  // The preferences row's foreign key refuses it, as 0021's does (the fake declares it, test/helpers/tables.mjs).
   const h = createRouteHarness({ tables: HALO_TABLES, identities: { carol: {} } });
-  const body = await readBody(h, 'carol');
-  assert.deepEqual(body.values.home, { year: '', water: 'other', tenure: 'other' });
-  assert.equal(body.values.language, 'en');
+  installSettingsDb(h.db);
+  const read = await expectEnvelope(await h.call(ROUTE, 'GET', { as: 'carol' }), { status: 404, code: 'not_found', retryable: false });
+  assert.doesNotMatch(JSON.stringify(read), /23503|foreign key|profile_preferences/);
+  assert.deepEqual(h.db.rows('profile_preferences'), [], 'no preferences row was made');
+  const body = { group: 'luna', values: { luna: { tasks: true, home: true, projects: true } }, operationId: nextOp() };
+  await expectEnvelope(await patch(h, body, { who: 'carol', revision: 1 }), { status: 404, code: 'not_found', retryable: false });
+  assert.deepEqual([h.db.rows('profile_preferences'), h.db.rows('operations')], [[], []], 'nothing written, no operation claimed');
 });
 
 test('GET: unresolvedOperations is a lock, so it lists only this household\'s pending settings operations', async () => {
@@ -874,6 +885,39 @@ test('S11: the receipt is built from what save_settings returned, with nothing r
   assert.deepEqual(await readBody(h), receipt.snapshot, 'and it is what the next read says');
 });
 
+/** Every console.error argument as text, objects in full, so nothing they carry is missed. */
+const loggedText = (mock) => mock.mock.calls.flatMap((call) => call.arguments.map((arg) => inspect(arg, { depth: 8 }))).join('\n');
+
+test('review finding B: a failed save or read logs the error\'s code and message, never its details or hint, which can quote the refused row', async (t) => {
+  const errors = muteConsoleError(t);
+  const MARKER = 'MARKER-SETTINGS-LOG-9182';
+  // A refused row as Postgres reports it: coordinates, ZIP and PWSID in DETAIL.
+  const refused = rpcError('23514', 'new row for relation "profiles" violates check constraint "profiles_locale_check"',
+    `Failing row contains (${MARKER}, 35.409, -80.58, 28025, Cabarrus County, NC9990001).`, `hint ${MARKER}`);
+  const h = harness();
+  const shown = await readBody(h);
+  h.db.registerRpc('save_settings', () => { throw refused; });
+  await expectEnvelope(await patch(h, saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } }), { revision: 4 }), { status: 500, code: 'internal_error' });
+  // GET, with a read that fails the same way.
+  const from = h.db.from;
+  h.db.from = (name) => {
+    const builder = from(name);
+    if (name === 'profiles') builder.then = (ok, ko) => Promise.resolve({ data: null, error: refused }).then(ok, ko);
+    return builder;
+  };
+  await expectEnvelope(await read(h), { status: 500, code: 'internal_error' });
+  h.db.from = from;
+  // PUT /api/household, the other route here that calls a database function (save_household).
+  h.db.registerRpc('save_household', () => { throw refused; });
+  await expectEnvelope(await householdPut(h, { has_child: true }), { status: 500, code: 'internal_error' });
+
+  const lines = loggedText(errors);
+  assert.equal(errors.mock.callCount(), 3, 'each failure is logged');
+  assert.equal(lines.split('profiles_locale_check').length - 1, 3, 'with its message');
+  assert.match(lines, /23514/, 'and its code');
+  for (const quoted of [MARKER, '28025', 'NC9990001', '-80.58']) assert.equal(lines.includes(quoted), false, `${quoted} is not logged:\n${lines}`);
+});
+
 test('S11: save_settings missing alone (0021 half applied) is the same 503, recorded as failed with nothing changed', async () => {
   const h = harness();
   h.db.registerRpc('save_settings', () => { throw rpcError('PGRST202', 'Could not find the function public.save_settings in the schema cache'); });
@@ -1345,6 +1389,71 @@ async function overlapSaves(h, first, second) {
     h.db.rpc = realRpc;
   }
 }
+
+// ---------------------------------------------------------------------------
+// The client's own save and reconcile logic, over the real handlers (review N3)
+// ---------------------------------------------------------------------------
+
+test('client flow: load, then save every panel the way the workspace does; each receipt hydrates, nothing locks, the server agrees', async () => {
+  const h = harness();
+  // bob has never saved a setting: no palette stored, nothing answered.
+  const tab = productionPreferences(h, 'bob');
+  const server = async () => readBody(h, 'bob');
+  await tab.reload();
+  assert.deepEqual([tab.snapshot.revision, tab.unknown, tab.error], [1, null, null]);
+  assert.equal(Object.hasOwn(tab.snapshot.display, 'palette'), false);
+
+  assert.ok(await tab.saveGroup('luna', { values: (v) => { v.luna.home = true; } }));
+  assert.deepEqual([tab.snapshot.revision, tab.snapshot.values.luna.home, tab.unknown, tab.error], [2, true, null, null]);
+  assert.deepEqual(tab.snapshot, await server());
+
+  // The workspace sends its display block with colorPalette's 'ocean' when none is stored.
+  assert.ok(await tab.saveGroup('display', { appearance: 'dark', calendar: { zone: 'America/Chicago' } }));
+  assert.deepEqual([tab.snapshot.display.appearance, tab.snapshot.display.palette, tab.snapshot.calendar.zone], ['dark', 'ocean', 'America/Chicago']);
+  assert.equal(prefsOf(h, 'bob').display_palette, 'ocean', 'the palette the client sent is the one stored');
+  assert.deepEqual(tab.snapshot, await server());
+
+  assert.ok(await tab.saveGroup('notifications', { values: (v) => { v.notifications.radon_season = false; v.quiet = { enabled: true, from: '22:00', to: '07:00', zone: 'UTC' }; } }));
+  assert.ok(await tab.saveGroup('home', { values: (v) => { v.home = { year: '1990', water: 'well', tenure: 'renter' }; }, household: { ...Object.fromEntries(BAND_KEYS.map((key) => [key, false])), has_senior: true } }));
+  assert.deepEqual(tab.snapshot.values.home, { year: '1990', water: 'well', tenure: 'renter' });
+  assert.equal(bandsOf(h, 'bob').has_senior, true);
+  assert.deepEqual([tab.snapshot.revision, tab.unknown, tab.error], [5, null, null]);
+  assert.deepEqual(tab.snapshot, await server());
+
+  // Saving a panel as it stands applies and keeps the revision (review finding C).
+  assert.ok(await tab.saveGroup('luna'));
+  assert.deepEqual([tab.snapshot.revision, tab.unknown, tab.error], [5, null, null]);
+  assert.deepEqual(tab.sent, ['settings.read', 'settings.save', 'settings.save', 'settings.save', 'settings.save', 'settings.save'], 'no status check was ever needed');
+});
+
+test('client flow, Ruling S15: a save whose answer is lost is checked and shown as saved, never as "not applied"', async (t) => {
+  muteConsoleError(t);
+  const h = harness();
+  const tab = productionPreferences(h);
+  await tab.reload();
+  loseSaveAnswer(h);
+  assert.equal(await tab.saveGroup('luna', { values: (v) => { v.luna.projects = !v.luna.projects; } }), null);
+  assert.deepEqual([tab.error, tab.unknown !== null], [RUNTIME_MESSAGES.unknown_outcome, true], 'parked, with a status check offered');
+  await tab.reconcile();
+  assert.deepEqual([tab.unknown, tab.error], [null, null], 'the check finds the save, so the surface unlocks with no failure message');
+  assert.equal(tab.snapshot.values.luna.projects, !SETTINGS.alice.luna_projects);
+  assert.deepEqual(tab.snapshot, await readBody(h));
+});
+
+test('client flow: a save another tab got in first is a conflict; the read is retried, and the next save applies', async () => {
+  const h = harness();
+  const tab1 = productionPreferences(h);
+  const tab2 = productionPreferences(h);
+  await tab1.reload();
+  await tab2.reload();
+  assert.ok(await tab2.saveGroup('luna', { values: (v) => { v.luna.tasks = !v.luna.tasks; } }));
+  assert.equal(await tab1.saveGroup('luna', { values: (v) => { v.luna.home = !v.luna.home; } }), null);
+  assert.deepEqual([tab1.state.conflict, tab1.error, tab1.unknown], [true, RUNTIME_MESSAGES.conflict, null]);
+  assert.deepEqual(tab1.snapshot, tab2.snapshot, 'the retried read shows what the other tab saved');
+  assert.ok(await tab1.saveGroup('luna', { values: (v) => { v.luna.home = !v.luna.home; } }));
+  assert.deepEqual([tab1.snapshot.revision, tab1.unknown], [6, null]);
+  assert.deepEqual(tab1.snapshot, await readBody(h));
+});
 
 test('client flow, Ruling S14: two overlapping saves from two tabs no longer park each other for ever (review R1, reproduced)', { timeout: 10_000 }, async () => {
   const h = harness();

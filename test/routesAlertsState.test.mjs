@@ -31,6 +31,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { inspect } from 'node:util';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
@@ -646,6 +647,17 @@ function failSelect(h, table, matches, error = { code: '57014', message: 'cancel
     return builder;
   };
 }
+
+test('POST: a failure is logged as its code and message, never its details or hint (review of 0021, finding B)', async (t) => {
+  const logged = muteConsoleError(t);
+  const MARKER = 'MARKER-ALERTS-LOG-4471';
+  const h = harness();
+  failSelect(h, 'alerts', () => true, { code: '57014', message: 'canceling statement due to statement timeout', details: `Failing row contains (${MARKER})`, hint: MARKER });
+  await expectEnvelope(await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true })), { status: 500, code: 'internal_error' });
+  const lines = logged.mock.calls.flatMap((call) => call.arguments.map((arg) => inspect(arg, { depth: 8 }))).join('\n');
+  assert.match(lines, /57014 canceling statement due to statement timeout/);
+  assert.equal(lines.includes(MARKER), false, lines);
+});
 
 test('GET: a contract read that fails for any reason but a missing migration is a 500, not a quietly degraded inbox', async (t) => {
   const logged = muteConsoleError(t);
