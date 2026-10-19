@@ -358,6 +358,13 @@ import { clientDigest } from '@/lib/recovery';
  * message nothing will send.
  */
 
+// The same ceiling every ledger route declares, under the operation ledger's
+// staleness window (DEFAULT_STALE_AFTER_MS, 120 s). Recovery rows have no owner
+// and are never reaped, so here it is consistency rather than a race bound:
+// test/operationsMaxDuration.test.mjs holds every route that calls
+// runOperation to it, and a route should not have to prove it is the exception.
+export const maxDuration = 60;
+
 /**
  * Where the human-verification token arrives. NOT a field the frontend sends
  * today: see HUMAN VERIFICATION in the header for the choice and the gap.

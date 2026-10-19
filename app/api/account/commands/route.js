@@ -152,6 +152,15 @@ import {
  * so.
  */
 
+// The ceiling sits under the operation ledger's staleness window
+// (DEFAULT_STALE_AFTER_MS, 120 s). An invocation that outlived that window
+// could have its claim reaped as abandoned and then overwrite the reaped row
+// with a late settle, after the client had already been told "not applied".
+// Platform-enforced only. test/operationsMaxDuration.test.mjs keeps every
+// ledger route under the window. 60 is the house value (cron/daily, district,
+// map, onboard and luna/messages all declare it).
+export const maxDuration = 60;
+
 /** The body is five fields; the largest is a 254 character address. */
 const MAX_BYTES = 2048;
 
