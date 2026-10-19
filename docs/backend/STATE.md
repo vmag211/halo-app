@@ -80,13 +80,13 @@ not use these tables, so nothing changes for users until the backend branch is d
 2026-10-19: `save_settings` and the revision and tenure triggers, Rulings S11 to S13; review fixes A
 to D with S15, the save settling its own ledger row; and fixes E and F. It carries no
 tenure/renter_mode cross-check, Ruling S7. 0022, `explore_areas`, for B05; 0023, My Week's tasks,
-`YOUR_TODO.md` 2.12). All five are additive and none rewrites data. **0021 is final and safe to apply
-as far as review can tell**: the fourth review approved it, and both deadlocks are fixed. Those were a
+`YOUR_TODO.md` 2.12). All five are additive and none rewrites data. **0021 was final as far as review could tell
+when it was applied**: the fourth review approved it, and both deadlocks are fixed. Those were a
 first-time notifications write against a save, and a save during account deletion. They were reasoned
-through on paper, because PGlite has one connection. Its apply steps, including the 100-row "Mark all
+through on paper, because PGlite has one connection. Its steps, including the 100-row "Mark all
 as read" gateway check, are `YOUR_TODO.md` 2.10.
-Apply them as one batch when ready; each has apply steps and a tested back-out block in `YOUR_TODO.md`
-(0022 is 2.11). Until 0022 is applied both Explore area verbs answer a non-retryable 503.
+They were applied as one batch; each keeps its apply steps and a tested back-out block in `YOUR_TODO.md`
+(0022 is 2.11). Once the backend branch is deployed, both Explore area verbs work against the applied 0022.
 
 ## What is deliberately not built, and why
 
@@ -146,7 +146,7 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
    denominator moves more by cutting them than by any implementation speed.
 8. **B05's open questions** (detail in `checkpoint.md`): public map access (Q1, answered 2026-10-19,
    Task 6 built), city and ZIP search (Q2), shipping a comparison that never aligns and whether to acquire the UCMR
-   qualifiers (Q3), retention for `explore_areas` rows (Q4), and applying 0022 (Q5).
+   qualifiers (Q3), retention for `explore_areas` rows (Q4), and applying 0022 (Q5, done 2026-10-19).
 9. **B04's two settings defaults** (detail in `checkpoint.md`): Luna's context switches default off,
    the fail-safe answer to decision 2, and `calendar_linked` defaults false, because nothing is linked.
    Confirm both, and say whether `GET /api/capabilities` should exist at all.
