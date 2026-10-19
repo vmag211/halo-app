@@ -67,7 +67,8 @@ const OP = '5e5e5e5e-0000-4000-8000-000000000001';
 const OP2 = '5e5e5e5e-0000-4000-8000-000000000002';
 const BOB_OP = '5e5e5e5e-0000-4000-8000-0000000000b0';
 const FOREIGN_HOME = '11111111-1111-4111-8111-111111111111';
-const EMPTY_BODY = '{"actions":[],"metas":{},"unresolvedOperations":[]}';
+/** The plan's empty shape (Task 3 acceptance), built by emittedSnapshot like every B06 snapshot. */
+const EMPTY_BODY = '{"actions":[],"metas":{},"preferences":{},"unresolvedOperations":[]}';
 
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
 const opId = (n) => `5e5e5e5e-1111-4000-8000-${String(n).padStart(12, '0')}`;
@@ -194,11 +195,13 @@ const withoutRequestId = (body) => Object.fromEntries(Object.entries(body).filte
 // The read
 // ---------------------------------------------------------------------------
 
-test('a new household gets exactly the client\'s own empty fixture, 200, with nothing but the ledger and the function touched (T1, T7)', async () => {
+test('a new household gets exactly the plan\'s empty body, 200, with nothing but the ledger and the function touched (T1, T7)', async (t) => {
+  const logged = muteConsoleError(t);
   const h = harness();
   const response = await load(h);
   assert.equal(response.status, 200, 'never a 404 for a household with nothing (T7)');
   assert.equal(await response.text(), EMPTY_BODY);
+  assert.equal(logged.mock.calls.length, 0, 'a valid snapshot logs nothing');
   assert.deepEqual(tablesTouched(h), ['operations'], 'no task table is selected directly: tasks come only from the read function (H9)');
   assert.deepEqual(h.db.rpcCalls, [{ name: 'read_household_actions', args: { p_profile_id: ALICE } }]);
   assert.deepEqual(h.blockedFetches, [], 'no outbound call');
@@ -372,15 +375,32 @@ test('any other failure is a 500 whose log line carries the code and message, ne
 // H24, transport, copy
 // ---------------------------------------------------------------------------
 
-test('a stored row the client would refuse is returned unchanged, never hidden (H24)', async (t) => {
+test('a stored row the client would refuse is returned unchanged, never hidden, and logged by id and code only (H24)', async (t) => {
   const logged = muteConsoleError(t);
+  const TITLE_MARKER = 'PRIVATE-TITLE-MARKER Retest the tap';
+  const PLACE_MARKER = 'PRIVATE-PLACE-MARKER Hidden Creek';
   // 02:30 on 2026-03-08 does not exist in New York (the clock jumps 02:00 to 03:00).
-  const drifted = { ...aliceTasks()[0], due_date: '2026-03-08', meta: { ...META, time: '02:30' } };
-  const h = harness({ tasks: [drifted, aliceTasks()[1]] });
-  const body = await (await load(h)).json();
+  const drifted = { ...aliceTasks()[0], title: TITLE_MARKER, due_date: '2026-03-08', meta: { ...META, time: '02:30' } };
+  // A preference whose zone Node no longer knows: drifted the same way.
+  const prefs = [...alicePrefs(), { profile_id: ALICE, pref_key: 'week:review-preferences', value: { enabled: true, weekday: 1, time: '09:00', zone: 'Mars/Olympus_Mons' } }];
+  const h = harness({ tasks: [drifted, { ...aliceTasks()[1], reason: PLACE_MARKER }], prefs });
+  const response = await load(h, 'alice', { headers: { 'x-request-id': 'h24-request-0001' } });
+  assert.equal(response.status, 200);
+  const body = await response.json();
   assert.equal(body.actions.length, 2, 'the row is not left out');
+  assert.equal(body.actions[0].title, TITLE_MARKER);
   assert.deepEqual(body.metas['home:water'], { ...META, time: '02:30' }, 'and its meta is exactly as stored');
-  assert.ok(!loggedText(logged).includes('PRIVATE-NOTE-MARKER'), 'no task text is logged');
+  assert.deepEqual(body.preferences['week:review-preferences'].zone, 'Mars/Olympus_Mons', 'and so is the preference');
+
+  assert.equal(logged.mock.calls.length, 1, 'one line');
+  const line = loggedText(logged);
+  assert.equal(line,
+    'actions load: the stored snapshot fails the client\'s load check and is returned unchanged '
+    + `(request h24-request-0001, 2 finding(s)): invalid_meta ${drifted.id}; invalid_preference week:review-preferences`);
+  for (const marker of ['PRIVATE-NOTE-MARKER', 'PRIVATE-TITLE-MARKER', 'PRIVATE-PLACE-MARKER', 'home:water', 'Mars', '02:30', 'Water first']) {
+    assert.ok(!line.includes(marker), `${marker} is not logged`);
+  }
+  assert.ok(!line.includes(aliceTasks()[1].id), 'a row that passes is not named');
 });
 
 test('the route declares maxDuration = 60 and no server-authored string has an em dash (H21, H22)', () => {
@@ -613,8 +633,8 @@ const LOAD_ERROR = 'Your tasks could not load. Reconnect and try again.';
 test('the transcription rejects what the client rejects, so agreement below means something', async () => {
   const ready = await cannedWeek(200, JSON.parse(EMPTY_BODY));
   assert.deepEqual([ready.readiness, ready.error, ready.canMutate()], ['ready', '', true], 'the client\'s own fixture loads');
-  const withPrefs = await cannedWeek(200, { actions: [], metas: {}, preferences: {}, unresolvedOperations: [] });
-  assert.equal(withPrefs.readiness, 'ready', 'an empty preferences object loads too (digest 5.1)');
+  const fixture = await cannedWeek(200, { actions: [], metas: {}, unresolvedOperations: [] });
+  assert.equal(fixture.readiness, 'ready', 'the frontend\'s own fixture without preferences loads too (digest 5.1)');
   const wrapped = await cannedWeek(200, { data: JSON.parse(EMPTY_BODY) });
   assert.equal(wrapped.readiness, 'ready', 'the unwrap at runtime.ts:149-152 is transcribed');
 
@@ -655,7 +675,8 @@ test('client: a new household\'s My Week is ready, empty and writable (T1)', asy
   assert.equal(week.error, '');
   assert.equal(week.unknownOperation, '');
   assert.deepEqual(week.actions, []);
-  assert.deepEqual(week.drafts, { 'week:metas': {} });
+  assert.deepEqual(week.snapshot.preferences, {}, 'the empty preferences object reached the screen');
+  assert.deepEqual(week.drafts, { 'week:metas': {} }, 'and spreads no preference into the drafts');
   assert.equal(week.canMutate(), true, 'the person can add a task');
   assert.deepEqual(h.blockedFetches, []);
 });

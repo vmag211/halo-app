@@ -1,14 +1,16 @@
 /**
  * lib/actionsStore.js and the `tasks` capability flag (B06 plan, Task 3;
- * Rulings H1, H9, H16 and H17).
+ * Rulings H1, H9, H16, H17 and H24).
  *
  *   1. `tasks` is a registered capability, off unless HALO_FEATURE_TASKS is
  *      explicitly on, scrubbed from every route test, and its reason has no
  *      em dash.
  *   2. readActionsState calls the one read function with the owner's id only,
  *      keeps `version` for the commit route and never emits it, passes every
- *      stored value on unchanged, omits an empty `preferences`, and refuses a
- *      result that is not the function's shape rather than passing it on.
+ *      stored value on unchanged, always emits `preferences` ({} when none is
+ *      saved), and refuses a result that is not the function's shape rather
+ *      than passing it on. snapshotProblems and snapshotProblemLine (H24) say
+ *      what fails the client's load check by task id and code only.
  *   3. isActionsUnavailable and actionsUnavailable: the four "not applied yet"
  *      codes, and the non-retryable 503.
  *   4. unresolvedActionOperations: pending `actions` rows of this owner only,
@@ -99,11 +101,65 @@ test('readActionsState calls the read function for the owner only and keeps the 
   assert.ok(!('version' in snapshot));
 });
 
-test('a household with no saved preference has no preferences key, so its body is the client\'s own fixture', async () => {
+test('a household with no saved preference gets preferences: {}, the plan\'s empty shape (Task 3 acceptance)', async () => {
   const snapshot = await store.readActionsSnapshot(clientAnswering({ version: 0, actions: [], metas: {}, preferences: {} }), ALICE);
-  assert.equal(JSON.stringify(snapshot), '{"actions":[],"metas":{}}');
-  assert.deepEqual(store.emittedSnapshot({ actions: [], metas: {}, preferences: { outdoorPlan: {} } }).preferences, { outdoorPlan: {} },
-    'a saved preference is emitted even when its value is empty');
+  assert.equal(JSON.stringify(snapshot), '{"actions":[],"metas":{},"preferences":{}}');
+  assert.deepEqual(Object.keys(store.emittedSnapshot({ version: 3, actions: [], metas: {}, preferences: {}, extra: 1 })), ['actions', 'metas', 'preferences'],
+    'always exactly these three keys, in this order, whatever else the read carried');
+});
+
+// ---------------------------------------------------------------------------
+// 2b. H24: what is wrong with a snapshot, without its content
+// ---------------------------------------------------------------------------
+
+const TITLE_MARKER = 'PRIVATE-TITLE-MARKER';
+const NOTE_MARKER = 'PRIVATE-NOTE-MARKER';
+const KEY_MARKER = 'PRIVATE-KEY-MARKER';
+const goodAction = (n, extra = {}) => ({ id: `7a7a7a7a-0000-4000-8000-00000000000${n}`, key: `${KEY_MARKER}:${n}`, title: `${TITLE_MARKER} ${n}`, reason: '', origin: '', date: '2026-10-20', state: 'saved', revision: 1, ...extra });
+const goodMeta = { ...META, note: NOTE_MARKER };
+
+test('snapshotProblems is empty for a snapshot the client loads', () => {
+  const snapshot = { actions: [goodAction(1)], metas: { [goodAction(1).key]: goodMeta }, preferences: { 'week:focus': 'x' }, unresolvedOperations: [] };
+  assert.deepEqual(store.snapshotProblems(snapshot), []);
+  assert.equal(store.snapshotProblemLine(snapshot, 'req-1'), null);
+});
+
+test('snapshotProblems names each failing row by id and a code, and never its content (H24)', () => {
+  const dst = goodAction(1, { date: '2026-03-08' });
+  const badTitle = goodAction(2, { title: ' ' });
+  const fine = goodAction(3);
+  const snapshot = {
+    actions: [dst, badTitle, fine, { ...fine }],
+    metas: { [dst.key]: { ...goodMeta, time: '02:30' }, [`${KEY_MARKER}:orphan`]: goodMeta },
+    preferences: { 'week:focus': 'ok', 'week:review-preferences': { enabled: true, weekday: 1, time: '09:00', zone: 'Mars/Olympus_Mons' } },
+    unresolvedOperations: Array.from({ length: 101 }, (_, i) => opId(i)),
+  };
+  assert.deepEqual(store.snapshotProblems(snapshot), [
+    { code: 'invalid_meta', id: dst.id },
+    { code: 'invalid_action', id: badTitle.id },
+    { code: 'duplicate_action', id: fine.id },
+    { code: 'orphan_meta' },
+    { code: 'invalid_preference', preferences: ['week:review-preferences'] },
+    { code: 'invalid_unresolved' },
+  ]);
+  const line = store.snapshotProblemLine(snapshot, 'req-2');
+  assert.match(line, /request req-2, 6 finding\(s\)/);
+  assert.match(line, new RegExp(`invalid_meta ${dst.id}; invalid_action ${badTitle.id}; duplicate_action ${fine.id}; orphan_meta; invalid_preference week:review-preferences; invalid_unresolved$`));
+  for (const marker of [TITLE_MARKER, NOTE_MARKER, KEY_MARKER, 'Mars', '02:30', '2026-03-08']) {
+    assert.ok(!line.includes(marker), `${marker} is not logged`);
+  }
+  assert.ok(!line.includes(EM_DASH));
+});
+
+test('snapshotProblems never reports a preference name that is not one of the six, and caps the line at 20 findings', () => {
+  const odd = store.snapshotProblems({ actions: [], metas: {}, preferences: { [`${KEY_MARKER} typed`]: 1 } });
+  assert.deepEqual(odd, [{ code: 'invalid_preference', preferences: [] }]);
+  assert.ok(!store.snapshotProblemLine({ actions: [], metas: {}, preferences: { [`${KEY_MARKER} typed`]: 1 } }, 'r').includes(KEY_MARKER));
+  const many = Array.from({ length: 25 }, (_, i) => ({ ...goodAction(1), id: `7a7a7a7a-0000-4000-8000-${String(100 + i).padStart(12, '0')}`, key: `k${i}`, state: 'cancelled' }));
+  const line = store.snapshotProblemLine({ actions: many, metas: {} }, 'r');
+  assert.match(line, /25 finding\(s\)/);
+  assert.equal(line.split('; ').length, 20);
+  assert.deepEqual(store.snapshotProblems(null), [{ code: 'invalid_snapshot' }]);
 });
 
 test('readActionsState refuses a result that is not the read function\'s shape', async () => {

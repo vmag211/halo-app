@@ -6,20 +6,24 @@ import {
   actionsUnavailable,
   isActionsUnavailable,
   readActionsSnapshot,
+  snapshotProblemLine,
   unresolvedActionOperations,
 } from '@/lib/actionsStore';
 
 /**
  * GET /api/frontend/actions  (registry `actions.load`, runtime.ts:29)
  *
- *   200 { actions: [...], metas: {...}, preferences?: {...}, unresolvedOperations: [<operationId>, ...] }
+ *   200 { actions: [...], metas: {...}, preferences: {...}, unresolvedOperations: [<operationId>, ...] }
  *
  * The household's tasks in My Week, as one snapshot (B06 plan, Task 3). The
  * client's adapter refuses the whole load unless `validActionSnapshot` passes
  * AND `unresolvedOperations` is an array (adapters.ts:9), so the list is always
  * present (trap T1). A household with nothing gets exactly
- * `{"actions":[],"metas":{},"unresolvedOperations":[]}`, the client's own
- * fixture (digest 5.1), which loads My Week ready, empty and writable. Never a
+ * `{"actions":[],"metas":{},"preferences":{},"unresolvedOperations":[]}` (plan,
+ * Task 3 acceptance; an empty preferences object is valid, digest 5.1), which
+ * loads My Week ready, empty and writable. The snapshot is built by
+ * `emittedSnapshot`, as a commit receipt and a reconcile are, so the three
+ * agree on its shape. Never a
  * 404 for any household state (trap T7): to this client a 404 is the dead
  * screen.
  *
@@ -50,7 +54,10 @@ import {
  * Ruling H24: the stored snapshot is returned exactly as read, never with a
  * row left out. Hiding a row the server's own validator would refuse (only
  * possible through time-zone data drift) would tell the person a task does
- * not exist.
+ * not exist. When the whole body fails the client's `validActionSnapshot`
+ * (lib/actionRules.js), one line is logged naming only the offending task
+ * ids and a reason code per finding (snapshotProblemLine), never a title, a
+ * note or any other text a person typed.
  *
  * Identity comes only from the verified token. The query string is ignored
  * (the client sends none), and so is `X-Halo-Home-Context`: tasks belong to
@@ -76,7 +83,10 @@ export async function GET(request) {
 
     const unresolvedOperations = await unresolvedActionOperations(supabaseAdmin, userId);
     const snapshot = await readActionsSnapshot(supabaseAdmin, userId);
-    return NextResponse.json({ ...snapshot, unresolvedOperations }, { headers });
+    const body = { ...snapshot, unresolvedOperations };
+    const problem = snapshotProblemLine(body, requestId);
+    if (problem) console.error(problem);
+    return NextResponse.json(body, { headers });
   } catch (err) {
     if (isActionsUnavailable(err)) return actionsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
