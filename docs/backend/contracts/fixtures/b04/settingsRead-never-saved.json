@@ -1,0 +1,46 @@
+{
+  "operationId": "settingsRead",
+  "status": 200,
+  "body": {
+    "revision": 1,
+    "values": {
+      "home": {
+        "year": "",
+        "water": "other",
+        "tenure": "other"
+      },
+      "notifications": {
+        "air_quality_change": true,
+        "weather_advisory": true,
+        "new_water_results": true,
+        "radon_season": true,
+        "season_summary": true
+      },
+      "quiet": {
+        "enabled": false,
+        "from": "21:00",
+        "to": "08:00",
+        "zone": "America/New_York"
+      },
+      "luna": {
+        "tasks": false,
+        "home": false,
+        "projects": false
+      },
+      "language": "en"
+    },
+    "display": {
+      "appearance": "system",
+      "ambient": false,
+      "scale": "100",
+      "motion": "system",
+      "contrast": false
+    },
+    "calendar": {
+      "zone": "America/New_York",
+      "streak": false,
+      "linked": false
+    },
+    "unresolvedOperations": []
+  }
+}

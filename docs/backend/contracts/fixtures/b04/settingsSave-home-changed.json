@@ -1,0 +1,13 @@
+{
+  "operationId": "settingsSave",
+  "status": 409,
+  "body": {
+    "error": "Your home details changed. Review the latest values before saving.",
+    "code": "conflict",
+    "message": "Your home details changed. Review the latest values before saving.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001",
+    "reason": "home_changed"
+  }
+}

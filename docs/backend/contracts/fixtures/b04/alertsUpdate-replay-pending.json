@@ -1,0 +1,8 @@
+{
+  "operationId": "alertsUpdate",
+  "status": 200,
+  "body": {
+    "operationId": "0b040000-0000-4000-8000-000000000045",
+    "status": "pending"
+  }
+}

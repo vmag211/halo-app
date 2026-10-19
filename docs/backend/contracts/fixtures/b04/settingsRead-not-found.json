@@ -1,0 +1,12 @@
+{
+  "operationId": "settingsRead",
+  "status": 404,
+  "body": {
+    "error": "Settings are not available until this household is set up. Nothing was changed.",
+    "code": "not_found",
+    "message": "Settings are not available until this household is set up. Nothing was changed.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001"
+  }
+}

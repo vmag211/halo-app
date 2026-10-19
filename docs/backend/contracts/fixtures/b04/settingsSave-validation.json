@@ -1,0 +1,18 @@
+{
+  "operationId": "settingsSave",
+  "status": 422,
+  "body": {
+    "error": "Choose valid, different start and end times.",
+    "code": "validation_failed",
+    "message": "Choose valid, different start and end times.",
+    "field_errors": [
+      {
+        "field": "values.quiet.to",
+        "code": "quiet_window",
+        "message": "Choose valid, different start and end times."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b04-contract-0001"
+  }
+}

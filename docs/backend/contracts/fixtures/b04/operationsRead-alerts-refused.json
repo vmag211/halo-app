@@ -1,0 +1,12 @@
+{
+  "operationId": "operationsRead",
+  "status": 200,
+  "body": {
+    "status": "failed",
+    "reason": "stale_selection",
+    "operationId": "0b040000-0000-4000-8000-000000000062",
+    "domain": "alerts",
+    "kind": "alerts.update",
+    "created_at": "2026-10-18T14:00:00.000Z"
+  }
+}

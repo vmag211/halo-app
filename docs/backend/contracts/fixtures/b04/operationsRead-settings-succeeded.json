@@ -1,0 +1,56 @@
+{
+  "operationId": "operationsRead",
+  "status": 200,
+  "body": {
+    "status": "succeeded",
+    "snapshot": {
+      "revision": 5,
+      "values": {
+        "home": {
+          "year": "1975",
+          "water": "well",
+          "tenure": "owner"
+        },
+        "notifications": {
+          "air_quality_change": true,
+          "weather_advisory": false,
+          "new_water_results": true,
+          "radon_season": true,
+          "season_summary": true
+        },
+        "quiet": {
+          "enabled": true,
+          "from": "22:15",
+          "to": "07:45",
+          "zone": "America/New_York"
+        },
+        "luna": {
+          "tasks": true,
+          "home": true,
+          "projects": false
+        },
+        "language": "en"
+      },
+      "display": {
+        "appearance": "light",
+        "ambient": true,
+        "scale": "115",
+        "motion": "reduce",
+        "contrast": true,
+        "palette": "ocean"
+      },
+      "calendar": {
+        "zone": "America/New_York",
+        "streak": true,
+        "linked": false
+      },
+      "unresolvedOperations": [
+        "0b040000-0000-4000-8000-000000000201"
+      ]
+    },
+    "operationId": "0b040000-0000-4000-8000-000000000060",
+    "domain": "settings",
+    "kind": "settings.save",
+    "created_at": "2026-10-18T14:00:00.000Z"
+  }
+}
