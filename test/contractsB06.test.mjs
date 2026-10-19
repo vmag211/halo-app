@@ -61,6 +61,7 @@ import * as fe from './helpers/frontendB06.mjs';
 const { requestHash } = await import('../lib/operations.js');
 const rules = await import('../lib/actionRules.js');
 const { featureDisabledReason } = await import('../lib/features.js');
+const { ACTION_CHECKS } = await import('../lib/actionsStore.js');
 
 const contract = JSON.parse(await readFile(new URL('../docs/backend/contracts/b06.openapi.json', import.meta.url), 'utf8'));
 const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -197,6 +198,18 @@ test('B06 contract covers the four built operations and the B06 half of operatio
     assert.equal(Object.hasOwn(item.properties ?? {}, 'data'), false, `${name} declares no data property`);
   }
   assert.equal(JSON.stringify(contract).includes(EM_DASH), false, 'no U+2014 anywhere in the document');
+});
+
+test('the contract\'s H33 check codes and invalid_result sentences are exactly lib/actionsStore.js ACTION_CHECKS, and each refusal message is the library\'s', () => {
+  const schemas = contract.components.schemas;
+  assert.equal(ACTION_CHECKS.length, 9);
+  assert.deepEqual(schemas.ActionsOperationFailed.properties.check.enum, ACTION_CHECKS.map(([code]) => code), 'the stored check codes');
+  const messageFor = (reason) => schemas.ActionsReceiptRefused.allOf.find((rule) => rule.if?.properties?.reason?.const === reason && rule.then?.properties?.message)?.then.properties.message;
+  assert.deepEqual(messageFor('invalid_result').enum, [...ACTION_CHECKS.map(([, sentence]) => sentence), rules.ACTION_REFUSAL_MESSAGES.invalid_result], 'the nine sentences and the fallback');
+  for (const reason of REFUSALS.filter((item) => item !== 'invalid_result')) {
+    assert.equal(messageFor(reason).const, rules.ACTION_REFUSAL_MESSAGES[reason], `${reason}: the library's message`);
+  }
+  assert.deepEqual(Object.keys(rules.ACTION_REFUSAL_MESSAGES).sort(), [...REFUSALS].sort());
 });
 
 test('every registry path resolves to a route file with the documented method and maxDuration 60', () => {
@@ -716,6 +729,15 @@ test('B06 handler conformance: actions.commit answers succeeded, every 200 refus
   const task = saved.snapshot.actions[0];
   assert.equal(task.title, 'Test the kitchen tap', 'stored trimmed (H13)');
 
+  // H32: a live success carries the list read before its claim, here a save
+  // genuinely pending on another device, and never its own id.
+  const listing = await world();
+  const elsewhere = command({ kind: 'revise', changes: [] });
+  listing.h.db.seed('operations', [claimed(listing, elsewhere)]);
+  const ownAdd = command({ kind: 'add', date: '', seeds: [seed('personal:1', 'Read the water report')] });
+  const { body: locked } = await commit(listing.h, ownAdd, { fixture: 'actionsCommit-success-unresolved' });
+  assert.deepEqual(locked.snapshot.unresolvedOperations, [elsewhere.operationId], 'the other save is listed (H32, T2)');
+
   const { body: moved } = await commit(w.h, command({ kind: 'revise', changes: [{ id: task.id, revision: 1, patch: { title: task.title, date: '2026-10-21', state: 'saved' } }] }));
   assert.equal(moved.snapshot.actions[0].revision, 2);
   const reasons = {};
@@ -750,6 +772,10 @@ test('B06 handler conformance: actions.commit answers succeeded, every 200 refus
   await commit(fresh.h, command({ kind: 'revise', changes: [] }), { raw: '{', valid: false, expected: 400, fixture: 'actionsCommit-bad-request' });
   const { body: clear } = await commit(fresh.h, command({ kind: 'clear' }), { valid: false, expected: 400, fixture: 'actionsCommit-validation' });
   assert.deepEqual(clear.field_errors.map((error) => [error.field, error.code]), [['kind', 'unsupported_kind']], 'clear is refused (H14)');
+  for (const field of ['profileId', 'profile_id']) {
+    const { body: owner } = await commit(fresh.h, command({ kind: 'revise', changes: [], [field]: fresh.bob }), { valid: false, expected: 400 });
+    assert.deepEqual(owner.field_errors.map((error) => [error.field, error.code]), [[field, 'unknown_field']], `a body owner (${field}) is refused, never read (BE-199)`);
+  }
   await commit(fresh.h, command({ kind: 'revise', changes: [] }), { key: null, expected: 400, fixture: 'actionsCommit-missing-idempotency-key' });
   const { body: ifMatch } = await commit(fresh.h, command({ kind: 'revise', changes: [] }), { headers: { 'if-match': '1' }, expected: 400, fixture: 'actionsCommit-if-match' });
   assert.equal(ifMatch.field_errors[0].code, 'precondition_unsupported');
@@ -887,7 +913,8 @@ test('B06 handler conformance: operations.read hydrates a succeeded actions save
   await reconcile(w.h, add.operationId, { as: 'bob', expected: 404 });
   const { body: off } = await reconcile(w.h, add.operationId, { env: OFF, expected: 503, fixture: 'operationsRead-feature-unavailable' });
   assert.deepEqual([off.code, off.retryable], ['feature_unavailable', false], 'a succeeded actions read is behind the flag (H17)');
-  await reconcile(w.h, stale.operationId, { env: OFF }, 'a failed one is replayed as stored, flag or not');
+  const { body: staleOff } = await reconcile(w.h, stale.operationId, { env: OFF });
+  assert.deepEqual(staleOff, staleRead, 'a failed one is replayed as stored, flag or not');
   await reconcile(brokenLedger(), add.operationId, { expected: 500, fixture: 'operationsRead-internal-error' });
   await authOutage((await world()).h, 'operationsRead', { query: `?operationId=${add.operationId}&domain=actions` });
   produced.set('operationsRead-auth-unavailable', await recordOutage('operationsRead'));
@@ -960,23 +987,29 @@ test('a command\'s receipt snapshot is what the next load returns, and its recon
     (snapshot) => ({ kind: 'delete', id: snapshot.actions[1].id, revision: snapshot.actions[1].revision }),
   ];
   const sent = [];
-  for (const step of steps) {
+  // From the third step on, a save from another device is genuinely pending,
+  // so a receipt's list (read before its claim, Ruling H32) and the next
+  // load's list are compared non-empty, not only as [].
+  const pending = command({ kind: 'revise', changes: [] });
+  for (const [index, step] of steps.entries()) {
+    if (index === 2) {
+      await db.query(
+        `insert into public.operations (operation_id, profile_id, domain, kind, status, request_hash) values ($1, $2, 'actions', 'actions.commit', 'pending', $3)`,
+        [pending.operationId, w.alice, requestHash({ kind: 'revise', changes: [] })],
+      );
+    }
     const cmd = command(typeof step === 'function' ? step(previous) : step);
     sent.push(cmd);
     const { body: receipt } = await commit(w.h, cmd);
     assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt));
     assert.ok(fe.actionReceiptCoversCommand(cmd, previous, receipt), `${cmd.kind}: coverage`);
+    assert.deepEqual(receipt.snapshot.unresolvedOperations, index >= 2 ? [pending.operationId] : [], `${cmd.kind}: the live list on the receipt`);
     const { body: next } = await load(w.h);
-    assert.deepEqual(next, receipt.snapshot, `${cmd.kind}: the receipt's snapshot is the next load`);
+    assert.deepEqual(next, receipt.snapshot, `${cmd.kind}: the receipt's snapshot is the next load, list included`);
     previous = next;
   }
-  // With a genuinely pending save from another device, each reconcile is the
-  // current snapshot plus the live list, and so is the load.
-  const pending = command({ kind: 'revise', changes: [] });
-  await db.query(
-    `insert into public.operations (operation_id, profile_id, domain, kind, status, request_hash) values ($1, $2, 'actions', 'actions.commit', 'pending', $3)`,
-    [pending.operationId, w.alice, requestHash({ kind: 'revise', changes: [] })],
-  );
+  // With that save still pending, each reconcile is the current snapshot plus
+  // the live list, and so is the load.
   const { body: current } = await load(w.h);
   assert.deepEqual(current.unresolvedOperations, [pending.operationId]);
   for (const cmd of sent) {

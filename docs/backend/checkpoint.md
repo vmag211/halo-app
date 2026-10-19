@@ -33,7 +33,7 @@ Every task before 6 had an independent review, and each review is in `.superpowe
 - **`POST /api/frontend/actions/commands`** checks, in order: the session, the body (at most 4,000,000 bytes), the operation id and `Idempotency-Key`, the flag, `If-Match` (refused), and the whole command. It then reads the snapshot and the live list, claims the ledger row, and plans and commits through the one database function, retrying a lost race at most three times. Every refusal is the contract's own 200 `failed` receipt, or a terminal 409 on a replay (Ruling H11).
 - **`GET /api/operations`** answers a succeeded `actions` operation with the household's CURRENT snapshot and the live list minus the operation itself, at the top level and at `snapshot` (Rulings H18, S16). Every other status and domain is replayed as stored.
 - **`GET /api/week/changes`** and **`POST /api/week/changes/acknowledge`** need only 0017 and are not behind the flag (they collect no free text).
-- **`docs/backend/contracts/b06.openapi.json`** is version `b06-1`, with 59 fixtures under `fixtures/b06/`. Each fixture is the normalised answer of a real handler, and a test fails if one drifts. **`test/contractsB06.test.mjs`** (77 tests) runs the handlers against the contract and through the client's own consumption logic, transcribed once in `test/helpers/frontendB06.mjs`. Task 6 moved the week strip transcription there from `routesWeekChanges`, so the per-route suites and the contract share one copy. It covers every documented status, including:
+- **`docs/backend/contracts/b06.openapi.json`** is version `b06-1`, with 60 fixtures under `fixtures/b06/`. Each fixture is the normalised answer of a real handler, and a test fails if one drifts. **`test/contractsB06.test.mjs`** (79 tests) runs the handlers against the contract and through the client's own consumption logic, transcribed once in `test/helpers/frontendB06.mjs`. Task 6 moved the week strip transcription there from `routesWeekChanges`, so the per-route suites and the contract share one copy. It covers every documented status, including:
   - the flag-off 503;
   - the empty household;
   - the H11 400;
@@ -78,7 +78,7 @@ H1 to H7 were the controller's before planning, H8 to H24 were made in planning,
 Gate at the Task 6 docs commit, on `b5e978c` plus Task 6:
 
 - `node --test test/*.test.mjs`: **3,304 passed, 0 failed, 0 skipped, 0 todo**. That is the 3,227 of the Task 4 merge plus the 77 contract tests. Moving the strip transcription changed no per-route count.
-- B06 suites: `actionsSchema` 24, `actionRules` 26, `actionsStore` 18, `routesActionsLoad` 26, `routesActionsCommit` 27, `routesActionsCommitDb` 12, `routesWeekChanges` 34, `contractsB06` 77, plus the B06 cases in `routesOperations`, `rlsIsolation`, `migrationBackout`, `haloTables` and `routeIsolation`.
+- B06 suites: `actionsSchema` 24, `actionRules` 26, `actionsStore` 18, `routesActionsLoad` 26, `routesActionsCommit` 27, `routesActionsCommitDb` 12, `routesWeekChanges` 34, `contractsB06` 79, plus the B06 cases in `routesOperations`, `rlsIsolation`, `migrationBackout`, `haloTables` and `routeIsolation`.
 - `npm run typecheck`: clean.
 - `npm run lint`: **0 errors and the 5 pre-existing warnings**.
 - `git diff --check`: clean.
@@ -88,6 +88,7 @@ Task 6's mutation checks, each restored afterwards:
 - Removing `not_applied` from the contract's 409 reason enum failed 6 tests: two fixtures, the coverage test, both mutation conformance tests, and the fixture-to-handler comparison.
 - Renaming `revisions` to `revision` in the commit route's refusal body failed 4: the commit and reconcile conformance, the fixture comparison, and the header test (a test that stops early stops sending the headers it would have).
 - Dropping the top-level live list from the `actions` reconcile in `app/api/operations/route.js` failed 3, including the cross-route agreement.
+- After the review's fix round (its N1): forcing a live commit receipt's `unresolvedOperations` to `[]` failed 4. These were the commit conformance, which includes the `actionsCommit-success-unresolved` fixture of the H32 list; the cross-route test, which now compares a non-empty list between each receipt and the next load; the fixture comparison; and the header test. The contract's `check` codes and `invalid_result` sentences are now pinned to the exported `ACTION_CHECKS` in `lib/actionsStore.js`. A body owner (`profileId`, `profile_id`) on `actions.commit` is shown refused.
 
 The earlier tasks' mutations are in their reviews. Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
 

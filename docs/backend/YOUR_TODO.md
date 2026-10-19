@@ -635,7 +635,7 @@ What it is for: My Week (`/app`, `/plan`) shows "Your tasks could not load" toda
 What the final 0023 creates, so you can recognise it:
 
 - three tables;
-- one index, `household_actions_owner_created`, plus the unique key `household_actions_owner_key`;
+- one index, `household_actions_owner_created`, plus the unique key on `(profile_id, action_key)`, which Postgres names `household_actions_profile_id_action_key_key`;
 - ten CHECK constraints: seven on `household_actions` (state, revision, title, key, meta, note and due date), two on `household_action_preferences` (key and value) and one on `household_action_state` (version);
 - three functions: `read_household_actions`, `commit_household_actions` and the guard's own `guard_settled_action_operation`;
 - one trigger on `public.operations`, `operations_actions_settled_guard`.
