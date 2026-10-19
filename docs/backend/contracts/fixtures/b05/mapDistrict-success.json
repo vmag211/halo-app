@@ -1,0 +1,162 @@
+{
+  "operationId": "mapDistrict",
+  "status": 200,
+  "body": {
+    "scope": "NC-08",
+    "total_systems": 1,
+    "by_contaminant": {
+      "PFOA": {
+        "tested": 1,
+        "over": 0,
+        "limit": 4,
+        "population_over": 0,
+        "over_population_unknown": 0
+      },
+      "PFOS": {
+        "tested": 1,
+        "over": 1,
+        "limit": 4,
+        "population_over": 34000,
+        "over_population_unknown": 0
+      },
+      "PFHxS": {
+        "tested": 1,
+        "over": 0,
+        "limit": 10,
+        "population_over": 0,
+        "over_population_unknown": 0
+      },
+      "PFNA": {
+        "tested": 1,
+        "over": 0,
+        "limit": 10,
+        "population_over": 0,
+        "over_population_unknown": 0
+      },
+      "HFPO-DA": {
+        "tested": 0,
+        "over": 0,
+        "limit": 10,
+        "population_over": 0,
+        "over_population_unknown": 0
+      }
+    },
+    "systems_over_limit": 1,
+    "affected_population": 34000,
+    "affected_population_complete": true,
+    "over_limit_population_unknown": 0,
+    "note": "Affected population = people served by systems whose most recent sample exceeds a federal limit. No per-county breakdown: the boundary data has no county field.",
+    "systems_tested_any": 1,
+    "exceedance_lines": {
+      "PFOA": "0 of 1 systems tested for PFOA exceed the limit.",
+      "PFOS": "1 of 1 systems tested for PFOS exceed the limit.",
+      "PFHxS": "0 of 1 systems tested for PFHxS exceed the limit.",
+      "PFNA": "0 of 1 systems tested for PFNA exceed the limit.",
+      "HFPO-DA": "0 of 0 systems tested for HFPO-DA exceed the limit."
+    },
+    "counties": [
+      {
+        "county": "Anson County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "whole",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Montgomery County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "whole",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Richmond County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "whole",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Scotland County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "whole",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Stanly County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "whole",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Union County",
+        "systems": 1,
+        "systems_over_limit": 1,
+        "worst_water_severity": "severe",
+        "in_district": "whole",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Cabarrus County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "partial",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Mecklenburg County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "partial",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      },
+      {
+        "county": "Robeson County",
+        "systems": 0,
+        "systems_over_limit": 0,
+        "worst_water_severity": "no_data",
+        "in_district": "partial",
+        "radon_zone": 3,
+        "radon_severity": "good"
+      }
+    ],
+    "state_comparison": {
+      "district_share_over": 1,
+      "state_share_over": 0.5
+    },
+    "ranked_counties": 1,
+    "nc_counties": 100,
+    "ranking_rule": "Counties are ranked by the share of their population served by water systems whose most recent sample exceeds a federal limit; 1 is the lowest share. Counties with no mapped system and population figure are not ranked.",
+    "unlocated_systems": 1,
+    "boundaries": {
+      "district": "U.S. Census Bureau TIGERweb: 119th Congressional Districts (layer 4), simplified to ~100 m",
+      "counties": "U.S. Census Bureau TIGERweb: Counties, simplified to ~200 m",
+      "retrieved": "2026-09-27"
+    },
+    "assembled_at": "2026-10-18T11:00:00.000Z",
+    "household_county": {
+      "county": "Union County",
+      "water_rank": 1,
+      "of": 1,
+      "share_over": 1
+    },
+    "prebuilt": true
+  }
+}

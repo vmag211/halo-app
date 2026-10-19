@@ -1,0 +1,12 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 503,
+  "body": {
+    "error": "Your discovery area is not available yet. Nothing was changed. Please try again later.",
+    "code": "feature_unavailable",
+    "message": "Your discovery area is not available yet. Nothing was changed. Please try again later.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b05-contract-0001"
+  }
+}

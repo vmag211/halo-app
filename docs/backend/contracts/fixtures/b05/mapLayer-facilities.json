@@ -1,0 +1,30 @@
+{
+  "operationId": "mapLayer",
+  "status": 200,
+  "body": {
+    "layer": "facilities",
+    "scope": "NC-08",
+    "selection": "Active major facilities and repeat violators (more than 4 of the last 12 quarters in noncompliance), from EPA ECHO.",
+    "count": 1,
+    "features": [
+      {
+        "id": "110000000001",
+        "name": "Example Plant",
+        "lat": 34.985,
+        "lng": -80.549,
+        "county": "UNION",
+        "programs": [
+          "Clean Water Act"
+        ],
+        "compliance_status": "significant_violation",
+        "severity": "high",
+        "open_violations": 1,
+        "recent_violations": 6,
+        "penalties": 12500,
+        "last_inspection": "2026-03-15"
+      }
+    ],
+    "assembled_at": "2026-10-18T11:00:00.000Z",
+    "prebuilt": true
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "operationId": "mapLayer",
+  "status": 503,
+  "body": {
+    "error": "The facilities layer's source is unavailable right now. Try again shortly.",
+    "code": "upstream_unavailable",
+    "message": "The facilities layer's source is unavailable right now. Try again shortly.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b05-contract-0001",
+    "layer": "facilities"
+  }
+}

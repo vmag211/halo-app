@@ -1,0 +1,18 @@
+{
+  "operationId": "mapLayer",
+  "status": 400,
+  "body": {
+    "error": "quarter applies to the water layer only.",
+    "code": "validation_failed",
+    "message": "quarter applies to the water layer only.",
+    "field_errors": [
+      {
+        "field": "quarter",
+        "code": "quarter_not_applicable",
+        "message": "quarter applies to the water layer only."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b05-contract-0001"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "operationId": "mapLayer",
+  "status": 200,
+  "body": {
+    "layer": "radon",
+    "count": 3,
+    "features": [
+      {
+        "county": "Alamance County",
+        "zone": 3,
+        "severity": "good"
+      },
+      {
+        "county": "Alexander County",
+        "zone": 2,
+        "severity": "elevated"
+      },
+      {
+        "county": "Alleghany County",
+        "zone": 1,
+        "severity": "high"
+      }
+    ],
+    "assembled_at": "2026-10-18T11:00:00.000Z",
+    "prebuilt": false
+  }
+}

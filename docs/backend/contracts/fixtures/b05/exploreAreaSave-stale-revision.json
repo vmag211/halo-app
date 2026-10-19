@@ -1,0 +1,14 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 409,
+  "body": {
+    "error": "Your saved area changed. Please review it again.",
+    "code": "conflict",
+    "message": "Your saved area changed. Please review it again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b05-contract-0001",
+    "reason": "stale_revision",
+    "revision": 3
+  }
+}

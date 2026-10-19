@@ -1,0 +1,18 @@
+{
+  "operationId": "mapComparison",
+  "status": 400,
+  "body": {
+    "error": "ids is a JSON array of record ids.",
+    "code": "validation_failed",
+    "message": "ids is a JSON array of record ids.",
+    "field_errors": [
+      {
+        "field": "ids",
+        "code": "invalid_ids",
+        "message": "ids is a JSON array of record ids."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b05-contract-0001"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "operationId": "mapDistrict",
+  "status": 503,
+  "body": {
+    "error": "The district view needs the water service areas, which could not be looked up right now. Try again shortly.",
+    "code": "upstream_unavailable",
+    "message": "The district view needs the water service areas, which could not be looked up right now. Try again shortly.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b05-contract-0001"
+  }
+}

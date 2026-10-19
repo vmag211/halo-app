@@ -1,0 +1,24 @@
+{
+  "operationId": "mapLayer",
+  "status": 200,
+  "body": {
+    "layer": "air",
+    "count": 1,
+    "features": [
+      {
+        "id": "370000001",
+        "name": "Example Station",
+        "lat": 34.97,
+        "lng": -80.54,
+        "aqi": 61,
+        "severity": "moderate",
+        "dominant_pollutant": "PM2.5",
+        "last_reading_at": "2026-10-18T10:00:00Z",
+        "agency": "Example Agency"
+      }
+    ],
+    "source": "AirNow monitoring sites",
+    "assembled_at": "2026-10-18T11:00:00.000Z",
+    "prebuilt": true
+  }
+}
