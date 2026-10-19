@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { blockedFetch } from './helpers/sandbox.mjs';
+import { wireHeaders } from './helpers/forecastWire.mjs';
 import { parseNwsAdvisories } from '../lib/alertInputs.js';
 import {
   NWS_MAX_BYTES,
@@ -154,12 +155,22 @@ test('fetchActiveAlerts sends the 2-decimal point, the User-Agent and the GeoJSO
   assert.deepEqual(result.alerts, parseActiveAlerts(MIXED, { now: NOW }).alerts);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://api.weather.gov/alerts/active?point=35.23,-80.84');
-  assert.deepEqual(calls[0].options, {
-    timeoutMs: 6000,
-    maxBytes: NWS_MAX_BYTES,
-    headers: { 'User-Agent': '(HALO, ops@halo-forecast.test)', Accept: 'application/geo+json' },
-  });
+  assert.deepEqual(Object.keys(calls[0].options).sort(), ['headers', 'maxBytes', 'timeoutMs']);
+  assert.equal(calls[0].options.timeoutMs, 6000);
+  assert.equal(calls[0].options.maxBytes, NWS_MAX_BYTES);
   assert.equal(NWS_MAX_BYTES, 2 * 1024 * 1024);
+  // What NWS receives once Task 3's getJson has built the headers (its default accept replaced, not joined).
+  assert.deepEqual(wireHeaders(calls[0].options.headers), {
+    accept: 'application/geo+json',
+    'user-agent': '(HALO, ops@halo-forecast.test)',
+  });
+});
+
+test('the wire copy behaves as Task 3 does: any-case accept replaces the default, never joins it', () => {
+  assert.deepEqual(wireHeaders({ Accept: 'application/geo+json' }), { accept: 'application/geo+json' });
+  assert.deepEqual(wireHeaders({}), { accept: 'application/json' });
+  assert.deepEqual(wireHeaders(undefined), { accept: 'application/json' });
+  assert.throws(() => wireHeaders({ 'user-agent': 'a\r\nb' }), TypeError, 'a header fetch would refuse');
 });
 
 test('a quiet point is ok with no alerts', async () => {
@@ -208,7 +219,7 @@ test('without an env option the contact is read from process.env.NWS_CONTACT', a
   process.env.NWS_CONTACT = 'ops@halo-forecast.test';
   const set = stubGetJson([ok(NONE)]);
   assert.equal((await fetchActiveAlerts(CHARLOTTE, { getJson: set.getJson, now: NOW })).ok, true);
-  assert.equal(set.calls[0].options.headers['User-Agent'], '(HALO, ops@halo-forecast.test)');
+  assert.equal(wireHeaders(set.calls[0].options.headers)['user-agent'], '(HALO, ops@halo-forecast.test)');
 });
 
 test('no network was attempted by any test in this file', () => {

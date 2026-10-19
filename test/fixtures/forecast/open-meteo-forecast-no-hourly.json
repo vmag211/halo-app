@@ -11,7 +11,7 @@
   "response": {
     "latitude": 35.203384,
     "longitude": -80.859375,
-    "generationtime_ms": 0.1081228256225586,
+    "generationtime_ms": 0.4315376281738281,
     "utc_offset_seconds": -14400,
     "timezone": "America/New_York",
     "timezone_abbreviation": "GMT-4",
@@ -20,6 +20,7 @@
       "time": "unixtime",
       "temperature_2m": "°F",
       "apparent_temperature": "°F",
+      "precipitation": "inch",
       "weather_code": "wmo code",
       "wind_speed_10m": "mp/h",
       "uv_index": ""
