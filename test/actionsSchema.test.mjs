@@ -218,6 +218,8 @@ test('the checks refuse what the client would discard, and accept the edges it a
   await refused('household_actions', taskRow(owner, { meta: '"note"' }), 'household_actions_meta_check');
   await refused('household_actions', taskRow(owner, { due_date: '10000-01-01' }), 'household_actions_due_date_check');
   await refused('household_actions', taskRow(owner, { due_date: '0001-12-31 BC' }), 'household_actions_due_date_check');
+  await refused('household_actions', taskRow(owner, { meta: json({ ...META, note: 'n'.repeat(3001) }) }), 'household_actions_note_check');
+  await refused('household_actions', taskRow(owner, { meta: json({ ...META, note: '\u{1F33F}'.repeat(3001) }) }), 'household_actions_note_check');
   await refused('household_action_preferences', { profile_id: owner, pref_key: 'week:mood', value: '"calm"' }, 'household_action_preferences_key_check');
   await refused('household_action_preferences', { profile_id: owner, pref_key: 'week:focus', value: 'null' }, 'household_action_preferences_value_check');
   await refused('household_action_state', { profile_id: owner, version: 0 }, 'household_action_state_version_check');
@@ -229,6 +231,16 @@ test('the checks refuse what the client would discard, and accept the edges it a
   for (const due_date of ['0001-01-01', '9999-12-31', null]) assert.equal(await insertRow('household_actions', taskRow(owner, { due_date })), null, `due_date ${due_date}`);
   for (const state of ['saved', 'waiting', 'completed']) assert.equal(await insertRow('household_actions', taskRow(owner, { state })), null, state);
   assert.equal(await insertRow('household_actions', taskRow(owner, { meta: json(META) })), null);
+  // The note's edges (Ruling H23): 3,000 code points, an emoji counting once
+  // (the client counts it twice, so this is never tighter, finding F3); a meta
+  // without a note, or with a non-string note, is the planner's to refuse.
+  for (const note of ['n'.repeat(3000), '\u{1F33F}'.repeat(3000), '']) {
+    assert.equal(await insertRow('household_actions', taskRow(owner, { meta: json({ ...META, note }) })), null, `a note of ${[...note].length} code points`);
+  }
+  assert.equal(await insertRow('household_actions', taskRow(owner, { meta: json({ time: '' }) })), null, 'a partial meta without a note');
+  for (const note of [7, Array(1001).fill('ab')]) {
+    assert.equal(await insertRow('household_actions', taskRow(owner, { meta: json({ ...META, note }) })), null, 'a non-string note, however long its text, is left to the planner');
+  }
   for (const pref_key of ['week:focus', 'food-interests', 'week:availability', 'week:season-dismissals', 'week:review-preferences', 'outdoorPlan']) {
     assert.equal(await insertRow('household_action_preferences', { profile_id: owner, pref_key, value: '{}' }), null, pref_key);
   }
@@ -238,7 +250,7 @@ test('the checks refuse what the client would discard, and accept the edges it a
     `select count(*)::int as n from pg_constraint where contype = 'c' and conrelid = any($1::regclass[])`,
     [TABLES.map((table) => `public.${table}`)],
   );
-  assert.equal(rows[0].n, 9, 'nine checks, as the verification query in the migration expects');
+  assert.equal(rows[0].n, 10, 'ten checks, as the verification query in the migration expects');
 });
 
 test('a task key is unique per household, not across households (Ruling H2)', async () => {
@@ -446,6 +458,7 @@ test('atomicity: a check violation in the third insert leaves nothing of the fir
     'a JSON null preference after the task writes': { inserts: [insert('a')], updates: [update(seeded, { title: 'changed' })], preferences: { 'week:focus': 'after', 'outdoorPlan': null } },
     'an unknown preference key': { inserts: [insert('a')], preferences: { 'week:mood': 'calm' } },
     'an insert of a key the household already has': { inserts: [insert('a'), insert('seeded')] },
+    'a 3,001 character note in the third insert': { inserts: [insert('a'), insert('b'), insert('c', { meta: { ...META, note: 'n'.repeat(3001) } })] },
   };
   for (const [label, writes] of Object.entries(failing)) {
     const op = await ledgerRow(owner);
@@ -735,4 +748,22 @@ test('only the service role may execute either function, and the browser roles r
   assert.deepEqual(snapshot.rows[0].s, EMPTY);
   const committed = await db.asService((tx) => tx.query(`select public.commit_household_actions($1, $2, 0, '{}'::jsonb) as r`, [owner, op]));
   assert.equal(committed.rows[0].r.receipt.status, 'succeeded');
+});
+
+test('the service role can execute both functions even where no default privilege would give it that', async () => {
+  // In Supabase a default privilege belongs to the role that created it, so a
+  // run of 0023 as another role would not inherit one. The explicit grants in
+  // 0023 are what make it independent of who runs it (the 0015 and 0016 pattern).
+  const bare = await createDb({ upTo: 22 });
+  try {
+    await bare.exec('alter default privileges in schema public revoke all on functions from service_role');
+    await bare.applyMigration(MIGRATION);
+    const { rows } = await bare.query(
+      `select has_function_privilege('service_role', $1, 'EXECUTE') as read, has_function_privilege('service_role', $2, 'EXECUTE') as commit`,
+      [READ, COMMIT],
+    );
+    assert.deepEqual(rows[0], { read: true, commit: true });
+  } finally {
+    await bare.close();
+  }
 });

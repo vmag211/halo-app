@@ -182,6 +182,16 @@ begin
     alter table public.household_actions add constraint household_actions_meta_check
       check (meta is null or jsonb_typeof(meta) = 'object');
   end if;
+  -- The note is at most 3,000 characters (actionMetadataError,
+  -- action-service.ts:29). A backstop like the title's (Ruling H23):
+  -- char_length counts code points, never more than the client's UTF-16
+  -- units, so it is never tighter (finding F3). A meta with no note, or a
+  -- note that is not a string, is the planner's to refuse, not this check's.
+  if not exists (select 1 from pg_constraint where conname = 'household_actions_note_check') then
+    alter table public.household_actions add constraint household_actions_note_check
+      check (meta is null or jsonb_typeof(meta -> 'note') is distinct from 'string'
+             or char_length(meta ->> 'note') <= 3000);
+  end if;
   -- The read function formats the date as YYYY-MM-DD, which only round-trips
   -- for years 1 to 9999; anything else would read back as a date the client
   -- rejects (validActionDate takes a four-digit year).
@@ -726,8 +736,8 @@ create or replace trigger operations_actions_settled_guard
 --     (select count(*) from pg_constraint
 --       where conrelid in ('public.household_actions'::regclass,
 --                          'public.household_action_preferences'::regclass,
---                          'public.household_action_state'::regclass) and contype = 'c') = 9
---       as nine_checks;
+--                          'public.household_action_state'::regclass) and contype = 'c') = 10
+--       as ten_checks;
 --
 -- ---------------------------------------------------------------------------
 -- If you need to back out 0023

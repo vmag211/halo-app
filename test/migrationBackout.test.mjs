@@ -604,6 +604,8 @@ async function objects0023() {
   for (const table of OBJECTS_0023.tables) present[table] = await exists(`to_regclass('public.${table}') is not null`);
   for (const fn of OBJECTS_0023.functions) present[fn] = await exists(`to_regprocedure('public.${fn}') is not null`);
   present.trigger = await exists(`exists (select 1 from pg_trigger where tgname = 'operations_actions_settled_guard')`);
+  // The note backstop (Ruling H23) goes with its table and must come back with it.
+  present.noteCheck = await exists(`exists (select 1 from pg_constraint where conname = 'household_actions_note_check')`);
   return present;
 }
 
@@ -652,6 +654,12 @@ test('after the back-out, 0023 applies again and gives exactly the schema one pa
   for (const table of OBJECTS_0023.tables) {
     assert.deepEqual((await db.query(`select count(*)::int as n from public.${table}`)).rows, [{ n: 0 }], table);
   }
+  // The note backstop is back: a 3,001 character note is refused again.
+  await assert.rejects(
+    db.query(`insert into public.household_actions (profile_id, action_key, title, reason, origin, state, meta)
+                values ($1, 'long-note', 'Long note', '', '', 'saved', $2::jsonb)`, [ALICE, JSON.stringify({ note: 'n'.repeat(3001) })]),
+    /household_actions_note_check/,
+  );
   // The guard is back on the surviving ledger row too.
   await assert.rejects(db.query(`update public.operations set status = 'failed' where operation_id = $1`, [ACTION_OP]), /HALO_OPERATION_SETTLED/);
 });
