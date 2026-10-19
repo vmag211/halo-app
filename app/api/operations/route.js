@@ -23,7 +23,9 @@ import {
  * `pending` means the work is genuinely still running. `unknown` means the
  * attempt was recorded but never settled and has outstripped its window: the
  * honest answer when a process died, and specifically NOT a failure, because
- * the effect may well have applied.
+ * the effect may well have applied. Once the household's inventory has been
+ * read, such a row has been reaped and reads `failed` with reason `abandoned`
+ * (lib/operations.js, reapAbandonedOperations).
  *
  * A 404 means this household has no such operation in this domain. That is
  * different from `failed`, and the difference matters: the client must not read
