@@ -131,6 +131,23 @@ test('another state makes the answer outside; the first segment is never read as
   assert.equal(resolve('Greenville SC').kind, 'unmatched');
 });
 
+test('"Co" after an exact NC county segment is the county word, never Colorado', () => {
+  for (const text of ['Yadkin, Co', 'Yadkin, Co.', 'yadkin; CO', 'Yadkin, Co, NC', 'Yadkin County, Co']) {
+    const found = resolve(text);
+    assert.equal(found.kind, 'matched', text);
+    assert.equal(found.id, 'us-county:37197', text);
+    assert.equal(found.label, 'Yadkin County, NC', text);
+  }
+  // Folded into the county segment, so Columbus is the county here, not the town.
+  assert.equal(resolve('Columbus, Co').id, 'us-county:37047');
+  // No NC county before it: Colorado.
+  assert.deepEqual(resolve('Denver, CO'), { kind: 'outside' });
+  assert.deepEqual(resolve('Charlotte, CO'), { kind: 'outside' }, 'Charlotte is a place, not a county');
+  assert.deepEqual(resolve('Freedom Park, CO'), { kind: 'outside' });
+  // Only straight after the county segment.
+  assert.deepEqual(resolve('Yadkin, Charlotte, CO'), { kind: 'outside' });
+});
+
 test('the state table is the 50 states, codes and names distinct', () => {
   assert.equal(STATES.length, 50);
   assert.equal(new Set(STATES.map(([code]) => code)).size, 50);
