@@ -1792,7 +1792,7 @@ for (const { name, setup, action, payload } of SUCCEEDING) {
   });
 }
 
-test('Ruling S14: the stored receipt, its replay and GET /api/operations carry no unresolved list; only the direct answer has the live one', async () => {
+test('Rulings S14 and S16: the stored receipt and its replay carry no unresolved list; the direct answer and GET /api/operations carry the live one', async () => {
   const h = harness({ operations: runningElsewhere() });
   const body = { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 1, operationId: op(1) };
   const direct = await succeed(h, 'alice', body);
@@ -1817,7 +1817,26 @@ test('Ruling S14: the stored receipt, its replay and GET /api/operations carry n
   const reconciled = await response.json();
   assertAccountReceipt(reconciled, op(1));
   assert.equal(reconciled.status, 'succeeded');
-  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [], 'the receipt the client reconciles with');
+  // Ruling S16: the reconcile carries the live list, so the other request stays locked.
+  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [ELSEWHERE], 'the receipt the client reconciles with');
+  assert.deepEqual({ ...reconciled.snapshot, unresolvedOperations: [] }, stored.result.snapshot, 'and nothing else is changed');
+  // Once ELSEWHERE settles, the same reconcile lists nothing.
+  const { error } = await h.db.from('operations').update({ status: 'succeeded', result: { status: 'succeeded' } }).eq('operation_id', ELSEWHERE);
+  assert.equal(error, null);
+  const later = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${op(1)}&domain=account`, env: ON })).json();
+  assert.deepEqual(later.snapshot.unresolvedOperations, []);
+});
+
+test('Ruling S16 (S14 review probe): a tab holding [op(1), ELSEWHERE] that reconciles op(1) keeps ELSEWHERE, which is still pending', async () => {
+  const h = harness({ operations: runningElsewhere() });
+  await succeed(h, 'alice', { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 1, operationId: op(1) });
+  const tab = accountClient(h);
+  // What a load taken while both were pending leaves the hook holding.
+  tab.state.unknown = [op(1), ELSEWHERE];
+  await tab.reconcile(op(1));
+  assert.deepEqual(tab.state.unknown, [ELSEWHERE], 'the pending request is not silently unlocked');
+  const read = await (await h.call('/api/account', 'GET', { as: 'alice', url: '/api/account?feature=recovery', env: ON })).json();
+  assert.deepEqual(read.unresolvedOperations, tab.state.unknown, 'and the tab agrees with the next read');
 });
 
 /**

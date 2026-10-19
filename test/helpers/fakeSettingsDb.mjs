@@ -19,9 +19,10 @@
  * (operations) is declared, a settled 'settings' row may not change its status
  * (HALO_OPERATION_SETTLED), as 0021's operations_settings_settled_guard says.
  *
- * save_settings follows the SQL function step by step: the value checks, this
- * operation's own pending ledger row (else HALO_OPERATION_NOT_PENDING), the
- * profile, the notification and band rows made if missing, the revision check
+ * save_settings follows the SQL function step by step: the value checks, the
+ * profile, this operation's own pending ledger row (else
+ * HALO_OPERATION_NOT_PENDING), the notification and band rows made if missing
+ * when the save writes that group, the revision check
  * (a miss removes what was made and writes nothing), the group's preference
  * columns without the revision, then the home details through the
  * home-context functions registered on this fake (update_home_context_attributes
@@ -202,16 +203,18 @@ export async function saveSettings(args, db) {
   // its commit, so a second save of the same household waits, then reads the
   // revision the first one left. One chain per household on this fake models it.
   return householdLock(db, id, () => db.atomically(async () => {
-    // 1. This operation's own ledger row, still pending (Ruling S15).
+    // 1. The profile, first (0021 round 3, finding E).
+    if (!(await run(db.from('profiles').select('id').eq('id', id).maybeSingle()))) throw rpcError('P0001', 'HALO_PROFILE_NOT_FOUND');
+    // 2. This operation's own ledger row, still pending (Ruling S15).
     if (!(await run(pending(db.from('operations').select('operation_id')).maybeSingle()))) {
       throw rpcError('P0001', 'HALO_OPERATION_NOT_PENDING');
     }
-    // 2. The profile.
-    if (!(await run(db.from('profiles').select('id').eq('id', id).maybeSingle()))) throw rpcError('P0001', 'HALO_PROFILE_NOT_FOUND');
-    // 3. The notification and band rows exist (review finding A). All defaults, so no trigger advances anything.
+    // 3. The notification and band rows exist when this save writes them (findings A and F).
+    //    All defaults, so no trigger advances anything.
     const made = {};
-    for (const table of ['notification_prefs', 'household_bands']) {
-      made[table] = (await run(db.from(table).upsert({ profile_id: id }, { onConflict: 'profile_id', ignoreDuplicates: true }).select('profile_id'))).length > 0;
+    for (const [table, group] of [['notification_prefs', args.p_notifications], ['household_bands', args.p_bands]]) {
+      made[table] = present(group)
+        && (await run(db.from(table).upsert({ profile_id: id }, { onConflict: 'profile_id', ignoreDuplicates: true }).select('profile_id'))).length > 0;
     }
     // 4. The revision check. A miss writes nothing: the rows step 3 made go again.
     const stored = await run(db.from('profile_preferences').select('*').eq('profile_id', id).maybeSingle());

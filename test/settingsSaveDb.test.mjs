@@ -35,7 +35,7 @@ import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
 import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
 import { installSettingsDb } from './helpers/fakeSettingsDb.mjs';
 
-const { settingsSnapshot } = await import('../lib/settings.js');
+const { SAVE_SETTINGS_ARGS, saveSettings, settingsSnapshot } = await import('../lib/settings.js');
 const { runOperation, readOperation } = await import('../lib/operations.js');
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -129,13 +129,34 @@ test('a save applies the group\'s columns at revision + 1 and returns exactly th
   assert.deepEqual([stored.row.luna_home, stored.row.quiet_enabled, stored.row.quiet_from, stored.row.quiet_to, stored.row.luna_tasks], [true, true, '22:00', '07:00', false]);
   assert.deepEqual(result.profile, await profileOf(id));
   assert.equal(result.changed, true);
-  // Review finding A: the save makes the notification and band rows before it
-  // locks the preferences row, with every value at its default.
-  const { rows: [notes] } = await db.query('select to_jsonb(n) as row from public.notification_prefs n where profile_id = $1', [id]);
-  assert.deepEqual(result.notifications, notes.row);
-  assert.deepEqual(notificationKinds.map((key) => notes.row[key]), [true, true, true, true, true], 'all defaults');
-  const { rows: [bands] } = await db.query('select * from public.household_bands where profile_id = $1', [id]);
-  assert.deepEqual(BAND_COLUMNS.filter((key) => bands[key]), [], 'all defaults');
+  assert.equal(result.notifications, null, 'no notification row, and this save makes none');
+});
+
+const rowCount = async (table, id) => (await db.query(`select count(*)::int as n from public.${table} where profile_id = $1`, [id])).rows[0].n;
+
+test('round 3 finding F: a save makes the notification or band row only for the group it writes, so a display save leaves household_set false', async () => {
+  // A display-only save on a household that never answered: no row in either table, before or after.
+  const display = await household();
+  assert.deepEqual([await rowCount('notification_prefs', display), await rowCount('household_bands', display)], [0, 0]);
+  const saved = await save(display, 1, { preferences: { display_appearance: 'dark', display_palette: 'ocean' }, profile: { locale: 'es' } });
+  assert.deepEqual([saved.saved, saved.changed], [true, true]);
+  assert.deepEqual([await rowCount('notification_prefs', display), await rowCount('household_bands', display)], [0, 0]);
+  // household_set as GET /api/household and GET /api/profile derive it: whether a band row exists.
+  assert.equal((await db.query('select exists (select 1 from public.household_bands where profile_id = $1) as set', [display])).rows[0].set, false);
+
+  // A notifications save makes the notification row (finding A), all defaults but the switch it sets, and no band row.
+  const notes = await household();
+  await save(notes, 1, { notifications: { radon_season: false } });
+  const { rows: [row] } = await db.query('select * from public.notification_prefs where profile_id = $1', [notes]);
+  assert.deepEqual(notificationKinds.map((key) => row[key]), [true, true, true, false, true]);
+  assert.equal(await rowCount('household_bands', notes), 0);
+
+  // A bands save makes the band row and no notification row.
+  const bands = await household();
+  await save(bands, 1, { bands: { has_adult: true } });
+  const { rows: [band] } = await db.query('select * from public.household_bands where profile_id = $1', [bands]);
+  assert.deepEqual(BAND_COLUMNS.filter((key) => band[key]), ['has_adult']);
+  assert.equal(await rowCount('notification_prefs', bands), 0);
 });
 
 test('a save at a revision that has moved writes nothing, makes no row, and answers the current revision', async () => {
@@ -308,7 +329,7 @@ test('review finding B: a value its column refuses is HALO_INVALID_INPUT naming 
   assert.equal(await everything(sameEnds), stored);
 });
 
-test('review N1: a household with no profile row can hold no preferences row and claim no settings operation (23503)', async () => {
+test('review N1 and round 3 finding E: no profile row means no preferences row and no claim (23503), and save_settings checks the profile first', async () => {
   // What GET and PATCH /api/settings answer as a 404 before writing anything: the
   // route's fake declares the same foreign key (test/helpers/tables.mjs).
   const id = crypto.randomUUID();
@@ -317,7 +338,16 @@ test('review N1: a household with no profile row can hold no preferences row and
   assert.equal(create?.code, '23503', 'ensurePreferences\'s insert is refused by the foreign key');
   const claim = await asService(`insert into public.operations (operation_id, profile_id, domain, kind) values ($1, $2, 'settings', 'settings.save')`, [crypto.randomUUID(), id]).then(() => null, (error) => error);
   assert.equal(claim?.code, '23503', 'and so would the ledger claim be');
-  assert.equal((await saveError(id, 1, { operationId: crypto.randomUUID() }))?.message, 'HALO_OPERATION_NOT_PENDING', 'save_settings writes nothing');
+  // The profile is locked before the ledger row (round 3 finding E: the order deleting an
+  // account takes them), so with both missing that is the refusal it reports.
+  assert.equal((await saveError(id, 1, { operationId: crypto.randomUUID() }))?.message, 'HALO_PROFILE_NOT_FOUND', 'save_settings writes nothing');
+  // The route tests' stand-in checks them in the same order.
+  const fake = createFakeSupabase({ tables: haloTables('profiles', 'profile_preferences', 'notification_prefs', 'household_bands', 'home_contexts', 'operations') });
+  installSettingsDb(fake);
+  const { error } = await fake.rpc('save_settings', {
+    p_profile_id: id, p_operation_id: crypto.randomUUID(), p_expected_revision: 1, p_preferences: {}, p_profile: null, p_home: null, p_notifications: null, p_bands: null,
+  });
+  assert.equal(error?.message, 'HALO_PROFILE_NOT_FOUND');
 });
 
 // ---------------------------------------------------------------------------
@@ -439,11 +469,22 @@ test('S15: an applied save settles its own ledger row as succeeded, with the rec
 /** Households whose stored rows exercise every rule of the snapshot, for the JS and SQL copies to agree on. */
 const SNAPSHOT_CASES = [
   ['nothing answered', {}, {}, null],
-  ['every answer given', { home_year: 1975, water_source: 'well', tenure: 'owner', locale: 'es' }, { display_palette: 'forest' }, { weather_advisory: false }],
+  // Ambient on with contrast off, and the reverse below, so neither can be read from the other.
+  ['every answer given', { home_year: 1975, water_source: 'well', tenure: 'owner', locale: 'es' }, { display_palette: 'forest', display_ambient: true }, { weather_advisory: false }],
   ['an unanswered tenure while renting', { tenure: null, renter_mode: true, water_source: 'spring' }, { quiet_enabled: true, quiet_from: '22:30', quiet_to: '06:15' }, null],
-  ['an unanswered tenure, not renting', { tenure: null, renter_mode: false, home_year: 2024 }, { display_palette: 'ocean', display_scale: '150', display_motion: 'full' }, null],
+  ['an unanswered tenure, not renting', { tenure: null, renter_mode: false, home_year: 2024 }, { display_palette: 'ocean', display_scale: '150', display_motion: 'full', display_contrast: true }, null],
   ['a tenure of other', { tenure: 'other', water_source: 'utility' }, { calendar_zone: 'Pacific/Honolulu', calendar_linked: true, luna_home: true }, { season_summary: false, radon_season: false }],
   ['a year outside four digits', { home_year: 999 }, {}, null],
+  // Every column away from its default, so no field of the SQL receipt can be read from
+  // the wrong column or hard-coded unseen (S14 follow-up review, finding 2).
+  ['every column away from its default',
+    { home_year: 1955, water_source: 'spring', tenure: 'renter', renter_mode: true, locale: 'es' },
+    {
+      display_appearance: 'dark', display_palette: 'iris', display_ambient: true, display_scale: '130', display_motion: 'reduce',
+      display_contrast: true, quiet_enabled: true, quiet_from: '23:15', quiet_to: '05:45', quiet_zone: 'Europe/Paris',
+      calendar_zone: 'Asia/Tokyo', calendar_streak: true, calendar_linked: true, luna_tasks: true, luna_home: true, luna_projects: true,
+    },
+    { air_quality_change: false, weather_advisory: false, new_water_results: false, radon_season: false, season_summary: false }],
 ];
 
 for (const [label, profile, preferences, notifications] of SNAPSHOT_CASES) {
@@ -549,19 +590,44 @@ test('S15, end to end with runOperation: a save whose answer is lost still reads
   assert.equal(read.result.snapshot.revision, 2);
   assert.deepEqual(read.result.snapshot, settingsSnapshot({ ...(await rowsOf(id)), unresolvedOperations: [] }));
 
-  // A save the reaper settled first: save_settings refuses, nothing is applied, and
-  // runOperation's own settle as failed (failed to failed) is allowed.
-  const reapedId = crypto.randomUUID();
+});
+
+/** supabase.rpc for lib/settings.js, run on this database the way PostgREST runs it and passes an error on. */
+const pgRpc = {
+  async rpc(name, args) {
+    assert.equal(name, 'save_settings');
+    // By name, in the function's order, as PostgREST matches them; the jsonb ones as JSON text.
+    const values = SAVE_SETTINGS_ARGS.map((arg) => (args[arg] !== null && typeof args[arg] === 'object' ? JSON.stringify(args[arg]) : args[arg] ?? null));
+    try {
+      const { rows } = await asService(`select ${SIGNATURE.replace(/\(.*\)/, '')}($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb) as result`, values);
+      return { data: rows[0].result, error: null };
+    } catch (error) {
+      return { data: null, error: { code: error.code, message: error.message, details: error.detail ?? null, hint: error.hint ?? null } };
+    }
+  },
+};
+
+test('S14 follow-up item 4, end to end: a save whose row the reaper settled first is recorded abandoned, as the reaper wrote it, with nothing applied', async () => {
+  const id = await household();
+  const operationId = crypto.randomUUID();
   const before = await everything(id);
-  await assert.rejects(
-    runOperation(ledgerClient(db), { operationId: reapedId, profileId: id, domain: 'settings', kind: 'settings.save', input: { group: 'luna', n: 2 } }, async () => {
-      await db.query(`update public.operations set status = 'failed', result = '{"status":"failed","reason":"abandoned"}' where operation_id = $1`, [reapedId]);
-      return save(id, 2, { preferences: { luna_projects: true }, operationId: reapedId });
-    }),
-    /HALO_OPERATION_NOT_PENDING/,
-  );
-  assert.equal(await everything(id), before);
-  assert.equal((await operationOf(reapedId)).status, 'failed');
+  // The route's execute: lib/settings.js saveSettings against the real function, and
+  // the receipt app/api/settings/route.js records for an abandoned save.
+  const outcome = await runOperation(ledgerClient(db), { operationId, profileId: id, domain: 'settings', kind: 'settings.save', input: { group: 'luna' } }, async () => {
+    // The reaper's statement, landing between the claim and the save.
+    await db.query(`update public.operations set status = 'failed', result = '{"status":"failed","reason":"abandoned"}' where operation_id = $1 and status = 'pending'`, [operationId]);
+    const saved = await saveSettings(pgRpc, { profileId: id, operationId, expectedRevision: 1, preferences: { luna_projects: true }, changes: {} });
+    assert.deepEqual(saved, { saved: false, abandoned: true });
+    return { status: 'failed', reason: 'abandoned' };
+  });
+  assert.deepEqual([outcome.status, outcome.result.reason], ['failed', 'abandoned']);
+  assert.equal(await everything(id), before, 'nothing applied');
+  assert.deepEqual(await operationOf(operationId), { status: 'failed', result: { status: 'failed', reason: 'abandoned', operationId } },
+    'the reaper\'s reason is kept, so a replay answers operation_abandoned');
+  // And the ordinary path through the same client: an applied save.
+  const applied = await ledgerRow(id);
+  const saved = await saveSettings(pgRpc, { profileId: id, operationId: applied, expectedRevision: 1, preferences: { luna_projects: true }, changes: {} });
+  assert.deepEqual([saved.saved, saved.changed, saved.revision], [true, true, 2]);
 });
 
 // ---------------------------------------------------------------------------

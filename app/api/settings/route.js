@@ -71,7 +71,8 @@ import {
  * as failed is refused and logged (lib/operations.js settle does not throw),
  * the route answers 500, which the client treats as an unknown outcome, and
  * its "check status" reads the success the save was. If the ledger's reaper
- * settled the row first, save_settings refuses with nothing written.
+ * settled the row first, save_settings refuses with nothing written, and the
+ * route records and answers it as abandoned (a terminal 409).
  *
  * Idempotency is the ledger (migration 0017) with domain 'settings' and
  * nothing else. The same operationId replays the first receipt without acting
@@ -90,7 +91,8 @@ import {
  *       'home_changed' or 'operation_mismatch'
  *   409 conflict, reason 'operation_failed' or 'operation_abandoned': a
  *       replay of an id whose save failed, or was settled as abandoned by the
- *       ledger's reaper. Terminal: the same id never succeeds.
+ *       ledger's reaper (also on the first call, when the reaper got there
+ *       before save_settings). Terminal: the same id never succeeds.
  *   404 not_found for a household with no profile row (review N1): there are no
  *       settings to read or save, and nothing was changed. Decided before the
  *       operation id is claimed, which the ledger's own foreign key would refuse
@@ -227,6 +229,10 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
     if (isConflictRefusal(haloRefusal(err))) throw new HomeChangedError();
     throw err;
   }
+  // The reaper settled this operation first, so save_settings wrote nothing.
+  // Recorded with the reaper's own reason, so the answer, a replay and a
+  // reconcile all say abandoned (review item 4 of the S14 follow-up).
+  if (saved.abandoned) return { status: 'failed', reason: 'abandoned' };
   if (!saved.saved) throw new StaleRevisionError(saved.revision);
 
   live.unresolvedOperations = unresolvedOperations;
@@ -291,13 +297,15 @@ export async function PATCH(request) {
       () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision, live }),
     );
 
-    // A replay of an operation that settled as failed is a terminal 409 with
-    // the reason it failed, in either stored shape: the reaper's
-    // { status: 'failed', reason: 'abandoned' } for a save that never finished,
-    // or no result at all for one that threw in process (a stale revision, a
-    // home that changed, a database error). Neither is "not found" and neither
-    // can ever succeed on retry, and the client answers a 409 by re-reading.
-    if (outcome.replayed && outcome.status === 'failed') {
+    // An operation that settled as failed is a terminal 409 with the reason it
+    // failed, in either stored shape: the reaper's
+    // { status: 'failed', reason: 'abandoned' } for a save that never finished
+    // (on a replay, or on this call when save_settings found the row already
+    // reaped), or no result at all for one that threw in process (a stale
+    // revision, a home that changed, a database error). Neither is "not found"
+    // and neither can ever succeed on retry, and the client answers a 409 by
+    // re-reading.
+    if (outcome.status === 'failed') {
       const abandoned = outcome.result?.reason === 'abandoned';
       return conflict(
         abandoned ? MESSAGES.abandoned : MESSAGES.failed,

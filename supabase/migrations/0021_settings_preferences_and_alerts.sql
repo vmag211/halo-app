@@ -557,11 +557,11 @@ create trigger profiles_tenure_reconcile
 -- the whole failing row, location included, into the server log.
 --
 -- THE SAVE SETTLES ITS OWN LEDGER ROW (Ruling S15, the pattern 0023's
--- commit_household_actions set for My Week, B06 Rulings H8, H28 and H29). The
--- first thing this function does is lock this operation's row in
--- public.operations, which must be this household's, in domain 'settings' and
--- still 'pending'; otherwise it raises HALO_OPERATION_NOT_PENDING with nothing
--- written. The reaper in lib/operations.js settles an abandoned row with a
+-- commit_household_actions set for My Week, B06 Rulings H8, H28 and H29).
+-- Straight after the profile, and before anything is read or written, this
+-- function locks this operation's row in public.operations, which must be
+-- this household's, in domain 'settings' and still 'pending'; otherwise it
+-- raises HALO_OPERATION_NOT_PENDING with nothing written. The reaper in lib/operations.js settles an abandoned row with a
 -- conditional `update ... where status = 'pending'`, so the two exclude each
 -- other: if the reaper settled the row first, nothing matches here and the
 -- save is refused; if this save holds the row, the reaper waits and then finds
@@ -580,20 +580,29 @@ create trigger profiles_tenure_reconcile
 -- refuses.
 --
 -- Locks are taken in the order every other writer of these rows takes them,
--- so two writers wait for each other rather than deadlock: this operation's
--- own ledger row first (nothing else in this file takes a ledger row), then
--- the profile (as save_household and the 0016 functions do), then the
--- notification and band rows, then the preferences row, which every trigger
--- above takes last. The notification and band rows are made first if they do
--- not exist (review finding A). Without that, a first-time PUT
--- /api/notifications deadlocks with a save: its upsert inserts the row, and
--- its trigger then waits for the preferences row this save holds, while this
--- save's own insert of the same row waits for the PUT's uncommitted one. Made
--- here, before the preferences row is locked, the insert waits for the PUT to
--- commit (or the PUT waits for this save) and nothing waits in a circle. The
--- rows made are all defaults, which every reader already reads a missing row
--- as, so they fire no trigger, and a save that is then refused deletes them
--- again: a refused save leaves nothing behind.
+-- so two writers wait for each other rather than deadlock: the profile first
+-- (as save_household and the 0016 functions do), then this operation's own
+-- ledger row, then the notification and band rows, then the preferences row,
+-- which every trigger above takes last (P, O, N, B, R; 0021 round 3 review,
+-- finding E). Profile before ledger row is the order deleting an account takes
+-- them: auth.users cascades to the profile, and the profile cascades to its
+-- operations rows (0017). The reaper takes ledger rows and nothing else, so it
+-- can wait for this save or this save for it, never both.
+--
+-- The notification row is made first, when the save writes the switches
+-- (review finding A). Without that, a first-time PUT /api/notifications
+-- deadlocks with the save: its upsert inserts the row, and its trigger then
+-- waits for the preferences row this save holds, while this save's own insert
+-- of the same row waits for the PUT's uncommitted one. Made here, before the
+-- preferences row is locked, the insert waits for the PUT to commit (or the
+-- PUT waits for this save) and nothing waits in a circle. The band row is
+-- made the same way when the save writes the bands, for symmetry: every other
+-- writer of bands locks the profile first, so it could not deadlock. Each row
+-- is made only for the group that writes it (round 3 finding F): a row's mere
+-- existence is an answer to some readers (household_set, B01, is true once a
+-- band row exists), so a save of the display settings must not make one. A
+-- row made here is all defaults, so it fires no trigger, and a save that is
+-- then refused deletes it again: a refused save leaves nothing behind.
 --
 -- THE REVISION ADVANCES ONCE PER SAVE THAT CHANGES SOMETHING (review finding
 -- C), and not at all for a save of the values already stored. The group's
@@ -785,7 +794,13 @@ begin
     end if;
   end if;
 
-  -- 1. This operation's own ledger row, locked before anything is read or
+  -- 1. The profile, as every other writer of it locks it first (finding E).
+  perform 1 from public.profiles where id = p_profile_id for no key update;
+  if not found then
+    raise exception 'HALO_PROFILE_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  -- 2. This operation's own ledger row, locked before anything is read or
   --    written (Ruling S15). Not pending (reaped, settled, another
   --    household's or another domain's): nothing is written.
   perform 1 from public.operations o
@@ -796,18 +811,19 @@ begin
     raise exception 'HALO_OPERATION_NOT_PENDING' using errcode = 'P0001';
   end if;
 
-  -- 2. The profile, as every other writer of it locks it first.
-  perform 1 from public.profiles where id = p_profile_id for no key update;
-  if not found then
-    raise exception 'HALO_PROFILE_NOT_FOUND' using errcode = 'P0001';
+  -- 3. The notification and band rows exist when this save writes them, then
+  --    are locked (findings A and F). All defaults, so neither insert fires a
+  --    trigger; a group this save does not write makes no row.
+  made_notes := false;
+  if p_notifications is not null and p_notifications <> '{}'::jsonb then
+    insert into public.notification_prefs (profile_id) values (p_profile_id) on conflict (profile_id) do nothing;
+    made_notes := found;
   end if;
-
-  -- 3. The notification and band rows exist, then are locked (finding A).
-  --    All defaults, so neither insert fires a trigger.
-  insert into public.notification_prefs (profile_id) values (p_profile_id) on conflict (profile_id) do nothing;
-  made_notes := found;
-  insert into public.household_bands (profile_id) values (p_profile_id) on conflict (profile_id) do nothing;
-  made_bands := found;
+  made_bands := false;
+  if p_bands is not null and p_bands <> '{}'::jsonb then
+    insert into public.household_bands (profile_id) values (p_profile_id) on conflict (profile_id) do nothing;
+    made_bands := found;
+  end if;
   perform 1 from public.notification_prefs where profile_id = p_profile_id for no key update;
   perform 1 from public.household_bands where profile_id = p_profile_id for no key update;
 
@@ -896,7 +912,8 @@ begin
     where id = p_profile_id;
   end if;
 
-  -- Both rows exist (step 3), so these are plain updates of the keys sent.
+  -- Each row exists when its group is sent (step 3), so these are plain
+  -- updates of the keys sent.
   if p_notifications is not null and p_notifications <> '{}'::jsonb then
     update public.notification_prefs np set
       air_quality_change = coalesce((p_notifications ->> 'air_quality_change')::boolean, np.air_quality_change),

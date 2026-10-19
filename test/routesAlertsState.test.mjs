@@ -413,8 +413,28 @@ test('POST: the receipt lists other unsettled alerts operations but never its ow
   assert.deepEqual(ledger(h, OP).result, { ...receipt, unresolvedOperations: [] });
   const replay = await (await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true }))).json();
   assert.deepEqual(replay, { ...receipt, unresolvedOperations: [] }, 'a replay is the stored receipt');
+  // Ruling S16: the reconcile carries the live list, so the other operation stays locked.
   const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${OP}&domain=alerts` })).json();
-  assert.deepEqual(reconciled.unresolvedOperations, []);
+  assert.deepEqual(reconciled.unresolvedOperations, [OTHER_OP]);
+  assert.deepEqual(reconciled.items, receipt.items);
+});
+
+test('Ruling S16 (S14 review probe): a tab that parked Q while R was also pending keeps R after reconciling Q', async () => {
+  const R = OTHER_OP;
+  const h = harness({
+    operations: ({ alice }) => [{ operation_id: R, profile_id: alice.id, domain: 'alerts', kind: 'alerts.update', status: 'pending', created_at: ago(1_000) }],
+  });
+  const tab = productionAlerts(h);
+  await tab.reload();
+  assert.equal(tab.unknown, R);
+  // Q runs, and its direct answer lists R.
+  const q = await (await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true }))).json();
+  assert.deepEqual(q.unresolvedOperations, [R]);
+  // What a load taken while Q and R were both pending leaves the hook holding: Q parked.
+  tab.park(OP);
+  await tab.retry();
+  assert.equal(tab.unknown, R, 'R is still pending, so it is not silently unlocked');
+  assert.deepEqual((await (await read(h)).json()).unresolvedOperations, [R]);
 });
 
 test('POST: GET /api/operations replays the succeeded receipt flat, and it passes the client validator', async () => {
@@ -1001,6 +1021,8 @@ function productionAlerts(h, as = 'alice') {
     get message() { return state.message || resource.error || (state.unknown ? 'An alert update needs a status check.' : ''); },
     get undo() { return state.undo; },
     get unknown() { return state.unknown; },
+    /** Test only: the lock a load leaves when `id` was the oldest unsettled operation it listed. */
+    park: (id) => { state.unknown = id; },
     item: (id) => state.items.find((i) => i.id === id),
     read: (item) => change([item], { read: true }),
     dismiss: async (item) => { const next = await change([item], { dismissed: true }); if (next) { state.undo = next.find((i) => i.id === item.id) ?? null; state.message = 'Alert dismissed.'; } },

@@ -565,6 +565,19 @@ test('PATCH home: year, water, tenure and the household bands are saved, and GET
   assert.equal(profile.household.has_child, true);
 });
 
+test('round 3 finding F: a display save by a household that never answered the household question leaves household_set false (B01)', async () => {
+  const h = harness();
+  assert.equal(bandsOf(h, 'bob'), undefined);
+  const shown = await readBody(h, 'bob');
+  const body = saveBody(shown, 'display', { values: (v) => { v.language = 'es'; }, display: { appearance: 'dark' } });
+  assertReceipt(await (await patch(h, body, { who: 'bob', revision: 1 })).json(), body.operationId);
+  assert.deepEqual([bandsOf(h, 'bob'), notifOf(h, 'bob')], [undefined, undefined], 'no band or notification row was made');
+  const household = await (await h.call('/api/household', 'GET', { as: 'bob' })).json();
+  assert.equal(household.household_set, false);
+  const profile = await (await h.call('/api/profile', 'GET', { as: 'bob' })).json();
+  assert.equal(profile.household_set, false);
+});
+
 test('PATCH home through the current home (0016): the answers are saved in the home context and the profile follows it', async () => {
   const ctx = setup();
   registerHomeContextRpcs(ctx.h.db);
@@ -1092,8 +1105,31 @@ test('a success receipt leaves out its own id but keeps another pending settings
   const historical = { ...receipt, snapshot: { ...receipt.snapshot, unresolvedOperations: [] } };
   assert.deepEqual(opRow(h, body.operationId).result, historical);
   assert.deepEqual(await (await patch(h, body, { revision: 4 })).json(), historical, 'a replay is the stored receipt');
+  // Ruling S16: the reconcile carries the live list, so the other operation stays locked.
   const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${body.operationId}&domain=settings` })).json();
-  assert.deepEqual([reconciled.status, reconciled.snapshot], ['succeeded', historical.snapshot]);
+  assert.deepEqual([reconciled.status, reconciled.snapshot], ['succeeded', receipt.snapshot]);
+});
+
+test('Ruling S16 (S14 review probe): a tab that parked Q while R was also pending keeps R after reconciling Q', async () => {
+  const R = '5e771265-eeee-4000-8000-0000000000a1';
+  // Pending work in another domain is another surface's lock, never this one's.
+  const ALERTS_WORK = '5e771265-eeee-4000-8000-0000000000a2';
+  const h = harness({ operations: [{ operation_id: R }, { operation_id: ALERTS_WORK, domain: 'alerts', kind: 'alerts.update' }] });
+  const tab = productionPreferences(h);
+  await tab.reload();
+  assert.equal(tab.unknown, R);
+  // Q runs, and its direct answer lists R.
+  const shown = await readBody(h);
+  const q = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  const receipt = await (await patch(h, q, { revision: 4 })).json();
+  assert.deepEqual(receipt.snapshot.unresolvedOperations, [R]);
+  // What a load taken while Q and R were both pending leaves the hook holding: Q parked.
+  tab.state.unknown = q.operationId;
+  await tab.reconcile();
+  assert.deepEqual([tab.unknown, tab.snapshot.values.luna.home], [R, !SETTINGS.alice.luna_home], 'R is still pending, so it is not silently unlocked');
+  assert.deepEqual((await readBody(h)).unresolvedOperations, [R]);
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${q.operationId}&domain=settings` })).json();
+  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [R], 'this domain\'s live list only');
 });
 
 // ---------------------------------------------------------------------------
@@ -1278,8 +1314,8 @@ test('S15: a save whose answer is lost after it committed stays succeeded; the r
   assertReceipt(await replay.json(), body.operationId);
 });
 
-test('S15: a save whose ledger row the reaper settled first is refused by save_settings with nothing written', async (t) => {
-  muteConsoleError(t);
+test('S15: a save whose ledger row the reaper settled first is refused by save_settings with nothing written, a terminal 409 operation_abandoned', async (t) => {
+  const errors = muteConsoleError(t);
   const h = harness();
   const shown = await readBody(h);
   const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'renter'; }, household: { has_teen: true } });
@@ -1295,10 +1331,14 @@ test('S15: a save whose ledger row the reaper settled first is refused by save_s
     }
     return rpc(name, args);
   };
-  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 500, code: 'internal_error' });
+  const first = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+  assert.equal(first.reason, 'operation_abandoned', 'a terminal answer at once, not a 500 to check');
   assert.equal(withoutOperations(tablesSnapshot(h)), before, 'no setting, no revision, no tenure, no band');
-  assert.equal(opRow(h, body.operationId).status, 'failed');
-  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason'] });
+  // The ledger keeps the reaper's reason, so a replay and a reconcile say the same.
+  assert.deepEqual([opRow(h, body.operationId).status, opRow(h, body.operationId).result?.reason], ['failed', 'abandoned']);
+  const replay = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason'] });
+  assert.equal(replay.reason, 'operation_abandoned');
+  assert.equal(errors.mock.callCount(), 0, 'nothing went wrong that needs a log line');
 });
 
 test('review finding C: a save of the values already shown applies without advancing the revision', async () => {
