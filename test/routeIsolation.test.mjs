@@ -86,6 +86,8 @@ const ROUTE_COVERAGE = {
   'DELETE /api/push/subscribe': 'flows: a foreign endpoint is not removed and the answer matches a missing endpoint',
   'GET /api/sources': 'isolation: read matrix (newest reading is the caller\'s)',
   'GET /api/volunteer': 'isolation: read matrix (county from the caller\'s profile)',
+  'GET /api/week/changes': 'routesWeekChanges: only the ledger is touched, every statement scoped to the caller on the query itself, and only the caller\'s own pending week-updates operations are listed (another household\'s, a settled one and another domain\'s are not); a query or home-context header naming another household changes nothing; before 0017 the answer is feature_unavailable rather than an empty list',
+  'POST /api/week/changes/acknowledge': 'routesWeekChanges: no task table is read, so the caller\'s task id, another household\'s and one that never existed answer identically apart from the operation id; the ledger row is owned by the caller and holds a reason code only; a body naming another profile is refused with no row claimed; another household\'s operation id is the identical operation_mismatch and leaves their row as it was',
 };
 
 const WHO = ['alice', 'bob'];
