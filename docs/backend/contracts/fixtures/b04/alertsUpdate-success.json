@@ -1,0 +1,57 @@
+{
+  "operationId": "alertsUpdate",
+  "status": 200,
+  "body": {
+    "status": "succeeded",
+    "items": [
+      {
+        "id": "a11ce000-0404-4000-8000-000000000001",
+        "revision": 2,
+        "title": "Air quality dropped",
+        "body": "Air quality dropped to Elevated today.",
+        "category": "Conditions",
+        "date": "2026-10-14",
+        "read": true,
+        "dismissed": false,
+        "target": {
+          "tab": "today"
+        },
+        "kind": "air_quality_change"
+      },
+      {
+        "id": "a11ce000-0404-4000-8000-000000000002",
+        "revision": 1,
+        "title": "Time to test for radon",
+        "body": "Winter is the most accurate time to test for radon.",
+        "category": "Home",
+        "date": "2026-10-13",
+        "read": true,
+        "dismissed": false,
+        "target": {
+          "tab": "home",
+          "destination": "tests"
+        },
+        "kind": "radon_season"
+      },
+      {
+        "id": "a11ce000-0404-4000-8000-000000000003",
+        "revision": 2,
+        "title": "Your summer summary is ready",
+        "body": "You logged 12 days.",
+        "category": "Your week",
+        "date": "2026-10-12",
+        "read": false,
+        "dismissed": true,
+        "target": {
+          "tab": "plan",
+          "destination": "recap"
+        },
+        "kind": "season_summary"
+      }
+    ],
+    "unresolvedOperations": [
+      "0b040000-0000-4000-8000-000000000040"
+    ],
+    "operationId": "0b040000-0000-4000-8000-000000000041"
+  }
+}

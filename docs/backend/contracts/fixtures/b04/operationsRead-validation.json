@@ -1,0 +1,18 @@
+{
+  "operationId": "operationsRead",
+  "status": 400,
+  "body": {
+    "error": "That id is not valid.",
+    "code": "validation_failed",
+    "message": "That id is not valid.",
+    "field_errors": [
+      {
+        "field": "operationId",
+        "code": "invalid_uuid",
+        "message": "That id is not valid."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b04-contract-0001"
+  }
+}

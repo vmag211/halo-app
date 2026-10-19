@@ -561,10 +561,11 @@ create trigger profiles_tenure_reconcile
 -- Straight after the profile, and before anything is read or written, this
 -- function locks this operation's row in public.operations, which must be
 -- this household's, in domain 'settings' and still 'pending'; otherwise it
--- raises HALO_OPERATION_NOT_PENDING with nothing written. The reaper in lib/operations.js settles an abandoned row with a
--- conditional `update ... where status = 'pending'`, so the two exclude each
--- other: if the reaper settled the row first, nothing matches here and the
--- save is refused; if this save holds the row, the reaper waits and then finds
+-- raises HALO_OPERATION_NOT_PENDING with nothing written. The reaper in
+-- lib/operations.js settles an abandoned row with a conditional
+-- `update ... where status = 'pending'`, so the two exclude each other: if
+-- the reaper settled the row first, nothing matches here and the save is
+-- refused; if this save holds the row, the reaper waits and then finds
 -- it no longer pending. The last thing it does is settle that row 'succeeded'
 -- with the receipt the route would store: { operationId, status, snapshot },
 -- the snapshot built here from the rows as committed, with

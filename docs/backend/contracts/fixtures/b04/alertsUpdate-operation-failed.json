@@ -1,0 +1,13 @@
+{
+  "operationId": "alertsUpdate",
+  "status": 409,
+  "body": {
+    "error": "That change did not complete. Reload your alerts to see where they stand.",
+    "code": "conflict",
+    "message": "That change did not complete. Reload your alerts to see where they stand.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001",
+    "reason": "operation_failed"
+  }
+}

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b06-home-actions-week.md`. Contract digest and rulings: `.superpowers/sdd/b06-home-actions-week/` (`contract-digest.md`, `progress.md`, the task reviews; gitignored scratch).
 
-The B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **My Week's tasks are not live anywhere.** The `tasks` capability is off in every environment and stays off until Vibhav approves a retention period for tasks. Migration 0023 is applied nowhere. `docs/backend/STATE.md` is not updated by this task; the controller regenerates it after the B04 and B06 contract tasks both merge.
+The B04, B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **My Week's tasks are not live anywhere.** The `tasks` capability is off in every environment and stays off until Vibhav approves a retention period for tasks. Migration 0023 is applied nowhere. `docs/backend/STATE.md` is not updated by this task; the controller regenerates it after the B04 and B06 contract tasks both merge.
 
 ## Five things a reader would otherwise assume wrongly
 
@@ -21,9 +21,9 @@ The B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing her
 | 3. `GET /api/frontend/actions` (`actions.load`), the store library, the flag | Merged (`a2d296d`, `a9d1a22`; merge `0928320`) |
 | 4. `POST /api/frontend/actions/commands` (`actions.commit`) and the `actions` reconcile in `operations.read` | Merged (`f9700c4`, `d69e8bb`, `faaf33d`; merge `b5e978c`) |
 | 5. `GET /api/week/changes` and `POST /api/week/changes/acknowledge` | Merged (`a1825a0`, `631bc14`; merge `18a0829`) |
-| 6. Contracts, conformance, tracker, checkpoint | This section. Built on `b5e978c`; the contract commit and the docs commit that carries this section |
+| 6. Contracts, conformance, tracker, checkpoint | This section. Built on `b5e978c` (`15a3a21`, `283557b`), with a review fix round (`c4cb6d5`) and a merge of `vmag211/backend` at `3c0e7e8` |
 
-Every task before 6 had an independent review, and each review is in `.superpowers/sdd/b06-home-actions-week/`. Task 6 itself has not been reviewed yet. Nothing is merged to main.
+Every task before 6 had an independent review, and each review is in `.superpowers/sdd/b06-home-actions-week/`. Task 6 was reviewed (CHANGES REQUIRED, two docs fixes and seven nits, all addressed in `c4cb6d5`); the fix round is not yet re-reviewed. Nothing is merged to main.
 
 ## What was built
 
@@ -75,9 +75,11 @@ H1 to H7 were the controller's before planning, H8 to H24 were made in planning,
 
 ## Verification
 
-Gate at the Task 6 docs commit, on `b5e978c` plus Task 6:
+Gate at the Task 6 docs commit, on `b5e978c` plus Task 6: **3,304 passed**, which is the 3,227 of the Task 4 merge plus the 77 contract tests then. Moving the strip transcription changed no per-route count. The review round added 2 contract tests and one fixture (3,306).
 
-- `node --test test/*.test.mjs`: **3,304 passed, 0 failed, 0 skipped, 0 todo**. That is the 3,227 of the Task 4 merge plus the 77 contract tests. Moving the strip transcription changed no per-route count.
+Gate on the merge of `vmag211/backend` at `3c0e7e8` (which includes B04 Task 3) into Task 6 after its review round:
+
+- `node --test test/*.test.mjs`: **3,384 passed, 0 failed, 0 skipped, 0 todo**.
 - B06 suites: `actionsSchema` 24, `actionRules` 26, `actionsStore` 18, `routesActionsLoad` 26, `routesActionsCommit` 27, `routesActionsCommitDb` 12, `routesWeekChanges` 34, `contractsB06` 79, plus the B06 cases in `routesOperations`, `rlsIsolation`, `migrationBackout`, `haloTables` and `routeIsolation`.
 - `npm run typecheck`: clean.
 - `npm run lint`: **0 errors and the 5 pre-existing warnings**.
@@ -123,9 +125,125 @@ The earlier tasks' mutations are in their reviews. Everything runs on local fake
 
 ## Next
 
-1. Review Task 6, then merge it onto `vmag211/backend` with the B04 contracts task, and re-run the gate on the merge. The controller then regenerates `STATE.md` and re-measures the registry: four more operations answer.
+1. Verify Task 6's review round. Task 6 already contains `vmag211/backend` at `3c0e7e8`, with the B04 contracts task. Then merge it onto `vmag211/backend`. The controller then regenerates `STATE.md` and re-measures the registry: four more operations answer.
 2. Answer open question 1. It alone unblocks the flag. Then apply 0019 to 0023 as one batch.
 3. Give Yogi `YOUR_TODO.md` Part 4 items 16 to 22 and the B06 contract.
+
+---
+
+# B04 checkpoint: settings and alerts
+
+Date: 2026-10-19. Branch: `vmag211/backend` (Task 3 is on its own worktree branch, built on `6a11adc`, not merged yet). Plan: `docs/backend/plans/b04-settings-and-alerts.md`. Contract digest, progress ledger and every review: `.superpowers/sdd/b04-settings-alerts-evidence/` (gitignored scratch).
+
+The B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **Neither surface is live anywhere:** both need migration 0021, and 0021 is applied nowhere.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **`unresolvedOperations` is a lock, not a log (Ruling S1).** One id in it makes the whole settings surface, or the whole alerts inbox, read-only until the client reconciles it (`ProductionPreferences.tsx:18`, `ProductionAlerts.tsx:14`). So it lists only this household's genuinely pending operations in that domain, after the ledger's reaper has settled abandoned ones as `failed`. A stored receipt carries `[]` (Ruling S14), because a list frozen into history made two overlapping operations park each other for ever, and this was reproduced. The direct answer, and a reconcile through `GET /api/operations`, carry the live list without the operation itself (Ruling S16): at `snapshot.unresolvedOperations` for settings, and at the top level for alerts.
+2. **Two of the four scoped surfaces were dropped, on purpose.** `GET /api/capabilities` has no consumer and no validator. The runtime's `enabled: false` refuses to dispatch, so disabling a read leaves its surface empty for ever instead of explaining why. `GET /api/evidence` cannot be both truthful and valid: its validator accepts only the basis `daily maximum`, and `daily_scores` stores app-time observations. That is a provenance question, and it is Vibhav's.
+3. **`GET /api/alerts` is the legacy route, extended, and it never answers 503 for a migration (Ruling S10).** It keeps `count`, `unread`, `truncated` and `alerts` (StageSession still reads them) and adds `items` and `unresolvedOperations`. Before 0021 or 0017 it serves the legacy keys alone. The production client then says the alerts could not be verified, which is true. Settings and `alerts.update` answer a non-retryable 503 instead.
+4. **A settings save is one database function.** `save_settings` does the revision check, every table write (home details through the 0016 functions) and the settling of its own ledger row in one transaction (Rulings S11 and S15). Triggers advance the settings revision for every other writer of a value the snapshot shows (Ruling S12), and keep `tenure` in step with `renter_mode` (Ruling S13). Reviewing 0021 is reviewing the save. The route only parses, claims and answers.
+5. **Nothing has run against a real Supabase project.** Every test runs on the in-memory fake, whose `save_settings` and triggers are stand-ins pinned to the real ones write by write (`test/settingsSaveDb.test.mjs`), or on PGlite against the real migration. PGlite has a single connection, so no test runs two transactions against each other. The deadlock fixes were reasoned through on paper and approved in review.
+
+## Where B04 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0021 | Merged (`4ed4729`, `269b475`; merge `4afc334`) |
+| Reaper (found while planning, owned by B04) | Merged (merge `1d9fe75`) |
+| 2b. `GET /api/alerts` contract read, `POST /api/alerts/state` | Merged (`09c35d2`, `5cf904a`; merge `3d54cdc`) |
+| 2a. `GET` and `PATCH /api/settings`, atomic `save_settings`, database-owned revision | Merged (`334a264`, `eb75614`; merge `85c0b2a`) |
+| Follow-up: S14, S15, S16, 0021 fixes A to F | Merged (`a9c9791`, `a53ecc2`, `1c42fa7`; merge `6a11adc`) |
+| 3. Contracts, conformance, tracker, checkpoint, nit 1 | This section. Commits `5d12daa`, `af27b18`, `29f8454`, then the fix round for the review's B1, B2 and N1 to N6 in the commit that carries this line. The fix round is not re-reviewed yet |
+
+Every task before 3 had an independent review, and every review is in the evidence directory. Nothing is merged to main.
+
+## What exists
+
+- **`GET /api/settings`** answers the whole snapshot from where each value lives. A household that never saved gets 0021's defaults at revision 1, stored on that first read. A household with no profile row is a 404 (review N1). Before 0021 or 0017 it answers the non-retryable 503.
+- **`PATCH /api/settings`** saves one group (`home`, `notifications`, `display` or `luna`) against `If-Match`, through the ledger (domain `settings`). Of two saves at one revision exactly one applies. A save writes only its group's changed fields. A save of the values already stored applies without advancing the revision (finding C). Each 409 has a reason: `stale_revision` (with the current revision), `home_changed`, `operation_mismatch`, and on a replay `operation_failed` or `operation_abandoned`. **New in Task 3 (nit 1):** a save whose ledger row the reaper settled before `save_settings` ran answers the first call with `200 {operationId, status:'failed'}`. The client's own branch then says "The save was not applied. Your draft is still here." and keeps the draft. Before, the 409 made it re-read, overwrite the draft and say the settings had changed, which they had not. A replay of that id keeps the terminal 409. This case is practically unreachable (`maxDuration` 60 s against the 120 s window), but the answer is now true.
+- **`GET /api/alerts`** adds the contract inbox. It holds the newest 100, dismissed included (Undo needs them), each with a revision, a category and a target the client can route. Reading never marks anything read (Ruling S6).
+- **`POST /api/alerts/state`** marks read, dismisses or undoes, at the revisions the client holds. It is all or nothing: one stale, missing or foreign row refuses the whole selection with the same 409. It answers the whole inbox. Each 409 has a reason: `stale_selection`, `operation_mismatch`, `operation_failed`, `operation_abandoned` or `operation_cancelled`.
+- **`docs/backend/contracts/b04.openapi.json`**, version `b04-1`, documents those four and `GET /api/operations` for both domains, with **59 fixtures**, each captured from the real handler. **`test/contractsB04.test.mjs`** (75 tests) runs the handlers against it. It also runs them against the frontend's own `validSettingsSnapshot`, `validAlertSnapshot` and `alertReceiptCovers`, and against both client hooks. Those are transcribed once in `test/helpers/frontendB04.mjs`, now shared by `test/routesSettings.test.mjs` and `test/routesAlertsState.test.mjs` (which each carried their own copy). The suite makes three cross-route checks. Each settings receipt's revision is the next `If-Match`, and the one before it is a `stale_revision` naming it. A reconcile carries the live list minus itself, for both domains, while the ledger keeps `[]`. And the clients' own hooks clear a parked save and a parked change in one check. **No disagreement was found.** No B04 body, fixture or schema has a top-level `data` key or a U+2014. Headers are checked both ways.
+
+## Rulings
+
+| Ruling | What it settled |
+| --- | --- |
+| S1 | `unresolvedOperations` is a lock: only stored-pending rows of that domain, never widened |
+| S2 | One migration, 0021, for both surfaces |
+| S3 | `profiles.tenure` beside `renter_mode`, not instead of it |
+| S4 | The settings revision is a real column, advanced only by a change that is applied |
+| S5 | The legacy writers must advance the revision too (now done by S12's triggers) |
+| S6 | Opening an alert is not reading it; Undo is a second revision-bound change |
+| S7 | No tenure/`renter_mode` check in the schema; consistency is a write-side rule |
+| S8 | An unanswered tenure is reported as `other`, never `owner` (the validator rejects null) |
+| S9 | Defaults: zones `America/New_York`, Luna context switches off, `calendar_linked` false |
+| S10 | Before 0021 the alerts read keeps every legacy key and never 503s; settings is unavailable |
+| S11 | A settings save is one `save_settings` transaction |
+| S12 | The database advances the settings revision for every writer of a snapshot value |
+| S13 | Tenure reads from `renter_mode` when unanswered, and a household save reconciles the pair |
+| S14 | A stored receipt carries `unresolvedOperations: []`; only the live answer carries the list |
+| S15 | `save_settings` settles its own ledger row; a settled settings row cannot be relabelled |
+| S16 | `GET /api/operations` overlays the live list minus itself on a succeeded receipt |
+
+## Migration 0021
+
+**Written, amended three times, applied nowhere, and safe to apply as far as review can tell.** Task 1 wrote it. The amendments were `save_settings` with the revision and tenure triggers (S11 to S13), review fixes A to D with S15, and fixes E and F. Fix A creates a group's row before the revision lock, so a first-time notifications write cannot deadlock a save. Fix E locks the profile before the ledger row, the same order as account deletion's cascade. Fix F creates that row only for the group sent, so `household_set` stays false for a household that never answered. The fourth review approved it. The deadlock reasoning is on paper, because PGlite cannot run two connections. Task 3 changed one thing in the file: a reflowed comment line near the old `:563`. 0001 to 0018 are applied to production, and 0019 to 0023 are pending. 0021's apply steps, including the 100-row "Mark all as read" gateway check (R2), the verification query and what its counts cover, and the tested `<!-- backout-0021 -->` block, are `YOUR_TODO.md` 2.10.
+
+## Verification
+
+Gate at the Task 3 fix-round commit, on `6a11adc` plus Task 3: `node --test test/*.test.mjs` **3,255 passed, 0 failed, 0 skipped, 0 todo**. That is the 3,177 of `6a11adc`, plus 75 contract tests, plus 2 settings tests and 1 alerts test. The nit 1 test replaced the first-call 409 test and added the client's own flow, and the fix round added the N3 and B1 tests. `npm run typecheck` is clean. `npm run lint` shows **0 errors and the 5 pre-existing warnings**. `git diff --check` is clean, and every touched file has LF endings. `vmag211/backend` has since moved to `b5e978c` (B06 Task 4), which changes `app/api/operations/route.js` (the actions overlay, and the code-and-message log). The fix round touches that file with the identical import and log lines, so the two should merge cleanly. Re-run the gate on the merge.
+
+Task 3's mutation checks, each restored afterwards and each killed. Every count is from the **full suite** (`node --test` over every `test/*.test.mjs`), split by file where more than one file failed:
+
+| Mutation | Tests failed (full suite) |
+| --- | --- |
+| Schema: `SettingsConflict` reason enum loses `home_changed` | 3, all in `contractsB04`: that fixture, the coverage test, the save conformance |
+| Schema: `SettingsDisplay.scale` enum loses `115` | 13, all in `contractsB04`: the 5 fixtures holding alice's snapshot, the drift test, 3 handler conformance tests, the logging test, both cross-route tests, and the request-header test (a failed call never records its headers) |
+| Schema: `AlertItem.kind` enum loses `radon_season` | 11, all in `contractsB04`: the 6 inbox fixtures, the drift test, 3 handler conformance tests, the S14 and S16 cross-route test |
+| Handler: the first-call reaped save also sends `reason` | 2: 1 in `contractsB04` (the receipt schema is strict), 1 in `routesSettings` |
+| Handler: the settings reconcile overlay goes to the top level | 3: 1 in `contractsB04` (the S14 and S16 cross-route test), 2 in `routesSettings` |
+| Handler: an alert item's `date` is the raw timestamp | 22: 5 in `contractsB04`, the rest in `routesAlertsState` |
+| Handler: nit 1 reverted (the first call answers the 409) | 4: 2 in `contractsB04`, 2 in `routesSettings` |
+| Handler: `GET /api/alerts` logs the raw error (review B1) | 2: 1 in `contractsB04`, 1 in `routesAlertsState` |
+| Handler: `GET /api/operations` logs the raw error (review B1) | 1, in `contractsB04` |
+| Handler: the N3 revision re-read removed | 1, in `routesSettings` |
+
+Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped, and why
+
+- **`GET /api/capabilities`.** Nothing consumes it. `ProductionApp.tsx:43` passes no capabilities, and nothing validates a response. Where the mechanism does work, it breaks reads: `runtime.ts:110` refuses an operation whose `enabled` is `false` before any fetch, so `settings.read` off leaves the snapshot null for ever. The honest pattern already ships: per-domain `{enabled, reason}` on `GET /api/account`. Tracker HO-098.
+- **`GET /api/evidence`.** The validator accepts only `comparison.basis === 'daily maximum'`, while `daily_scores` holds app-time observations collapsed by `latestPerDay`. So a truthful answer cannot validate, and a valid one is a false provenance claim. A second blocker: `comparison.context` must equal the home context id, which is null for a household without one. Tracker HO-100 (the B04 row).
+
+## Open questions for Vibhav
+
+1. **The evidence basis.** Record daily maxima in the pipeline, or add a basis word for what is stored. This unblocks `GET /api/evidence`.
+2. **Retention for preference rows** (`profile_preferences`). It is undecided, like every other period. The row is deleted with the account and holds no free text, but it reveals a household's zone and quiet hours.
+3. **Luna's context switches default to off** (Ruling S9). That is the fail-safe answer to your open decision 2, whether household data may reach a free-tier model. Confirm it, or say which switches may default on.
+4. **`calendar_linked` defaults to false**, because nothing is linked and true would be a false claim. Confirm.
+5. **Whether `GET /api/capabilities` should exist at all**, given it has no consumer and the per-domain pattern works.
+6. **Applying 0021** (`YOUR_TODO.md` 2.10), with 0019, 0020, 0022 and 0023 as one batch.
+
+## Known limits and deferred minors
+
+- **"Mark all as read" at 100 rows is unproved through the real gateway.** The id filter makes a URL of about 7.2 KB. It is check 4 of `YOUR_TODO.md` 2.10, and the fix, if it fails, is a database function.
+- **The legacy `POST /api/alerts` does not advance `alerts.revision`.** Nothing in production calls it, but a change through it is invisible to the compare-and-set. It retires with StageApp, and must not be revived as it is.
+- **Two alerts residuals were accepted at 2b's review:** a mixed outcome on a double fault, and a receipt page read before the write without a database function.
+- **A late `settle` can overwrite a row the reaper settled** with the real outcome, in any domain. This converges to the truth. Narrowing the generic settle would conflict with S15's succeeded-to-succeeded rewrite, so it was not done. The lost "abandoned" history reason is accepted.
+- **Logging is code and message only on every B04 route (review B1).** `GET /api/alerts` used to log a database error whole, because `contractInbox` rethrows it unchanged, and `GET /api/operations` did too on `6a11adc`. The fix round passes both through `loggableError`. The operations change is line for line the one B06 Task 4 made on `b5e978c`, comment included, so its comment mentions the actions overlay, which this branch only gains on the merge. Routes outside B04 (`/api/notifications`, `/api/household`, `/api/profile`, `/api/home-contexts/[id]`) were not changed. They wrap a database error as `new Error(message)`, so no details or hint reach their logs, but BE-201's B04 row covers only the B04 routes.
+- **A stale save that finds no preferences row (review N3).** `save_settings` answers `{saved:false, revision:null}` when the preferences row is gone, which only a manual delete between the route's read and the save can cause. The route now makes the row again, exactly as a first read does, and names that revision. So every `stale_revision` carries one, as the contract says.
+- **The workspace adapter's `receipt()` requires `changes` for every status**, so a reaped workspace receipt is refused (reaper review finding 4). That binds whoever wires workspace domains. It is not a B04 surface.
+- **`X-Halo-Home-Context` is accepted and ignored by settings.** The home group saves through the household's current home, decided in the database.
+- **Settings validates the build year from 1700, the client from 1000** (digest C8). An older year the client allows is a 422 here.
+
+## Next
+
+1. Review Task 3, then merge it onto `vmag211/backend` (now at `b5e978c`) and re-run the gate on the merge.
+2. Answer open questions 1 to 6.
+3. Apply 0019 to 0023 as one batch when ready, and run 2.10's gateway check.
+4. Give Yogi the B04 contract. No frontend change is needed for either surface.
 
 ---
 

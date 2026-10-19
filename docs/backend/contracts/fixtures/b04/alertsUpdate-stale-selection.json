@@ -1,0 +1,13 @@
+{
+  "operationId": "alertsUpdate",
+  "status": 409,
+  "body": {
+    "error": "These alerts changed. Reload them before trying again.",
+    "code": "conflict",
+    "message": "These alerts changed. Reload them before trying again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001",
+    "reason": "stale_selection"
+  }
+}
