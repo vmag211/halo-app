@@ -636,6 +636,56 @@ test('F18: the earliest fetch of the data used sets expiry; NWS never shortens i
   assert.deepEqual(build({ now: Date.parse(body.expiresAt) }), { status: 503, retryAfter: 60, reason: 'stale' });
 });
 
+// Stale-serve (ruling on the Task 7 report, item 7): Task 8 passes stale: true when it
+// serves the last confirmed forecast during Open-Meteo run_unknown.
+const STALE_NOTE = 'A newer model run is not yet confirmed, so this is the last confirmed run. Refresh shortly for the newer run.';
+
+test('stale-serve: 7h59m after the fetch is a 200 expiring 30 minutes ahead, with the coverage note', () => {
+  const now = Date.parse(FETCHED) + 7 * HOUR + 59 * MIN;
+  const { status, body } = build({ now, stale: true });
+  assert.equal(status, 200);
+  assert.equal(Date.parse(body.expiresAt), now + 30 * MIN);
+  assert.ok(body.coverage.Weather.startsWith('For Charlotte, NC (Census internal point): '));
+  assert.ok(body.coverage.Weather.includes(STALE_NOTE), body.coverage.Weather);
+  assert.equal(body.issuedAt, RUN, 'the last confirmed run keeps its own issue time');
+  for (const s of strings(body)) assert.ok(!s.includes(EM_DASH) && !/\bsafe\b/i.test(s), s);
+  assertClientAccepts(body, 'stale');
+  // On screen: not expired, so a period can be chosen and saved; expired only at its own expiry.
+  assert.equal(onScreen(body, { date: '2026-10-20', now }).expired, false);
+  assert.equal(onScreen(body, { date: '2026-10-20', now: now + 30 * MIN }).expired, true);
+  // Exactly eight hours is still served ("more than 8 hours" is refused).
+  assert.equal(build({ now: Date.parse(FETCHED) + 8 * HOUR, stale: true }).status, 200);
+  // The note appears only when stale.
+  assert.ok(!build().body.coverage.Weather.includes('not yet confirmed'));
+});
+
+test('stale-serve: 8h01m after the fetch is a 503 stale with retryAfter 60', () => {
+  const now = Date.parse(FETCHED) + 8 * HOUR + MIN;
+  assert.deepEqual(build({ now, stale: true }), { status: 503, retryAfter: 60, reason: 'stale' });
+});
+
+test('stale-serve: without stale, an expired answer is still a 503', () => {
+  for (const offset of [90 * MIN, 2 * HOUR, 7 * HOUR + 59 * MIN]) {
+    assert.deepEqual(build({ now: Date.parse(FETCHED) + offset }), { status: 503, retryAfter: 60, reason: 'stale' }, `${offset / MIN} min`);
+    assert.deepEqual(build({ now: Date.parse(FETCHED) + offset, stale: false }), { status: 503, retryAfter: 60, reason: 'stale' });
+  }
+});
+
+test('stale-serve: the version is the same with and without stale for the same data', () => {
+  for (const now of [NOW, NOW + 40 * MIN]) {
+    const fresh = build({ now }).body;
+    const served = build({ now, stale: true }).body;
+    assert.equal(served.version, fresh.version);
+    assert.deepEqual(served.periods, fresh.periods);
+    assert.notEqual(served.coverage.Weather, fresh.coverage.Weather);
+  }
+  // Across the stale window the selection signature holds, so no false "forecast changed".
+  const later = Date.parse(FETCHED) + 3 * HOUR;
+  const a = onScreen(build({ stale: true, now: later }).body, { date: '2026-10-20', now: later });
+  const b = onScreen(build().body, { date: '2026-10-20' });
+  assert.equal(a.selectionSignature, b.selectionSignature);
+});
+
 test('F18: empty answers expire 24 hours out and are not expired 23 hours later', () => {
   const { body } = emptySnapshot({ place: { kind: 'no_home' }, date: TODAY, now: NOW });
   assert.equal(Date.parse(body.expiresAt) - NOW, 24 * HOUR);
