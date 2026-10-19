@@ -353,6 +353,13 @@ const REGISTRY = "'privacy.status': {path:'/api/privacy/status'},";
 // The executed code is the component's own text.
 const verifiedOf = new Function('status', `${VERIFIED_LINE} return verified;`);
 const runLock = new Function('status', 'useEffect', 'queueMicrotask', 'setUnknown', LOCK_LINE);
+// The two JSX expressions of line 26, cut out of the drift-checked strings
+// above (not retyped), so the banner and the Clear all decision that run are
+// the component's own text too.
+const [, BANNER_CONDITION, BANNER_TEXT] = BANNER_JSX.match(/^\{(\(.+\))&&<p role="status">\{(.+)\}$/);
+const [, CLEAR_ALL_DISABLED] = CLEAR_ALL_JSX.match(/ disabled=\{(.+)\} onClick=/);
+const bannerOf = new Function('verified', 'status', `return ${BANNER_CONDITION} ? (${BANNER_TEXT}) : null;`);
+const clearAllDisabledOf = new Function('busy', 'blocked', 'verified', 'status', 'unknown', 'unresolved', `return ${CLEAR_ALL_DISABLED};`);
 
 productionOperations['privacy.status'] = { path: '/api/privacy/status' };
 
@@ -372,9 +379,9 @@ async function panel(h, who = 'alice', options = {}) {
   const verified = verifiedOf(status);
   let unknown = null;
   runLock(status, (effect) => effect(), (task) => task(), (value) => { unknown = value; });
-  const banner = (!verified || status.loading || status.error) ? (status.loading ? 'Checking pending requests…' : 'Privacy requests are unavailable.') : null;
-  const busy = false, blocked = false, unresolved = false;
-  const clearAllEnabled = !(busy || blocked || !verified || status.loading || !!status.error || !!unknown || unresolved);
+  const banner = bannerOf(verified, status) || null;
+  // No review open, nothing busy, the panel not blocked, no other surface unresolved.
+  const clearAllEnabled = !clearAllDisabledOf(false, false, verified, status, unknown, false);
   return { status, verified, unknown, banner, clearAllEnabled };
 }
 
@@ -430,6 +437,81 @@ test('the client: every unavailable state reads "Privacy requests are unavailabl
     assert.equal(view.status.error, 'This service is unavailable. Try again later.', `${label}: the runtime's unavailable copy`);
     assert.equal(view.clearAllEnabled, false, label);
   }
+});
+
+test('the cut-out banner and Clear all expressions decide as the JSX does', () => {
+  const settled = { data: { unresolvedOperations: [] }, loading: false, error: null };
+  assert.equal(bannerOf(true, settled) || null, null);
+  assert.equal(bannerOf(false, settled), 'Privacy requests are unavailable.');
+  assert.equal(bannerOf(false, { ...settled, loading: true }), 'Checking pending requests…');
+  assert.equal(bannerOf(true, { ...settled, error: 'x' }), 'Privacy requests are unavailable.');
+  assert.equal(clearAllDisabledOf(false, false, true, settled, null, false), false);
+  for (const args of [
+    [true, false, true, settled, null, false],
+    [false, true, true, settled, null, false],
+    [false, false, false, settled, null, false],
+    [false, false, true, { ...settled, loading: true }, null, false],
+    [false, false, true, { ...settled, error: 'x' }, null, false],
+    [false, false, true, settled, { id: OP_ALL, scope: 'all' }, false],
+    [false, false, true, settled, null, true],
+  ]) assert.equal(clearAllDisabledOf(...args), true, JSON.stringify(args));
+});
+
+// ---------------------------------------------------------------------------
+// Real failures are a 500, never the non-retryable "unavailable" (N1)
+// ---------------------------------------------------------------------------
+
+const TRANSIENT = (code) => ({ code, message: 'canceling statement due to statement timeout', details: null, hint: null });
+
+/**
+ * Makes one terminal call of the ledger's query builder answer `error`, as
+ * supabase-js resolves a failed statement: `in` on `operation_id` (the
+ * route's kind read only; the reaper and the list use `in` on `domain`), or
+ * `order` (listUnresolvedOperations' select; the kind read never orders).
+ */
+function ledgerCallAnswers(h, method, error, when = () => true) {
+  const from = h.db.from;
+  h.db.from = (name) => {
+    const builder = from(name);
+    if (name !== 'operations') return builder;
+    const real = builder[method].bind(builder);
+    builder[method] = (...args) => (when(...args) ? Promise.resolve({ data: null, error }) : real(...args));
+    return builder;
+  };
+}
+
+test('the kind read failing (XX000) is a 500 internal_error, logged without ids, and the panel shows the unavailable banner', async (t) => {
+  const errors = muteConsoleError(t);
+  const h = harness({ operations: [privacyRow()] });
+  ledgerCallAnswers(h, 'in', { code: 'XX000', message: 'internal error', details: null, hint: null }, (column) => column === 'operation_id');
+  const body = await expectEnvelope(await read(h), { status: 500, code: 'internal_error' });
+  assert.equal(body.retryable, true, 'a 500 is worth retrying, unlike the 503 for a missing feature');
+  const logged = loggedText(errors);
+  assert.match(logged, /Privacy status read failed.*XX000/);
+  for (const id of [OP_ALL, h.identities.alice.id, h.identities.bob.id]) assert.ok(!logged.includes(id), 'no id in the log');
+
+  const again = harness({ operations: [privacyRow()] });
+  ledgerCallAnswers(again, 'in', { code: 'XX000', message: 'internal error', details: null, hint: null }, (column) => column === 'operation_id');
+  const view = await panel(again);
+  assert.equal(view.verified, false);
+  assert.equal(view.banner, 'Privacy requests are unavailable.');
+  assert.equal(view.unknown, null);
+  assert.equal(view.clearAllEnabled, false);
+});
+
+test('the 0024 probe failing (XX000) is a 500, not the non-retryable 503 that says 0024 is missing', async (t) => {
+  muteConsoleError(t);
+  const h = harness();
+  h.db.registerRpc('privacy_schema_version', () => { throw rpcError('XX000', 'internal error'); }, { args: [] });
+  await expectEnvelope(await read(h), { status: 500, code: 'internal_error' });
+  assert.equal(purgeCalls(h).length, 0, 'nothing after the probe ran');
+});
+
+test('the unresolved-operations read failing with a transient error is a 500, not the non-retryable 503', async (t) => {
+  muteConsoleError(t);
+  const h = harness({ operations: [privacyRow()] });
+  ledgerCallAnswers(h, 'order', TRANSIENT('57014'));
+  await expectEnvelope(await read(h), { status: 500, code: 'internal_error' });
 });
 
 // ---------------------------------------------------------------------------
