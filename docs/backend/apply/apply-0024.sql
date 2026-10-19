@@ -30,7 +30,10 @@ begin;
 -- checks that every table this file reads or deletes from exists, and that
 -- profiles.tenure does (0016, 0017, 0020, 0021, 0022 and 0023), and raises
 -- naming what is missing otherwise. So wherever clear_household_records
--- exists, every table it deletes from exists too.
+-- exists, every table it deletes from exists too, with one deliberate
+-- exception: public.daily_maxima (0025, B08 Ruling E23) needs only 0016 and
+-- may be applied before or after this file, so the clear and the counts
+-- check for it with to_regclass and read it only when it is there.
 --
 -- ---------------------------------------------------------------------------
 -- THE FUNCTIONS, FOR THE CALLERS (lib/privacyStore.js, Task 2)
@@ -56,8 +59,9 @@ begin;
 --     in any order (the order passed does not change the result). Anything
 --     else is HALO_INVALID_INPUT. An empty array gives one fixed constant.
 --     Server-written tables (daily_scores, alerts, home_risks, luna_runs,
---     household_action_state, operations) are deliberately not fingerprinted
---     (P6), so a background refresh does not void a review. For the same
+--     household_action_state, operations, and daily_maxima where 0025 is
+--     applied) are deliberately not fingerprinted (P6), so a background
+--     refresh does not void a review. For the same
 --     reason home_contexts is hashed without its four backfill_* columns,
 --     which the history backfill writes in the background.
 --     Luna's answer turns are server-written too, and so are the revision and
@@ -80,7 +84,8 @@ begin;
 --                 "profile_preferences", "explore_areas", "household_actions",
 --                 "household_action_preferences", "household_action_state",
 --                 "luna_conversations", "luna_turns", "luna_runs",
---                 "operations"}
+--                 "operations", "daily_maxima"}
+--     daily_maxima is 0 where 0025 is not applied.
 --     profiles is 1 when the row holds any value its reset would change.
 --     operations counts the household's settled rows (a pending one makes the
 --     clear refuse instead). recovery_challenges and auth.users are kept, so
@@ -157,7 +162,9 @@ begin;
 --      derived). 'all': Luna runs, turns, then conversations (what the
 --      cascade from the conversation would remove, deleted child first so
 --      each is counted); daily_scores before home_contexts (their composite
---      key is ON DELETE NO ACTION, 0016); home_risks, symptom_logs, alerts;
+--      key is ON DELETE NO ACTION, 0016), and daily_maxima before
+--      home_contexts too when 0025 is applied (its key cascades, but deleting
+--      it first counts it); home_risks, symptom_logs, alerts;
 --      notification_prefs, household_bands, push_subscriptions, then
 --      profile_preferences (notifications before bands before preferences,
 --      the order save_settings and the 0021 triggers take them);
@@ -221,6 +228,11 @@ begin;
 --                             KEY SHARE on C, on its turn and on P.
 --   daily cron                single statements: an alert insert KEY SHARE on
 --                             P, a reading insert KEY SHARE on P and H.
+--   record_daily_maxima       first an advisory lock only it takes (one
+--   (0025)                    recorder batch at a time), then per row, KEY
+--                             SHARE on P, then on H, then the row. P first,
+--                             so it waits on the clear's P and then skips
+--                             the deleted home: no cycle.
 --
 -- Why no cycle forms with the house writers:
 --   * account deletion, save_settings, save_household and the 0016 functions
@@ -440,6 +452,8 @@ stable
 security invoker
 set search_path = public
 as $$
+declare
+  maxima bigint := 0;
 begin
   if p_profile_id is null then
     raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_profile_id is required';
@@ -453,6 +467,12 @@ begin
       'symptom_logs', (select count(*) from public.symptom_logs x where x.profile_id = p_profile_id),
       'alerts', (select count(*) from public.alerts x where x.profile_id = p_profile_id and x.type = 'season_summary')
     );
+  end if;
+
+  -- 0025 may not be applied (header). A stable function reads every
+  -- statement from one snapshot, so this is the same read as the rest.
+  if to_regclass('public.daily_maxima') is not null then
+    select count(*) into maxima from public.daily_maxima x where x.profile_id = p_profile_id;
   end if;
 
   return jsonb_build_object(
@@ -479,7 +499,8 @@ begin
     'luna_conversations', (select count(*) from public.luna_conversations x where x.profile_id = p_profile_id),
     'luna_turns', (select count(*) from public.luna_turns x where x.profile_id = p_profile_id),
     'luna_runs', (select count(*) from public.luna_runs x where x.profile_id = p_profile_id),
-    'operations', (select count(*) from public.operations x where x.profile_id = p_profile_id and x.status <> 'pending')
+    'operations', (select count(*) from public.operations x where x.profile_id = p_profile_id and x.status <> 'pending'),
+    'daily_maxima', maxima
   );
 end;
 $$;
@@ -588,6 +609,12 @@ begin
     -- Before home_contexts: (profile_id, home_context_id) is ON DELETE NO ACTION.
     delete from public.daily_scores x where x.profile_id = p_profile_id;
     get diagnostics touched = row_count; removed := removed + touched;
+    -- 0025, when applied: its key cascades from home_contexts, but deleting
+    -- it here first counts it, as privacy_counts does.
+    if to_regclass('public.daily_maxima') is not null then
+      delete from public.daily_maxima x where x.profile_id = p_profile_id;
+      get diagnostics touched = row_count; removed := removed + touched;
+    end if;
     delete from public.home_contexts x where x.profile_id = p_profile_id;
     get diagnostics touched = row_count; removed := removed + touched;
     delete from public.home_risks x where x.profile_id = p_profile_id;
