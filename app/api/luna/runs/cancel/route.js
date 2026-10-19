@@ -78,6 +78,15 @@ import {
  * stale failure from once the migration is applied.
  */
 
+// The ceiling sits under the operation ledger's staleness window
+// (DEFAULT_STALE_AFTER_MS, 120 s). An invocation that outlived that window
+// could have its claim reaped as abandoned and then overwrite the reaped row
+// with a late settle, after the client had already been told "not applied".
+// Platform-enforced only. test/operationsMaxDuration.test.mjs keeps every
+// ledger route under the window. 60 is the house value (cron/daily, district,
+// map, onboard and luna/messages all declare it).
+export const maxDuration = 60;
+
 /** The only field the contract sends. */
 const BODY_KEYS = ['id'];
 

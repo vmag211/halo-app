@@ -88,6 +88,26 @@ const SETTINGS = {
   },
 };
 
+/**
+ * Each household's saved discovery area (migration 0022), one row per
+ * household so no cascade or isolation check on the table can pass vacuously.
+ * The area is a county the household chose to explore, not its home, so each
+ * one is deliberately a different county from that household's profile, and
+ * the two differ from each other in every field and in the revision. Like
+ * SETTINGS, these are not added to `markersOf`: a county name is shared public
+ * text that unrelated responses (a district, a directory) can carry.
+ */
+const EXPLORE_AREA = {
+  alice: {
+    place_id: 'us-county:37159', place: 'Rowan County', state: 'NC',
+    label: 'Rowan County, NC', timezone: 'America/New_York', revision: 3,
+  },
+  bob: {
+    place_id: 'us-county:37071', place: 'Gaston County', state: 'NC',
+    label: 'Gaston County, NC', timezone: 'America/New_York', revision: 7,
+  },
+};
+
 const UTILITY = {
   alice: { pwsid: 'NC9990001', pws_name: 'ALICE WATER SYSTEM MARKER', ppt: 2.1, date: '3/15/2024' },
   bob: { pwsid: 'NC9990002', pws_name: 'BOB WATER SYSTEM MARKER', ppt: 7.7, date: '6/1/2024' },
@@ -128,7 +148,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -144,6 +164,9 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       profile_id: id, ...SETTINGS[who],
       created_at: `${day(30)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
     });
+    // Migration 0022: the discovery area each household has already saved
+    // (and changed) at least once, so its revision is past the first save's 2.
+    rows.explore_areas.push({ profile_id: id, ...EXPLORE_AREA[who], updated_at: `${day(2)}T12:00:00Z` });
     rows.home_risks.push({ profile_id: id, summary: `${upper}-HOME-RISK-MARKER` });
     // The current home (migration 0016), matching the profile.
     const { lat, lng, county, state, pwsid, water_source, home_year, onboard_request_id } = PROFILE[who];
@@ -287,4 +310,4 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
   return rows;
 }
 
-export { PROFILE, BANDS, PREFS, SETTINGS, UTILITY };
+export { PROFILE, BANDS, PREFS, SETTINGS, EXPLORE_AREA, UTILITY };

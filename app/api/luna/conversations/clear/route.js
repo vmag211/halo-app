@@ -3,7 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseBoundedInt, parseUuid } from '@/lib/validate';
 import { featureEnabled } from '@/lib/features';
-import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
+import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { clearConversation, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
 
 /**
@@ -54,7 +54,7 @@ import { clearConversation, isLunaUnavailable, lunaUnavailable } from '@/lib/lun
  * stale number, and checking first would answer a conflict where the contract
  * requires the first outcome.
  *
- * Three refusals, each a 409 the client reads as a conflict and re-reads after:
+ * Five refusals, each a 409 the client reads as a conflict and re-reads after:
  *
  *   stale_revision  the conversation moved on, so this clear was decided
  *                   against a transcript that is no longer what is there. The
@@ -66,6 +66,16 @@ import { clearConversation, isLunaUnavailable, lunaUnavailable } from '@/lib/lun
  *                   would strand it, and the client's own preflight already
  *                   refuses to clear while a request is in flight, so this is
  *                   the stale-view race rather than ordinary use.
+ *   abandoned       a replay of an earlier attempt that never settled within the
+ *                   ledger's window and was reaped to failed (lib/operations.js,
+ *                   ABANDONED_REASON). The conversation exists, so it is not
+ *                   called unknown: the earlier attempt did not finish.
+ *   attempt_failed  a replay of an earlier attempt that failed with no receipt
+ *                   (it threw inside the operation, which settles the row as
+ *                   failed with a null result), or whose stored reason this
+ *                   route never writes. Terminal rather than the 503, because
+ *                   that attempt is over and will never settle into anything
+ *                   else.
  *
  * A refusal is an HTTP status and not a receipt body, because the only body
  * shape this operation has is a conversation: a `{status:'failed', message}`
@@ -82,6 +92,15 @@ import { clearConversation, isLunaUnavailable, lunaUnavailable } from '@/lib/lun
  * this household's own Luna rows.
  */
 
+// The ceiling sits under the operation ledger's staleness window
+// (DEFAULT_STALE_AFTER_MS, 120 s). An invocation that outlived that window
+// could have its claim reaped as abandoned and then overwrite the reaped row
+// with a late settle, after the client had already been told "not applied".
+// Platform-enforced only. test/operationsMaxDuration.test.mjs keeps every
+// ledger route under the window. 60 is the house value (cron/daily, district,
+// map, onboard and luna/messages all declare it).
+export const maxDuration = 60;
+
 /** The body is two fields: a uuid and a small integer. */
 const MAX_BYTES = 1024;
 
@@ -96,6 +115,13 @@ const CONFLICT_MESSAGE = 'This conversation changed. Please review it again.';
 
 /** What a person is told when the id they sent is not a conversation of theirs. */
 const UNKNOWN_MESSAGE = 'That conversation was not found.';
+
+/**
+ * What a person is told when an earlier attempt with this id is over but did
+ * not finish. Not "not found", because the conversation exists. How much of it
+ * was cleared is not known, so the person is asked to look rather than told.
+ */
+const INCOMPLETE_MESSAGE = 'That earlier clear did not finish. Please review the conversation and try again.';
 
 /** What a person is told when Luna is still answering. */
 const RUN_OPEN_MESSAGE = 'Luna is still answering. Wait for that to finish, then clear the conversation.';
@@ -261,20 +287,34 @@ export async function POST(request) {
       },
     );
 
-    // A replay of an operation that is still running, or that died before it
-    // settled, has no receipt to replay. The honest answer is that the outcome
-    // is not confirmed, and a 5xx on a mutation is exactly how this client says
-    // that to a person ("The result is not confirmed. Check its status before
-    // trying again.", runtime.ts:144,156). It is not a success and not a
-    // failure, and nothing is cleared a second time to find out which.
-    if (!outcome.result) return inFlight(requestId);
+    // A replay of an operation that is still running, or whose stale claim
+    // could not be reaped, has no receipt to replay. The honest answer is that
+    // the outcome is not confirmed, and a 5xx on a mutation is exactly how this
+    // client says that to a person ("The result is not confirmed. Check its
+    // status before trying again.", runtime.ts:144,156). It is not a success
+    // and not a failure, and nothing is cleared a second time to find out which.
+    //
+    // A row SETTLED as failed with no receipt is different: the earlier attempt
+    // threw inside the operation, it is over, and it will never settle into
+    // anything else, so a retryable 503 would be the answer for ever. It is a
+    // terminal 409 instead, which the client reads as a conflict, and so it
+    // stops tracking this id (ProductionLunaClear.ts, catch).
+    if (!outcome.result) {
+      if (outcome.status === 'failed') return conflict(INCOMPLETE_MESSAGE, requestId, { reason: 'attempt_failed' });
+      return inFlight(requestId);
+    }
     if (outcome.result.status === 'failed') {
       const reason = outcome.result.reason;
       if (reason === 'conflict') {
         return conflict(CONFLICT_MESSAGE, requestId, { reason: 'stale_revision', revision: outcome.result.revision });
       }
       if (reason === 'run_open') return conflict(RUN_OPEN_MESSAGE, requestId, { reason: 'run_open' });
-      return conflict(UNKNOWN_MESSAGE, requestId, { reason: 'unknown_conversation' });
+      if (reason === 'not_found') return conflict(UNKNOWN_MESSAGE, requestId, { reason: 'unknown_conversation' });
+      // Reaped: the claim never settled within the ledger's window.
+      if (reason === ABANDONED_REASON) return conflict(INCOMPLETE_MESSAGE, requestId, { reason: 'abandoned' });
+      // A reason this route never writes. Not "not found", which would be a
+      // claim about the conversation that nothing here has checked.
+      return conflict(INCOMPLETE_MESSAGE, requestId, { reason: 'attempt_failed' });
     }
 
     // Exactly the conversation, which is the only shape the client accepts here.

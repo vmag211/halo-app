@@ -3,6 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { LAYERS, readLayer, buildLayer, storeLayer, loadUtilities, waterPayload } from '@/lib/mapBuild';
 import { getWaterGeo } from '@/lib/waterGeo';
 import { parseEnum } from '@/lib/validate';
+import { parseMapQuarter } from '@/lib/mapQuarter';
 import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } from '@/lib/apiErrors';
 
 // A cold, un-prebuilt layer falls back to a live build (ArcGIS ~20s, ECHO ~20s);
@@ -25,11 +26,15 @@ export const maxDuration = 60;
  *
  * `layer` (default water; `district` is served by /api/district) and `quarter`
  * are validated: anything else is a 400 with a field error, before anything is
- * read. A well formed quarter with no readings is a true empty answer (0
+ * read. `quarter=latest` means no quarter, on every layer, exactly like an
+ * omitted one (lib/mapQuarter.js, B05 ruling D2). A well formed quarter with no readings is a true empty answer (0
  * features, and `quarters` names the ones that exist). A layer that cannot be
  * built live is a 503; a layer is never answered with an empty stand-in.
+ *
+ * A live water build whose service-area lookup did not complete is answered,
+ * marked `geography_complete: false` and `meta.availability: 'partial'` with a
+ * note that says so, and is not stored, so the next request tries again.
  */
-const QUARTER_RE = /^\d{4}Q[1-4]$/;
 const PUBLIC_LAYERS = LAYERS.filter((layer) => layer !== 'district');
 
 /** The 503 for a layer whose source failed: the envelope plus the legacy `layer` field. */
@@ -57,21 +62,16 @@ export async function GET(request) {
       );
     }
     const layer = parsedLayer.value;
-    const quarter = searchParams.get('quarter');
+    const parsedQuarter = parseMapQuarter(searchParams.get('quarter'), layer);
+    if (!parsedQuarter.ok) {
+      return validationError([{ field: 'quarter', code: parsedQuarter.code, message: parsedQuarter.message }], requestId);
+    }
+    const { quarter } = parsedQuarter;
 
     if (quarter) {
-      if (layer !== 'water') {
-        return validationError(
-          [{ field: 'quarter', code: 'quarter_not_applicable', message: 'quarter applies to the water layer only.' }],
-          requestId,
-        );
-      }
-      if (!QUARTER_RE.test(quarter)) {
-        return validationError([{ field: 'quarter', code: 'invalid_quarter', message: 'quarter looks like 2024Q3.' }], requestId);
-      }
       const utilities = await loadUtilities(supabaseAdmin);
       const g = await getWaterGeo(utilities.map((u) => u.pwsid));
-      return NextResponse.json(waterPayload(utilities, g.geo, { quarter }), { headers });
+      return NextResponse.json(waterPayload(utilities, g.geo, { quarter, geographyComplete: g.complete }), { headers });
     }
 
     const stored = await readLayer(supabaseAdmin, layer);
@@ -84,7 +84,11 @@ export async function GET(request) {
       console.error(`Map layer ${layer} build failed (request ${requestId}):`, err);
       return layerUnavailable(layer, requestId);
     }
-    storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error(`Storing map layer failed (request ${requestId}):`, e.message));
+    if (payload.geography_complete === false) {
+      console.error(`Map layer ${layer} was built from an incomplete geography lookup and not stored (request ${requestId}).`);
+    } else {
+      storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error(`Storing map layer failed (request ${requestId}):`, e.message));
+    }
     return NextResponse.json({ ...payload, prebuilt: false }, { headers });
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);

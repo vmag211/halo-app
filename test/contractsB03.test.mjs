@@ -403,11 +403,13 @@ test('every success fixture is a payload the client would actually accept, not o
       continue;
     }
     checked.push(fixture.name);
-    const absent = Object.hasOwn(fixture.body, 'conversation') && fixture.body.conversation === null;
+    const absent = Object.hasOwn(fixture.body, 'data') && fixture.body.data === null;
     if (absent) {
-      // The one documented 200 that is deliberately not a valid conversation.
+      // The one documented 200 that is deliberately not a valid conversation:
+      // the runtime unwraps it to null, which the component treats as "none".
       assert.equal(fixture.operationId, 'lunaConversation', `${fixture.name}: only the read has an absent shape`);
       assert.equal(validLunaConversation(fixture.body), false, `${fixture.name}: the absent shape is not a conversation`);
+      assert.equal(clientUnwrap(fixture.body), null, `${fixture.name}: the client receives null`);
       continue;
     }
     assert.equal(
@@ -600,9 +602,12 @@ test('B03 handler conformance: the conversation read answers either a conversati
   const h = harness();
 
   // Ruling L10: this read writes nothing, so a new household gets the absent
-  // shape rather than a freshly minted conversation.
+  // shape rather than a freshly minted conversation. The absence is said as
+  // the envelope `{ data: null }`, which the runtime unwraps to `null`: see the
+  // composer test below for why `{ conversation: null }` locked the composer.
   const { body: absent } = await readConversation(h);
-  assert.deepEqual(absent, { conversation: null });
+  assert.deepEqual(absent, { data: null });
+  assert.equal(clientUnwrap(absent), null, 'what the component actually receives is null');
   assert.equal(
     validLunaConversation(absent),
     false,
@@ -621,6 +626,92 @@ test('B03 handler conformance: the conversation read answers either a conversati
   h.forceAuthOutage();
   const { res } = await readConversation(h, { expected: 503 });
   assert.equal(res.headers.get('retry-after'), '2');
+});
+
+// ---------------------------------------------------------------------------
+// What the component does with the read, transcribed. Quoted from
+// origin/codex/october15-review-refinement (5ac06f6):
+//   lib/frontend/production/runtime.ts:147-153, the success tail of `request`;
+//   components/production/ProductionContext.tsx:14, which stores the result as
+//     `initial.data` unchanged;
+//   components/expanded/ProductionLunaConversation.tsx:36 (`blocked`), :39 (the
+//     effect that adopts a valid read), :50 (`conversationId`) and :97 (the
+//     send button's `disabled`);
+//   components/expanded/SettingsPanels.tsx:62 and :69 (clear offered or not).
+// ---------------------------------------------------------------------------
+
+/**
+ * `runtime.ts:147-153` for a 2xx JSON response, clause for clause. A body that
+ * is not an object is an `invalid_response` (thrown here as an Error), an
+ * object with an own `data` key is unwrapped once, and anything else is handed
+ * to the caller as it is.
+ */
+function clientUnwrap(json) {
+  if (json === null || typeof json !== 'object') throw new Error('invalid_response');
+  if (Object.hasOwn(json, 'data')) {
+    const envelope = json;
+    return envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data) && envelope.meta
+      ? { ...envelope.data, _meta: envelope.meta }
+      : envelope.data;
+  }
+  return json;
+}
+
+/**
+ * `ProductionLunaConversation.tsx:36`, the whole predicate, with the terms
+ * that are not about the read given their resting values for a person who has
+ * just opened Luna: nothing busy, no clear in progress, online, and both
+ * resources settled without error.
+ */
+function composerBlocked({ caps, initialData }) {
+  const busy = false, clearBusy = false, clearPending = false, offline = false;
+  const capabilitiesLoading = false, initialLoading = false, initialError = null;
+  return busy || clearBusy || clearPending || offline || !caps?.available || capabilitiesLoading || initialLoading
+    || Boolean(initialError) || Boolean(initialData && !validLunaConversation(initialData));
+}
+
+test('a household that never used Luna can send its first message: the absent read does not lock the composer', async (t) => {
+  muteConsoleError(t);
+  const h = harness();
+
+  const { body: capsBody } = await call(h, 'lunaCapabilities');
+  const capsData = clientUnwrap(capsBody);
+  const caps = validLunaCapabilities(capsData) ? capsData : null; // ProductionLunaConversation.tsx:34
+  assert.equal(caps?.available, true, 'precondition: Luna is available, so only the read can block');
+
+  // The read, exactly as the component receives it.
+  const { body } = await readConversation(h);
+  const initialData = clientUnwrap(body);
+  assert.equal(
+    Boolean(initialData && !validLunaConversation(initialData)),
+    false,
+    `the blocked predicate's data term must be false for a never-used household; the read answered ${JSON.stringify(body)}`,
+  );
+  assert.equal(composerBlocked({ caps, initialData }), false, 'the composer is not blocked');
+  const draft = 'What is radon?', attempt = null;
+  assert.equal(composerBlocked({ caps, initialData }) || !draft.trim() || !!attempt, false, 'the send button is enabled (:97)');
+  assert.ok(!initialData, 'Settings offers no clear for a conversation that does not exist (SettingsPanels.tsx:69)');
+
+  // :39 adopts the read only when it validates, so the conversation draft stays
+  // null and :50 sends `conversationId: null`, which means "start one".
+  let conversation = null;
+  if (validLunaConversation(initialData)) conversation = initialData;
+  const conversationId = conversation?.id ?? null;
+  assert.equal(conversationId, null);
+  const { body: run } = await ask(h, messageBody({ conversationId }));
+  acceptable(validLunaRun, run, 'the first message of a household');
+  assert.equal(h.db.rows('luna_conversations').length, 1, 'the first message is what starts the conversation');
+
+  // A household WITH a conversation still validates and still is not blocked.
+  const { body: presentBody } = await readConversation(h);
+  const present = clientUnwrap(presentBody);
+  acceptable(validLunaConversation, present, 'the read once a conversation exists');
+  assert.equal(present.id, run.conversation.id, 'the read names the conversation the message started');
+  assert.equal(composerBlocked({ caps, initialData: present }), false);
+
+  // The transcription is not a yes-machine: the old absent body did block.
+  assert.equal(composerBlocked({ caps, initialData: clientUnwrap({ conversation: null }) }), true, '{ conversation: null } locks the composer');
+  assert.throws(() => clientUnwrap(null), /invalid_response/, 'a bare null body is not an answer the runtime accepts');
 });
 
 test('B03 handler conformance: a message answers a run that already carries the person\'s own turn', async (t) => {

@@ -70,7 +70,7 @@ async function mapLimit(items, n, fn) {
 }
 
 function summarizeGeo(g) {
-  return { requested: g.requested, found: g.found, failed_batches: g.failedBatches };
+  return { requested: g.requested, found: g.found, failed_batches: g.failedBatches, complete: g.complete };
 }
 
 /** Utilities whose readings changed since the last run. */
@@ -159,7 +159,8 @@ async function runDaily(request) {
       console.error('Water geography refresh failed:', err.message);
       return { error: err.message };
     });
-    const mapBuild = buildAndStoreAll(supabaseAdmin, geoRefresh.then((g) => g.geo)).catch((err) => ({ error: err.message }));
+    // The whole lookup result, so an incomplete lookup keeps the stored water and district layers.
+    const mapBuild = buildAndStoreAll(supabaseAdmin, geoRefresh).catch((err) => ({ error: err.message }));
 
     // 2. Water result changes.
     const water = await detectWaterChanges(utilities || []);

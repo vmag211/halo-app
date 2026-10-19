@@ -566,6 +566,34 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every household's display, quiet-hours, calendar and Luna-context choices are deleted for good, and the settings revision with them, because the whole table goes. Every alert keeps its title, message, read and dismissed state; what is lost is each one's revision, category and navigation target, so a browser holding a revision can no longer mark that alert read and has to reload. Revisions restart at 1 when 0021 is reapplied, for alerts and the settings row alike, so once a row has been changed back up to the number a stale browser still holds, that browser's revision would match again: after a back-out and reapply, have every open browser reload. The tenure answer is lost too, and reapplying leaves every household unanswered again rather than guessing from `renter_mode`. Nothing cascades: `renter_mode`, the notification preferences and the household bands are untouched, so the existing settings screens keep their values.
 
+### 2.11 Apply 0022 (a household's saved discovery area)
+
+**Not applied yet.** Needs 0021 first (only because the migrations are applied in order; 0022 touches nothing 0021 created).
+
+Quiet, like 2.3, 2.4 and 2.9: it creates one new table and does not read or write any existing table, so nothing else is blocked while it runs. Creating the foreign key to `profiles` takes a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment.
+
+What it is for: the Explore screen lets a household choose the area it wants to discover things in, and that choice has to be kept by the server so every device sees the same one. It goes in the new `public.explore_areas`, one row per household, keyed by the profile (not by the home: the area does not move when the household moves). What is stored is the county-level place the household picked from the location search (its id, name, state, label and time zone), not the home address. A household that has never saved one has no row at all and reads as "no area, revision 1"; the first save writes revision 2, which is why a check refuses anything lower. Clearing the area keeps the row with an empty place and a higher revision.
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0022_explore_areas.sql` and run it. Safe to re-run. If an earlier copy of 0022 was ever run anywhere, run the back-out first (the block below, then `notify pgrst, 'reload schema';`), because a re-run keeps a check it already has under the same name rather than replacing it.
+2. Run the verification query in the comment at the end of that file. Expect one row, all five columns true. `no_client_access` false is the one that matters: it means the browser roles can still reach the table, and you should send Claude the row rather than leaving it.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, `GET` and `PATCH /api/explore/area` answer 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the discovery-area routes report the feature as unavailable. Nothing else reads this table, so the existing app is unaffected either way. No retention period for a saved area has been approved (see Part 3 item 4 and the `explore_areas` row in `docs/backend/privacy-and-retention.md`).
+
+#### If you need to back out 0022
+
+`GET` and `PATCH /api/explore/area` go back to answering a non-retryable 503 `feature_unavailable`, exactly as before it was applied, so this disables the saved discovery area rather than breaking the existing app. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0022 -->
+
+```sql
+drop table if exists public.explore_areas;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every household's chosen discovery area is deleted for good, and its revision with it, because the whole table goes. Revisions restart at 1 (never saved) when 0022 is reapplied, so once a household has saved back up to the number a stale browser still holds, that browser's revision would match again: after a back-out and reapply, have every open browser reload. Nothing cascades: no other table references this one, and 0021's table and columns are untouched.
+
 
 ---
 
