@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { requestIdFor, internalError, apiError, ERROR_CODES } from '@/lib/apiErrors';
+import { requestIdFor, internalError, apiError, loggableError, ERROR_CODES } from '@/lib/apiErrors';
 import { parseUuid, parseEnum } from '@/lib/validate';
 import {
   readOperation,
@@ -10,6 +10,8 @@ import {
   OPERATION_DOMAINS,
   UNAUTHENTICATED_DOMAIN,
 } from '@/lib/operations';
+import { featureEnabled } from '@/lib/features';
+import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSnapshot } from '@/lib/actionsStore';
 
 /**
  * Where each domain's succeeded receipt carries its `unresolvedOperations`
@@ -20,7 +22,9 @@ import {
  * each other for ever, and work that is genuinely still pending stays
  * locked, because no client re-reads after a reconcile that succeeds
  * (ProductionAlerts.tsx, ProductionPreferences.tsx, useAccountService.ts).
- * A domain not named here is replayed exactly as stored.
+ * A domain not named here is replayed exactly as stored, except `actions`,
+ * which has its own overlay in GET below (B06 Ruling H18): its stored receipt
+ * has no snapshot to put a list into.
  */
 const LIVE_LIST_PATHS = Object.freeze({
   account: ['snapshot', 'unresolvedOperations'],
@@ -120,10 +124,31 @@ export async function GET(request) {
       });
     }
 
+    // One overlay step, spread once below (Rulings S16, H18). `actions` is
+    // handled first and is deliberately NOT in LIVE_LIST_PATHS: its stored
+    // receipt holds ids and revisions only (Ruling H3), no snapshot, so the
+    // generic overlay would find no list and leave the client parked. A
+    // succeeded `actions` operation is answered with the household's CURRENT
+    // snapshot and the live list minus the operation itself, at
+    // `snapshot.unresolvedOperations` where the actions adapter reads it
+    // (adapters.ts:7,11) and at the top level over the stored `[]`. Behind
+    // the `tasks` flag like the rest of My Week (Ruling H17). Every other
+    // domain goes through LIVE_LIST_PATHS, and every other status is
+    // replayed as stored.
     let result = operation.result && typeof operation.result === 'object' ? operation.result : {};
-    const path = LIVE_LIST_PATHS[operation.domain];
-    if (path && operation.status === 'succeeded') {
-      result = await withLiveList(result, { path, operationId: operation.operationId, profileId: userId, domain: operation.domain });
+    if (operation.status === 'succeeded') {
+      if (operation.domain === ACTIONS_DOMAIN) {
+        if (!featureEnabled('tasks')) return actionsUnavailable(requestId);
+        try {
+          const snapshot = await liveActionsSnapshot(supabaseAdmin, userId, operation.operationId);
+          result = { ...result, unresolvedOperations: snapshot.unresolvedOperations, snapshot };
+        } catch (err) {
+          if (isActionsUnavailable(err)) return actionsUnavailable(requestId);
+          throw err;
+        }
+      } else if (LIVE_LIST_PATHS[operation.domain]) {
+        result = await withLiveList(result, { path: LIVE_LIST_PATHS[operation.domain], operationId: operation.operationId, profileId: userId, domain: operation.domain });
+      }
     }
 
     return NextResponse.json(
@@ -147,7 +172,9 @@ export async function GET(request) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`operations read failed (request ${requestId}):`, err);
+    // Code and message only (loggableError): a Postgres error's details and
+    // hint can hold a row, and the actions overlay reads task rows.
+    console.error(`operations read failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }

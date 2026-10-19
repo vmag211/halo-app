@@ -21,6 +21,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import './helpers/routeLoader.mjs';
 import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
 import { haloTables } from './helpers/tables.mjs';
@@ -135,8 +136,8 @@ test('snapshotProblems names each failing row by id and a code, and never its co
     unresolvedOperations: Array.from({ length: 101 }, (_, i) => opId(i)),
   };
   assert.deepEqual(store.snapshotProblems(snapshot), [
-    { code: 'invalid_meta', id: dst.id },
-    { code: 'invalid_action', id: badTitle.id },
+    { code: 'invalid_meta', id: dst.id, check: 'time' },
+    { code: 'invalid_action', id: badTitle.id, check: 'title' },
     { code: 'duplicate_action', id: fine.id },
     { code: 'orphan_meta' },
     { code: 'invalid_preference', preferences: ['week:review-preferences'] },
@@ -144,7 +145,7 @@ test('snapshotProblems names each failing row by id and a code, and never its co
   ]);
   const line = store.snapshotProblemLine(snapshot, 'req-2');
   assert.match(line, /request req-2, 6 finding\(s\)/);
-  assert.match(line, new RegExp(`invalid_meta ${dst.id}; invalid_action ${badTitle.id}; duplicate_action ${fine.id}; orphan_meta; invalid_preference week:review-preferences; invalid_unresolved$`));
+  assert.match(line, new RegExp(`invalid_meta ${dst.id} time; invalid_action ${badTitle.id} title; duplicate_action ${fine.id}; orphan_meta; invalid_preference week:review-preferences; invalid_unresolved$`));
   for (const marker of [TITLE_MARKER, NOTE_MARKER, KEY_MARKER, 'Mars', '02:30', '2026-03-08']) {
     assert.ok(!line.includes(marker), `${marker} is not logged`);
   }
@@ -247,4 +248,125 @@ test('excluded ids are left out before the cap, so the list is still the 100 old
 test('without the ledger table the list fails as unavailable, never as an empty list', async () => {
   const db = createFakeSupabase({});
   await assert.rejects(store.unresolvedActionOperations(db, ALICE), (error) => store.isActionsUnavailable(error));
+});
+
+// ---------------------------------------------------------------------------
+// 5. H31: the code of the client's own sentence, in the H24 line
+// ---------------------------------------------------------------------------
+
+test('H31: an invalid task or meta is logged with the code of the client\'s own fixed sentence, never a value', () => {
+  const rows = [
+    ['time', goodAction(1, { date: '2026-03-08' }), { ...goodMeta, time: '02:30' }],
+    ['zone', goodAction(2), { ...goodMeta, zone: 'Mars/Olympus_Mons' }],
+    ['duration', goodAction(3), { ...goodMeta, duration: 5 }],
+    ['schedule', goodAction(4), { ...goodMeta, paused: 'no' }],
+    ['details', goodAction(5), { ...goodMeta, history: [1] }],
+    ['recurrence', goodAction(6, { date: '' }), { ...goodMeta, recurrence: 'weekly' }],
+    ['completion', goodAction(7), { ...goodMeta, completedOn: '2026-02-30' }],
+  ];
+  const snapshot = { actions: rows.map(([, action]) => action), metas: Object.fromEntries(rows.map(([, action, meta]) => [action.key, meta])) };
+  assert.deepEqual(store.snapshotProblems(snapshot), rows.map(([check, action]) => ({ code: 'invalid_meta', id: action.id, check })));
+  const actions = [
+    ['title', goodAction(1, { title: ' ' })],
+    ['date', goodAction(2, { date: '2026-02-30' })],
+    ['record', goodAction(3, { state: 'cancelled' })],
+    ['record', goodAction(4, { revision: 0 })],
+  ];
+  assert.deepEqual(store.snapshotProblems({ actions: actions.map(([, action]) => action), metas: {} }),
+    actions.map(([check, action]) => ({ code: 'invalid_action', id: action.id, check })));
+  const line = store.snapshotProblemLine(snapshot, 'req-h31');
+  assert.ok(line.endsWith(rows.map(([check, action]) => `invalid_meta ${action.id} ${check}`).join('; ')), line);
+  for (const marker of [TITLE_MARKER, NOTE_MARKER, KEY_MARKER, 'Mars', '02:30', '2026-03-08', 'clock-change', 'timezone']) {
+    assert.ok(!line.includes(marker), `${marker} is not logged`);
+  }
+});
+
+test('H31: every sentence the transcribed client checks can return has a code, and the codes round-trip', () => {
+  const source = readFileSync(new URL('../lib/actionRules.js', import.meta.url), 'utf8');
+  const body = (name) => {
+    const start = source.indexOf(`export function ${name}(`);
+    assert.ok(start >= 0, name);
+    return source.slice(start, source.indexOf('\n}\n', start));
+  };
+  const sentences = [...`${body('actionDraftError')}${body('actionMetadataError')}`.matchAll(/return '([^']+)'/g)].map((match) => match[1]);
+  assert.equal(sentences.length, 9, 'two from actionDraftError, seven from actionMetadataError');
+  const codes = sentences.map((sentence) => store.actionCheckCode(sentence));
+  assert.ok(codes.every(Boolean), `every sentence is mapped: ${JSON.stringify(sentences.filter((s) => !store.actionCheckCode(s)))}`);
+  assert.equal(new Set(codes).size, codes.length, 'one code per sentence');
+  for (const [i, code] of codes.entries()) assert.equal(store.actionCheckMessage(code), sentences[i]);
+  for (const other of [null, undefined, '', 'record', 'This change would leave My Week unable to load. Nothing was saved.', TITLE_MARKER]) {
+    assert.equal(store.actionCheckCode(other), null, String(other));
+  }
+  assert.equal(store.actionCheckMessage('record'), null);
+  assert.equal(store.actionCheckMessage('__proto__'), null);
+  for (const sentence of sentences) assert.ok(!sentence.includes(EM_DASH));
+});
+
+// ---------------------------------------------------------------------------
+// 6. Task 4: the commit function, its refusals, the live snapshot
+// ---------------------------------------------------------------------------
+
+const OP_ID = '5e5e5e5e-3333-4000-8000-000000000001';
+const WRITES = { inserts: [], updates: [], metas: [], deletes: [], preferences: { 'week:focus': 'x' } };
+
+function committing(result) {
+  const db = createFakeSupabase({});
+  db.registerRpc('commit_household_actions', () => result, { args: ['p_profile_id', 'p_operation_id', 'p_base_version', 'p_writes'] });
+  return db;
+}
+
+test('commitActions calls the commit function with the owner, the operation, the base version and the writes, and keeps the version internal', async () => {
+  const snapshot = { version: 8, actions: [ACTION], metas: { [ACTION.key]: META }, preferences: { 'week:focus': 'x' } };
+  const receipt = { status: 'succeeded', affected: [{ id: ACTION.id, revision: 3 }], removed: [] };
+  const db = committing({ receipt, snapshot });
+  const committed = await store.commitActions(db, { profileId: ALICE, operationId: OP_ID, baseVersion: 7, writes: WRITES });
+  assert.deepEqual(db.rpcCalls, [{ name: 'commit_household_actions', args: { p_profile_id: ALICE, p_operation_id: OP_ID, p_base_version: 7, p_writes: WRITES } }]);
+  assert.deepEqual(committed.receipt, receipt);
+  assert.deepEqual(committed.snapshot, { actions: [ACTION], metas: { [ACTION.key]: META }, preferences: { 'week:focus': 'x' } });
+  assert.ok(!('version' in committed.snapshot));
+  await assert.rejects(store.commitActions(db, { profileId: null, operationId: OP_ID, baseVersion: 0, writes: WRITES }), /requires an owner/);
+});
+
+test('commitActions refuses a result that is not the function\'s shape, and passes an error on as it came', async () => {
+  const snapshot = { version: 1, actions: [], metas: {}, preferences: {} };
+  const receipt = { status: 'succeeded', affected: [], removed: [] };
+  for (const [label, result] of [
+    ['null', null],
+    ['no receipt', { snapshot }],
+    ['a failed receipt', { receipt: { ...receipt, status: 'failed' }, snapshot }],
+    ['affected not a list', { receipt: { ...receipt, affected: {} }, snapshot }],
+    ['a revision of 0', { receipt: { ...receipt, affected: [{ id: 'a', revision: 0 }] }, snapshot }],
+    ['removed not ids', { receipt: { ...receipt, removed: [1] }, snapshot }],
+    ['no snapshot', { receipt }],
+    ['metas an array', { receipt, snapshot: { ...snapshot, metas: [] } }],
+    ['preferences missing', { receipt, snapshot: { ...snapshot, preferences: undefined } }],
+  ]) {
+    await assert.rejects(store.commitActions(committing(result), { profileId: ALICE, operationId: OP_ID, baseVersion: 0, writes: WRITES }), /unexpected shape/, label);
+  }
+  await assert.rejects(store.commitActions(createFakeSupabase({}), { profileId: ALICE, operationId: OP_ID, baseVersion: 0, writes: WRITES }),
+    (error) => store.isActionsUnavailable(error));
+});
+
+test('actionsRefusal reads a HALO_* code only when it is the whole P0001 message', () => {
+  for (const code of Object.values(store.ACTIONS_REFUSALS)) assert.equal(store.actionsRefusal({ code: 'P0001', message: code }), code);
+  for (const error of [null, {}, { code: 'P0001' }, { code: 'P0001', message: 'see HALO_STALE_BASE' }, { code: '23514', message: 'HALO_STALE_BASE' }, new Error('HALO_STALE_BASE')]) {
+    assert.equal(store.actionsRefusal(error), null, JSON.stringify(error));
+  }
+});
+
+test('liveActionsSnapshot is the current snapshot with the live list, the answered operation left out, the list read first (H18, T2)', async () => {
+  const db = ledger([
+    { operation_id: opId(1), created_at: ago(3_000) },
+    { operation_id: opId(2), created_at: ago(2_000) },
+  ]);
+  let statementsBeforeRead = null;
+  db.registerRpc('read_household_actions', () => {
+    statementsBeforeRead = db.queryLog.length;
+    return { version: 2, actions: [ACTION], metas: {}, preferences: {} };
+  }, { args: ['p_profile_id'] });
+  const live = await store.liveActionsSnapshot(db, ALICE, opId(1));
+  assert.deepEqual(live, { actions: [ACTION], metas: {}, preferences: {}, unresolvedOperations: [opId(2)] });
+  assert.deepEqual(Object.keys(live), ['actions', 'metas', 'preferences', 'unresolvedOperations']);
+  assert.equal(statementsBeforeRead, db.queryLog.length, 'every ledger statement ran before the snapshot was read');
+  assert.ok(statementsBeforeRead > 0);
 });
