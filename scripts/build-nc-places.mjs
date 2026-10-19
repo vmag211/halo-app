@@ -28,7 +28,10 @@
  * share a display name, each gets its county in parentheses ("Fairview
  * (Buncombe County)"), the county being the one that contains the place's
  * Census internal point on the repo's own county boundaries
- * (lib/geoContainment.js); the build stops if that leaves any name ambiguous.
+ * (lib/geoContainment.js); the build stops if that leaves any name ambiguous,
+ * or if any point about a kilometre around that internal point is in another
+ * county (COUNTY_MARGIN), because those boundaries are simplified to about
+ * 200 m and a border place must then be checked by hand.
  *
  * NO EM DASH. A U+2014 in a source name is replaced here, at build time, by a
  * comma and a space, the same transformation the client's safeText applies,
@@ -51,11 +54,17 @@ for (const name of ['places', 'zctas', 'zctaZip', 'relationship', 'retrieved', '
 }
 if (!/^\d{4}-\d{2}-\d{2}$/.test(args.retrieved)) throw new Error('--retrieved is a YYYY-MM-DD date');
 
-const SOURCES = {
-  places: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_gaz_place_37.txt',
-  zctas: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_Gaz_zcta_national.zip',
-  relationship: 'https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt',
-};
+// Each source URL and the argument that names its downloaded file. The ZCTA URL is the zip,
+// so its sha256 is the zip's; the unzipped text the build reads is hashed separately.
+const SOURCES = [
+  { url: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_gaz_place_37.txt', file: 'places' },
+  { url: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_Gaz_zcta_national.zip', file: 'zctaZip', unzipped: 'zctas' },
+  { url: 'https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt', file: 'relationship' },
+];
+// The county of a place that shares its name must hold for every point this far (in degrees,
+// about a kilometre) around the place's internal point, five times the ~200 m simplification
+// of the repo's county boundaries, so a border place is never labelled by a simplified edge.
+const COUNTY_MARGIN = 0.01;
 const EM_DASH = String.fromCharCode(0x2014);
 const DESCRIPTOR = { 25: 'city', 43: 'town', 47: 'village', 57: 'CDP' };
 
@@ -63,7 +72,9 @@ const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest(
 
 /** Pipe-delimited rows as objects keyed by the header, every value trimmed. */
 function table(file) {
-  const lines = readFileSync(file, 'utf8').replace(/^﻿/, '').split(/\r?\n/).filter((line) => line.trim() !== '');
+  // The relationship file starts with a byte order mark. trim() below would also remove it
+  // from the first column name; stripping it here says so.
+  const lines = readFileSync(file, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim() !== '');
   const head = lines[0].split('|').map((cell) => cell.trim());
   return lines.slice(1).map((line) => {
     const cells = line.split('|');
@@ -104,6 +115,12 @@ for (const [name, shared] of byName) {
   for (const place of shared) {
     const county = countyForPoint(place.lat, place.lng);
     if (!county) throw new Error(`no county contains ${name} (${place.geoid})`);
+    for (const [dLat, dLng] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const near = countyForPoint(place.lat + dLat * COUNTY_MARGIN, place.lng + dLng * COUNTY_MARGIN);
+      if (near !== county) {
+        throw new Error(`${name} (${place.geoid}) is within ${COUNTY_MARGIN} degrees of the ${county} line (${near} is next to it): check its county by hand`);
+      }
+    }
     place.name = `${name} (${county})`;
     disambiguated.push(`${place.geoid} ${place.name}`);
   }
@@ -129,7 +146,7 @@ const header = {
   vintage: 'Places: 2026 Gazetteer, boundaries as of January 1, 2026 (the vintage of TIGERweb Current, from which ncCounties.json was taken). ZCTAs: the 2020 Census ZCTA5 set, which the 2026 Gazetteer still carries',
   retrieved: args.retrieved,
   licence: 'Public domain: a work of the U.S. federal government, not subject to copyright in the United States (17 U.S.C. 105). The Census Bureau states its data is "freely available for use and re-use by the public" (https://www.census.gov/open/) and that its TIGER/Line products "are not copyrighted" and are "free to use in a product or publication, however acknowledgement must be given to the U.S. Census Bureau as the source" (TIGER/Line 2026 place metadata, Use Constraints). Credit: U.S. Census Bureau',
-  files: Object.entries(SOURCES).map(([key, url]) => ({ url, sha256: sha256(args[key]), ...(key === 'zctas' ? { sha256: sha256(args.zctaZip), unzippedSha256: sha256(args.zctas) } : {}) })),
+  files: SOURCES.map(({ url, file, unzipped }) => ({ url, sha256: sha256(args[file]), ...(unzipped ? { unzippedSha256: sha256(args[unzipped]) } : {}) })),
   nameRule: 'Census NAME less its trailing LSAD descriptor (city, town, village or CDP), spelled as the Census writes it. Two places that would share a name each carry their county in parentheses. A U+2014 is replaced by ", " at build time (none in this vintage). Built by scripts/build-nc-places.mjs',
   zctaRule: 'Every ZCTA with land area in an NC county in the 2020 ZCTA to county relationship file, cross-state ZCTAs included',
   disambiguated,
