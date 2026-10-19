@@ -53,6 +53,7 @@ const ROUTE_COVERAGE = {
   'GET /api/account': 'routesAccountRead: the challenge and unresolved operations are read for the caller only; a profile_id in the query changes nothing; off by the flag nothing is read at all',
   'POST /api/account/commands': 'routesAccountCommands: every statement is scoped to the caller, another household\'s challenge id is the identical failure to a missing one, a body naming another profile is refused and a query naming one is ignored; a collision fails without merging and discloses nothing about the other identity',
   'GET /api/learn': 'isolation: read matrix (household note from the caller\'s composition)',
+  'GET /api/locations/search': 'routesLocationsSearch: reads no table and calls no RPC or provider (any database use throws), so two households get the identical answer and nothing in it is anyone\'s',
   // The six Luna lines, written in one voice by B03 task 3 after the three
   // parallel route tasks merged. Each says what its own suite proves, in this
   // order: whose rows the route may touch, what an identifier belonging to
