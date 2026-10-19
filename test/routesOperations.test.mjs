@@ -26,8 +26,10 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
  * alice has a settled save, a failed one and a crashed one; bob has his own
  * settled save. `extra` rows are alice's.
  */
-function harness({ extra = [] } = {}) {
+function harness({ extra = [], env, rateLimit } = {}) {
   return createRouteHarness({
+    env,
+    rateLimit,
     tables: haloTables('profiles', 'operations'),
     seed: ({ alice, bob }) => ({
       profiles: [{ id: alice.id }, { id: bob.id }],
@@ -356,6 +358,8 @@ const EXPORT_OLD = '88888888-8888-4888-8888-888888888882';
 const EXPORT_FAILED = '88888888-8888-4888-8888-888888888883';
 const EXPORT_ODD = '88888888-8888-4888-8888-888888888884';
 const CLEAR_DONE = '88888888-8888-4888-8888-888888888885';
+const CLEAR_FORGED = '88888888-8888-4888-8888-888888888886';
+const PRIVACY_ENV = Object.freeze({ HALO_PRIVACY_REVIEW_KEY: 'privacy-review-key-for-tests-only-0123456789' });
 const MINUTE = 60 * 1000;
 
 const privacyRow = (operationId, kind, status, result, createdAgo) => ({
@@ -363,14 +367,19 @@ const privacyRow = (operationId, kind, status, result, createdAgo) => ({
 });
 const exportReceipt = (operationId, selection = { groups: ['tasks'], privateText: false }) => ({ operationId, status: 'succeeded', scope: 'export', selection });
 
-function privacyHarness() {
+/** alice's privacy rows; the review key is set (P18) unless `env` says otherwise. */
+function privacyHarness({ env = PRIVACY_ENV, rateLimit } = {}) {
   return harness({
+    env,
+    rateLimit,
     extra: [
       privacyRow(EXPORT_NEW, 'privacy.export', 'succeeded', exportReceipt(EXPORT_NEW), 9 * MINUTE),
       privacyRow(EXPORT_OLD, 'privacy.export', 'succeeded', exportReceipt(EXPORT_OLD), 11 * MINUTE),
       privacyRow(EXPORT_FAILED, 'privacy.export', 'failed', { operationId: EXPORT_FAILED, status: 'failed', reason: 'too_large' }, MINUTE),
       privacyRow(EXPORT_ODD, 'privacy.export', 'succeeded', exportReceipt(EXPORT_ODD, { groups: 'everything' }), MINUTE),
       privacyRow(CLEAR_DONE, 'privacy.clear.all', 'succeeded', { operationId: CLEAR_DONE, status: 'succeeded', scope: 'all' }, MINUTE),
+      // A clear receipt that somehow carries a selection: never a file, because the kind is not an export.
+      privacyRow(CLEAR_FORGED, 'privacy.clear.journal', 'succeeded', { ...exportReceipt(CLEAR_FORGED), scope: 'journal' }, MINUTE),
     ],
   });
 }
@@ -383,7 +392,9 @@ function asStored(h, operationId) {
 
 test('P9: a succeeded export recorded 9 minutes ago carries a file rebuilt from its stored selection; the rest of the body is as stored', async () => {
   const h = privacyHarness();
-  const body = await (await read(h, 'alice', `operationId=${EXPORT_NEW}&domain=privacy`)).json();
+  const response = await read(h, 'alice', `operationId=${EXPORT_NEW}&domain=privacy`);
+  assert.equal(response.headers.get('cache-control'), 'no-store', 'a body carrying the export is never cached');
+  const body = await response.json();
   const { file, ...rest } = body;
   assert.deepEqual(rest, asStored(h, EXPORT_NEW));
   assert.equal(file.mime, 'application/json');
@@ -397,9 +408,11 @@ test('P9: a succeeded export recorded 9 minutes ago carries a file rebuilt from 
 test('P9: after the window, a failed export, a clear and an unreadable selection are answered exactly as stored, with nothing rebuilt', async (t) => {
   const logged = muteConsoleError(t);
   const h = privacyHarness();
-  for (const id of [EXPORT_OLD, EXPORT_FAILED, CLEAR_DONE, EXPORT_ODD]) {
+  for (const id of [EXPORT_OLD, EXPORT_FAILED, CLEAR_DONE, CLEAR_FORGED, EXPORT_ODD]) {
     const from = h.db.queryLog.length;
-    const body = await (await read(h, 'alice', `operationId=${id}&domain=privacy`)).json();
+    const response = await read(h, 'alice', `operationId=${id}&domain=privacy`);
+    assert.equal(response.headers.get('cache-control'), null, `${id}: no file, no no-store`);
+    const body = await response.json();
     assert.deepEqual(body, asStored(h, id), id);
     assert.ok(h.db.queryLog.slice(from).every((q) => q.table === 'operations'), `${id}: no record was read`);
   }
@@ -422,4 +435,63 @@ test('other domains replay exactly as before the privacy overlay: a settled sett
   const reaped = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
   assert.deepEqual(reaped, asStored(h, DEAD));
   assert.equal(reaped.status, 'failed');
+});
+
+// The rebuild is a full read of the household: it spends the shared privacy budget, and the key switches it off.
+
+const { privacyPanel, MESSAGES: PANEL } = await import('./helpers/privacyClearClient.mjs');
+const { LIMITER_UNAVAILABLE } = await import('./helpers/routeHarness.mjs');
+
+/** The privacy panel parked on an export id, as confirm leaves it after a lost answer. */
+function parkedPanel(id) {
+  const panel = privacyPanel();
+  panel.review = { scope: 'export' };
+  panel.unknown = { id, scope: 'export' };
+  return panel;
+}
+const reconcileWith = (h) => (id) => read(h, 'alice', `operationId=${id}&domain=privacy`);
+
+test('P17: a rebuild past the household privacy budget is a 429, keyed by the household, with nothing read; the panel says wait and keeps its lock', async () => {
+  const keys = [];
+  const h = privacyHarness({ rateLimit: (key) => { keys.push(key); return false; } });
+  const from = h.db.queryLog.length;
+  const panel = await parkedPanel(EXPORT_NEW).reconcile(reconcileWith(h));
+  assert.deepEqual([panel.message, panel.unknown, panel.downloads], [PANEL.rateLimited, { id: EXPORT_NEW, scope: 'export' }, []]);
+  assert.deepEqual(keys, [`privacy:${h.identities.alice.id}`], 'the budget inspect and export share');
+  assert.ok(h.db.queryLog.slice(from).every((q) => q.table === 'operations'), 'nothing was rebuilt');
+});
+
+test('P17: no limiter call for an export outside the window, a failed export, a clear, or another domain', async () => {
+  const keys = [];
+  const h = privacyHarness({ rateLimit: (key) => { keys.push(key); return false; } });
+  for (const [id, domain] of [[EXPORT_OLD, 'privacy'], [EXPORT_FAILED, 'privacy'], [CLEAR_DONE, 'privacy'], [CLEAR_FORGED, 'privacy'], [OP, 'settings'], [DEAD, 'alerts']]) {
+    assert.equal((await read(h, 'alice', `operationId=${id}&domain=${domain}`)).status, 200, id);
+  }
+  assert.deepEqual(keys, []);
+});
+
+test('P17: an Upstash outage does not stop the rebuild (fail-open); the panel downloads', async (t) => {
+  const logged = muteConsoleError(t);
+  const h = privacyHarness({ rateLimit: () => LIMITER_UNAVAILABLE });
+  const panel = await parkedPanel(EXPORT_NEW).reconcile(reconcileWith(h));
+  assert.deepEqual([panel.message, panel.unknown, panel.downloads.length], [PANEL.downloaded, null, 1]);
+  assert.match(loggedText(logged), /privacy limiter unavailable/);
+});
+
+test('P18: with no review key the rebuild is off: the export inside the window is answered as stored, no file, no read, no limiter call', async () => {
+  const keys = [];
+  const h = privacyHarness({ env: {}, rateLimit: (key) => { keys.push(key); return true; } });
+  const from = h.db.queryLog.length;
+  const response = await read(h, 'alice', `operationId=${EXPORT_NEW}&domain=privacy`);
+  assert.equal(response.headers.get('cache-control'), null);
+  assert.deepEqual(await response.json(), asStored(h, EXPORT_NEW));
+  assert.ok(h.db.queryLog.slice(from).every((q) => q.table === 'operations'), 'nothing was rebuilt');
+  assert.deepEqual(keys, []);
+  const panel = await parkedPanel(EXPORT_NEW).reconcile(reconcileWith(h));
+  assert.deepEqual([panel.message, panel.unknown], [PANEL.notReady, { id: EXPORT_NEW, scope: 'export' }]);
+});
+
+test('maxDuration is 60 on the reconcile route, as on the POST that first built the file', async () => {
+  const route = await import('../app/api/operations/route.js');
+  assert.equal(route.maxDuration, 60);
 });

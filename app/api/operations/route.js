@@ -13,7 +13,17 @@ import {
 import { featureEnabled } from '@/lib/features';
 import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSnapshot } from '@/lib/actionsStore';
 import { PRIVACY_DOMAIN } from '@/lib/privacyStore';
-import { PRIVACY_EXPORT_KIND, rebuildExportFile, withExportFile } from '@/lib/privacyExport';
+import { PRIVACY_EXPORT_KIND, privacyLimitKey, rebuildExportFile, withExportFile, withinRebuildWindow } from '@/lib/privacyExport';
+import { privacyReviewKey } from '@/lib/privacyToken';
+import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
+
+// A reader, but a privacy export reconcile rebuilds the household's whole
+// file (B07 P9), as the POST that first built it may (60 s); under the
+// ledger's 120 s staleness window like every privacy route (P17).
+export const maxDuration = 60;
+
+/** The 429 a rebuild past the household's privacy budget gets (P17); the panel says "Please wait". */
+const PRIVACY_LIMITED_MESSAGE = 'Too many privacy requests. Please try again later.';
 
 /**
  * Where each domain's succeeded receipt carries its `unresolvedOperations`
@@ -161,7 +171,13 @@ export async function GET(request) {
         // is answered as stored, without `file`, which the privacy panel
         // reads as "The export is not ready to download. Check its status."
         // Every other privacy receipt (a clear's) is answered as stored.
-        if (operation.kind === PRIVACY_EXPORT_KIND) {
+        // The rebuild is a full read of the household, so inside the window
+        // it spends the privacy budget inspect and export share (P17,
+        // fail-open), and with no review key it is skipped: the key is the
+        // switch (P18), and it switches off this ten-minute tail too.
+        if (operation.kind === PRIVACY_EXPORT_KIND && privacyReviewKey() && withinRebuildWindow(operation.createdAt)) {
+          const allowed = await checkLimit(privacyLimiter, privacyLimitKey(userId), { fallback: true, label: 'privacy limiter' });
+          if (!allowed) return apiError({ status: 429, code: ERROR_CODES.RATE_LIMITED, message: PRIVACY_LIMITED_MESSAGE, requestId });
           file = await rebuildExportFile(supabaseAdmin, { profileId: userId, selection: result.selection, createdAt: operation.createdAt });
         }
       } else if (LIVE_LIST_PATHS[operation.domain]) {
@@ -185,7 +201,9 @@ export async function GET(request) {
     };
     // A rebuilt export file is attached only when the whole body, as sent,
     // fits the 4,000,000-byte cap (B07 P8); with no file the body is unchanged.
-    return NextResponse.json(withExportFile(body, file), { headers });
+    const answer = withExportFile(body, file);
+    // A body carrying the household's export is never cached anywhere.
+    return NextResponse.json(answer, { headers: answer === body ? headers : { ...headers, 'Cache-Control': 'no-store' } });
   } catch (err) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);

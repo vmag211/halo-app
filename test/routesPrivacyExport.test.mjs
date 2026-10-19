@@ -302,7 +302,9 @@ scenario('P9: a lost answer reconciled at 9 minutes downloads a file rebuilt fro
 
   await backdate(h, body.operationId, 9 * MINUTE);
   const read = reader(h);
-  const raw = await (await read(body.operationId)).json();
+  const reconciled = await read(body.operationId);
+  assert.equal(reconciled.headers.get('cache-control'), 'no-store', 'the reconcile body carrying the file is never cached');
+  const raw = await reconciled.json();
   assert.ok(!('data' in raw));
   assert.ok(responseBytes(raw) <= EXPORT_MAX_RESPONSE_BYTES, 'the body as sent is under the cap');
   await panel.reconcile(read);
@@ -474,6 +476,25 @@ scenario("another household's operation id: with bob's own token it is 409 opera
   assert.equal(stale.status, 409);
   assert.equal((await stale.json()).reason, 'review_changed', "bob is told nothing about alice's row");
   assert.deepEqual(privacyRows(h), before);
+});
+
+scenario('an unverified token on an id alice recorded in another domain (settings) is a privacy miss, 409 review_changed, not that row', async (_t, make) => {
+  const h = make();
+  const id = crypto.randomUUID();
+  const settingsRow = {
+    operation_id: id, profile_id: h.identities.alice.id, domain: 'settings', kind: 'settings.save', status: 'succeeded',
+    request_hash: 'settings-hash', result: { operationId: id, status: 'succeeded' }, created_at: ago(MINUTE),
+  };
+  h.db.seed('operations', [settingsRow]);
+  const recorded = h.db.rows('operations').find((row) => row.operation_id === id);
+  const stale = minted(h, { now: Date.now() - REVIEW_TOKEN_TTL_MS - 1000 });
+  const response = await send(h, exportBody(stale, { operationId: id }));
+  assert.equal(response.status, 409);
+  assert.equal((await response.clone().json()).reason, 'review_changed');
+  const panel = exportPanel();
+  await panel.answer(response, 'export', id);
+  assert.deepEqual([panel.message, panel.unknown, panel.review], [MESSAGES.conflict, null, { scope: 'export' }]);
+  assert.deepEqual(h.db.rows('operations').find((row) => row.operation_id === id), recorded, 'the settings row is untouched');
 });
 
 // ---------------------------------------------------------------------------
