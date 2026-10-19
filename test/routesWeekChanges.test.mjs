@@ -16,7 +16,7 @@
  *   - `runtime.request` (lib/frontend/production/runtime.ts:28-32 for the
  *     registry entries, :111-153 for the request and the response handling,
  *     including the status mapping at :144 and the envelope unwrap at
- *     :147-153), and its copy table (:89-95, `serviceMessage` :96);
+ *     :147-153), and its copy table (:91-97, `serviceMessage` :98);
  *   - `useProductionResource`'s settle (components/production/ProductionContext.tsx:14);
  *   - `useWeekChanges` and `WeekUpdateList` (components/expanded/WeekUpdates.tsx:16-30):
  *     the restore of an unresolved id (:17), the `liveChanges` filter (:18),
@@ -319,10 +319,28 @@ test('the Idempotency-Key is required, must be a UUID, and must be the body\'s o
     assert.deepEqual(envelope.field_errors.map((entry) => [entry.field, entry.code]), [[field, code]], label);
     assert.equal(h.db.rows('operations').length, 0, `${label}: no ledger row`);
   }
-  // Trimmed and lowercased, as the house check does.
+  // The header is trimmed and lowercased, as the house check does.
   const h = harness();
   const response = await acknowledgeAs(h, 'alice', { key: `  ${OP.toUpperCase()} ` });
   assert.equal(response.status, 200);
+});
+
+test('the body operationId is lowercased and never trimmed, the house rule (H27)', async () => {
+  // Uppercase is the same id: accepted, recorded and answered in lowercase.
+  const upper = harness();
+  const response = await acknowledgeAs(upper, 'alice', { body: ackBody({ operationId: OP.toUpperCase() }), key: OP });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).operationId, OP);
+  assert.deepEqual(upper.db.rows('operations').map((row) => row.operation_id), [OP]);
+
+  // Padding in the body is not trimmed away: it is not a UUID, and nothing is claimed.
+  for (const padded of [` ${OP}`, `${OP} `, `\t${OP}\n`]) {
+    const h = harness();
+    const refused = await acknowledgeAs(h, 'alice', { body: ackBody({ operationId: padded }), key: OP });
+    const envelope = await expectEnvelope(refused, { status: 400, code: 'validation_failed' });
+    assert.deepEqual(envelope.field_errors.map((entry) => [entry.field, entry.code]), [['operationId', 'invalid_uuid']]);
+    assert.equal(h.db.rows('operations').length, 0);
+  }
 });
 
 test('If-Match is refused: there is no revision to match (H21)', async () => {
@@ -416,16 +434,37 @@ test('both reaped shapes are a terminal 409 with an accurate reason, not a 5xx (
   await assertTerminalReplay(stale, 'abandoned', 'and again after the reap');
   // Settled with no receipt: an in-process throw (lib/operations.js runOperation catch).
   await assertTerminalReplay(harness({ operations: [weekRow({ status: 'failed', result: null })] }), 'not_applied', 'threw');
-  // A receipt this route never writes, including a succeeded one: never replayed.
-  await assertTerminalReplay(
-    harness({ operations: [weekRow({ status: 'failed', result: { status: 'failed', reason: 'something_else' } })] }),
-    'not_applied',
-    'an unrecognised reason',
-  );
-  const odd = harness({ operations: [weekRow({ status: 'succeeded', result: { status: 'succeeded' } })] });
-  const response = await acknowledgeAs(odd);
-  const envelope = await expectEnvelope(response, { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
-  assert.equal(envelope.reason, 'not_applied', 'a succeeded receipt without `acknowledged` would lock the strip (T11)');
+});
+
+test('a stored receipt this route never writes is a terminal 409 unrecognized_receipt, logged without content', async (t) => {
+  const logged = muteConsoleError(t);
+  const MARKER = 'RECEIPT-CONTENT-MARKER';
+  const cases = [
+    ['a failed receipt with another reason', 'failed', { status: 'failed', reason: 'something_else', note: MARKER }],
+    // The case that matters: replaying it would lock the strip (T11).
+    ['a succeeded receipt with no acknowledged', 'succeeded', { status: 'succeeded', note: MARKER }],
+    ['a cancelled receipt', 'cancelled', { status: 'cancelled', reason: MARKER }],
+    ['a succeeded receipt carrying the abandoned code', 'succeeded', { status: 'succeeded', reason: 'abandoned' }],
+  ];
+  for (const [label, status, result] of cases) {
+    const h = harness({ operations: [weekRow({ status, result })] });
+    const calls = logged.mock.calls.length;
+    const response = await acknowledgeAs(h);
+    const envelope = await expectEnvelope(response, { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+    assert.equal(envelope.reason, 'unrecognized_receipt', label);
+    assert.equal(envelope.message, 'That earlier review cannot be confirmed here. Nothing new was changed.', label);
+    assert.ok(!/did not finish|nothing was changed/i.test(envelope.message), `${label}: the copy claims nothing it cannot know`);
+    assert.ok(!('status' in envelope) && !('acknowledged' in envelope), `${label}: never replayed`);
+    assertNoEmDash(envelope, label);
+    const row = h.db.rows('operations').find((item) => item.operation_id === OP);
+    assert.deepEqual([row.status, row.result], [status, result], `${label}: the row is left as it was`);
+
+    const lines = logged.mock.calls.slice(calls).map((call) => call.arguments.map(String).join(' '));
+    assert.equal(lines.length, 1, `${label}: one log line`);
+    assert.match(lines[0], new RegExp(`request ${envelope.request_id}, ledger status ${status}\\)`), label);
+    assert.ok(!lines[0].includes(MARKER) && !lines[0].includes('something_else'), `${label}: no receipt content is logged`);
+    assert.ok(!lines[0].includes(ackBody().id) && !lines[0].includes(ACTION), `${label}: no request content is logged`);
+  }
 });
 
 test('an attempt still running is the retryable 503, and nothing is decided for it', async () => {
@@ -499,7 +538,7 @@ const productionOperations = {
   'week.acknowledge': { path: '/api/week/changes/acknowledge', method: 'POST' },
 };
 
-/** runtime.ts:89-95 */
+/** runtime.ts:91-97 */
 const messages = {
   offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
   permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
@@ -507,7 +546,7 @@ const messages = {
   unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
   aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
 };
-/** runtime.ts:96 */
+/** runtime.ts:98 */
 function serviceMessage(error) { return error instanceof FrontendServiceError ? error.message : messages.unavailable; }
 
 /**

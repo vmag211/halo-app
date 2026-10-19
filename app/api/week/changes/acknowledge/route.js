@@ -60,9 +60,12 @@ import {
  *   - this route's own refusal: the same 200 receipt;
  *   - a row settled `failed` that this route did not refuse, in either shape:
  *     reaped (`{status: 'failed', reason: 'abandoned'}`) is a terminal 409
- *     `abandoned`; no receipt at all (an in-process throw) or a reason this
- *     route never writes is a terminal 409 `not_applied`. Terminal, because
- *     that attempt is over and will never settle into anything else;
+ *     `abandoned`; no receipt at all (an in-process throw) is a terminal 409
+ *     `not_applied`. Terminal, because that attempt is over and will never
+ *     settle into anything else;
+ *   - any other stored receipt (one this route never writes, `succeeded`
+ *     included): a terminal 409 `unrecognized_receipt`, logged without
+ *     content, and never replayed;
  *   - a row still `pending` (or `unknown`, past its window and not reaped): the
  *     retryable 503 "still being processed";
  *   - the same id with different input: 409 `operation_mismatch`.
@@ -96,6 +99,7 @@ const UNKNOWN_CHANGE = 'unknown_change';
 const MESSAGES = Object.freeze({
   [UNKNOWN_CHANGE]: 'That update is not available to review, so nothing was changed.',
   incomplete: 'That earlier review did not finish, so nothing was changed. Please try again.',
+  unrecognized: 'That earlier review cannot be confirmed here. Nothing new was changed.',
   mismatch: 'That request was already made with different details. Please try again.',
   inFlight: 'That request is still being processed. Please check its status before trying again.',
   ifMatch: 'This request does not take an If-Match header.',
@@ -215,10 +219,21 @@ export async function POST(request) {
       );
     }
     // Reaped: the claim never settled within the ledger's window.
-    if (outcome.result.reason === ABANDONED_REASON) return conflict(MESSAGES.incomplete, requestId, 'abandoned');
-    // A receipt this route never writes. Not replayed: the client would trust
-    // a `succeeded` one, and nothing here can stand behind it.
-    return conflict(MESSAGES.incomplete, requestId, 'not_applied');
+    if (outcome.result.status === 'failed' && outcome.result.reason === ABANDONED_REASON) {
+      return conflict(MESSAGES.incomplete, requestId, 'abandoned');
+    }
+    // A receipt this route never writes, which only corruption or a future
+    // writer could leave. Not replayed: the client would trust a `succeeded`
+    // one, and one without `acknowledged` would lock the strip (T11). Not
+    // called `not_applied` either, because what that receipt did is not known
+    // here. Logged so an unexpected writer is noticed: the request id and the
+    // row's ledger status only, which is one of a fixed set. Nothing from the
+    // request or the stored receipt is written, not even its reason, because
+    // a receipt this route did not write could hold anything.
+    console.error(
+      `week acknowledge: unrecognized stored receipt (request ${requestId}, ledger status ${outcome.status})`,
+    );
+    return conflict(MESSAGES.unrecognized, requestId, 'unrecognized_receipt');
   } catch (err) {
     if (err?.message === OPERATION_INPUT_MISMATCH) return conflict(MESSAGES.mismatch, requestId, 'operation_mismatch');
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
