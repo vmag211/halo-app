@@ -3,6 +3,7 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0024   undoes 0024 (the privacy clear, fingerprint, counts, purge and probe, the privacy guard)
  *   backout-0023   undoes 0023 (a household's tasks, the read and commit functions, the ledger guard)
  *   backout-0022   undoes 0022 (a household's saved discovery area)
  *   backout-0021   undoes 0021 (settings preferences, tenure, alerts columns)
@@ -75,6 +76,7 @@ let audit20;
 let audit21;
 let audit22;
 let audit23;
+let audit24;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -118,7 +120,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0024', 'backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -685,6 +687,100 @@ test('after the back-out, 0023 applies again and gives exactly the schema one pa
   );
   // The guard is back on the surviving ledger row too.
   await assert.rejects(db.query(`update public.operations set status = 'failed' where operation_id = $1`, [ACTION_OP]), /HALO_OPERATION_SETTLED/);
+});
+
+// ---- 0024: six functions and one trigger on public.operations, and no
+// table. Backing it out drops all of them and loses nothing: privacy receipts
+// stay in the ledger as ordinary rows. These pick up where the 0023 tests
+// leave the database, at 0023 reapplied.
+
+const OBJECTS_0024 = {
+  functions: [
+    'privacy_schema_version()',
+    'privacy_fingerprint(uuid, text[])',
+    'privacy_counts(uuid, text)',
+    'clear_household_records(uuid, uuid, text, text)',
+    'purge_privacy_receipts(uuid)',
+    'guard_settled_privacy_operation()',
+  ],
+};
+const PRIVACY_OP = '00000000-0000-4000-8000-00000000a024';
+
+async function objects0024() {
+  const present = {};
+  for (const fn of OBJECTS_0024.functions) present[fn] = await exists(`to_regprocedure('public.${fn}') is not null`);
+  present.trigger = await exists(`exists (select 1 from pg_trigger where tgname = 'operations_privacy_settled_guard')`);
+  return present;
+}
+
+test('0024 applies on top of 0023 and adds exactly its six functions and the privacy guard', async () => {
+  await db.applyMigration(migration(24));
+  audit24 = await runAudit(db);
+  const present = await objects0024();
+  assert.deepEqual(present, Object.fromEntries(Object.keys(present).map((name) => [name, true])));
+  // Something that must survive the back-out: alice clears her (empty) journal, which leaves a settled receipt.
+  await db.exec(`insert into public.operations (operation_id, profile_id, domain, kind) values ('${PRIVACY_OP}', '${ALICE}', 'privacy', 'privacy.clear.journal')`);
+  const { rows } = await db.query(
+    `select public.clear_household_records($1, $2, 'journal', public.privacy_fingerprint($1, array['symptom_logs'])) as out`,
+    [ALICE, PRIVACY_OP],
+  );
+  assert.equal(rows[0].out.receipt.status, 'succeeded');
+});
+
+test('backing out 0024 removes everything it added and leaves the 0001..0023 schema exactly, 0023 included', async () => {
+  await db.exec(docBlock('backout-0024'));
+
+  const present = await objects0024();
+  assert.deepEqual(present, Object.fromEntries(Object.keys(present).map((name) => [name, false])));
+  const kept = await objects0023();
+  assert.deepEqual(kept, Object.fromEntries(Object.keys(kept).map((name) => [name, true])), '0023 stays whole');
+  // Nothing is lost: the receipt stays, holding no content, and with the
+  // guard gone it is an ordinary ledger row again.
+  const { rows: [op] } = await db.query(`select status, result from public.operations where operation_id = $1`, [PRIVACY_OP]);
+  assert.deepEqual(op, { status: 'succeeded', result: { operationId: PRIVACY_OP, status: 'succeeded', scope: 'journal' } });
+  await db.pg.transaction(async (tx) => {
+    await tx.query(`update public.operations set status = 'failed' where operation_id = $1`, [PRIVACY_OP]);
+    await tx.rollback();
+  });
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.deepEqual(await runAudit(db), audit23);
+});
+
+test('backing out 0024 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0024'));
+  assert.deepEqual(await runAudit(db), audit23);
+});
+
+test('the 0024 back-out drops the trigger before the function it runs, as the migration file does', () => {
+  const statements = docBlock('backout-0024').split(';').map((part) => part.trim()).filter(Boolean);
+  const at = (needle) => statements.findIndex((statement) => statement.includes(needle));
+  assert.ok(at('drop trigger if exists operations_privacy_settled_guard') >= 0);
+  assert.ok(at('drop trigger if exists operations_privacy_settled_guard') < at('drop function if exists public.guard_settled_privacy_operation()'));
+  const fileBlock = migration(24).sql.split('<!-- backout-0024 -->')[1].split('\n')
+    .filter((line) => /^-- drop /.test(line)).map((line) => line.replace(/^-- /, '')).join('\n');
+  assert.equal(fileBlock, docBlock('backout-0024').trim(), 'the migration\'s copy of the block and YOUR_TODO.md\'s agree');
+});
+
+test('after the back-out, 0024 applies again and gives exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(24));
+  assert.deepEqual(await runAudit(db), audit24);
+  // The guard is back on the surviving receipt.
+  await assert.rejects(db.query(`update public.operations set status = 'failed' where operation_id = $1`, [PRIVACY_OP]), /HALO_OPERATION_SETTLED/);
+});
+
+test('the read-only profiles check before 0024 returns no rows, and names a column the reset does not', async () => {
+  const check = docBlock('check-0024-profiles');
+  assert.deepEqual((await db.query(check)).rows, []);
+  const named = await db.pg.transaction(async (tx) => {
+    await tx.exec(`alter table public.profiles add column nickname text`);
+    const { rows } = await tx.query(check);
+    await tx.rollback();
+    return rows;
+  });
+  assert.deepEqual(named, [{ column_name: 'nickname' }]);
+  // It is the same list the migration's own verification column uses.
+  const list = (text) => text.match(/column_name not in \(([^)]*)\)/)[1].replace(/\s+/g, ' ').trim();
+  assert.equal(list(check), list(migration(24).sql.replace(/\n--\s*/g, '\n')));
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.

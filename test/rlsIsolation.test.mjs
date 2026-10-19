@@ -24,6 +24,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDb } from './db/pgliteHarness.mjs';
 import { OWNED_TABLES as ROUTE_HARNESS_OWNED_TABLES } from './helpers/tables.mjs';
+import { OWNED_ROW } from './db/ownedRows.mjs';
 
 /** Household tables: table -> the column holding the owner's auth user id, as its policies compare it. */
 const OWNED_TABLES = {
@@ -124,6 +125,12 @@ const PUBLIC_FUNCTIONS = {
   read_household_actions: 'service_role',         // 0023: My Week's one snapshot
   commit_household_actions: 'service_role',       // 0023: a task command and its ledger settle in one transaction
   guard_settled_action_operation: 'trigger',      // 0023: a settled 'actions' operation keeps its status
+  privacy_schema_version: 'service_role',         // 0024: privacy.status's probe
+  privacy_fingerprint: 'service_role',            // 0024: what a privacy review binds
+  privacy_counts: 'service_role',                 // 0024: what a clear would remove, for inspect's count
+  clear_household_records: 'service_role',        // 0024: a privacy clear and its ledger settle in one transaction
+  purge_privacy_receipts: 'service_role',         // 0024: settled privacy receipts go after 24 hours
+  guard_settled_privacy_operation: 'trigger',     // 0024: a settled 'privacy' operation keeps its status
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -131,90 +138,8 @@ const BOB = 'b0b00000-0000-4000-8000-000000000002';
 const CAROL = 'ca201000-0000-4000-8000-000000000003';
 const DAVE = 'da5e0000-0000-4000-8000-000000000004';
 
-/** A uuid derived from the owner's, so 0020's parent and child rows can be written without passing ids around. */
-const lunaId = (owner, suffix) => `${owner.slice(0, 24)}${'0'.repeat(12 - suffix.length)}${suffix}`;
-
 /** Who inserts "their own" new row: dave for profiles (he has none), carol for the rest (her profile exists). */
 const newcomerFor = (table) => (table === 'profiles' ? DAVE : CAROL);
-
-/** A valid row for each owned table, owned by `owner`; `n` varies unique keys (seeds use 0, attempts use 1). */
-const OWNED_ROW = {
-  profiles: (owner) => ({ id: owner, county: 'Test County' }),
-  daily_scores: (owner, n) => ({ profile_id: owner, date: `2026-09-1${n}`, aqi: 40 }),
-  home_risks: (owner) => ({ profile_id: owner }),
-  household_bands: (owner) => ({ profile_id: owner, has_child: true }),
-  symptom_logs: (owner, n) => ({ profile_id: owner, entry_date: `2026-09-1${n}`, symptoms: ['cough'] }),
-  alerts: (owner, n) => ({ profile_id: owner, type: 'air_quality', title: 'Air', message: 'Test alert', dedupe_key: `test-${n}` }),
-  notification_prefs: (owner) => ({ profile_id: owner }),
-  push_subscriptions: (owner, n) => ({
-    profile_id: owner,
-    endpoint: `https://fcm.googleapis.com/fcm/send/${owner}-${n}`,
-    p256dh: 'test-p256dh',
-    auth: 'test-auth',
-  }),
-  // Seeds are sequence 1 (current); an attempt is sequence 2, closed, so it never meets the one-current index.
-  home_contexts: (owner, n) => ({
-    profile_id: owner,
-    sequence: n + 1,
-    origin: n === 0 ? 'onboard' : 'move',
-    lat: 35.409,
-    lng: -80.58,
-    ...(n === 0 ? {} : { effective_to: '2026-09-15T00:00:00Z', closed_reason: 'moved' }),
-  }),
-  // 0017: operation_id has no default, so every sample supplies its own key.
-  operations: (owner) => ({
-    operation_id: crypto.randomUUID(),
-    profile_id: owner,
-    domain: 'actions',
-    kind: 'actions.commit',
-    status: 'pending',
-  }),
-  // 0020: one conversation per household, its turns ordered by seq, and one
-  // run per turn. The ids are derived from the owner so the child rows can
-  // point at the parent without the seed having to pass ids around, and the
-  // composite foreign keys in 0020 refuse any other pairing.
-  luna_conversations: (owner) => ({ id: lunaId(owner, 'c0de'), profile_id: owner }),
-  luna_turns: (owner, n) => ({
-    id: lunaId(owner, `ab0${n}`),
-    conversation_id: lunaId(owner, 'c0de'),
-    profile_id: owner,
-    seq: n + 1,
-    role: 'user',
-    body: `Test question ${n}`,
-  }),
-  luna_runs: (owner, n) => ({
-    profile_id: owner,
-    conversation_id: lunaId(owner, 'c0de'),
-    turn_id: lunaId(owner, `ab0${n}`),
-    client_message_id: lunaId(owner, `cd0${n}`),
-  }),
-  // 0021: every other column has a default that is already a valid snapshot
-  // value, so the owner is the whole row.
-  profile_preferences: (owner) => ({ profile_id: owner }),
-  // 0022: revision has no default and starts at 2 (1 is the never-saved state,
-  // which has no row), and the five place columns are set together.
-  explore_areas: (owner) => ({
-    profile_id: owner,
-    place_id: 'us-county:37159',
-    place: 'Rowan County',
-    state: 'NC',
-    label: 'Rowan County, NC',
-    timezone: 'America/New_York',
-    revision: 2,
-  }),
-  // 0023: a task key is unique per household, so `n` varies it; a preference
-  // key is one of six, so `n` picks another; the version starts at 1.
-  household_actions: (owner, n) => ({ profile_id: owner, action_key: `test-task-${n}`, title: 'Test task', reason: 'Test', origin: 'test', state: 'saved' }),
-  household_action_preferences: (owner, n) => ({ profile_id: owner, pref_key: n === 0 ? 'week:focus' : 'food-interests', value: n === 0 ? '"Test focus"' : '["fish"]' }),
-  household_action_state: (owner) => ({ profile_id: owner, version: 1 }),
-  // 0018: hashes only, and the columns accept nothing but 64 hex characters.
-  recovery_challenges: (owner, n) => ({
-    profile_id: owner,
-    email_hash: `${n}`.repeat(1).padEnd(64, 'a'),
-    nonce_hash: `${n}`.repeat(1).padEnd(64, 'b'),
-    expires_at: '2026-10-18T00:00:00Z',
-  }),
-};
 
 /** A valid row for each reference table; `n` varies the key (seeds use 0, attempts use 1). */
 const REFERENCE_ROW = {
