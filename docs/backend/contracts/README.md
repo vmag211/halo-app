@@ -19,7 +19,7 @@ Several schema constraints describe this release, not the operations for all tim
 
 A 200 refusal's `message` is fixed per reason, and an `invalid_result` refusal carries the client's own sentence. The ledger stores a code (`check`, Ruling H33), which `operations.read` replays. The tasks capability is off by default, so `actions.load` and a succeeded `actions` reconcile answer the non-retryable 503 while it is off, and a save answers a 200 `failed` receipt with the disabled reason and no ledger row (Ruling H17).
 
-Run `node --test test/contractsB06.test.mjs`. Migration 0023 is applied nowhere, and the flag is on in no environment. Nothing here has run against a real Supabase project.
+Run `node --test test/contractsB06.test.mjs`. Migration 0023 was applied to production on 2026-10-19, and the flag is on in no environment. Nothing here has run against a real Supabase project.
 
 ## B04 settings and alerts contract
 
@@ -31,7 +31,7 @@ Run `node --test test/contractsB06.test.mjs`. Migration 0023 is applied nowhere,
 
 Each mutation's `409` lists every reason its handler emits. For settings, these are `stale_revision` (with the current revision), `home_changed`, `operation_mismatch`, and, on a replay, `operation_failed` and `operation_abandoned`. For alerts, they are `stale_selection`, `operation_mismatch`, `operation_failed`, `operation_abandoned` and `operation_cancelled`. A settings save whose ledger row the reaper settled before `save_settings` ran answers the first call with `200 {operationId, status:'failed'}`, so the client says "The save was not applied. Your draft is still here." and keeps the draft. Only a replay of that id is the `409`. `unresolvedOperations` is a lock, not a log (Ruling S1). Before 0021, settings and `alerts.update` answer a non-retryable `503`, while `alerts.read` keeps its legacy keys and never answers `503` (Ruling S10).
 
-Run `node --test test/contractsB04.test.mjs`. Migration 0021 is applied nowhere, so nothing here has run against a real Supabase project. Fixtures were captured from the real handlers on the isolated harness, with synthetic ids and the request id `b04-contract-0001`.
+Run `node --test test/contractsB04.test.mjs`. Migration 0021 was applied to production on 2026-10-19, but nothing here has run against a real Supabase project. Fixtures were captured from the real handlers on the isolated harness, with synthetic ids and the request id `b04-contract-0001`.
 
 ## B05 discovery contract
 
@@ -63,7 +63,7 @@ Rules the frontend enforces that JSON Schema cannot express are listed in the sc
 
 Fixtures use reserved `example.test` hosts and obviously synthetic ids, and a test scans every one of them for secrets, tokens, bearer headers, provider names, street addresses and em dashes. No fixture is evidence about a real source.
 
-Run `node --test test/contractsB03.test.mjs`. The capability flag is off in every environment and migration 0020 is applied nowhere, so nothing in this contract has run against a real model or a real Supabase project.
+Run `node --test test/contractsB03.test.mjs`. The capability flag is off in every environment (migration 0020 was applied to production on 2026-10-19), so nothing in this contract has run against a real model or a real Supabase project.
 
 ## B01 executable API contract
 
