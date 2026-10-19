@@ -79,7 +79,8 @@
 --
 --   public.record_daily_maxima(p_rows jsonb) returns jsonb
 --     Writes 1 to 1000 rows in one transaction and returns
---       {"inserted": n, "updated": n, "kept": n, "skipped": n}
+--       {"inserted": n, "updated": n, "kept": n, "skipped": n,
+--        "refused": n, "refusedRules": {"<rule>": n, ...}}
 --     Each element of p_rows is an object with exactly these keys (the ones
 --     marked ? may be null or absent, the rest are required):
 --       profile_id, home_context_id (uuid strings), local_date ('YYYY-MM-DD'),
@@ -87,6 +88,13 @@
 --       time_zone, hours_expected, hours_observed (integers), missing_code?,
 --       retrieved_at (a timestamp string)
 --     Per row, in this order:
+--       refused   the row would break one of the table's CHECKs (tested in
+--                 the parse step, before anything is written), or, once its
+--                 household is locked, it names a source other than the one
+--                 its home already records for that factor and method
+--                 version (E8). It is not written, and the rest of the batch
+--                 is. refusedRules counts the rule each refused row broke
+--                 (the first, in the order below), by name only
 --       skipped   the household or its home context no longer exists (deleted
 --                 while the run was working), so the row is not written and
 --                 the rest of the batch is
@@ -94,21 +102,41 @@
 --       updated   the stored row was 'pending'
 --       kept      the stored row is final (a value, 'source_gap' or
 --                 'unavailable'), and is left exactly as it was
---     Every refusal below, and any CHECK violation, writes nothing of the
---     batch.
+--     A refused or skipped row writes nothing at all, so one bad row costs
+--     only its own day (B08 Task 1 review, finding 1). Every refusal below
+--     raises instead and writes nothing of the batch.
+--     The rules, one per CHECK on public.daily_maxima (the CHECK stays as the
+--     backstop), then the source rule:
+--       factor               daily_maxima_factor_check
+--       unit_matches_factor  daily_maxima_unit_check
+--       value_or_missing     daily_maxima_value_missing_check
+--       value_range          daily_maxima_value_range_check
+--       air_integer          daily_maxima_air_integer_check
+--       missing_code         daily_maxima_missing_code_check
+--       source_pairs_factor  daily_maxima_source_check
+--       value_needs_source   daily_maxima_value_source_check
+--       station_code         daily_maxima_station_check
+--       hours_expected       daily_maxima_hours_expected_check
+--       hours_observed       daily_maxima_hours_observed_check
+--       hours_coverage       daily_maxima_coverage_check
+--       method_version       daily_maxima_method_version_check
+--       time_zone            daily_maxima_time_zone_check
+--       source_kind_fixed    a second source for one home, factor and method
+--                            version (E8; Vibhav 2026-10-19, never mixed)
 --
 --   public.finish_daily_maxima_run(p_counts jsonb) returns timestamptz
 --     Records the run's time and counts on the recorder's row and returns the
 --     time. p_counts is an object of at most 32 keys whose values are
---     non-negative integers: counts only, never a coordinate, an id or
---     provider text.
+--     non-negative integers, and it must hold "skipped" and "refused" (the
+--     run's totals of the two): counts only, never a coordinate, an id,
+--     provider text or a rule name.
 --
 --   public.guard_final_daily_maximum() returns trigger
 --     The trigger function of daily_maxima_final_guard. Not callable.
 --
--- Refusals are SQLSTATE P0001 with exactly this message. DETAIL names the
--- argument or the rule, never a row value or an id (0021 review finding B),
--- read by a helper modelled on haloRefusal (lib/homeContextRpc.js):
+-- Refusals are SQLSTATE P0001 with exactly this message, read by a helper
+-- modelled on haloRefusal (lib/homeContextRpc.js). DETAIL names the argument
+-- or the rule, never a row value or an id (0021 review finding B):
 --   HALO_INVALID_INPUT        a null or malformed argument: p_rows not an
 --                             array of 1 to 1000 objects, an unknown or a
 --                             missing key, a value of the wrong type, a date
@@ -117,19 +145,33 @@
 --                             naming another household's home context
 --   HALO_BEFORE_RECORDING     a row dated before recording_from, or any row
 --                             before the first run has begun (E9)
---   HALO_SOURCE_KIND_FIXED    a row whose source differs from the one this
---                             home, factor and method version already have (E8)
 --   HALO_RECORDING_NOT_BEGUN  finish_daily_maxima_run before any begin
 --   HALO_DAILY_MAXIMUM_FINAL  the trigger: a row that is not pending may not
 --                             be updated (E4)
--- A CHECK violation (23514) or a foreign key violation (23503) is Postgres's
--- own error, and it too leaves nothing of the batch written.
+-- record_daily_maxima never reaches a CHECK, foreign key, not-null or unique
+-- violation of its own: every CHECK is tested first and the row refused, the
+-- household and home are locked before the write (or the row skipped), every
+-- not-null column is a required key, and the insert is ON CONFLICT DO
+-- NOTHING. So nothing it raises carries Postgres's own DETAIL, whose
+-- "Failing row contains (...)" would name the profile, the home and the
+-- values. A direct write to the table by some other service-role statement
+-- still meets the CHECKs as Postgres's own 23514, DETAIL included.
 --
--- Locks taken by record_daily_maxima, per row: FOR KEY SHARE on the profile,
--- then on the home context, then the row's own insert or update. The profile
--- comes first, as every writer of a household takes it, so a privacy clear
--- (0024), which holds the profile FOR UPDATE and deletes the home context,
--- makes the row wait and then skip it rather than deadlock with it.
+-- Locks taken by record_daily_maxima. First, before it reads anything, the
+-- transaction-scoped advisory lock pg_advisory_xact_lock(800250): the key
+-- is this table's own constant (B08, migration 0025), taken by nothing else
+-- in HALO, and only by this function. It serializes recorder batches: a
+-- second batch (a cron retry, a manual run during the cron) waits for the
+-- first to commit, then sees its rows, so two batches can neither deadlock
+-- on maxima rows taken in opposite orders nor each record a different
+-- source for one home (B08 Task 1 review, finding 3). Being transaction
+-- scoped, it is released at the batch's commit or rollback, and is safe
+-- through Supabase's transaction pooler. Then, per row: FOR KEY SHARE on the
+-- profile, then on the home context, then the row's own insert or update.
+-- The profile comes first, as every writer of a household takes it, so a
+-- privacy clear (0024), which holds the profile FOR UPDATE and deletes the
+-- home context, makes the row wait and then skip it rather than deadlock
+-- with it. No other writer takes the advisory lock, so it adds no cycle.
 --
 -- ---------------------------------------------------------------------------
 -- DELETION (E23)
@@ -145,7 +187,11 @@
 -- Degrades cleanly: until this is applied, the recorder and GET /api/evidence
 -- answer a non-retryable 503 feature_unavailable from the probe (E19, a
 -- missing function is PGRST202 or 42883, a missing table PGRST205 or 42P01).
--- Nothing else reads these tables.
+-- Nothing else reads these tables. A refused row is not an outage: the
+-- batch still commits the rest, the row's day stays without a value, and the
+-- recorder reports only refused and refusedRules (counts by rule name, never
+-- a row). A recorder batch waiting on another's advisory lock waits at most
+-- for that one batch.
 --
 -- Retention: decided by Vibhav on 2026-10-19. Daily maxima are kept until
 -- deleted: the person clears their data (0024's clear all) or deletes the
@@ -160,6 +206,13 @@
 -- location_approximate. The service role is the only reader. Row level
 -- security is on with no policy at all and the default privileges are
 -- revoked, so not even the owner can read the rows with their own session.
+-- Errors: no error the five functions raise carries an id or a row value.
+-- Their refusals name the argument or the rule, and record_daily_maxima
+-- tests every CHECK before writing, so its ordinary input never meets
+-- Postgres's own constraint DETAIL (see the refusals above). Its result
+-- names refused rules only by rule name and count. A write to the table
+-- outside these functions is the one way left to meet a CHECK's own DETAIL,
+-- and only the service role can write.
 
 -- ---------------------------------------------------------------------------
 -- 1. Refuse to apply on a lagging schema
@@ -368,6 +421,8 @@ grant execute on function public.begin_daily_maxima_run(date) to service_role;
 -- ---------------------------------------------------------------------------
 -- Every row is parsed and checked before anything is written, so a malformed
 -- row, a duplicate or a date before recording_from refuses the batch whole.
+-- A well-formed row that would break a CHECK, or change its home's source,
+-- is refused alone and counted; the rest of the batch is written.
 
 create or replace function public.record_daily_maxima(p_rows jsonb)
 returns jsonb
@@ -390,15 +445,24 @@ declare
   ];
   integers constant text[] := array['hours_expected', 'hours_observed'];
   parsed   public.daily_maxima[] := '{}';
+  writable public.daily_maxima[] := '{}';
   item     jsonb;
   r        public.daily_maxima;
+  rule     text;
   started  date;
   context_owner uuid;
   inserted int := 0;
   updated  int := 0;
   kept     int := 0;
   skipped  int := 0;
+  refused  int := 0;
+  rules    jsonb := '{}';
 begin
+  -- Recorder batches run one at a time (800250: see Locks in the header).
+  -- First, before anything is read, so a waiting batch sees the rows of the
+  -- batch it waited for.
+  perform pg_advisory_xact_lock(800250);
+
   if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
     raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_rows must be a json array';
   end if;
@@ -445,12 +509,48 @@ begin
       r.missing_code    := item ->> 'missing_code';
       r.retrieved_at    := (item ->> 'retrieved_at')::timestamptz;
     exception
-      when invalid_text_representation or invalid_datetime_format or datetime_field_overflow
-        or numeric_value_out_of_range then
+      -- Every data exception (class 22), so no cast error's own message,
+      -- which can quote the value, ever leaves the function.
+      when data_exception then
         raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
           detail = 'a row has a value that is not of its column''s type';
     end;
     parsed := parsed || r;
+
+    -- Each CHECK on the table, tested here with the CHECK's own expression,
+    -- in the table's order, so the insert below never meets one. A CHECK
+    -- refuses only a false result, never a null one, hence coalesce(.., true).
+    rule := case
+      when not coalesce(r.factor in ('air', 'uv'), true) then 'factor'
+      when not coalesce((r.factor = 'air' and r.unit = 'AQI') or (r.factor = 'uv' and r.unit = 'UV index'), true)
+        then 'unit_matches_factor'
+      when not coalesce((r.value is null) = (r.missing_code is not null), true) then 'value_or_missing'
+      when not coalesce(r.value is null or (r.value >= 0 and r.value < 'Infinity'::double precision), true)
+        then 'value_range'
+      when not coalesce(r.factor <> 'air' or r.value is null or r.value = trunc(r.value), true) then 'air_integer'
+      when not coalesce(r.missing_code is null or r.missing_code in ('pending', 'source_gap', 'unavailable'), true)
+        then 'missing_code'
+      when not coalesce(r.source_code is null
+          or (r.factor = 'air' and r.source_code in ('airnow_station', 'open_meteo_cams'))
+          or (r.factor = 'uv' and r.source_code = 'open_meteo_forecast'), true) then 'source_pairs_factor'
+      when not coalesce(r.value is null or r.source_code is not null, true) then 'value_needs_source'
+      when not coalesce((r.source_code = 'airnow_station' and r.station_id is not null
+                         and r.station_id ~ '^[0-9A-Za-z-]{1,32}$')
+          or (r.source_code is distinct from 'airnow_station' and r.station_id is null), true) then 'station_code'
+      when not coalesce(r.hours_expected between 23 and 25, true) then 'hours_expected'
+      when not coalesce(r.hours_observed between 0 and r.hours_expected, true) then 'hours_observed'
+      when not coalesce(r.value is null or r.hours_observed >= ceil(0.75 * r.hours_expected), true)
+        then 'hours_coverage'
+      when not coalesce(btrim(r.method_version) <> '' and char_length(r.method_version) <= 64, true)
+        then 'method_version'
+      when not coalesce(r.time_zone = 'America/New_York', true) then 'time_zone'
+    end;
+    if rule is null then
+      writable := writable || r;
+    else
+      refused := refused + 1;
+      rules := jsonb_set(rules, array[rule], to_jsonb(coalesce((rules ->> rule)::int, 0) + 1));
+    end if;
   end loop;
 
   -- 2. One row per home, date and factor in a batch.
@@ -467,8 +567,8 @@ begin
     raise exception 'HALO_BEFORE_RECORDING' using errcode = 'P0001', detail = 'a row is dated before recording_from';
   end if;
 
-  -- 4. Write, row by row.
-  foreach r in array parsed loop
+  -- 4. Write, row by row, every row that passed the CHECKs.
+  foreach r in array writable loop
     -- The profile first, as every writer of a household takes it, then the
     -- home. A household or home deleted while the run worked is skipped.
     perform 1 from public.profiles p where p.id = r.profile_id for key share;
@@ -486,15 +586,17 @@ begin
         detail = 'a row names a home context of another household';
     end if;
 
-    -- One source per home, factor and method version (E8).
+    -- One source per home, factor and method version (E8): a row naming
+    -- another is refused alone, and writes nothing.
     if r.source_code is not null and exists (
       select 1 from public.daily_maxima d
        where d.home_context_id = r.home_context_id and d.factor = r.factor
          and d.method_version = r.method_version
          and d.source_code is not null and d.source_code <> r.source_code
     ) then
-      raise exception 'HALO_SOURCE_KIND_FIXED' using errcode = 'P0001',
-        detail = 'this home already records this factor from another source';
+      refused := refused + 1;
+      rules := jsonb_set(rules, array['source_kind_fixed'], to_jsonb(coalesce((rules ->> 'source_kind_fixed')::int, 0) + 1));
+      continue;
     end if;
 
     insert into public.daily_maxima (
@@ -525,7 +627,8 @@ begin
     end if;
   end loop;
 
-  return jsonb_build_object('inserted', inserted, 'updated', updated, 'kept', kept, 'skipped', skipped);
+  return jsonb_build_object('inserted', inserted, 'updated', updated, 'kept', kept, 'skipped', skipped,
+                            'refused', refused, 'refusedRules', rules);
 end;
 $$;
 
@@ -558,6 +661,12 @@ begin
                            or (c.value #>> '{}')::numeric <> trunc((c.value #>> '{}')::numeric) end) then
     raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
       detail = 'p_counts must map short names to non-negative integers';
+  end if;
+  -- The rows the run did not write, side by side: skipped (deleted while it
+  -- worked) and refused (a broken rule). Counts only, never the rule names.
+  if not (p_counts ? 'skipped' and p_counts ? 'refused') then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+      detail = 'p_counts must hold skipped and refused';
   end if;
   update public.daily_maxima_recorder d
      set last_run_at = finished, last_run = p_counts

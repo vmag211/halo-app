@@ -849,7 +849,7 @@ test('0025 applies on top of 0024 and adds exactly its two tables, index, five f
   const present = await objects0025();
   assert.deepEqual(present, all(present, true));
   // Something to lose: one recorded day at alice's home.
-  assert.deepEqual(await recordAliceDay(db, '2026-10-20'), { inserted: 1, updated: 0, kept: 0, skipped: 0 });
+  assert.deepEqual(await recordAliceDay(db, '2026-10-20'), { inserted: 1, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
   // With 0025 in place, clear all counts the maxima and removes them.
   const { counts, out } = await aliceClearAll();
   assert.equal(Number(counts.daily_maxima), 1);
@@ -896,7 +896,7 @@ test('after the back-out, 0025 applies again and gives exactly the schema one pa
     assert.deepEqual((await db.query(`select count(*)::int as n from public.${table}`)).rows, [{ n: 0 }], table);
   }
   // The guard is back: a recorded value cannot be rewritten.
-  assert.deepEqual(await recordAliceDay(db, '2026-10-22'), { inserted: 1, updated: 0, kept: 0, skipped: 0 });
+  assert.deepEqual(await recordAliceDay(db, '2026-10-22'), { inserted: 1, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
   await assert.rejects(db.query(`update public.daily_maxima set value = 1 where profile_id = $1`, [ALICE]), /HALO_DAILY_MAXIMUM_FINAL/);
 });
 

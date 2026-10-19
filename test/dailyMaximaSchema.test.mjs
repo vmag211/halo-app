@@ -13,6 +13,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDb, listMigrations, runAudit } from './db/pgliteHarness.mjs';
+import { clearActionFor } from '../lib/privacyInventory.js';
 
 const MIGRATION = listMigrations().find((migration) => migration.number === 25);
 const PRIVACY = listMigrations().find((migration) => migration.number === 24);
@@ -22,6 +23,8 @@ const BOB = 'b0b00000-0000-4000-8000-000000000002';
 const ALICE_HOME = 'a11ce000-0000-4000-8000-00000000c001';
 const ALICE_OLD_HOME = 'a11ce000-0000-4000-8000-00000000c002';
 const BOB_HOME = 'b0b00000-0000-4000-8000-00000000c001';
+const CAROL = 'ca201000-0000-4000-8000-000000000003';
+const CAROL_HOME = 'ca201000-0000-4000-8000-00000000c001';
 const CLEAR_OP = '00000000-0000-4000-8000-0000000b0801';
 const RECORDING_FROM = '2026-10-20';
 
@@ -53,14 +56,20 @@ const pending = (overrides = {}) => row({ value: null, missing_code: 'pending', 
 let db;
 /** Every DETAIL a refusal carried, checked at the end for row content. */
 const details = [];
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+/** Every text an error carries: message, detail, hint, context and the rest. */
+const errorText = (error) => [String(error), ...Object.values(error).filter((v) => typeof v === 'string')].join('\n');
+/** Every error record_daily_maxima raised in this file, checked at the end for an id. */
+const recorderErrors = [];
 
 before(async () => {
   db = await createDb();
-  await db.exec(`insert into auth.users (id, is_anonymous) values ('${ALICE}', true), ('${BOB}', true)`);
+  await db.exec(`insert into auth.users (id, is_anonymous) values ('${ALICE}', true), ('${BOB}', true), ('${CAROL}', true)`);
   await db.exec(`
     insert into public.home_contexts (id, profile_id, sequence, origin, lat, lng, effective_from) values
       ('${ALICE_HOME}', '${ALICE}', 1, 'onboard', 35.409, -80.58, '2026-10-01T12:00:00Z'),
-      ('${BOB_HOME}', '${BOB}', 1, 'onboard', 35.227, -80.843, '2026-10-01T12:00:00Z');`);
+      ('${BOB_HOME}', '${BOB}', 1, 'onboard', 35.227, -80.843, '2026-10-01T12:00:00Z'),
+      ('${CAROL_HOME}', '${CAROL}', 1, 'onboard', 35.6, -80.5, '2026-10-01T12:00:00Z');`);
 });
 
 after(async () => {
@@ -101,7 +110,11 @@ async function refusal(tx, sql, params) {
 const RECORD = `select public.record_daily_maxima($1::jsonb) as out`;
 const record = async (tx, rows) => (await tx.query(RECORD, [JSON.stringify(rows)])).rows[0].out;
 /** `rows` as a value, or as raw JSON text when it is a string (for numbers JavaScript cannot hold). */
-const recordRefusal = (tx, rows) => refusal(tx, RECORD, [rows === null || typeof rows === 'string' ? rows : JSON.stringify(rows)]);
+const recordRefusal = async (tx, rows) => {
+  const error = await refusal(tx, RECORD, [rows === null || typeof rows === 'string' ? rows : JSON.stringify(rows)]);
+  recorderErrors.push(error);
+  return error;
+};
 
 const INSERT = `insert into public.daily_maxima (profile_id, home_context_id, local_date, factor, value, unit, source_code,
   station_id, method_version, time_zone, hours_expected, hours_observed, missing_code, retrieved_at)
@@ -202,7 +215,7 @@ test('the service role executes all four called functions', async () => {
   await scenario(async (tx) => {
     assert.deepEqual((await tx.query(`select public.daily_maxima_schema_version() as v`)).rows, [{ v: 1 }]);
     assert.equal(typeof (await record(tx, [row()])).inserted, 'number');
-    assert.ok((await tx.query(`select public.finish_daily_maxima_run('{"rows": 1}'::jsonb) as t`)).rows[0].t);
+    assert.ok((await tx.query(`select public.finish_daily_maxima_run('{"rows": 1, "skipped": 0, "refused": 0}'::jsonb) as t`)).rows[0].t);
   });
 });
 
@@ -298,8 +311,7 @@ test('every CHECK on the table is exercised above, so none can be dropped unnoti
   assert.deepEqual(rows.map((r) => r.conname), [...new Set(REFUSED.map(([, , name]) => name))].sort());
 });
 
-test('the edges the CHECKs must accept are accepted', async () => {
-  const accepted = [
+const ACCEPTED = [
     ['18 of 24 hours', row({ local_date: '2026-10-21', hours_observed: 18 })],
     ['18 of 23 hours (spring forward)', row({ local_date: '2027-03-14', hours_expected: 23, hours_observed: 18 })],
     ['19 of 25 hours (fall back)', row({ local_date: '2026-11-01', hours_expected: 25, hours_observed: 19 })],
@@ -309,9 +321,14 @@ test('the edges the CHECKs must accept are accepted', async () => {
     ['a pending row with no source yet', pending({ local_date: '2026-10-23', source_code: null, hours_observed: 0 })],
     ['a source gap at a measured home', measured({ home_context_id: BOB_HOME, profile_id: BOB, local_date: '2026-10-22', value: null, missing_code: 'source_gap', hours_observed: 10 })],
     ['unavailable with no source', uv({ local_date: '2026-10-23', value: null, source_code: null, missing_code: 'unavailable', hours_observed: 0 })],
-  ];
+    ['every hour observed', uv({ local_date: '2026-10-24', hours_observed: 24 })],
+    ['a 32-character station code', measured({ home_context_id: BOB_HOME, profile_id: BOB, local_date: '2026-10-24', station_id: 'A-'.repeat(16) })],
+    ['a 64-character method version', row({ local_date: '2026-10-24', method_version: 'v'.repeat(64) })],
+];
+
+test('the edges the CHECKs must accept are accepted', async () => {
   await scenario(async (tx) => {
-    for (const [label, candidate] of accepted) {
+    for (const [label, candidate] of ACCEPTED) {
       const outcome = await insertDirect(tx, candidate);
       assert.equal(outcome.ok, true, `${label}: ${outcome.error?.message}`);
     }
@@ -400,15 +417,15 @@ test('begin_daily_maxima_run sets recording_from once: a second call keeps the f
 
 test('record: inserts, updates a pending row, and keeps a valued or final row exactly as it was', async () => {
   await scenario(async (tx) => {
-    assert.deepEqual(await record(tx, [pending(), uv({ value: null, missing_code: 'pending', hours_observed: 12 })]), { inserted: 2, updated: 0, kept: 0, skipped: 0 });
+    assert.deepEqual(await record(tx, [pending(), uv({ value: null, missing_code: 'pending', hours_observed: 12 })]), { inserted: 2, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
     // The second run: Air completes, UV is still short.
-    assert.deepEqual(await record(tx, [row({ hours_observed: 23 }), uv({ value: null, missing_code: 'pending', hours_observed: 16 })]), { inserted: 0, updated: 2, kept: 0, skipped: 0 });
+    assert.deepEqual(await record(tx, [row({ hours_observed: 23 }), uv({ value: null, missing_code: 'pending', hours_observed: 16 })]), { inserted: 0, updated: 2, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
     // The third run: UV is final as a gap.
-    assert.deepEqual(await record(tx, [uv({ value: null, missing_code: 'source_gap', hours_observed: 17 })]), { inserted: 0, updated: 1, kept: 0, skipped: 0 });
+    assert.deepEqual(await record(tx, [uv({ value: null, missing_code: 'source_gap', hours_observed: 17 })]), { inserted: 0, updated: 1, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
     const settled = await stored(tx);
     // A later run with other numbers changes nothing: both rows are final.
-    assert.deepEqual(await record(tx, [row({ value: 99 }), uv({ value: 9.9 })]), { inserted: 0, updated: 0, kept: 2, skipped: 0 });
-    assert.deepEqual(await record(tx, [pending()]), { inserted: 0, updated: 0, kept: 1, skipped: 0 });
+    assert.deepEqual(await record(tx, [row({ value: 99 }), uv({ value: 9.9 })]), { inserted: 0, updated: 0, kept: 2, skipped: 0, refused: 0, refusedRules: {} });
+    assert.deepEqual(await record(tx, [pending()]), { inserted: 0, updated: 0, kept: 1, skipped: 0, refused: 0, refusedRules: {} });
     assert.deepEqual(await stored(tx), settled);
     assert.deepEqual(settled.map(({ factor, value, missing_code, hours_observed }) => ({ factor, value, missing_code, hours_observed })), [
       { factor: 'air', value: 42, missing_code: null, hours_observed: 23 },
@@ -448,7 +465,7 @@ test('a row before recording_from raises HALO_BEFORE_RECORDING, and nothing of t
 test('before any run has begun, every row raises HALO_BEFORE_RECORDING and finishing raises HALO_RECORDING_NOT_BEGUN', async () => {
   await scenario(async (tx) => {
     assert.equal((await recordRefusal(tx, [row()])).message, 'HALO_BEFORE_RECORDING');
-    assert.equal((await refusal(tx, `select public.finish_daily_maxima_run('{"rows": 0}'::jsonb)`)).message, 'HALO_RECORDING_NOT_BEGUN');
+    assert.equal((await refusal(tx, `select public.finish_daily_maxima_run('{"rows": 0, "skipped": 0, "refused": 0}'::jsonb)`)).message, 'HALO_RECORDING_NOT_BEGUN');
     assert.equal(await countOf(tx), 0);
   }, { begin: false });
 });
@@ -478,6 +495,7 @@ test('a malformed batch is HALO_INVALID_INPUT with nothing written', async () =>
     ['a date with a time', [row({ local_date: '2026-10-21T00:00:00Z' })]],
     ['an id that is not a uuid', [row({ profile_id: 'alice' })]],
     ['a retrieval time that is not a time', [row({ retrieved_at: 'yesterday at noon' })]],
+    ['a retrieval time in a zone that does not exist', [row({ retrieved_at: '2026-10-22 12:00:00 Nowhere/Rockwell' })]],
     ['the same home, date and factor twice', [row(), row({ value: 43 })]],
     ['a home of another household', [row(), row({ home_context_id: BOB_HOME, local_date: '2026-10-22' })]],
   ];
@@ -491,12 +509,108 @@ test('a malformed batch is HALO_INVALID_INPUT with nothing written', async () =>
   });
 });
 
-test('a CHECK violation inside a batch is Postgres\'s 23514, and nothing of the batch lands', async () => {
+// ---------------------------------------------------------------------------
+// A bad row is refused alone (B08 Task 1 review, findings 1 and 2)
+// ---------------------------------------------------------------------------
+
+
+/** A record call expected to succeed. Any error it raises is kept for the id check, then rethrown. */
+async function recordContained(tx, rows) {
+  const outcome = await attempt(tx, RECORD, [JSON.stringify(rows)]);
+  if (!outcome.ok) {
+    recorderErrors.push(outcome.error);
+    assert.fail(`the batch was refused whole: ${outcome.error.code} ${outcome.error.message}`);
+  }
+  const out = outcome.rows[0].out;
+  assert.doesNotMatch(JSON.stringify(out), UUID, 'the result names no id');
+  return out;
+}
+const tally = (counts) => ({ inserted: 0, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {}, ...counts });
+
+/** Each CHECK's rule name in record_daily_maxima (the 0025 header lists the same pairs). */
+const RULE_OF = {
+  daily_maxima_factor_check: 'factor',
+  daily_maxima_unit_check: 'unit_matches_factor',
+  daily_maxima_value_missing_check: 'value_or_missing',
+  daily_maxima_value_range_check: 'value_range',
+  daily_maxima_air_integer_check: 'air_integer',
+  daily_maxima_missing_code_check: 'missing_code',
+  daily_maxima_source_check: 'source_pairs_factor',
+  daily_maxima_value_source_check: 'value_needs_source',
+  daily_maxima_station_check: 'station_code',
+  daily_maxima_hours_expected_check: 'hours_expected',
+  daily_maxima_hours_observed_check: 'hours_observed',
+  daily_maxima_coverage_check: 'hours_coverage',
+  daily_maxima_method_version_check: 'method_version',
+  daily_maxima_time_zone_check: 'time_zone',
+};
+
+test('three homes, the middle one an Air value from 10 of 24 hours: the other two are written, the middle refused and counted', async () => {
   await scenario(async (tx) => {
-    const error = await recordRefusal(tx, [row(), uv(), row({ local_date: '2026-10-22', hours_observed: 17 })]);
-    assert.equal(error.code, '23514');
-    assert.match(error.message, /daily_maxima_coverage_check/);
-    assert.equal(await countOf(tx), 0);
+    const out = await recordContained(tx, [
+      row(),
+      measured({ profile_id: CAROL, home_context_id: CAROL_HOME, hours_observed: 10 }),
+      measured({ profile_id: BOB, home_context_id: BOB_HOME }),
+    ]);
+    assert.deepEqual(out, tally({ inserted: 2, refused: 1, refusedRules: { hours_coverage: 1 } }));
+    assert.deepEqual((await stored(tx)).map((r) => r.home_context_id), [ALICE_HOME, BOB_HOME]);
+    const { rows: [{ n }] } = await tx.query(`select count(*)::int as n from public.daily_maxima where home_context_id = $1`, [CAROL_HOME]);
+    assert.equal(n, 0, 'the refused row wrote nothing');
+  });
+});
+
+test('every CHECK is tested before the write: each row the table would refuse is refused alone, by its rule, beside a row that is written', async () => {
+  await scenario(async (tx) => {
+    let at = 0;
+    for (const [label, candidate, constraint] of REFUSED) {
+      // NaN and Infinity cannot be JSON numbers: the recorder refuses them as a string value, whole.
+      if (typeof candidate.value === 'string') continue;
+      at += 1;
+      const companion = uv({ profile_id: BOB, home_context_id: BOB_HOME, local_date: `2026-11-${String(at).padStart(2, '0')}` });
+      const out = await recordContained(tx, [candidate, companion]);
+      assert.deepEqual(out, tally({ inserted: 1, refused: 1, refusedRules: { [RULE_OF[constraint]]: 1 } }), label);
+    }
+    assert.ok(at >= 27);
+    const { rows } = await tx.query(`select count(*)::int as n from public.daily_maxima where home_context_id = $1`, [ALICE_HOME]);
+    assert.equal(rows[0].n, 0, 'no refused row wrote anything');
+    assert.equal(await countOf(tx), at, 'every companion was written');
+  });
+});
+
+test('record accepts every edge the table accepts: no rule refuses more than its CHECK', async () => {
+  await scenario(async (tx) => {
+    const out = await recordContained(tx, ACCEPTED.map(([, candidate]) => candidate));
+    assert.deepEqual(out, tally({ inserted: ACCEPTED.length }));
+  });
+});
+
+test('one rule name per CHECK on the table, each in record_daily_maxima and in the 0025 header, so a new CHECK cannot go untested', async () => {
+  const { rows } = await db.query(`select conname from pg_constraint where conrelid = 'public.daily_maxima'::regclass and contype = 'c' order by 1`);
+  assert.deepEqual(rows.map((r) => r.conname), Object.keys(RULE_OF).sort());
+  assert.equal(new Set(Object.values(RULE_OF)).size, Object.keys(RULE_OF).length, 'two CHECKs share a rule name');
+  const { rows: [{ src }] } = await db.query(`select prosrc as src from pg_proc where oid = 'public.record_daily_maxima(jsonb)'::regprocedure`);
+  for (const [constraint, rule] of Object.entries(RULE_OF)) {
+    assert.ok(src.includes(`then '${rule}'`), `record_daily_maxima does not test ${rule}`);
+    assert.match(MIGRATION.sql, new RegExp(`^--\\s+${rule}\\s+${constraint}$`, 'm'), `the header does not pair ${rule} with ${constraint}`);
+  }
+});
+
+test('a row breaking several CHECKs counts once, under the first rule in the table\'s order', async () => {
+  await scenario(async (tx) => {
+    const out = await recordContained(tx, [row({ factor: 'pollen', unit: 'category', hours_observed: 10, time_zone: 'UTC' }), uv()]);
+    assert.deepEqual(out, tally({ inserted: 1, refused: 1, refusedRules: { factor: 1 } }));
+  });
+});
+
+test('refusals add up per rule within one batch', async () => {
+  await scenario(async (tx) => {
+    const out = await recordContained(tx, [
+      row({ hours_observed: 10 }),
+      uv({ hours_observed: 12 }),
+      row({ local_date: '2026-10-22', value: 42.5 }),
+      measured({ profile_id: BOB, home_context_id: BOB_HOME }),
+    ]);
+    assert.deepEqual(out, tally({ inserted: 1, refused: 3, refusedRules: { hours_coverage: 2, air_integer: 1 } }));
   });
 });
 
@@ -522,7 +636,7 @@ test('a home or household deleted while the run worked is skipped, and the rest 
       row(),
       measured({ profile_id: BOB, home_context_id: BOB_HOME }),
     ]);
-    assert.deepEqual(out, { inserted: 2, updated: 0, kept: 0, skipped: 2 });
+    assert.deepEqual(out, { inserted: 2, updated: 0, kept: 0, skipped: 2, refused: 0, refusedRules: {} });
     assert.deepEqual((await stored(tx)).map((r) => r.home_context_id), [ALICE_HOME, BOB_HOME]);
   });
 });
@@ -531,22 +645,82 @@ test('a home or household deleted while the run worked is skipped, and the rest 
 // One source per home (Ruling E8; Vibhav 2026-10-19)
 // ---------------------------------------------------------------------------
 
-test('a home never mixes measured and modeled Air: a second source is HALO_SOURCE_KIND_FIXED, in a later batch or the same one', async () => {
+test('a home never mixes measured and modeled Air: a second source is refused as source_kind_fixed, in a later batch or the same one', async () => {
   await scenario(async (tx) => {
     await record(tx, [row({ local_date: '2026-10-21' })]);
-    const later = await recordRefusal(tx, [measured({ local_date: '2026-10-22' })]);
-    assert.equal(later.message, 'HALO_SOURCE_KIND_FIXED');
+    const later = await recordContained(tx, [measured({ local_date: '2026-10-22' })]);
+    assert.deepEqual(later, tally({ refused: 1, refusedRules: { source_kind_fixed: 1 } }));
     // A measured home's gap is a gap, never a modeled fallback (E8).
     await record(tx, [measured({ profile_id: BOB, home_context_id: BOB_HOME, local_date: '2026-10-21' })]);
-    const fallback = await recordRefusal(tx, [row({ profile_id: BOB, home_context_id: BOB_HOME, local_date: '2026-10-22' })]);
-    assert.equal(fallback.message, 'HALO_SOURCE_KIND_FIXED');
-    assert.equal(await countOf(tx), 2);
+    const fallback = await recordContained(tx, [row({ profile_id: BOB, home_context_id: BOB_HOME, local_date: '2026-10-22' })]);
+    assert.deepEqual(fallback, tally({ refused: 1, refusedRules: { source_kind_fixed: 1 } }));
+    assert.deepEqual((await stored(tx)).map((r) => [r.home_context_id, r.local_date, r.source_code]), [
+      [ALICE_HOME, '2026-10-21', 'open_meteo_cams'],
+      [BOB_HOME, '2026-10-21', 'airnow_station'],
+    ], 'the refused rows wrote nothing');
   });
   await scenario(async (tx) => {
-    const same = await recordRefusal(tx, [row({ local_date: '2026-10-21' }), measured({ local_date: '2026-10-22' })]);
-    assert.equal(same.message, 'HALO_SOURCE_KIND_FIXED');
-    assert.equal(await countOf(tx), 0, 'nothing of the batch lands');
+    const same = await recordContained(tx, [row({ local_date: '2026-10-21' }), measured({ local_date: '2026-10-22' })]);
+    assert.deepEqual(same, tally({ inserted: 1, refused: 1, refusedRules: { source_kind_fixed: 1 } }));
+    assert.deepEqual((await stored(tx)).map((r) => r.source_code), ['open_meteo_cams'], 'the first source stands, the second wrote nothing');
   });
+});
+
+test('a source change at one home is refused, and the other homes\' rows in the batch are written', async () => {
+  await scenario(async (tx) => {
+    await record(tx, [measured({ profile_id: BOB, home_context_id: BOB_HOME, local_date: '2026-10-21' })]);
+    const out = await recordContained(tx, [
+      row({ local_date: '2026-10-22' }),
+      row({ profile_id: BOB, home_context_id: BOB_HOME, local_date: '2026-10-22' }),
+      measured({ profile_id: CAROL, home_context_id: CAROL_HOME, local_date: '2026-10-22' }),
+    ]);
+    assert.deepEqual(out, tally({ inserted: 2, refused: 1, refusedRules: { source_kind_fixed: 1 } }));
+    assert.deepEqual((await stored(tx)).map((r) => [r.home_context_id, r.local_date, r.source_code]), [
+      [ALICE_HOME, '2026-10-22', 'open_meteo_cams'],
+      [BOB_HOME, '2026-10-21', 'airnow_station'],
+      [CAROL_HOME, '2026-10-22', 'airnow_station'],
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Recorder batches run one at a time (B08 Task 1 review, finding 3)
+// ---------------------------------------------------------------------------
+
+const RECORDER_LOCK = 800250;
+const advisoryLocks = async (tx) => (await tx.query(
+  `select classid, objid, objsubid, mode, granted from pg_locks
+    where locktype = 'advisory' and pid = pg_backend_pid() order by objid`,
+)).rows;
+
+test('record takes the recorder\'s advisory lock, exclusive and held to the end of the batch\'s transaction', async () => {
+  // PGlite has one connection, so a second session cannot be started. The
+  // lock is shown held instead: an ExclusiveLock on key 800250 (classid 0,
+  // objid 800250, objsubid 1 is how Postgres shows a one-bigint key), still
+  // held after the call returns, which is what makes a second session's
+  // pg_advisory_xact_lock(800250), in the next batch's record_daily_maxima,
+  // wait until this batch commits or rolls back.
+  await scenario(async (tx) => {
+    assert.deepEqual(await advisoryLocks(tx), [], 'no advisory lock before the call');
+    await record(tx, [row()]);
+    assert.deepEqual(await advisoryLocks(tx), [{ classid: 0, objid: RECORDER_LOCK, objsubid: 1, mode: 'ExclusiveLock', granted: true }]);
+    await record(tx, [uv()]);
+    assert.equal((await advisoryLocks(tx)).length, 1, 'a second batch in the same transaction re-enters the one lock');
+  });
+  assert.deepEqual((await db.query(`select count(*)::int as n from pg_locks where locktype = 'advisory'`)).rows, [{ n: 0 }], 'released with the transaction');
+});
+
+test('the advisory lock is the first thing record does, before it reads the recorder or any maxima row', async () => {
+  const { rows: [{ src }] } = await db.query(`select prosrc as src from pg_proc where oid = 'public.record_daily_maxima(jsonb)'::regprocedure`);
+  const lock = src.indexOf(`perform pg_advisory_xact_lock(${RECORDER_LOCK});`);
+  assert.ok(lock >= 0, 'record_daily_maxima does not take the recorder lock');
+  const begin = src.search(/^begin$/m);
+  const firstStatement = src.slice(begin + 'begin'.length).search(/^\s*[a-z]/m) + begin + 'begin'.length;
+  assert.ok(src.slice(firstStatement).trimStart().startsWith('perform pg_advisory_xact_lock'), 'the lock is not the first statement');
+  for (const read of ['from public.daily_maxima_recorder', 'from public.daily_maxima d', 'from public.profiles', 'from public.home_contexts']) {
+    assert.ok(src.indexOf(read) > lock, `${read} comes before the lock`);
+  }
+  assert.match(MIGRATION.sql, /pg_advisory_xact_lock\(800250\): the key\s*\n--\s+is this table's own constant/, 'the header documents the key');
 });
 
 test('the source rule is per home, factor and method version: another home, UV, a new version and a sourceless pending row are unaffected', async () => {
@@ -558,7 +732,7 @@ test('the source rule is per home, factor and method version: another home, UV, 
       measured({ local_date: '2026-10-22', method_version: 'daily-max-v2' }),
       pending({ local_date: '2026-10-23', source_code: null }),
     ]);
-    assert.deepEqual(out, { inserted: 5, updated: 0, kept: 0, skipped: 0 });
+    assert.deepEqual(out, { inserted: 5, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
     // A pending row is completed from the home's own source.
     assert.equal((await record(tx, [row({ local_date: '2026-10-23' })])).updated, 1);
   });
@@ -568,22 +742,29 @@ test('the source rule is per home, factor and method version: another home, UV, 
 // finish_daily_maxima_run
 // ---------------------------------------------------------------------------
 
-test('finish_daily_maxima_run records counts only, and refuses anything else', async () => {
+test('finish_daily_maxima_run records counts only, with refused beside skipped, and refuses anything else', async () => {
   await scenario(async (tx) => {
-    const counts = { contexts: 3, rows: 6, airnowCalls: 1, kept: 0 };
+    const counts = { contexts: 3, rows: 6, airnowCalls: 1, kept: 0, skipped: 1, refused: 2 };
     await tx.query(`select public.finish_daily_maxima_run($1::jsonb)`, [JSON.stringify(counts)]);
     const { rows: [state] } = await tx.query(`select recording_from::text as recording_from, last_run, last_run_at is not null as stamped from public.daily_maxima_recorder`);
     assert.deepEqual(state, { recording_from: RECORDING_FROM, last_run: counts, stamped: true });
+    assert.equal(state.last_run.refused, 2, 'the run row stores refused');
+    // Every case but the shape ones holds skipped and refused, so each meets its own rule.
+    const base = { skipped: 0, refused: 0 };
     for (const [label, value] of [
       ['null', null],
       ['an array', [1]],
-      ['a negative count', { rows: -1 }],
-      ['a fractional count', { rows: 1.5 }],
-      ['a string count', { rows: '6' }],
-      ['a coordinate under a count name', { lat: 35.409 }],
-      ['text', { station: 'Rockwell' }],
-      ['a key that is not a short name', { 'rows written': 1 }],
-      ['33 counts', Object.fromEntries(Array.from({ length: 33 }, (_, at) => [`c${at}`, 1]))],
+      ['no refused count', { rows: 1, skipped: 0 }],
+      ['no skipped count', { rows: 1, refused: 0 }],
+      ['refused rules by name, not a count', { ...base, refused: 1, refusedRules: { hours_coverage: 1 } }],
+      ['a negative refused count', { ...base, refused: -1 }],
+      ['a negative count', { ...base, rows: -1 }],
+      ['a fractional count', { ...base, rows: 1.5 }],
+      ['a string count', { ...base, rows: '6' }],
+      ['a coordinate under a count name', { ...base, lat: 35.409 }],
+      ['text', { ...base, station: 'Rockwell' }],
+      ['a key that is not a short name', { ...base, 'rows written': 1 }],
+      ['33 counts', { ...base, ...Object.fromEntries(Array.from({ length: 31 }, (_, at) => [`c${at}`, 1])) }],
     ]) {
       const error = await refusal(tx, `select public.finish_daily_maxima_run($1::jsonb)`, [value === null ? null : JSON.stringify(value)]);
       assert.equal(error.message, 'HALO_INVALID_INPUT', label);
@@ -616,6 +797,12 @@ test('clear all over a household with maxima succeeds with no 23503, counts them
     assert.equal(Number(out.removed), Object.values(counts).reduce((sum, n) => sum + Number(n), 0));
     assert.deepEqual((await stored(tx)).map((r) => r.home_context_id), [BOB_HOME]);
   });
+});
+
+test('the inventory says what 0024 does: clear all deletes daily_maxima explicitly by profile and counts it, not via the home cascade', () => {
+  assert.deepEqual(clearActionFor('daily_maxima', 'all'), { action: 'delete' });
+  assert.match(PRIVACY.sql, /delete from public\.daily_maxima x where x\.profile_id = p_profile_id;/);
+  assert.match(PRIVACY.sql, /select count\(\*\) into maxima from public\.daily_maxima x where x\.profile_id = p_profile_id;/);
 });
 
 test('clear journal keeps every daily maximum', async () => {
@@ -654,5 +841,14 @@ test('no refusal in this file carried an id or a row value in its DETAIL', () =>
     for (const marker of [ALICE, BOB, ALICE_HOME, BOB_HOME, ALICE_OLD_HOME, '370250004', 'Rockwell', '2026-', 'open_meteo', 'airnow']) {
       assert.ok(!detail.includes(marker), `a DETAIL carried "${marker}": ${detail}`);
     }
+  }
+});
+
+test('no error record_daily_maxima raised in this file names an id, and every one is a HALO refusal, never Postgres\'s own DETAIL', () => {
+  assert.ok(recorderErrors.length >= 25, `only ${recorderErrors.length} recorder errors were collected; the suite did not run in order`);
+  for (const error of recorderErrors) {
+    assert.doesNotMatch(errorText(error), UUID, `an error named an id: ${error.message} ${error.detail ?? ''}`);
+    assert.equal(error.code, 'P0001', `not a HALO refusal: ${error.code} ${error.message}`);
+    assert.match(error.message, /^HALO_[A-Z_]+$/);
   }
 });

@@ -215,9 +215,11 @@
 --                             KEY SHARE on C, on its turn and on P.
 --   daily cron                single statements: an alert insert KEY SHARE on
 --                             P, a reading insert KEY SHARE on P and H.
---   record_daily_maxima       per row, KEY SHARE on P, then on H, then the
---   (0025)                    row. P first, so it waits on the clear's P and
---                             then skips the deleted home: no cycle.
+--   record_daily_maxima       first an advisory lock only it takes (one
+--   (0025)                    recorder batch at a time), then per row, KEY
+--                             SHARE on P, then on H, then the row. P first,
+--                             so it waits on the clear's P and then skips
+--                             the deleted home: no cycle.
 --
 -- Why no cycle forms with the house writers:
 --   * account deletion, save_settings, save_household and the 0016 functions
