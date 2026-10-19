@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { loadFrontend } from './frontend-test-loader.mjs';
 import {
-  FRAGMENTS, TRANSCRIPTIONS, forecastScreenText, forecastTime, outdoorDecisions, productionForecast,
+  FRAGMENTS, TRANSCRIPTIONS, emptyStateMessage, forecastScreenText, forecastTime, outdoorDecisions, productionForecast, screenPeriodTime,
 } from './helpers/frontendB10.mjs';
 import {
   DEFAULT_RETRY_SECONDS, EMPTY_ZONE, FORECAST_RULES_VERSION, FORECAST_WINDOWS, buildForecastSnapshot, emptySnapshot, localDateIn, zonedInstant,
@@ -99,20 +99,25 @@ function strings(value, out = []) {
   return out;
 }
 
+/** The design-review scenario state, idle in production (WeekOutdoors.tsx uses review.forecast only in preview branches and the empty message). */
+const REVIEW_IDLE = Object.freeze({ forecast: 'unavailable' });
+
 /** The body as the client receives it: validated, then the screen's decisions and text. */
 function onScreen(body, { date, period = 'Morning', now = NOW, place = '' } = {}) {
   const read = productionForecast({ data: body, error: null, loading: false });
   const live = { ...read, production: true };
   const draft = { key: 'outdoors:k', activity: 'Walk', place, date: date ?? TODAY, period, duration: 60, watch: false };
   const decisions = outdoorDecisions({
-    live, draft, today: TODAY, review: { forecast: 'unavailable' }, state: { actions: [] }, now, acknowledged: '', pauseForecast: false,
+    live, draft, today: TODAY, review: REVIEW_IDLE, state: { actions: [] }, now, acknowledged: '', pauseForecast: false,
     validActionDate: expandedPreview.validActionDate, dayAdd: weekPreview.dayAdd, forecastFixture: evidencePreview.forecastFixture,
   });
   const text = forecastScreenText(live, decisions.currentPeriod);
-  const periodsText = decisions.periods.map((p) => ({ name: p.name, from: forecastTime(p.start, live.data.zone), to: forecastTime(p.end, live.data.zone) }));
-  // The message under the empty period buttons (WeekOutdoors.tsx:45, production: review.forecast is idle).
-  const emptyMessage = decisions.periods.length ? null : decisions.far ? evidenceCopy.future : evidenceCopy.forecastUnavailable;
-  return { read, live, ...decisions, text, periodsText, emptyMessage };
+  // WeekOutdoors.tsx:31: the zone the screen prints in and its period bounds.
+  const { forecastZone, periodTime } = screenPeriodTime(live, forecastTime);
+  const periodsText = decisions.periods.map((p) => ({ name: p.name, from: periodTime(p.start), to: periodTime(p.end) }));
+  // WeekOutdoors.tsx:45: the message under the empty period buttons (review state idle in production).
+  const emptyMessage = decisions.periods.length ? null : emptyStateMessage(decisions.far, REVIEW_IDLE, evidenceCopy);
+  return { read, live, ...decisions, text, periodsText, emptyMessage, forecastZone };
 }
 
 function assertClientAccepts(body, label = '') {
@@ -152,7 +157,9 @@ test('drift: each transcribed function equals its frontend source with only the 
 test('drift: every screen fragment occurs in its frontend line and in the transcription', async () => {
   for (const f of FRAGMENTS) {
     const lines = (await readFile(new URL(`../${f.file}`, import.meta.url), 'utf8')).split(/\r?\n/);
-    assert.ok(lines[f.line - 1].includes(f.text), `${f.file}:${f.line} no longer contains ${f.text}`);
+    const needle = f.source ?? f.text;
+    assert.ok(needle.includes(f.text), 'a delimited source form contains its text');
+    assert.ok(lines[f.line - 1].includes(needle), `${f.file}:${f.line} no longer contains ${needle}`);
     assert.ok(f.fn.toString().includes(f.text), `the transcription lacks ${f.text}`);
   }
 });
@@ -575,6 +582,41 @@ test('F6: unusable rows are dropped, never defaulted; other dates, no rows, late
 // 7. Issue time (F17), expiry (F18), version (F19)
 // ---------------------------------------------------------------------------
 
+test('F18: an AirNow answer whose fetchedAt does not parse is unavailable, as NWS is', () => {
+  for (const fetchedAt of ['yesterday', undefined, '2026-10-19T13:05:00']) {
+    const { status, body } = build({ airNow: { ...airNowOk(), fetchedAt } });
+    assert.equal(status, 200);
+    assert.equal(body.coverage.Air, `For Charlotte, NC (Census internal point): ${COPY.coverage.airFailed}`);
+    assert.doesNotMatch(body.source, /AirNow/);
+    assert.equal(body.expiresAt, '2026-10-19T14:35:00.000Z', 'expiry from Open-Meteo alone');
+    for (const p of body.periods) assert.match(p.tradeoff, /Air was not checked for this date\.$/);
+  }
+});
+
+test('F6: an AQI of 0 is a reading and is kept', () => {
+  const { coverage } = build({ airNow: airNowOk([airRow({ aqi: 0, category: 'Good' })]) }).body;
+  assert.match(coverage.Air, /ozone Good \(AQI 0\)/);
+});
+
+test('UV keeps one decimal of the provider\'s value', () => {
+  const { body } = build({ openMeteo: openMeteo({ hours: withHour('2026-10-20', '13:00', { uv: 6.24 }) }) });
+  assert.equal(body.periods.find((p) => p.name === 'Afternoon').uv, 6.2);
+  assert.equal(onScreen(body, { date: '2026-10-20', period: 'Afternoon' }).text.cells.uv, '6.2 UV index');
+});
+
+test('F14: °C is arithmetic on the provider\'s °F, not on the rounded °F', () => {
+  const hours = hoursFrom(TODAY).map((h) => ({ ...h, temperatureF: 50.5, weatherCode: 0 }));
+  const morning = build({ openMeteo: openMeteo({ hours }) }).body.periods[0];
+  assert.match(morning.weather, /^51 °F \(10 °C\), clear sky,/, '50.5 °F is 10.3 °C');
+});
+
+test('F7: the as-of time is a 24-hour clock in the zone, after noon too', () => {
+  const { warningStatus } = build({ alerts: alertsOk([], '2026-10-19T18:20:00.000Z') }).body;
+  assert.equal(warningStatus, 'No National Weather Service alerts are active for this area as of 14:20 EDT. Check the official site before going.');
+  const winter = buildAt(Date.parse('2026-12-01T19:10:00Z'), { date: '2026-12-02', alerts: alertsOk([], '2026-12-01T19:05:00.000Z') }, { today: '2026-12-01' }).body;
+  assert.match(winter.warningStatus, /as of 14:05 EST\./);
+});
+
 test('F17: issuedAt is the model run initialisation, never the fetch or the answer time; the screen prints it', () => {
   const { body } = build();
   assert.equal(body.issuedAt, '2026-10-19T06:00:00.000Z');
@@ -718,6 +760,25 @@ test('F19: the same provider data at different times in the bucket keeps the ver
   assert.match(FORECAST_RULES_VERSION, /^b10-/);
 });
 
+test('F19: the same data either side of a period boundary keeps the version and the Afternoon selectionSignature', () => {
+  for (const [before, after] of [['11:50', '12:10'], ['16:50', '17:10'], ['20:50', '21:10']]) {
+    const a = Date.parse(zonedInstant(TODAY, before, ZONE));
+    const b = Date.parse(zonedInstant(TODAY, after, ZONE));
+    const fetchedAt = new Date(a - 5 * MIN).toISOString();
+    const over = { date: TODAY, openMeteo: openMeteo({ fetchedAt }), airNow: airNowOk(undefined, fetchedAt) };
+    const first = build({ ...over, now: a }).body;
+    const second = build({ ...over, now: b }).body;
+    assert.equal(second.periods.length, first.periods.length - 1, `${before} to ${after}: one period ended`);
+    assert.equal(second.version, first.version, `${before} to ${after}`);
+    if (before === '11:50') {
+      const sa = onScreen(first, { date: TODAY, period: 'Afternoon', now: a });
+      const sb = onScreen(second, { date: TODAY, period: 'Afternoon', now: b });
+      assert.equal(sb.selectionSignature, sa.selectionSignature);
+      assert.equal(sb.currentPeriod.name, 'Afternoon');
+    }
+  }
+});
+
 test('F19: an unchanged re-fetch keeps the screen\'s selectionSignature, so no false "forecast changed"', () => {
   const first = onScreen(build().body, { date: '2026-10-20', period: 'Afternoon' });
   const again = onScreen(build({ now: NOW + 20 * MIN, openMeteo: openMeteo({ fetchedAt: '2026-10-19T13:25:00.000Z' }) }).body, { date: '2026-10-20', period: 'Afternoon', now: NOW + 20 * MIN });
@@ -742,8 +803,9 @@ test('F19: period versions are readable provenance under 300 characters', () => 
 
 const EMPTY_CASES = [
   [{ kind: 'no_home' }, 'For your home area: ', /No home location is saved\. Finish setup, or type a North Carolina city, county or ZIP code\./],
-  [{ kind: 'unmatched', reason: 'not a North Carolina ZIP code' }, 'For the place you typed: ', /did not match a North Carolina county, city, town or ZIP code \(not a North Carolina ZIP code\)\./],
-  [{ kind: 'unmatched' }, 'For the place you typed: ', /did not match a North Carolina county, city, town or ZIP code\. Type/],
+  [{ kind: 'unmatched', reason: 'not a North Carolina ZIP code' }, 'For the place you typed: ', /^For the place you typed: No forecast was made\. This ZIP code is not a North Carolina ZIP code\. Type a North Carolina city, county or ZIP code\.$/],
+  [{ kind: 'unmatched', reason: 'not a North Carolina city, county or ZIP code' }, 'For the place you typed: ', /^For the place you typed: No forecast was made\. This place did not match a North Carolina county, city, town or ZIP code\. Type a city, county or ZIP code\.$/],
+  [{ kind: 'unmatched' }, 'For the place you typed: ', /^For the place you typed: No forecast was made\. This place did not match a North Carolina county, city, town or ZIP code\. Type a city, county or ZIP code\.$/],
   [{ kind: 'ambiguous', labels: ['Fairview (Buncombe County)', 'Fairview (Union County)'] }, 'For the place you typed: ', /more than one North Carolina place: Fairview \(Buncombe County\) and Fairview \(Union County\)\./],
   [{ kind: 'outside' }, 'For the place you typed: ', /outside North Carolina/],
 ];
@@ -769,6 +831,17 @@ test('F21: every empty reason is a 200 with periods [], valid metadata and four 
       assert.equal(screen.emptyMessage, evidenceCopy.forecastUnavailable);
       assert.equal(screen.text.horizon, `${TODAY} through ${addDays(TODAY, 6)}`);
     }
+  }
+});
+
+test('F1, F22: an unmatched place never echoes a reason other than the known ZIP one, so typed text never appears', () => {
+  for (const reason of ['Freedom Park <b>', 'Charlotte', 'not a North Carolina ZIP code, 99999', '']) {
+    const { body } = emptySnapshot({ place: { kind: 'unmatched', reason }, date: TODAY, now: NOW });
+    for (const s of strings(body)) {
+      assert.ok(!s.includes('Freedom Park') && !s.includes('<b>') && !s.includes('99999'), s);
+      if (reason) assert.ok(!s.includes(`(${reason})`), s);
+    }
+    assert.equal(body.coverage.Air, `For the place you typed: No forecast was made. ${COPY.emptyWhy.unmatched}`);
   }
 });
 

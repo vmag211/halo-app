@@ -14,8 +14,9 @@
  *   `outdoorDecisions`, whose parameters are the component's own locals and
  *   imports of the same names;
  * - fragments of `WeekOutdoors.tsx:31,44,45,46` that turn a validated body into
- *   text on screen (the Source row, the Issued line, the Air, UV and Pollen
- *   cells, the coverage cells, the Horizon, Expiry and Official notices rows).
+ *   text on screen (the zone and period times, the Source row, the Issued
+ *   line, the empty-state message, the Air, UV and Pollen cells, the coverage
+ *   cells, the Horizon, Expiry and Official notices rows).
  *
  * Written by B10 Task 7 (every snapshot body is run through it); Task 9 adds
  * the rest of the screen (validate, nextMeta, the task reason) and the
@@ -45,6 +46,18 @@ export function forecastTime(instant,zone){return new Intl.DateTimeFormat('en-GB
 export function outdoorDecisions({live,draft,today,review,state,now,acknowledged,pauseForecast,validActionDate,dayAdd,forecastFixture}){
  const far=Boolean(draft.date&&(live.production?live.data&&draft.date>live.data.horizonEnd.slice(0,10):draft.date>dayAdd(today,2)));const available=Boolean(validActionDate(draft.date)&&draft.date&&!far&&draft.date>=today&&!['unavailable','loading','error'].includes(review.forecast));const periods=pauseForecast?[]:live.production?(live.data?.periods??[]):available?forecastFixture(draft.date,review.forecast):[];const currentPeriod=periods.find(p=>p.name===draft.period);const selectionSignature=`${live.production?live.data?.version??'unavailable':review.forecast}:${draft.date}:${draft.place}:${draft.period}`;const existing=state?.actions.find(a=>a.key===draft.key);const expired=live.production?!!live.data&&Date.parse(live.data.expiresAt)<=now:available&&review.forecast==='expired';const changed=live.production?!!live.data?.changedMessage:available&&review.forecast==='changed';const needsReview=changed&&acknowledged!==selectionSignature;
  return {far,available,periods,currentPeriod,selectionSignature,existing,expired,changed,needsReview};
+}
+
+/** Line 31: the zone the screen uses and how it prints a period bound (forecastTime passed in). */
+export function screenPeriodTime(live,forecastTime){
+ const forecastZone=live.data?.zone??'UTC';
+ const periodTime=(instant)=>live.production?forecastTime(instant,forecastZone):instant.slice(11);
+ return {forecastZone,periodTime};
+}
+
+/** Line 45: the message under the period buttons when there are no periods. */
+export function emptyStateMessage(far,review,copy){
+ return far?copy.future:review.forecast==='loading'?'Loading forecast coverage...':review.forecast==='error'?'Forecasts could not load. Your plan is kept.':copy.forecastUnavailable;
 }
 
 /** The production branches of the text the screen renders from a validated body. */
@@ -97,6 +110,10 @@ export const TRANSCRIPTIONS = Object.freeze([
 
 /** Text that must occur in the frontend line and in the transcribed function, exactly. */
 export const FRAGMENTS = Object.freeze([
+  { fn: screenPeriodTime, file: 'components/expanded/WeekOutdoors.tsx', line: 31, text: "const forecastZone=live.data?.zone??'UTC';" },
+  { fn: screenPeriodTime, file: 'components/expanded/WeekOutdoors.tsx', line: 31, text: 'live.production?forecastTime(instant,forecastZone):instant.slice(11)' },
+  // `source` is the delimited form that must occur in the frontend line, so a prefix such as `!` is caught.
+  { fn: emptyStateMessage, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "far?copy.future:review.forecast==='loading'?'Loading forecast coverage...':review.forecast==='error'?'Forecasts could not load. Your plan is kept.':copy.forecastUnavailable", source: "{far?copy.future:review.forecast==='loading'?'Loading forecast coverage...':review.forecast==='error'?'Forecasts could not load. Your plan is kept.':copy.forecastUnavailable}" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 31, text: "live.production?(live.data?.source??'Unavailable')" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production?live.data?.issuedAt' },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "p.air===null?'Unavailable':`${p.air} AQI`" },
