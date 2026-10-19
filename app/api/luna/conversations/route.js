@@ -23,7 +23,7 @@ import { conversationPayload, isLunaUnavailable, lunaUnavailable } from '@/lib/l
  * and the query below is scoped to it.
  *
  * RULING L10: THIS READ WRITES NOTHING. A household that has never asked
- * anything is answered `{ conversation: null }`, and no row is created.
+ * anything is answered `{ data: null }`, and no row is created.
  *
  * There is no valid empty conversation to answer with: `validLunaConversation`
  * needs a non-empty `id` and a `revision` above 0 (luna-service.ts:21-27), so
@@ -35,11 +35,16 @@ import { conversationPayload, isLunaUnavailable, lunaUnavailable } from '@/lib/l
  * most sensitive of the open retention questions, which makes inventing those
  * records the wrong default.
  *
- * The absent state is already the one the client handles: the component sends
- * `conversationId: conversation?.id ?? null` and `null` means "start one", so
- * whether it never validated this body or validated and discarded it, it ends
- * up asking POST /api/luna/messages to start the conversation. Starting belongs
- * there, with the first thing anyone actually said.
+ * The absence is said as the envelope `{ data: null }`, and the envelope is
+ * the point. The runtime unwraps an own `data` key once (runtime.ts:149-153),
+ * so the component receives `null`, which is the state it already handles: its
+ * `blocked` predicate only objects to data that is present and invalid
+ * (ProductionLunaConversation.tsx:36), and it sends
+ * `conversationId: conversation?.id ?? null`, where `null` means "start one".
+ * Any other "empty" object reaches the component as present and invalid and
+ * disables the composer, so a household that never used Luna could never send
+ * its first message; `{ conversation: null }` did exactly that. Starting
+ * belongs to POST /api/luna/messages, with the first thing anyone actually said.
  *
  * This is also the reload path, and that is why it carries more than a
  * transcript. Luna's drafts are plain React state, so a page reload loses the
@@ -104,7 +109,7 @@ export async function GET(request) {
     // answer is a claim about the household and not about the schema: a
     // half-applied 0020 must say so (503) rather than borrow this sentence.
     await requireLunaTables(supabaseAdmin, userId, ['luna_turns', 'luna_runs']);
-    return NextResponse.json({ conversation: null }, { headers });
+    return NextResponse.json({ data: null }, { headers });
   } catch (err) {
     if (isLunaUnavailable(err)) return lunaUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);

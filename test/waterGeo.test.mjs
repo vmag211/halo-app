@@ -190,3 +190,33 @@ test('single-system lookup falls back to a direct query, and rejects bad ids', a
   assert.equal(one.population, 7);
   assert.equal(await lookupWaterGeoOne("X' OR 1=1", { store: null, fetchImpl: oneFeature }), null);
 });
+
+test('complete says whether the lookup finished: an empty Map from a failed lookup is not "no service areas"', async () => {
+  _resetWaterGeoCache();
+  const ids = ['NC0113010', 'NC0000001'];
+  const down = await getWaterGeo(ids, { store: null, fetchImpl: async () => { throw new TypeError('fetch failed'); } });
+  assert.ok(down.geo instanceof Map, 'an outage still resolves with a Map, it never rejects');
+  assert.deepEqual([down.geo.size, down.failedBatches, down.complete], [0, 1, false]);
+
+  // Partial: one batch of two fails. Some systems are found, but the lookup did not finish.
+  const half = await getWaterGeo(ids, {
+    store: null,
+    batchSize: 1,
+    fetchImpl: async (url) => (String(url).includes('NC0000001') ? { ok: false, status: 503, json: async () => ({}) } : oneFeature()),
+  });
+  assert.deepEqual([half.found, half.failedBatches, half.complete], [1, 1, false]);
+
+  // A finished lookup that finds nothing is complete: those systems truly have no mapped service area.
+  const none = await getWaterGeo(ids, { store: null, fetchImpl: async () => ({ ok: true, json: async () => ({ features: [] }) }) });
+  assert.deepEqual([none.found, none.failedBatches, none.complete], [0, 0, true]);
+
+  const store = fakeStore();
+  const fresh = await getWaterGeo(ids, { store, force: true, fetchImpl: oneFeature });
+  assert.deepEqual([fresh.source, fresh.complete], ['arcgis', true]);
+  const memory = await getWaterGeo(ids, { store, fetchImpl: async () => { throw new Error('memory answers'); } });
+  assert.deepEqual([memory.source, memory.complete], ['memory', true]);
+  _resetWaterGeoCache();
+  const shared = await getWaterGeo(ids, { store, fetchImpl: async () => { throw new Error('the store answers'); } });
+  assert.deepEqual([shared.source, shared.complete], ['shared', true]);
+  assert.equal((await getWaterGeo([], { store: null, force: true })).complete, true, 'no ids, nothing left to look up');
+});

@@ -18,11 +18,15 @@ const OP = '33333333-3333-4333-8333-333333333333';
 const OTHER = '44444444-4444-4444-8444-444444444444';
 const DEAD = '55555555-5555-4555-8555-555555555555';
 const RECOVERY = '66666666-6666-4666-8666-666666666666';
+const RECORDED = '77777777-7777-4777-8777-777777777777';
 
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
 
-/** alice has a settled save, a failed one and a crashed one; bob has his own settled save. */
-function harness() {
+/**
+ * alice has a settled save, a failed one and a crashed one; bob has his own
+ * settled save. `extra` rows are alice's.
+ */
+function harness({ extra = [] } = {}) {
   return createRouteHarness({
     tables: haloTables('profiles', 'operations'),
     seed: ({ alice, bob }) => ({
@@ -68,6 +72,7 @@ function harness() {
           result: { operationId: RECOVERY, status: 'succeeded' },
           created_at: ago(1000),
         },
+        ...extra.map((row) => ({ ...row, profile_id: alice.id })),
       ],
     }),
   });
@@ -91,21 +96,70 @@ test('a settled operation replays the original receipt, so the client can finish
   assert.deepEqual(body.snapshot, { revision: 4 }, 'the domain payload comes through for its own validator');
 });
 
-test('a crashed operation reads as unknown, which is not failure: the effect may have applied', async () => {
+test('a crashed operation is reaped by the reconcile itself and reads as failed, with a receipt the client accepts', async () => {
+  // No inventory read happens first. A reconcile is often the only request a
+  // client makes about a parked id, so it settles the stale claim itself
+  // rather than answering 'unknown' for ever.
   const h = harness();
+  const { ABANDONED_REASON } = await import('../lib/operations.js');
   const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
-  assert.equal(body.status, 'unknown');
+  assert.equal(body.status, 'failed', 'settled, so the client clears it instead of parking it again');
+  assert.equal(body.operationId, DEAD, 'with its own id, which every receipt validator requires');
+  assert.equal(body.reason, ABANDONED_REASON);
+  assert.ok(['succeeded', 'pending', 'unknown', 'failed'].includes(body.status), 'a status validSummaryReceipt accepts');
+  assert.ok(!('items' in body) && !('snapshot' in body), 'and no domain payload is invented for it');
+  assert.equal(h.db.rows('operations').find((row) => row.operation_id === DEAD).status, 'failed', 'settled in the ledger');
+});
+
+test('once the inventory read has reaped a crashed operation, reconciling it reads the same failed receipt', async () => {
+  const h = harness();
+  const { listUnresolvedOperations, ABANDONED_REASON } = await import('../lib/operations.js');
+  // What any surface's initial read does before it lists unresolved work.
+  assert.deepEqual(await listUnresolvedOperations(h.db, { profileId: h.identities.alice.id, domains: ['alerts'] }), []);
+  const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
+  assert.equal(body.status, 'failed');
   assert.equal(body.operationId, DEAD);
-  assert.ok(!('items' in body), 'an unsettled operation has no receipt to hand back');
+  assert.equal(body.reason, ABANDONED_REASON);
 });
 
 test('a stored receipt cannot override the status computed now', async () => {
-  // The crashed row is settled in the table as 'pending'; the route must still
-  // say 'unknown' because of its age, rather than echoing the stored word.
-  const h = harness();
-  const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
-  assert.notEqual(body.status, 'pending');
-  assert.equal(body.status, 'unknown');
+  // A row whose stored receipt disagrees with the row itself. Recovery stores
+  // exactly this shape (the row settles 'succeeded' while the receipt it
+  // recorded says 'pending', because the message is still on its way), and any
+  // receipt frozen at write time can go stale the same way. The canonical
+  // fields come from the row as it stands now, and the receipt only supplies
+  // the domain payload. The stored receipt here also names another domain,
+  // kind and time, so every canonical field is proved, not only the status.
+  const h = harness({
+    extra: [
+      {
+        operation_id: RECORDED,
+        domain: 'settings',
+        kind: 'settings.save',
+        status: 'succeeded',
+        request_hash: 'hash-e',
+        result: {
+          operationId: RECORDED,
+          status: 'pending',
+          domain: 'alerts',
+          kind: 'alerts.update',
+          created_at: '2000-01-01T00:00:00.000Z',
+          snapshot: { revision: 7 },
+        },
+        created_at: ago(2000),
+      },
+    ],
+  });
+  const stored = h.db.rows('operations').find((row) => row.operation_id === RECORDED);
+  const response = await read(h, 'alice', `operationId=${RECORDED}&domain=settings`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, 'succeeded', 'the status is the one the row has now, not the stale word in its receipt');
+  assert.equal(body.domain, 'settings');
+  assert.equal(body.kind, 'settings.save');
+  assert.equal(body.created_at, stored.created_at);
+  assert.equal(body.operationId, RECORDED);
+  assert.deepEqual(body.snapshot, { revision: 7 }, 'while the domain payload still comes through');
 });
 
 // ---------------------------------------------------------------------------

@@ -98,7 +98,7 @@
       "get": {
         "operationId": "lunaConversation",
         "summary": "The caller's one Luna conversation, or the absence of one",
-        "description": "A single conversation, not a list: one per household. This read writes nothing (Ruling L10), so a household that has never asked anything is answered { conversation: null } rather than a freshly minted conversation. That body is deliberately not a valid LunaConversationData: the client computes conversation?.id ?? null and sends null to mean start one.",
+        "description": "A single conversation, not a list: one per household. This read writes nothing (Ruling L10), so a household that has never asked anything is answered { data: null } rather than a freshly minted conversation. That body is deliberately not a valid LunaConversationData, and it is an envelope on purpose: the client runtime unwraps an own data key, so the component receives null, leaves the composer enabled, and sends conversationId null to mean start one. Any other empty object (for example { conversation: null }) reaches the component as present but invalid and disables the composer.",
         "parameters": [
           {
             "name": "current",
@@ -115,7 +115,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The conversation, or { conversation: null } when the household has none",
+            "description": "The conversation, or { data: null } when the household has none",
             "headers": {
               "X-Request-Id": {
                 "schema": {
@@ -280,7 +280,7 @@
             }
           },
           "409": {
-            "description": "stale_revision (with the current revision), unknown_conversation, run_open, or operation_mismatch",
+            "description": "stale_revision (with the current revision), unknown_conversation, run_open, operation_mismatch, or, on a replay of an earlier attempt that did not finish, abandoned (the attempt never settled and was reaped) or attempt_failed (it failed with no receipt). Both of the last two are terminal, so the client clears its parked operation.",
             "headers": {
               "X-Request-Id": {
                 "schema": {
@@ -917,7 +917,9 @@
               "stale_revision",
               "unknown_conversation",
               "run_open",
-              "operation_mismatch"
+              "operation_mismatch",
+              "abandoned",
+              "attempt_failed"
             ]
           },
           "revision": {
@@ -1209,15 +1211,15 @@
         "additionalProperties": false
       },
       "LunaAbsentConversation": {
-        "description": "What GET /api/luna/conversations answers for a household that has never asked anything. Deliberately not a valid LunaConversationData: there is no valid empty conversation (a non-empty id and a revision above 0 are required), and minting one would give a GET a side effect and manufacture records whose retention is undecided. The client already handles the absent state, because it sends conversationId:null to mean start one.",
+        "description": "What GET /api/luna/conversations answers for a household that has never asked anything. Deliberately not a valid LunaConversationData: there is no valid empty conversation (a non-empty id and a revision above 0 are required), and minting one would give a GET a side effect and manufacture records whose retention is undecided. It is the envelope { data: null } because the client runtime unwraps an own data key to null, which the component treats as no conversation: the composer stays enabled and the first message sends conversationId:null to mean start one.",
         "type": "object",
         "properties": {
-          "conversation": {
+          "data": {
             "type": "null"
           }
         },
         "required": [
-          "conversation"
+          "data"
         ],
         "additionalProperties": false
       },

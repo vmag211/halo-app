@@ -152,6 +152,15 @@ import {
  * so.
  */
 
+// The ceiling sits under the operation ledger's staleness window
+// (DEFAULT_STALE_AFTER_MS, 120 s). An invocation that outlived that window
+// could have its claim reaped as abandoned and then overwrite the reaped row
+// with a late settle, after the client had already been told "not applied".
+// Platform-enforced only. test/operationsMaxDuration.test.mjs keeps every
+// ledger route under the window. 60 is the house value (cron/daily, district,
+// map, onboard and luna/messages all declare it).
+export const maxDuration = 60;
+
 /** The body is five fields; the largest is a 254 character address. */
 const MAX_BYTES = 2048;
 
@@ -341,10 +350,15 @@ function parsePayload(action, raw) {
   return { ok: true, value: { challengeId: challengeId.value } };
 }
 
-/** The receipt body for a change that was made. */
-const applied = async (supabase, userId, message) => ({
+/**
+ * The receipt body for a change that was made. This runs inside the ledger's
+ * claimed operation, whose own row is still 'pending' until the receipt is
+ * stored, so that one id is left out of the snapshot's unresolved work: the
+ * receipt is what settles it.
+ */
+const applied = async (supabase, { userId, operationId }, message) => ({
   status: 'succeeded',
-  snapshot: await readRecoverySnapshot(supabase, userId),
+  snapshot: await readRecoverySnapshot(supabase, userId, { excludeOperationId: operationId }),
   message,
 });
 
@@ -397,7 +411,7 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
   const method = linkedMethod(user);
 
   // Already proved: there is nothing to verify, so no second challenge is made.
-  if (current === email && method) return applied(supabase, userId, MESSAGES.alreadyVerified);
+  if (current === email && method) return applied(supabase, { userId, operationId }, MESSAGES.alreadyVerified);
 
   // A verified address is this household's only way back in. Replacing it would
   // take that away before the new address has been proved, so the exchange is
@@ -456,7 +470,7 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
   });
   if (challengeError) throw challengeError;
 
-  return applied(supabase, userId, MESSAGES.linked);
+  return applied(supabase, { userId, operationId }, MESSAGES.linked);
 }
 
 /**
@@ -487,7 +501,7 @@ async function requestRecovery(supabase, { request, userId, operationId, email }
  * recovery routes look for by address digest. What happened is in the ledger,
  * which records every command and is never deleted.
  */
-async function checkRecovery(supabase, { userId, challengeId }) {
+async function checkRecovery(supabase, { userId, operationId, challengeId }) {
   const { data: row, error } = await supabase
     .from('recovery_challenges')
     .select('id, email_hash, expires_at')
@@ -504,7 +518,7 @@ async function checkRecovery(supabase, { userId, challengeId }) {
   const method = linkedMethod(user);
   if (method && addressDigest(user.email) === row.email_hash) {
     await closeChallenge(supabase, { userId, challengeId });
-    return applied(supabase, userId, MESSAGES.confirmed);
+    return applied(supabase, { userId, operationId }, MESSAGES.confirmed);
   }
 
   // Still in flight, either staged as a pending change or written unconfirmed
@@ -519,7 +533,7 @@ async function checkRecovery(supabase, { userId, challengeId }) {
     // still holding the pending change or not.
     const expiry = Date.parse(row.expires_at);
     if (Number.isFinite(expiry) && expiry > Date.now()) {
-      return applied(supabase, userId, MESSAGES.notConfirmed);
+      return applied(supabase, { userId, operationId }, MESSAGES.notConfirmed);
     }
     await closeChallenge(supabase, { userId, challengeId });
     return refused(MESSAGES.expired);
@@ -558,7 +572,7 @@ async function closeChallenge(supabase, { userId, challengeId }) {
  * address does become theirs, which is the provider's state and the truth, and
  * the next read reports it.
  */
-async function cancelRecovery(supabase, { userId, challengeId }) {
+async function cancelRecovery(supabase, { userId, operationId, challengeId }) {
   const { data: row, error } = await supabase
     .from('recovery_challenges')
     .select('id')
@@ -570,7 +584,7 @@ async function cancelRecovery(supabase, { userId, challengeId }) {
   if (!row) return refused(MESSAGES.challengeMissing);
 
   await closeChallenge(supabase, { userId, challengeId });
-  return applied(supabase, userId, MESSAGES.cancelled);
+  return applied(supabase, { userId, operationId }, MESSAGES.cancelled);
 }
 
 /**
@@ -586,7 +600,7 @@ async function cancelRecovery(supabase, { userId, challengeId }) {
  * A method id that is not the linked one is answered exactly like having no
  * method at all, so guessing ids teaches nothing.
  */
-async function removeRecovery(supabase, { userId, methodId }) {
+async function removeRecovery(supabase, { userId, operationId, methodId }) {
   const { data: account, error: accountError } = await supabase.auth.admin.getUserById(userId);
   if (accountError) throw new Error(accountError.message);
   const method = linkedMethod(account?.user ?? null);
@@ -594,7 +608,7 @@ async function removeRecovery(supabase, { userId, methodId }) {
 
   const { error } = await supabase.auth.admin.updateUserById(userId, { email_confirm: false });
   if (error) throw new Error(error.message);
-  return applied(supabase, userId, MESSAGES.removed);
+  return applied(supabase, { userId, operationId }, MESSAGES.removed);
 }
 
 /**
@@ -626,10 +640,10 @@ async function perform(supabase, { request, action, userId, operationId, payload
   if (action === 'request-recovery') {
     return requestRecovery(supabase, { request, userId, operationId, email: payload.email });
   }
-  if (action === 'check-recovery') return checkRecovery(supabase, { userId, challengeId: payload.challengeId });
-  if (action === 'cancel-recovery') return cancelRecovery(supabase, { userId, challengeId: payload.challengeId });
+  if (action === 'check-recovery') return checkRecovery(supabase, { userId, operationId, challengeId: payload.challengeId });
+  if (action === 'cancel-recovery') return cancelRecovery(supabase, { userId, operationId, challengeId: payload.challengeId });
   if (action === 'revoke-device') return revokeDevice();
-  return removeRecovery(supabase, { userId, methodId: payload.id });
+  return removeRecovery(supabase, { userId, operationId, methodId: payload.id });
 }
 
 /**
