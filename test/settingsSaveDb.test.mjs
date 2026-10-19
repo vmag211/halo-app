@@ -24,16 +24,24 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import './helpers/routeLoader.mjs'; // lib/operations.js imports through '@/lib'
 import { createDb } from './db/pgliteHarness.mjs';
+import { ledgerClient } from './db/pgliteLedger.mjs';
+import { pgliteSelect } from './db/pgliteSelect.mjs';
 import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
 import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
 import { installSettingsDb } from './helpers/fakeSettingsDb.mjs';
 
+const { settingsSnapshot } = await import('../lib/settings.js');
+const { runOperation, readOperation } = await import('../lib/operations.js');
+
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
 const BOB = 'b0b00000-0000-4000-8000-000000000002';
-const SIGNATURE = 'public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)';
+const notificationKinds = ['air_quality_change', 'weather_advisory', 'new_water_results', 'radon_season', 'season_summary'];
+const BAND_COLUMNS = ['has_toddler', 'has_child', 'has_teen', 'has_adult', 'has_senior', 'has_pregnant', 'has_respiratory'];
+const SIGNATURE = 'public.save_settings(uuid, uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)';
 
 let db;
 let next = 0;
@@ -66,11 +74,29 @@ after(async () => {
 /** Runs one statement as the service role and commits, as PostgREST does; the Postgres error is thrown as it comes. */
 const asService = (sql, params) => db.asService((tx) => tx.query(sql, params), { commit: true });
 
-/** save_settings with named arguments; null for each one left out. */
-async function save(id, expected, { preferences = {}, profile = null, home = null, notifications = null, bands = null } = {}) {
+/** A ledger row for a settings save, as runOperation claims it: pending unless `status` says otherwise. */
+async function ledgerRow(owner, { status = 'pending', domain = 'settings', result = null } = {}) {
+  const operationId = crypto.randomUUID();
+  await db.query(
+    `insert into public.operations (operation_id, profile_id, domain, kind, status, result)
+     values ($1, $2, $3, 'settings.save', $4, $5::jsonb)`,
+    [operationId, owner, domain, status, result === null ? null : JSON.stringify(result)],
+  );
+  return operationId;
+}
+const operationOf = async (operationId) =>
+  (await db.query('select status, result from public.operations where operation_id = $1', [operationId])).rows[0];
+
+/**
+ * save_settings with named arguments; null for each one left out. Each call
+ * claims its own pending ledger row first, as the route's runOperation does,
+ * unless `operationId` names one (Ruling S15).
+ */
+async function save(id, expected, { preferences = {}, profile = null, home = null, notifications = null, bands = null, operationId } = {}) {
   const json = (value) => (value === null ? null : JSON.stringify(value));
-  const { rows } = await asService(`select ${SIGNATURE.replace(/\(.*\)/, '')}($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb) as result`, [
-    id, expected, json(preferences), json(profile), json(home), json(notifications), json(bands),
+  const op = operationId ?? (id ? await ledgerRow(id) : crypto.randomUUID());
+  const { rows } = await asService(`select ${SIGNATURE.replace(/\(.*\)/, '')}($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb) as result`, [
+    id, op, expected, json(preferences), json(profile), json(home), json(notifications), json(bands),
   ]);
   return rows[0].result;
 }
@@ -101,16 +127,35 @@ test('a save applies the group\'s columns at revision + 1 and returns exactly th
   assert.deepEqual(result.preferences, stored.row);
   assert.deepEqual([stored.row.luna_home, stored.row.quiet_enabled, stored.row.quiet_from, stored.row.quiet_to, stored.row.luna_tasks], [true, true, '22:00', '07:00', false]);
   assert.deepEqual(result.profile, await profileOf(id));
-  assert.equal(result.notifications, null, 'no notification row, and none made');
+  assert.equal(result.changed, true);
+  // Review finding A: the save makes the notification and band rows before it
+  // locks the preferences row, with every value at its default.
+  const { rows: [notes] } = await db.query('select to_jsonb(n) as row from public.notification_prefs n where profile_id = $1', [id]);
+  assert.deepEqual(result.notifications, notes.row);
+  assert.deepEqual(notificationKinds.map((key) => notes.row[key]), [true, true, true, true, true], 'all defaults');
+  const { rows: [bands] } = await db.query('select * from public.household_bands where profile_id = $1', [id]);
+  assert.deepEqual(BAND_COLUMNS.filter((key) => bands[key]), [], 'all defaults');
 });
 
-test('a save at a revision that has moved writes nothing and answers the current revision', async () => {
+test('a save at a revision that has moved writes nothing, makes no row, and answers the current revision', async () => {
   const id = await household();
   await save(id, 1, { preferences: { luna_tasks: true } });
   const before = await everything(id);
-  assert.deepEqual(await save(id, 1, { preferences: { luna_home: true }, profile: { locale: 'es' } }), { saved: false, revision: 2 });
+  const operationId = await ledgerRow(id);
+  assert.deepEqual(await save(id, 1, { preferences: { luna_home: true }, profile: { locale: 'es' }, operationId }), { saved: false, revision: 2 });
   assert.equal(await everything(id), before);
-  assert.deepEqual(await save(BOB, 1), { saved: false, revision: null }, 'no preferences row: nothing to compare against');
+  assert.deepEqual(await operationOf(operationId), { status: 'pending', result: null }, 'the route settles a refusal itself');
+  // A household with no notification or band row: the ones the save made for its lock go again.
+  const fresh = await household();
+  await db.query('delete from public.notification_prefs where profile_id = $1', [fresh]);
+  await db.query('delete from public.household_bands where profile_id = $1', [fresh]);
+  const untouched = await everything(fresh);
+  assert.deepEqual(await save(fresh, 7, { notifications: { radon_season: false } }), { saved: false, revision: 1 });
+  assert.equal(await everything(fresh), untouched, 'no notification or band row is left behind');
+  // No preferences row: nothing to compare against, and nothing is left behind either.
+  const bobBefore = await everything(BOB);
+  assert.deepEqual(await save(BOB, 1), { saved: false, revision: null });
+  assert.equal(await everything(BOB), bobBefore);
 });
 
 test('of two saves holding the same revision exactly one applies', async () => {
@@ -141,19 +186,32 @@ test('a save across every table advances the revision exactly once, though each 
   assert.deepEqual(bands, { has_child: true, has_adult: true, has_teen: false });
 });
 
-test('a save that fails after its compare-and-set applies nothing at all', async () => {
+test('a save that fails at its last write applies nothing at all, and its ledger row stays pending', async () => {
   const id = await household({ home_year: 1975 });
   const before = await everything(id);
-  // The language is written after the revision, the group's columns and the home details;
-  // 'fr' fails profiles_locale_check there.
-  const error = await saveError(id, 1, {
-    preferences: { display_appearance: 'dark', calendar_linked: true },
-    home: { home_year: 1990 },
-    profile: { locale: 'fr' },
-    bands: { has_child: true },
-  });
-  assert.equal(error?.code, '23514');
-  assert.equal(await everything(id), before, 'not the revision, not the display columns, not the year');
+  // The bands are the last table a save writes. A trigger that refuses this
+  // household's band update fails the save there, after everything else.
+  await db.exec(`
+    create function public.test_refuse_bands() returns trigger language plpgsql as $$
+    begin raise exception 'TEST_BANDS_REFUSED' using errcode = '23514'; end; $$;
+    create trigger test_refuse_bands before update on public.household_bands
+      for each row when (new.profile_id = '${id}') execute function public.test_refuse_bands();`);
+  try {
+    const operationId = await ledgerRow(id);
+    const error = await saveError(id, 1, {
+      preferences: { display_appearance: 'dark', calendar_linked: true },
+      home: { home_year: 1990 },
+      profile: { locale: 'es', tenure: 'renter', renter_mode: true },
+      notifications: { radon_season: false },
+      bands: { has_child: true },
+      operationId,
+    });
+    assert.deepEqual([error?.code, error?.message], ['23514', 'TEST_BANDS_REFUSED']);
+    assert.equal(await everything(id), before, 'not the revision, not the display columns, not the year, not the switch');
+    assert.deepEqual(await operationOf(operationId), { status: 'pending', result: null }, 'not settled: the route records the failure');
+  } finally {
+    await db.exec('drop trigger test_refuse_bands on public.household_bands; drop function public.test_refuse_bands();');
+  }
 });
 
 test('home details go through the current home at its revision, and the profile follows it', async () => {
@@ -206,7 +264,47 @@ test('a malformed call is HALO_INVALID_INPUT and nothing is read or written', as
     assert.deepEqual([error?.code, error?.message], ['P0001', 'HALO_INVALID_INPUT'], JSON.stringify(args));
   }
   assert.deepEqual([(await saveError(id, 0))?.message, (await saveError(null, 1))?.message], ['HALO_INVALID_INPUT', 'HALO_INVALID_INPUT']);
+  const noOperation = await asService(`select ${SIGNATURE.replace(/\(.*\)/, '')}($1, null, 1, '{}', null, null, null, null)`, [id]).then(() => null, (error) => error);
+  assert.deepEqual([noOperation?.message, noOperation?.detail], ['HALO_INVALID_INPUT', 'p_operation_id is required']);
   assert.equal(await everything(id), before);
+});
+
+test('review finding B: a value its column refuses is HALO_INVALID_INPUT naming the key, and the value appears nowhere in the error', async () => {
+  // A located household, so a CHECK violation's "Failing row contains (...)" would carry its coordinates and ZIP.
+  const id = await household({ lat: 35.409, lng: -80.58, zip: '28025', county: 'Cabarrus County', pwsid: 'NC9990001' });
+  const before = await everything(id);
+  const MARKER = 'MARKER-0021-B-7731';
+  for (const [args, key] of [
+    [{ preferences: { display_appearance: MARKER } }, 'display_appearance'],
+    [{ preferences: { display_palette: MARKER } }, 'display_palette'],
+    [{ preferences: { display_scale: MARKER } }, 'display_scale'],
+    [{ preferences: { display_motion: MARKER } }, 'display_motion'],
+    [{ preferences: { quiet_from: MARKER } }, 'quiet_from'],
+    [{ preferences: { quiet_to: '24:00' } }, 'quiet_to'],
+    [{ preferences: { quiet_zone: `${MARKER} zone` } }, 'quiet_zone'],
+    [{ preferences: { calendar_zone: '+05:00' } }, 'calendar_zone'],
+    [{ profile: { tenure: MARKER } }, 'tenure'],
+    [{ profile: { locale: MARKER } }, 'locale'],
+    [{ profile: { locale: 'fr' } }, 'locale'],
+    [{ preferences: { quiet_enabled: true, quiet_from: '22:00', quiet_to: '22:00' } }, 'quiet hours'],
+  ]) {
+    const operationId = await ledgerRow(id);
+    const error = await saveError(id, 1, { ...args, operationId });
+    assert.deepEqual([error?.code, error?.message], ['P0001', 'HALO_INVALID_INPUT'], JSON.stringify(args));
+    assert.match(String(error.detail), new RegExp(key), 'the DETAIL names what was refused');
+    for (const part of [error.message, error.detail, error.hint, error.where]) {
+      assert.equal(String(part ?? '').includes(MARKER), false, `the value is not repeated: ${part}`);
+      assert.equal(String(part ?? '').includes('28025'), false, `no row is quoted: ${part}`);
+    }
+    assert.deepEqual(await operationOf(operationId), { status: 'pending', result: null });
+  }
+  assert.equal(await everything(id), before);
+  // Quiet hours whose stored ends are equal are refused when a save switches them on.
+  const sameEnds = await household();
+  await db.query(`update public.profile_preferences set quiet_from = '07:00', quiet_to = '07:00' where profile_id = $1`, [sameEnds]);
+  const stored = await everything(sameEnds);
+  assert.equal((await saveError(sameEnds, await revisionOf(sameEnds), { preferences: { quiet_enabled: true } }))?.message, 'HALO_INVALID_INPUT');
+  assert.equal(await everything(sameEnds), stored);
 });
 
 test('only the service role may call save_settings', async () => {
@@ -219,8 +317,187 @@ test('only the service role may call save_settings', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Every writer advances the revision (Ruling S12)
+// 1a. The save settles its own ledger row (Ruling S15)
 // ---------------------------------------------------------------------------
+
+/** The rows a snapshot is built from, as the route reads them. */
+async function rowsOf(id) {
+  const { rows: [preferences] } = await db.query('select to_jsonb(p) as row from public.profile_preferences p where profile_id = $1', [id]);
+  const { rows: [notifications] } = await db.query('select to_jsonb(n) as row from public.notification_prefs n where profile_id = $1', [id]);
+  return { preferences: preferences.row, profile: await profileOf(id), notifications: notifications?.row ?? null };
+}
+
+test('S15: an applied save settles its own ledger row as succeeded, with the receipt the route stores', async () => {
+  const id = await household();
+  const operationId = await ledgerRow(id);
+  const result = await save(id, 1, { preferences: { luna_projects: true }, operationId });
+  const op = await operationOf(operationId);
+  assert.equal(op.status, 'succeeded');
+  assert.deepEqual(op.result, {
+    operationId,
+    status: 'succeeded',
+    snapshot: settingsSnapshot({ preferences: result.preferences, profile: result.profile, notifications: result.notifications, unresolvedOperations: [] }),
+  });
+  assert.deepEqual(op.result.snapshot.unresolvedOperations, [], 'a stored receipt is history, not a lock (Ruling S14)');
+  assert.equal(op.result.snapshot.values.luna.projects, true);
+});
+
+/** Households whose stored rows exercise every rule of the snapshot, for the JS and SQL copies to agree on. */
+const SNAPSHOT_CASES = [
+  ['nothing answered', {}, {}, null],
+  ['every answer given', { home_year: 1975, water_source: 'well', tenure: 'owner', locale: 'es' }, { display_palette: 'forest' }, { weather_advisory: false }],
+  ['an unanswered tenure while renting', { tenure: null, renter_mode: true, water_source: 'spring' }, { quiet_enabled: true, quiet_from: '22:30', quiet_to: '06:15' }, null],
+  ['an unanswered tenure, not renting', { tenure: null, renter_mode: false, home_year: 2024 }, { display_palette: 'ocean', display_scale: '150', display_motion: 'full' }, null],
+  ['a tenure of other', { tenure: 'other', water_source: 'utility' }, { calendar_zone: 'Pacific/Honolulu', calendar_linked: true, luna_home: true }, { season_summary: false, radon_season: false }],
+  ['a year outside four digits', { home_year: 999 }, {}, null],
+];
+
+for (const [label, profile, preferences, notifications] of SNAPSHOT_CASES) {
+  test(`S15: the receipt save_settings stores is the one lib/settings.js builds from the same rows (${label})`, async () => {
+    const id = await household(profile);
+    // The stored state, set directly so a case need not be reachable through a save.
+    const columns = Object.keys(preferences);
+    if (columns.length) {
+      await db.query(
+        `update public.profile_preferences set ${columns.map((column, i) => `${column} = $${i + 2}`).join(', ')}, revision = 1 where profile_id = $1`,
+        [id, ...Object.values(preferences)],
+      );
+      await db.query('update public.profile_preferences set revision = 1 where profile_id = $1', [id]);
+    }
+    if (notifications) {
+      await db.query(
+        `insert into public.notification_prefs (profile_id, ${Object.keys(notifications).join(', ')}) values ($1, ${Object.keys(notifications).map((_, i) => `$${i + 2}`).join(', ')})`,
+        [id, ...Object.values(notifications)],
+      );
+      await db.query('update public.profile_preferences set revision = 1 where profile_id = $1', [id]);
+    }
+    // A save that changes one thing, so the receipt is built from rows the save committed.
+    const operationId = await ledgerRow(id);
+    await save(id, 1, { preferences: { luna_tasks: true }, operationId });
+    const stored = (await operationOf(operationId)).result.snapshot;
+    assert.deepEqual(stored, settingsSnapshot({ ...(await rowsOf(id)), unresolvedOperations: [] }));
+    // Key for key, order aside: jsonb sorts keys, and the client reads by name.
+    assert.equal(Object.hasOwn(stored.display, 'palette'), ['ocean', 'forest', 'iris'].includes(preferences.display_palette));
+  });
+}
+
+test('S15: a ledger row that is not this household\'s pending settings row refuses the save with nothing written', async () => {
+  const id = await household();
+  const before = await everything(id);
+  const cases = {
+    'reaped as abandoned': await ledgerRow(id, { status: 'failed', result: { status: 'failed', reason: 'abandoned' } }),
+    'already succeeded': await ledgerRow(id, { status: 'succeeded', result: { status: 'succeeded' } }),
+    'another household\'s': await ledgerRow(ALICE),
+    'another domain\'s': await ledgerRow(id, { domain: 'alerts' }),
+    'never claimed': crypto.randomUUID(),
+  };
+  for (const [label, operationId] of Object.entries(cases)) {
+    const statusBefore = await operationOf(operationId);
+    // Checked first (H29): before the revision, so a stale save of a reaped row is refused as
+    // not pending too, rather than answered as a revision conflict.
+    for (const expected of [1, 99]) {
+      const error = await saveError(id, expected, { preferences: { luna_home: true }, notifications: { radon_season: false }, operationId });
+      assert.deepEqual([error?.code, error?.message], ['P0001', 'HALO_OPERATION_NOT_PENDING'], `${label} at revision ${expected}`);
+    }
+    assert.deepEqual(await operationOf(operationId), statusBefore, `${label}: the ledger row is untouched`);
+  }
+  assert.equal(await everything(id), before, 'no setting, no revision, no notification or band row');
+});
+
+test('S15: a settled settings row keeps its status; its receipt can be rewritten as succeeded; a pending row and other domains settle as before', async () => {
+  const id = await household();
+  const operationId = await ledgerRow(id);
+  await save(id, 1, { preferences: { luna_home: true }, operationId });
+  const settle = (op, status, result) =>
+    db.query('update public.operations set status = $2, result = $3::jsonb, updated_at = now() where operation_id = $1', [op, status, result === null ? null : JSON.stringify(result)]);
+
+  const stored = (await operationOf(operationId)).result;
+  const refused = await settle(operationId, 'failed', null).then(() => null, (error) => error);
+  assert.deepEqual([refused?.code, refused?.message], ['P0001', 'HALO_OPERATION_SETTLED'], 'runOperation\'s later settle as failed is refused');
+  assert.deepEqual(await operationOf(operationId), { status: 'succeeded', result: stored });
+  await settle(operationId, 'succeeded', { ...stored, status: 'succeeded' });
+  assert.equal((await operationOf(operationId)).status, 'succeeded', 'runOperation\'s settle of a save it saw commit is allowed');
+
+  const reaped = await ledgerRow(id, { status: 'failed', result: { status: 'failed', reason: 'abandoned' } });
+  assert.equal((await settle(reaped, 'succeeded', { status: 'succeeded' }).then(() => null, (error) => error))?.message, 'HALO_OPERATION_SETTLED',
+    'a reaped row never becomes succeeded');
+  const pending = await ledgerRow(id);
+  await settle(pending, 'failed', null);
+  assert.equal((await operationOf(pending)).status, 'failed', 'a pending row settles as before (a refused save)');
+  const alerts = await ledgerRow(id, { domain: 'alerts', status: 'succeeded', result: { status: 'succeeded' } });
+  await settle(alerts, 'failed', null);
+  assert.equal((await operationOf(alerts)).status, 'failed', 'a domain without a guard is unchanged');
+});
+
+test('S15, end to end with runOperation: a save whose answer is lost still reads as succeeded, and reconcile shows it applied', async () => {
+  const id = await household();
+  const operationId = crypto.randomUUID();
+  const logged = [];
+  const original = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    await assert.rejects(
+      runOperation(ledgerClient(db), { operationId, profileId: id, domain: 'settings', kind: 'settings.save', input: { group: 'luna' } }, async () => {
+        await save(id, 1, { preferences: { luna_tasks: true, luna_home: true }, operationId });
+        throw new Error('fetch failed'); // the save committed, its answer did not arrive
+      }),
+      /fetch failed/,
+    );
+  } finally {
+    console.error = original;
+  }
+  assert.ok(logged.some((line) => line.includes(`could not settle ${operationId} as failed`) && line.includes('HALO_OPERATION_SETTLED')),
+    'runOperation\'s settle as failed was refused and logged, not thrown');
+  // What GET /api/operations answers: lib/operations.js readOperation, on this database.
+  const read = await readOperation({ from: (table) => pgliteSelect(db, table) }, { operationId, profileId: id, domain: 'settings' });
+  assert.equal(read.status, 'succeeded');
+  assert.deepEqual(read.result.snapshot.values.luna, { tasks: true, home: true, projects: false }, 'the save as applied');
+  assert.equal(read.result.snapshot.revision, 2);
+  assert.deepEqual(read.result.snapshot, settingsSnapshot({ ...(await rowsOf(id)), unresolvedOperations: [] }));
+
+  // A save the reaper settled first: save_settings refuses, nothing is applied, and
+  // runOperation's own settle as failed (failed to failed) is allowed.
+  const reapedId = crypto.randomUUID();
+  const before = await everything(id);
+  await assert.rejects(
+    runOperation(ledgerClient(db), { operationId: reapedId, profileId: id, domain: 'settings', kind: 'settings.save', input: { group: 'luna', n: 2 } }, async () => {
+      await db.query(`update public.operations set status = 'failed', result = '{"status":"failed","reason":"abandoned"}' where operation_id = $1`, [reapedId]);
+      return save(id, 2, { preferences: { luna_projects: true }, operationId: reapedId });
+    }),
+    /HALO_OPERATION_NOT_PENDING/,
+  );
+  assert.equal(await everything(id), before);
+  assert.equal((await operationOf(reapedId)).status, 'failed');
+});
+
+// ---------------------------------------------------------------------------
+// 1b. A save of the values already stored (review finding C)
+// ---------------------------------------------------------------------------
+
+test('finding C: a save of the values already stored keeps the revision, settles succeeded, and a device at the same revision can still save', async () => {
+  const id = await household();
+  await save(id, 1, { preferences: { display_appearance: 'dark' }, notifications: { radon_season: false }, bands: { has_adult: true } });
+  const before = await everything(id);
+  const operationId = await ledgerRow(id);
+  const same = await save(id, 2, {
+    preferences: { display_appearance: 'dark', luna_home: false },
+    profile: { locale: 'en' },
+    notifications: { radon_season: false },
+    bands: { has_adult: true },
+    operationId,
+  });
+  assert.deepEqual([same.saved, same.changed, same.revision], [true, false, 2]);
+  assert.equal(await revisionOf(id), 2);
+  assert.equal((await operationOf(operationId)).status, 'succeeded');
+  assert.equal((await operationOf(operationId)).result.snapshot.revision, 2);
+  const after = JSON.parse(await everything(id));
+  // Only the write times move: the save wrote its columns, unchanged.
+  const unstamped = (rows) => rows.map((row) => ({ ...row, updated_at: null }));
+  for (const table of Object.keys(after)) assert.deepEqual(unstamped(after[table]), unstamped(JSON.parse(before)[table]), table);
+  // Another device still holding revision 2 saves a real change.
+  const other = await save(id, 2, { preferences: { luna_home: true } });
+  assert.deepEqual([other.saved, other.changed, other.revision], [true, true, 3]);
+});
 
 /** The statements each route runs, as the service role. */
 const WRITES = {
@@ -380,6 +657,8 @@ const SCRIPT = [
   { save: [null, { preferences: { luna_tasks: true }, profile: { tenure: 'other', renter_mode: false }, notifications: { season_summary: false }, bands: { has_teen: true } }] },
   { save: [3, { preferences: { luna_projects: true } }] },
   { save: [null, { profile: { locale: 'es' }, home: { home_year: 2000 } }] },
+  // The values already stored: applied, and the revision stays (review finding C).
+  { save: [null, { preferences: { luna_tasks: true }, profile: { locale: 'es' }, notifications: { season_summary: false } }] },
 ];
 
 async function runReal(id) {
@@ -388,8 +667,9 @@ async function runReal(id) {
     const [[table, values]] = Object.entries(step);
     if (table === 'save') {
       const [expected, args] = values;
-      const result = await save(id, expected ?? await revisionOf(id), args);
-      trace.push({ saved: result.saved, revision: result.revision });
+      const operationId = await ledgerRow(id);
+      const result = await save(id, expected ?? await revisionOf(id), { ...args, operationId });
+      trace.push({ saved: result.saved, changed: result.changed ?? null, revision: result.revision, settled: (await operationOf(operationId)).status });
     } else if (table === 'profiles' || table === 'profile_preferences') {
       const key = table === 'profiles' ? 'id' : 'profile_id';
       await asService(`update public.${table} set ${Object.keys(values).map((k, i) => `${k} = $${i + 2}`).join(', ')} where ${key} = $1`, [id, ...Object.values(values)]);
@@ -408,7 +688,7 @@ async function runReal(id) {
 
 async function runFake(id) {
   const fake = createFakeSupabase({
-    tables: haloTables('profiles', 'profile_preferences', 'notification_prefs', 'household_bands', 'home_contexts'),
+    tables: haloTables('profiles', 'profile_preferences', 'notification_prefs', 'household_bands', 'home_contexts', 'operations'),
     seed: { profiles: [{ id, home_year: null, water_source: null, tenure: null }], profile_preferences: [{ profile_id: id }] },
   });
   registerHomeContextRpcs(fake);
@@ -424,8 +704,11 @@ async function runFake(id) {
     const [[table, values]] = Object.entries(step);
     if (table === 'save') {
       const [expected, args] = values;
+      const operationId = crypto.randomUUID();
+      await ok(fake.from('operations').insert({ operation_id: operationId, profile_id: id, domain: 'settings', kind: 'settings.save' }));
       const { data, error } = await fake.rpc('save_settings', {
         p_profile_id: id,
+        p_operation_id: operationId,
         p_expected_revision: expected ?? row('profile_preferences', 'profile_id').revision,
         p_preferences: args.preferences ?? {},
         p_profile: args.profile ?? null,
@@ -434,7 +717,7 @@ async function runFake(id) {
         p_bands: args.bands ?? null,
       });
       assert.equal(error, null);
-      trace.push({ saved: data.saved, revision: data.revision });
+      trace.push({ saved: data.saved, changed: data.changed ?? null, revision: data.revision, settled: fake.rows('operations').find((r) => r.operation_id === operationId).status });
     } else if (table === 'profiles' || table === 'profile_preferences') {
       await ok(fake.from(table).update(values).eq(table === 'profiles' ? 'id' : 'profile_id', id));
     } else {

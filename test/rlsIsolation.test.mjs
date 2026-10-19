@@ -120,6 +120,7 @@ const PUBLIC_FUNCTIONS = {
   save_settings: 'service_role',                  // 0021: PATCH /api/settings, one transaction per save
   advance_settings_revision: 'trigger',           // 0021: a snapshot value changed, so the settings revision advances
   reconcile_profile_tenure: 'trigger',            // 0021: tenure kept in step with renter_mode
+  guard_settled_settings_operation: 'trigger',    // 0021: a settled 'settings' operation keeps its status
   read_household_actions: 'service_role',         // 0023: My Week's one snapshot
   commit_household_actions: 'service_role',       // 0023: a task command and its ledger settle in one transaction
   guard_settled_action_operation: 'trigger',      // 0023: a settled 'actions' operation keeps its status

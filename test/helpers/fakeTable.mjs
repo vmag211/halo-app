@@ -62,7 +62,8 @@ export class FakeTable {
     /**
      * Row triggers a test installs (fakeSupabase registerTrigger). `before(oldRows, newRows)`
      * runs on the planned rows of an insert, upsert or update and may change those row objects
-     * in place, as a BEFORE ROW trigger changes NEW; `after(oldRows, newRows)` runs once the
+     * in place, as a BEFORE ROW trigger changes NEW, or throw a pgError to refuse the whole
+     * statement, as a trigger that raises does; `after(oldRows, newRows)` runs once the
      * write is committed. Neither runs for a seed (test setup) or a delete.
      */
     this.triggers = { before: [], after: [] };
@@ -123,7 +124,17 @@ export class FakeTable {
 
   #plan(work, affected) {
     const fire = !this.seeding;
-    if (fire) for (const before of this.triggers.before) before(this.rows, work);
+    if (fire) {
+      for (const before of this.triggers.before) {
+        // A BEFORE trigger that raises fails the statement, which then changes nothing.
+        try {
+          before(this.rows, work);
+        } catch (error) {
+          if (error?.name === 'PostgrestError') return { error };
+          throw error;
+        }
+      }
+    }
     const error = this.#nullKeyError(work) ?? this.#uniqueError(work);
     if (error) return { error };
     return {

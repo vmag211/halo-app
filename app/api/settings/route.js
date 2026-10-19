@@ -46,19 +46,31 @@ import {
  * client was shown, so an unanswered tenure or water source the snapshot
  * reports as 'other' stays unanswered unless the person picks something else.
  *
- * Concurrency (Rulings S4, S11 and S12). `If-Match` is the revision the client
- * was shown. The whole save is one call to public.save_settings (0021): the
- * compare-and-set on the revision and every table the group writes, in one
- * transaction, with the home details saved through the 0016 home functions
- * inside it. So of two saves holding the same revision exactly one applies and
- * the other is a 409 having written nothing, a save that fails anywhere
- * applies nothing (a 500 recorded as failed is true), and the revision
- * advances exactly once per applied save. Every other writer of a value in the
- * snapshot advances the revision through 0021's triggers in the same
+ * Concurrency (Rulings S4, S11, S12 and S15). `If-Match` is the revision the
+ * client was shown. The whole save is one call to public.save_settings (0021):
+ * the revision check and every table the group writes, in one transaction,
+ * with the home details saved through the 0016 home functions inside it. So of
+ * two saves holding the same revision that change something exactly one
+ * applies and the other is a 409 having written nothing, a save that fails
+ * anywhere applies nothing (a 500 recorded as failed is true), and the
+ * revision advances exactly once per applied save that changed a value and not
+ * at all for a save of the values already stored (review finding C: the
+ * client accepts any valid receipt, ProductionPreferences.tsx, so nothing
+ * needs a strictly advancing revision, and a second device holding the same
+ * revision is not sent a needless conflict). Every other writer of a value in
+ * the snapshot advances the revision through 0021's triggers in the same
  * transaction as its write, so a change made anywhere else makes a stale save
  * here conflict instead of being reverted by it. The receipt is built from the
  * rows save_settings returns; nothing is read between its commit and the
  * ledger's settle.
+ *
+ * The same transaction settles this save's own ledger row as succeeded
+ * (Ruling S15), with the receipt below, and 0021 then refuses to relabel it.
+ * So if save_settings commits and its answer is lost, runOperation's settle
+ * as failed is refused and logged (lib/operations.js settle does not throw),
+ * the route answers 500, which the client treats as an unknown outcome, and
+ * its "check status" reads the success the save was. If the ledger's reaper
+ * settled the row first, save_settings refuses with nothing written.
  *
  * Idempotency is the ledger (migration 0017) with domain 'settings' and
  * nothing else. The same operationId replays the first receipt without acting
@@ -190,6 +202,7 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
   try {
     saved = await saveSettings(supabase, {
       profileId: userId,
+      operationId,
       expectedRevision,
       preferences: preferenceColumns(group, patch, state.preferences),
       changes,
