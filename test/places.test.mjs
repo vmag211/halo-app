@@ -1,7 +1,7 @@
 /**
  * The NC county gazetteer behind GET /api/locations/search (B05 Task 2, Ruling D4).
  *
- * THE VALIDATOR BELOW IS TRANSCRIBED, not summarised, from
+ * THE VALIDATOR USED HERE IS TRANSCRIBED, not summarised (test/helpers/frontendB05.mjs), from
  * `lib/frontend/production/explore-service.ts` on
  * `origin/codex/october15-review-refinement` (read with `git show`; lines 8-9
  * for `object` and `text`, line 67 for `validPlaces`), TypeScript to
@@ -12,15 +12,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+// F: explore-service.ts:8-9,67, transcribed once for every B05 suite (see the helper's header).
+import { validPlaces } from './helpers/frontendB05.mjs';
 
 const { searchPlaces, placeById, parseLocationQuery, MAX_CANDIDATES } = await import('../lib/places.js');
 const source = JSON.parse(readFileSync(new URL('../lib/data/ncCounties.json', import.meta.url), 'utf8'));
-
-// ---------------------------------------------------------------- transcribed (F: explore-service.ts:8-9,67)
-const object = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-const text = (value, max = 10000) => typeof value === 'string' && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
-function validPlaces(value){return object(value)&&Array.isArray(value.candidates)&&value.candidates.length<=20&&value.candidates.every(place=>object(place)&&['id','place','state','label','timezone'].every(key=>text(place[key],300))&&!!place.id);}
-// ----------------------------------------------------------------
 
 const GOOD = { id: 'us-county:37119', place: 'Mecklenburg County', state: 'NC', label: 'Mecklenburg County, NC', timezone: 'America/New_York' };
 const EM_DASH = String.fromCharCode(0x2014);

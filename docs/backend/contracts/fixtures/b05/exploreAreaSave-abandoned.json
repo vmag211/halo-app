@@ -1,0 +1,13 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 409,
+  "body": {
+    "error": "That earlier area change did not finish. Please review your area and try again.",
+    "code": "conflict",
+    "message": "That earlier area change did not finish. Please review your area and try again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b05-contract-0001",
+    "reason": "abandoned"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 200,
+  "body": {
+    "place": null,
+    "revision": 3
+  }
+}

@@ -1,0 +1,2535 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B05 discovery backend contract",
+    "version": "b05-1",
+    "description": "The six operations B05 built or fixed: map.layer and map.district (the two shipped map routes, fixed for quarter=latest and an incomplete geography lookup), locations.search, explore.area.read, explore.area.save and map.comparison. Dropped, and absent here: community.read and map.brief (no consumer, validator or type on the frontend ref). Blocked, and absent here: organizations.search (no participation content) and summary.prepare, summary.list and summary.read (no record collections to freeze). Response schemas mirror the frontend's own validators and parsers on origin/codex/october15-review-refinement (explore-service.ts, map-service.ts), which discard or refuse the whole payload on one wrong field; where a rule is not JSON Schema the conformance test transcribes the validator instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key (Ruling D10). No route grants anonymous access, although the registry marks the map operations public (Ruling D1, open question 1). Nothing here is a deployment or approval claim: migration 0022, which explore.area needs, is applied nowhere."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/map": {
+      "get": {
+        "operationId": "mapLayer",
+        "x-halo-operation": "map.layer",
+        "summary": "One map layer: water, radon, facilities or air",
+        "description": "Served from the daily pre-build (map_layers, migration 0011); a missing or stale layer is built live and, when complete, stored. Sign-in is required: the registry marks this operation public, the backend does not grant anonymous access (B05 Ruling D1, open question 1), so the default /map renders no live layer until that is decided. A water quarter is assembled from the UCMR 5 table for the time slider and is never stored. A live water build whose service-area lookup did not complete is still answered, marked geography_complete false and meta.availability partial with a note that says so, and is not stored; the client reads meta.availability partial as an incomplete layer (map-service.ts:31). The body is bare: no top-level data key (Ruling D10), because the client would parse body.data instead.",
+        "parameters": [
+          {
+            "name": "layer",
+            "in": "query",
+            "required": false,
+            "description": "Default water. district is served by /api/district and is a 400 here.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "water",
+                "radon",
+                "facilities",
+                "air"
+              ]
+            }
+          },
+          {
+            "name": "quarter",
+            "in": "query",
+            "required": false,
+            "description": "latest, or a sampling quarter YYYYQn. latest (exactly, lowercase) means no quarter on every layer, exactly like an omitted or empty parameter, and is checked first (B05 Ruling D2, lib/mapQuarter.js). A YYYYQn on a layer other than water is a 400 quarter_not_applicable; anything else on water is a 400 invalid_quarter. Latest and LATEST are not latest. Applicability is checked before format, so a malformed quarter on a non-water layer is quarter_not_applicable.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(latest|\\d{4}Q[1-4])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The layer. prebuilt is true when it came from the pre-build, false when it was built live; a water quarter answer carries no prebuilt.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapLayer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "layer or quarter failed a rule (validation_failed, one field error). Nothing was read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The detail is logged with the request id and never returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or a layer that could not be built live (upstream_unavailable, retryable, with the legacy layer field). A layer is never answered with an empty stand-in.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/district": {
+      "get": {
+        "operationId": "mapDistrict",
+        "x-halo-operation": "map.district",
+        "summary": "NC-08's water picture from public data, with the caller's own county",
+        "description": "The stored district view (map_layers, district) or a live build, plus household_county: the caller's county in the statewide ranking, read from their own profile. The full statewide ranking (county_rankings) stays server side and is forbidden here. With no stored view and a service-area lookup that did not complete, the answer is a 503 and nothing is stored: every count is a required integer, so a partial placement would read as 0 systems with a complete population. Contradiction 9.9 (the no-population branch the client rejects) is unreachable through every producer and pinned by test, so every by_contaminant row carries population_over and over_population_unknown. Same sign-in rule as /api/map (Ruling D1). Bare body (Ruling D10).",
+        "responses": {
+          "200": {
+            "description": "The district view",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapDistrict"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error, including a failed read of the caller's profile: never a view without a household county, which would read as \"your county is not ranked\".",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or no stored view and a service-area lookup that did not complete (upstream_unavailable, retryable). Nothing is stored.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/locations/search": {
+      "get": {
+        "operationId": "locationsSearch",
+        "x-halo-operation": "locations.search",
+        "summary": "North Carolina counties a household can choose as its Explore area",
+        "description": "A licence-free county gazetteer (the repo's public-domain Census TIGERweb county set, B05 Ruling D4). No table is read and no provider is called. Matching ignores case, whitespace, punctuation and a trailing County or Co.; an exact name comes first; a query of two or more characters also matches the start of a name; at most 20 candidates. A city or a ZIP code finds nothing until open question 2 is decided, so \"Charlotte\" and \"28208\" are a 200 with no candidates, which the client shows as no matching area. The body cannot say \"unsupported geography\" (finding F3). Bare body (Ruling D10).",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "description": "Trimmed, 1 to 80 characters, no control characters. The client trims it (ExploreDiscovery.tsx:59).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed, 0 to 40 characters, no control characters. Blank, NC, N.C. or North Carolina in any case means North Carolina; any other non-empty state answers no candidates.",
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The candidates, possibly none",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationCandidates"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "query or state failed a rule (validation_failed, field errors in query-then-state order)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The detail is logged with the request id and never returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/explore/area": {
+      "get": {
+        "operationId": "exploreAreaRead",
+        "x-halo-operation": "explore.area.read",
+        "summary": "The household's chosen discovery area",
+        "description": "Exactly { place, revision }. A household that has never saved reads { place: null, revision: 1 } (Ruling D6): revision 0 would make the client refuse every save. Never carries pendingOperation (Ruling D7): the ledger keeps only a hash of what was sent, so the place an unsettled save attempted cannot be reported truthfully. The read writes nothing and never consults the ledger.",
+        "parameters": [
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: the discovery area belongs to the household, not to a home context (B05 Ruling D5). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The area",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryArea"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The detail is logged with the request id and never returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or migration 0022 not applied (feature_unavailable, not retryable)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "exploreAreaSave",
+        "x-halo-operation": "explore.area.save",
+        "summary": "Save or clear the household's discovery area",
+        "description": "The body is exactly { place, revision }; anything else is refused. Only place.id is read: it is resolved against the county gazetteer and the gazetteer's own five fields are stored and returned (Ruling D8), so an unknown id is a 400 and a forged label never reaches the database. Idempotency is the operation ledger (domain explore, kind explore.area.save): the Idempotency-Key header is required, the precondition is checked inside the operation so a replay gets the first outcome, and the ledger input is { place, revision } as sent. Every refusal is a 409 the client maps to a conflict, which clears its parked operation; the reason says why (see the 409). A pending attempt inside the ledger's window is the one replay whose outcome is honestly unknown, the retryable 503 upstream_unavailable; settling a stale one depends on the reaper. Production enablement waits on migration 0022 being applied.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "The client's own operation id, a UUID, stable across a replay. Missing, empty or not a UUID is a 400 naming Idempotency-Key. The id is never put in the body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "The revision the client holds, the same number as the body's revision (runtime.ts:133). Different, or quoted, is a 400 precondition_mismatch on field revision: a client sending two preconditions does not know what it is asking for. The revision a save returns is accepted as the next If-Match.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: the discovery area belongs to the household, not to a home context (B05 Ruling D5). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExploreAreaSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved area, canonical, with the post-write revision",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryArea"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unreadable body (bad_request) or a field that failed a rule (validation_failed): an unknown key, a missing or invalid revision, a place that is not an object with a string id or is unknown to the gazetteer, If-Match different from the body, or a missing or invalid Idempotency-Key. Nothing is read from the ledger and nothing is written.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A terminal refusal, with reason: stale_revision (the area moved on; revision is the current one), revision_exhausted (the area is at 2147483647 and cannot take another revision; revision is that value), operation_mismatch (this Idempotency-Key was already used with a different body, or by another household), or, on a replay of an earlier attempt that is over without a receipt, abandoned (the ledger reaped it because it never settled within its window) or attempt_failed (it threw inside the operation, or its stored reason is one this route never writes). The last two compared no revision, so they are never called stale.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 4096 bytes (payload_too_large)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The detail is logged with the request id and never returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After); migration 0022 or 0017 not applied (feature_unavailable, not retryable, decided before the operation id is claimed); or an earlier attempt on this key still inside its window (upstream_unavailable, retryable), which the client reads as an unconfirmed outcome and replays",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/comparison": {
+      "get": {
+        "operationId": "mapComparison",
+        "x-halo-operation": "map.comparison",
+        "summary": "The public records the comparison sheet sets side by side, honestly degraded",
+        "description": "Every record carries no method, no source version, every value qualifier unknown and coverage partial (B05 Ruling D3), so the client's compareEvidence answers \"Not comparable\" with the method, source and qualifier reasons for every pair and nothing can render \"Aligned evidence\" or \"Limited comparison\". That is a statement about the data HALO holds, not a defect: the only route to alignment is acquiring UCMR 5 method, release and non-detect qualifiers (tracker HO-074; open question 3). No sourceName is sent (the client falls back to \"Source not reported\"). Sources: water latest from the stored water layer, else the UCMR 5 table with no geography lookup; a water quarter from the UCMR 5 table; air from the stored air layer only, else a 503 (so while /api/map answers a live air build the comparison can still be blocked); facilities and radon have no comparable observation and answer no records with nothing read. No outbound call and no household table. Same sign-in rule as /api/map (Ruling D1). Bare body (Ruling D10).",
+        "parameters": [
+          {
+            "name": "layer",
+            "in": "query",
+            "required": true,
+            "description": "Required here: without it the ids are ambiguous.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "water",
+                "air",
+                "facilities",
+                "radon"
+              ]
+            }
+          },
+          {
+            "name": "quarter",
+            "in": "query",
+            "required": false,
+            "description": "latest, or a sampling quarter YYYYQn. latest (exactly, lowercase) means no quarter on every layer, exactly like an omitted or empty parameter, and is checked first (B05 Ruling D2, lib/mapQuarter.js). A YYYYQn on a layer other than water is a 400 quarter_not_applicable; anything else on water is a 400 invalid_quarter. Latest and LATEST are not latest. Applicability is checked before format, so a malformed quarter on a non-water layer is quarter_not_applicable.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(latest|\\d{4}Q[1-4])$"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "description": "One JSON array of 1 to 2,000 record ids (water pwsid, air station id), each passing the client's key() rule (non-blank, at most 200 characters, no control characters), as the client runtime encodes an object value (runtime.ts:125-129). Only requested ids that exist are returned. 2,000 ids exceed common URL limits well before the cap (finding F4: the client should send only the pair).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The records, possibly none",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonRecords"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "layer, quarter or ids failed a rule (validation_failed, one field error), checked in that order. Nothing was read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The detail is logged with the request id and never returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or no fresh stored air layer, or an unreadable UCMR 5 table (upstream_unavailable, retryable)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "SafeText": {
+        "description": "The frontend's text() predicate (explore-service.ts:9) without its max: a string free of U+0000 to U+0008, U+000B, U+000C and U+000E to U+001F. Tab, line feed and carriage return are permitted. Compose it with maxLength through allOf.",
+        "type": "string",
+        "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f]*$"
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence. Strict here, because a field that leaked a database message or another household's id would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "MapErrorEnvelope": {
+        "description": "The envelope, plus the legacy layer field on GET /api/map's upstream 503 (the auth outage carries none).",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "layer": {
+            "type": "string",
+            "enum": [
+              "water",
+              "radon",
+              "facilities",
+              "air"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "ConflictEnvelope": {
+        "description": "A 409 from PATCH /api/explore/area. code is always conflict and retryable false. revision is present exactly when the reason is about the stored revision.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "const": "conflict"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale_revision",
+              "revision_exhausted",
+              "operation_mismatch",
+              "abandoned",
+              "attempt_failed"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "reason": {
+              "enum": [
+                "stale_revision",
+                "revision_exhausted"
+              ]
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "revision"
+          ]
+        },
+        "else": {
+          "not": {
+            "required": [
+              "revision"
+            ]
+          }
+        }
+      },
+      "DiscoveryPlace": {
+        "description": "The frontend's DiscoveryPlace (explore-service.ts:66-67): five strings of at most 300 SafeText characters, id non-empty. The id pattern, the state and the timezone are statements about THIS release, which serves North Carolina counties only (Ruling D4): a city or ZIP gazetteer under open question 2 is a new contract version.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "us-county:<GEOID>, a five-digit NC county GEOID",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "pattern": "^us-county:37[0-9]{3}$"
+              }
+            ]
+          },
+          "place": {
+            "description": "<Name> County",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 300
+              }
+            ]
+          },
+          "state": {
+            "const": "NC"
+          },
+          "label": {
+            "description": "<Name> County, NC",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SafeText"
+              },
+              {
+                "maxLength": 300
+              }
+            ]
+          },
+          "timezone": {
+            "const": "America/New_York"
+          }
+        },
+        "required": [
+          "id",
+          "place",
+          "state",
+          "label",
+          "timezone"
+        ],
+        "additionalProperties": false
+      },
+      "LocationCandidates": {
+        "description": "validPlaces (explore-service.ts:67): at most 20 candidates. An empty list is an answer, not an error.",
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryPlace"
+            }
+          }
+        },
+        "required": [
+          "candidates"
+        ],
+        "additionalProperties": false
+      },
+      "DiscoveryArea": {
+        "description": "validDiscoveryArea (explore-service.ts:69). revision is a safe integer above 0 (the database ceiling is 2147483647); place is a DiscoveryPlace or null. pendingOperation, which the frontend type permits, is forbidden in this release (Ruling D7).",
+        "type": "object",
+        "properties": {
+          "place": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiscoveryPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "place",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "ExploreAreaSave": {
+        "description": "Exactly the two fields the client sends (ExploreDiscovery.tsx:60). place is null to clear, or a place whose id is read and nothing else (Ruling D8). revision is a JSON number, never a string.",
+        "type": "object",
+        "properties": {
+          "place": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "place",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "WaterCompound": {
+        "type": "object",
+        "description": "One regulated compound for one system. Tested: value_ppt, ratio, date and date_iso are present. Not tested: severity no_data and only the limit, never a zero.",
+        "properties": {
+          "value_ppt": {
+            "type": "number",
+            "minimum": 0
+          },
+          "limit_ppt": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratio": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "date": {
+            "type": "string"
+          },
+          "date_iso": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposed_for_rescission": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "limit_ppt",
+          "severity",
+          "proposed_for_rescission"
+        ],
+        "dependentRequired": {
+          "value_ppt": [
+            "ratio",
+            "date",
+            "date_iso"
+          ]
+        },
+        "additionalProperties": false
+      },
+      "HazardIndex": {
+        "description": "The latest-sample PFAS hazard index, present only when two or more of its compounds were detected. A latest-sample value, not a compliance determination.",
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "minimum": 0
+          },
+          "exceeds": {
+            "type": "boolean"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "components": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "basis": {
+            "const": "latest_sample"
+          },
+          "proposed_for_rescission": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "value",
+          "exceeds",
+          "severity",
+          "components",
+          "basis",
+          "proposed_for_rescission"
+        ],
+        "additionalProperties": false
+      },
+      "WaterFeature": {
+        "description": "One public water system. lat, lng and population are joined by PWSID from the service-area lookup and are null when it has none (or did not finish).",
+        "type": "object",
+        "properties": {
+          "pwsid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall_severity": {
+            "type": "string",
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unscoreable",
+              "no_detections",
+              "excluded_only",
+              "no_data"
+            ]
+          },
+          "latest_sample_date": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_sample_iso": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detected_unregulated": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contaminants": {
+            "type": "object",
+            "properties": {
+              "PFOA": {
+                "$ref": "#/components/schemas/WaterCompound"
+              },
+              "PFOS": {
+                "$ref": "#/components/schemas/WaterCompound"
+              },
+              "PFHxS": {
+                "$ref": "#/components/schemas/WaterCompound"
+              },
+              "PFNA": {
+                "$ref": "#/components/schemas/WaterCompound"
+              },
+              "HFPO-DA": {
+                "$ref": "#/components/schemas/WaterCompound"
+              }
+            },
+            "required": [
+              "PFOA",
+              "PFOS",
+              "PFHxS",
+              "PFNA",
+              "HFPO-DA"
+            ],
+            "additionalProperties": false
+          },
+          "hazard_index": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HazardIndex"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lat": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lng": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "population": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pwsid",
+          "name",
+          "status",
+          "overall_severity",
+          "coverage",
+          "latest_sample_date",
+          "latest_sample_iso",
+          "detected_unregulated",
+          "contaminants",
+          "hazard_index",
+          "lat",
+          "lng",
+          "population"
+        ],
+        "additionalProperties": false
+      },
+      "MapLayerWater": {
+        "description": "The water layer, statewide; counts describe exactly the features returned. geography_complete false and meta.availability partial appear together, and only on a live build whose service-area lookup did not complete; such a body is never stored.",
+        "type": "object",
+        "properties": {
+          "layer": {
+            "const": "water"
+          },
+          "quarter": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}Q[1-4]$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quarters": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\d{4}Q[1-4]$"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "located": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "over_limit": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hazard_index_over": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "by_contaminant": {
+                "type": "object",
+                "properties": {
+                  "PFOA": {
+                    "type": "object",
+                    "properties": {
+                      "tested": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "over": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "tested",
+                      "over"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "PFOS": {
+                    "type": "object",
+                    "properties": {
+                      "tested": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "over": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "tested",
+                      "over"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "PFHxS": {
+                    "type": "object",
+                    "properties": {
+                      "tested": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "over": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "tested",
+                      "over"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "PFNA": {
+                    "type": "object",
+                    "properties": {
+                      "tested": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "over": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "tested",
+                      "over"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "HFPO-DA": {
+                    "type": "object",
+                    "properties": {
+                      "tested": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "over": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "tested",
+                      "over"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "PFOA",
+                  "PFOS",
+                  "PFHxS",
+                  "PFNA",
+                  "HFPO-DA"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "total",
+              "over_limit",
+              "hazard_index_over",
+              "by_contaminant"
+            ],
+            "additionalProperties": false
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WaterFeature"
+            }
+          },
+          "population_source": {
+            "type": "string"
+          },
+          "assembled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string"
+          },
+          "geography_complete": {
+            "const": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "availability": {
+                "const": "partial"
+              }
+            },
+            "required": [
+              "availability"
+            ],
+            "additionalProperties": false
+          },
+          "prebuilt": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layer",
+          "quarter",
+          "quarters",
+          "count",
+          "located",
+          "counts",
+          "features",
+          "population_source",
+          "assembled_at",
+          "note"
+        ],
+        "dependentRequired": {
+          "geography_complete": [
+            "meta"
+          ],
+          "meta": [
+            "geography_complete"
+          ]
+        },
+        "additionalProperties": false
+      },
+      "MapLayerRadon": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "const": "radon"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "county": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "zone": {
+                  "enum": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "good",
+                    "moderate",
+                    "elevated",
+                    "high",
+                    "severe",
+                    "no_data"
+                  ]
+                }
+              },
+              "required": [
+                "county",
+                "zone",
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "assembled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "prebuilt": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layer",
+          "count",
+          "features",
+          "assembled_at",
+          "prebuilt"
+        ],
+        "additionalProperties": false
+      },
+      "MapLayerFacilities": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "const": "facilities"
+          },
+          "scope": {
+            "const": "NC-08"
+          },
+          "selection": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lat": {
+                  "type": "number",
+                  "minimum": -90,
+                  "maximum": 90
+                },
+                "lng": {
+                  "type": "number",
+                  "minimum": -180,
+                  "maximum": 180
+                },
+                "county": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "programs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "compliance_status": {
+                  "type": "string",
+                  "enum": [
+                    "no_violation",
+                    "violation",
+                    "significant_violation",
+                    "unknown"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "good",
+                    "moderate",
+                    "elevated",
+                    "high",
+                    "severe",
+                    "no_data"
+                  ]
+                },
+                "open_violations": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "recent_violations": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "penalties": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "last_inspection": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "lat",
+                "lng",
+                "county",
+                "programs",
+                "compliance_status",
+                "severity",
+                "open_violations",
+                "recent_violations",
+                "penalties",
+                "last_inspection"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "assembled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "prebuilt": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layer",
+          "scope",
+          "selection",
+          "count",
+          "features",
+          "assembled_at",
+          "prebuilt"
+        ],
+        "additionalProperties": false
+      },
+      "MapLayerAir": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "const": "air"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lat": {
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "minimum": -90,
+                      "maximum": 90
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lng": {
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "minimum": -180,
+                      "maximum": 180
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "aqi": {
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "good",
+                    "moderate",
+                    "elevated",
+                    "high",
+                    "severe",
+                    "no_data"
+                  ]
+                },
+                "dominant_pollutant": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "last_reading_at": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "agency": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "lat",
+                "lng",
+                "aqi",
+                "severity",
+                "dominant_pollutant",
+                "last_reading_at",
+                "agency"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "source": {
+            "type": "string"
+          },
+          "assembled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "prebuilt": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layer",
+          "count",
+          "features",
+          "source",
+          "assembled_at",
+          "prebuilt"
+        ],
+        "additionalProperties": false
+      },
+      "MapLayer": {
+        "description": "One of the four layers, told apart by layer. The client's parseMapLayer (map-service.ts:24-56) throws on a layer other than the one asked for or a features value that is not an array.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MapLayerWater"
+          },
+          {
+            "$ref": "#/components/schemas/MapLayerRadon"
+          },
+          {
+            "$ref": "#/components/schemas/MapLayerFacilities"
+          },
+          {
+            "$ref": "#/components/schemas/MapLayerAir"
+          }
+        ]
+      },
+      "DistrictContaminant": {
+        "type": "object",
+        "properties": {
+          "tested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "over": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "number",
+            "minimum": 0
+          },
+          "population_over": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "over_population_unknown": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "tested",
+          "over",
+          "limit",
+          "population_over",
+          "over_population_unknown"
+        ],
+        "additionalProperties": false
+      },
+      "DistrictCounty": {
+        "type": "object",
+        "properties": {
+          "county": {
+            "type": "string",
+            "minLength": 1
+          },
+          "systems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "systems_over_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "worst_water_severity": {
+            "type": "string",
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          },
+          "in_district": {
+            "type": "string",
+            "enum": [
+              "whole",
+              "partial"
+            ]
+          },
+          "radon_zone": {
+            "oneOf": [
+              {
+                "enum": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "radon_severity": {
+            "type": "string",
+            "enum": [
+              "good",
+              "moderate",
+              "elevated",
+              "high",
+              "severe",
+              "no_data"
+            ]
+          }
+        },
+        "required": [
+          "county",
+          "systems",
+          "systems_over_limit",
+          "worst_water_severity",
+          "in_district",
+          "radon_zone",
+          "radon_severity"
+        ],
+        "additionalProperties": false
+      },
+      "MapDistrict": {
+        "description": "parseMapDistrict (map-service.ts:82-96) requires every count as a non-negative integer and throws otherwise, so every counter is required here. county_rankings (the statewide ranking) is deliberately not a property: it stays server side.",
+        "type": "object",
+        "properties": {
+          "scope": {
+            "const": "NC-08"
+          },
+          "total_systems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "by_contaminant": {
+            "type": "object",
+            "properties": {
+              "PFOA": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "PFOS": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "PFHxS": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "PFNA": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "HFPO-DA": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              }
+            },
+            "required": [
+              "PFOA",
+              "PFOS",
+              "PFHxS",
+              "PFNA",
+              "HFPO-DA"
+            ],
+            "additionalProperties": false
+          },
+          "systems_over_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "affected_population": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "affected_population_complete": {
+            "type": "boolean"
+          },
+          "over_limit_population_unknown": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string"
+          },
+          "systems_tested_any": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exceedance_lines": {
+            "type": "object",
+            "properties": {
+              "PFOA": {
+                "type": "string"
+              },
+              "PFOS": {
+                "type": "string"
+              },
+              "PFHxS": {
+                "type": "string"
+              },
+              "PFNA": {
+                "type": "string"
+              },
+              "HFPO-DA": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "PFOA",
+              "PFOS",
+              "PFHxS",
+              "PFNA",
+              "HFPO-DA"
+            ],
+            "additionalProperties": false
+          },
+          "counties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistrictCounty"
+            }
+          },
+          "state_comparison": {
+            "type": "object",
+            "properties": {
+              "district_share_over": {
+                "oneOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state_share_over": {
+                "oneOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "district_share_over",
+              "state_share_over"
+            ],
+            "additionalProperties": false
+          },
+          "ranked_counties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nc_counties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ranking_rule": {
+            "type": "string"
+          },
+          "unlocated_systems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "boundaries": {
+            "type": "object",
+            "properties": {
+              "district": {
+                "type": "string"
+              },
+              "counties": {
+                "type": "string"
+              },
+              "retrieved": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "district",
+              "counties",
+              "retrieved"
+            ],
+            "additionalProperties": false
+          },
+          "assembled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "household_county": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "county": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "water_rank": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "of": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "share_over": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "county",
+                  "water_rank",
+                  "of",
+                  "share_over"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prebuilt": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scope",
+          "total_systems",
+          "by_contaminant",
+          "systems_over_limit",
+          "affected_population",
+          "affected_population_complete",
+          "over_limit_population_unknown",
+          "note",
+          "systems_tested_any",
+          "exceedance_lines",
+          "counties",
+          "state_comparison",
+          "ranked_counties",
+          "nc_counties",
+          "ranking_rule",
+          "unlocated_systems",
+          "boundaries",
+          "assembled_at",
+          "household_county",
+          "prebuilt"
+        ],
+        "additionalProperties": false
+      },
+      "ComparisonValue": {
+        "description": "One observation. method null and qualifier unknown are fixed by Ruling D3: HALO holds no analytical method and no non-detect qualifier, and composing either would be a false provenance claim. value is null when nothing was reported, never 0.",
+        "type": "object",
+        "properties": {
+          "analyte": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "ppt",
+              "AQI"
+            ]
+          },
+          "observedAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "periodLabel": {
+            "type": "string"
+          },
+          "method": {
+            "type": "null"
+          },
+          "qualifier": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "analyte",
+          "value",
+          "unit",
+          "observedAt",
+          "period",
+          "periodLabel",
+          "method",
+          "qualifier"
+        ],
+        "additionalProperties": false
+      },
+      "ComparisonRecord": {
+        "description": "One public record for the comparison sheet (parseMapComparisons, map-service.ts:58-65). sourceVersion and sourceUrl null, status available and coverage partial (never complete) are fixed by Ruling D3. No sourceName.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "Reported water result",
+              "Hourly monitor observation"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "Public water system",
+              "Monitoring station"
+            ]
+          },
+          "denominator": {
+            "type": "string",
+            "minLength": 1
+          },
+          "backgroundUrl": {
+            "type": "string",
+            "enum": [
+              "https://www.epa.gov/dwucmr",
+              "https://www.airnow.gov/"
+            ]
+          },
+          "coverageLabel": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceVersion": {
+            "type": "null"
+          },
+          "sourceUrl": {
+            "type": "null"
+          },
+          "status": {
+            "const": "available"
+          },
+          "coverage": {
+            "const": "partial"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComparisonValue"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "scope",
+          "denominator",
+          "backgroundUrl",
+          "coverageLabel",
+          "sourceVersion",
+          "sourceUrl",
+          "status",
+          "coverage",
+          "values"
+        ],
+        "additionalProperties": false
+      },
+      "ComparisonRecords": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComparisonRecord"
+            }
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 503,
+  "body": {
+    "error": "That request is still being processed. Please check your area before trying again.",
+    "code": "upstream_unavailable",
+    "message": "That request is still being processed. Please check your area before trying again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b05-contract-0001"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "operationId": "exploreAreaRead",
+  "status": 200,
+  "body": {
+    "place": {
+      "id": "us-county:37183",
+      "place": "Wake County",
+      "state": "NC",
+      "label": "Wake County, NC",
+      "timezone": "America/New_York"
+    },
+    "revision": 2
+  }
+}

@@ -1,6 +1,20 @@
 # HALO executable API contracts
 
-One document per build package, each covering only the operations that package changed. `b01.openapi.json` is version `b01-1` (six B01 operations) and `b03.openapi.json` is version `b03-1` (the six Luna operations B03 built). Both are OpenAPI 3.1 with the same shape: a `paths` map whose statuses are the ones the handlers can actually produce, synthetic `{ operationId, status, body }` fixtures under `fixtures/<package>/`, and an Ajv 2020 conformance suite that runs the real handlers through the isolated route harness. Neither certifies a deployment, a provider right or a source's meaning.
+One document per build package, each covering only the operations that package changed. `b01.openapi.json` is version `b01-1` (six B01 operations), `b03.openapi.json` is version `b03-1` (the six Luna operations B03 built) and `b05.openapi.json` is version `b05-1` (the six discovery operations B05 built or fixed). All are OpenAPI 3.1 with the same shape: a `paths` map whose statuses are the ones the handlers can actually produce, synthetic `{ operationId, status, body }` fixtures under `fixtures/<package>/`, and an Ajv 2020 conformance suite that runs the real handlers through the isolated route harness. None certifies a deployment, a provider right or a source's meaning.
+
+## B05 discovery contract
+
+`b05.openapi.json`, version `b05-1`, documents `mapLayer` (`GET /api/map`), `mapDistrict` (`GET /api/district`), `locationsSearch`, `exploreAreaRead` and `exploreAreaSave` (`GET` and `PATCH /api/explore/area`) and `mapComparison` (`GET /api/map/comparison`). Each operation names its frontend registry entry in `x-halo-operation`. `community.read` and `map.brief` were dropped and `organizations.search` and the summaries trio are blocked, so none of them is documented. `test/contractsB05.test.mjs` is the conformance suite, and it follows the B03 one:
+
+- **The frontend's own code judges every answer.** `validPlaces`, `validDiscoveryArea`, `parseMapLayer`, `parseMapDistrict`, `parseMapComparisons` and `compareEvidence` are transcribed once, in `test/helpers/frontendB05.mjs`, and shared with the per-route suites. One test shows each of them refusing what the client refuses. Every success fixture and every real handler answer must pass them, and no error fixture may.
+- **The routes agree with each other.** A `locations.search` candidate saved through `PATCH` and read back through `GET` is the same object on all three surfaces, and each returned revision is accepted as the next `If-Match`. Every id `map.layer` gives the client finds its record in `map.comparison`.
+- **Headers are checked both ways.** Response headers (`X-Request-Id`, and `Retry-After` on the auth outage only) and request headers (`Idempotency-Key`, `If-Match`, and the ignored `X-Halo-Home-Context`) are checked in both directions. A header that is sent must be documented, and a documented header must be sent by some exercised call.
+
+Some schema constraints are statements about this release, not about the operations for ever. `DiscoveryPlace` admits only North Carolina counties (Ruling D4). `DiscoveryArea` forbids `pendingOperation` (D7). `ComparisonRecord` fixes `method` and `sourceVersion` to null, every `qualifier` to `unknown` and `coverage` to `partial`, and sends no `sourceName` (D3). So every comparison pair reads "Not comparable". The only way to change that is data acquisition (tracker HO-074), and it needs a new contract version. `MapDistrict` forbids the server-side `county_rankings`. The `PATCH` 409 lists every reason: `stale_revision` and `revision_exhausted` (both with the current revision), `operation_mismatch`, and, on a replay of an attempt that is over without a receipt, `abandoned` and `attempt_failed`. No B05 body has a top-level `data` key (D10).
+
+Two operational notes. While the stored air layer is stale, `/api/map` can answer a live air build while the comparison answers 503, and the client then shows its blocked copy. And 2,000 comparison ids pass the server cap but exceed common URL limits (finding F4).
+
+Run `node --test test/contractsB05.test.mjs`. Migration 0022 is applied nowhere, and the map operations are not public (Ruling D1), so nothing here has run against a real Supabase project.
 
 ## B03 Luna contract
 
