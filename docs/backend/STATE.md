@@ -30,7 +30,8 @@ are what show that. The 23, by the package that made them answer:
 | B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
 | B06 Task 5 | `week.changes`, `week.acknowledge` |
 
-B06 Task 3 (`actions.load`) is in review and not counted. The count was 14 of 72 on 2026-10-18, and the
+B06 Task 3 (`actions.load`) is merged behind the `tasks` flag, which answers 503 while off, so it is not
+counted as answering. The count was 14 of 72 on 2026-10-18, and the
 frontend closeout note's 68 operations is four short.
 
 **The remaining work is backend, not wiring.** The frontend half is already written. Components call
@@ -52,7 +53,7 @@ design-breaking mismatches before implementation. They are not a substitute for 
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
 | B04 settings and alerts | Routes merged: 2a settings (`85c0b2a`, atomic `save_settings`, database-owned revision, Rulings S11 to S13) and 2b alerts. One follow-up in flight (S14 stored receipts carry no lock list, S15 settings settles its own ledger row, 0021 nits incl. a deadlock to fix before apply), then the contracts task |
 | B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-1` |
-| B06 My Week (tasks) | In progress. Tasks 1 (migration 0023), 2 (rules and planner) and 5 (week routes) merged; Task 3 (`actions.load`) in review; Task 4 (`actions.commit`) next. Behind the `tasks` flag, off until task retention is approved (Vibhav, 2026-10-18) |
+| B06 My Week (tasks) | In progress. Tasks 1 (migration 0023), 2 (rules and planner), 3 (`actions.load`) and 5 (week routes) merged; Task 4 (`actions.commit`) next. Behind the `tasks` flag, off until task retention is approved (Vibhav, 2026-10-18) |
 
 ## Migrations
 
