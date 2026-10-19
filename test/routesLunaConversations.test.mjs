@@ -350,14 +350,18 @@ test('a household that has never asked anything is told so, and the read starts 
   const response = await read(h, 'alice');
   assert.equal(response.status, 200, 'having asked nothing yet is a state, not an error');
   const body = await response.json();
-  assert.deepEqual(body, { conversation: null }, 'the absent state, said in as few words as it can be');
+  assert.deepEqual(body, { data: null }, 'the absent state, said in as few words as it can be');
 
   // Deliberately NOT a conversation: the contract has no valid empty one,
   // because `validLunaConversation` needs a non-empty id and a revision above
-  // 0 (luna-service.ts:21-27). The component computes
-  // `conversation?.id ?? null` and sends null to mean "start one", so an
-  // absent conversation is the state it already handles, and starting one
-  // belongs to POST /api/luna/messages.
+  // 0 (luna-service.ts:21-27). It is the envelope `{ data: null }` because the
+  // runtime unwraps an own `data` key (runtime.ts:149-153), so the component
+  // receives null, which does not trip its `blocked` predicate
+  // (ProductionLunaConversation.tsx:36). `{ conversation: null }` reached the
+  // component as a non-null object that failed validation, and disabled the
+  // composer for every household that had never asked anything. With null,
+  // the component computes `conversation?.id ?? null` and sends null to mean
+  // "start one", and starting one belongs to POST /api/luna/messages.
   assert.throws(() => assertLunaConversation(body), 'the client will not mistake this for a conversation');
 
   assertNoWrite(h, 'GET with no conversation');
@@ -517,7 +521,7 @@ test('without migration 0020 the read reports the feature unavailable, never a f
     const body = await expectEnvelope(response, { status: 503, code: 'feature_unavailable', retryable: false });
     assert.ok(!('messages' in body), `with ${missing} absent the route must not answer with a conversation`);
     assert.ok(!('id' in body), 'and must not hand out a conversation id it cannot support');
-    assert.ok(!('conversation' in body), 'a half-applied migration is not "this household has no conversation"');
+    assert.ok(!('data' in body), 'a half-applied migration is not "this household has no conversation"');
     assertNoWrite(h, `GET with ${missing} absent`);
   }
 });

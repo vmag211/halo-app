@@ -2,6 +2,6 @@
   "operationId": "lunaConversation",
   "status": 200,
   "body": {
-    "conversation": null
+    "data": null
   }
 }
