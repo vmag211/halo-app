@@ -251,6 +251,21 @@ test('the server stores and returns the gazetteer\'s place, never the client\'s 
   );
 });
 
+test('a city and a ZIP code are saved as the gazetteer\'s own place too, from the id alone (D8, Task 8)', async () => {
+  const CHARLOTTE = { id: 'us-place:3712000', place: 'Charlotte', state: 'NC', label: 'Charlotte, NC', timezone: 'America/New_York' };
+  const ZIP = { id: 'us-zcta:28208', place: '28208', state: 'NC', label: 'ZIP 28208, NC', timezone: 'America/New_York' };
+  const h = harness();
+  const forgedCity = { id: CHARLOTTE.id, place: '123 Main Street', state: 'NC', label: '123 Main Street, Charlotte, NC 28208', timezone: 'America/New_York' };
+  await expectArea(await save(h, 'alice', { place: forgedCity }), { place: CHARLOTTE, revision: 2 }, 'a city, canonical');
+  const city = areaRow(h);
+  assert.deepEqual([city.place_id, city.place, city.state, city.label, city.timezone], Object.values(CHARLOTTE), 'the stored columns are the canonical five');
+  await expectArea(await save(h, 'alice', { place: { id: ZIP.id, label: 'ZIP 28208-1234' }, revision: 2, key: OP2 }), { place: ZIP, revision: 3 }, 'a ZIP, canonical');
+  const row = areaRow(h);
+  assert.deepEqual([row.place_id, row.place, row.state, row.label, row.timezone], Object.values(ZIP));
+  assert.equal(JSON.stringify(h.db.rows('explore_areas')).includes('Main'), false);
+  assert.equal(JSON.stringify(h.db.rows('explore_areas')).includes('1234'), false);
+});
+
 test('every malformed save is a 400 that touches neither the ledger nor the area', async () => {
   const h = harness({ alice: rowOf(WAKE, 2) });
   const before = snapshot(h);
@@ -275,6 +290,11 @@ test('every malformed save is a 400 that touches neither the ledger nor the area
     [{ body: { place: { ...WAKE, id: 'us-county:99999' }, revision: 2 } }, 'place', 'unknown_place'],
     [{ body: { place: { ...WAKE, id: 'Wake County' }, revision: 2 } }, 'place', 'unknown_place'],
     [{ body: { place: { ...WAKE, id: 'us-county:45079' }, revision: 2 } }, 'place', 'unknown_place'],
+    [{ body: { place: { ...WAKE, id: 'us-place:3799999' }, revision: 2 } }, 'place', 'unknown_place'],
+    [{ body: { place: { ...WAKE, id: 'us-place:4513330' }, revision: 2 } }, 'place', 'unknown_place'],
+    [{ body: { place: { ...WAKE, id: 'us-zcta:29707' }, revision: 2 } }, 'place', 'unknown_place'],
+    [{ body: { place: { ...WAKE, id: 'us-zcta:2820' }, revision: 2 } }, 'place', 'unknown_place'],
+    [{ body: { place: { ...WAKE, id: 'us-zip:28208' }, revision: 2 } }, 'place', 'unknown_place'],
     [{ place: WAKE, revision: 2, ifMatch: '3' }, 'revision', 'precondition_mismatch'],
     [{ place: WAKE, revision: 2, ifMatch: '"2"' }, 'revision', 'precondition_mismatch'],
     [{ place: WAKE, revision: 2, key: null }, 'Idempotency-Key', 'invalid_uuid'],
@@ -644,6 +664,15 @@ function chooser(runtime, drafts = { area: blankArea, areaRevision: 0, areaOpera
     assert.equal(validPlaces(result), true);
     return result.candidates;
   };
+  // The sheet's own search (:59, the runtime branch verbatim) over its form draft, and the
+  // toggle that opens the sheet (:62, onClick verbatim), which puts the saved area in the box.
+  s.draft = blankArea; s.candidates = [];
+  const setDraft = (value) => { s.draft = value; };
+  const setCandidates = (value) => { s.candidates = value; };
+  const setEditing = (value) => { s.editing = value; };
+  const request = { current: null };
+  s.open = () => { const area = drafts.area; setDraft(area);setCandidates([]);setError(''); setEditing(true); };
+  s.search = async function lookup(){const draft = s.draft, busy = s.busy;if(!draft.place.trim()||busy)return;request.current?.abort();const controller=new AbortController();request.current=controller;setBusy(true);setError('');setCandidates([]);try{const result=await runtime.request('locations.search',{query:draft.place.trim(),state:draft.state.trim()},{signal:controller.signal});if(controller.signal.aborted)return;if(!validPlaces(result))throw new Error('invalid place');setCandidates(result.candidates);if(!result.candidates.length)setError('No matching area was found. Try a nearby city or a ZIP code.');}catch(error){if(!controller.signal.aborted)setError(serviceMessage(error));}finally{if(!controller.signal.aborted)setBusy(false);}};
   s.applyPlace = async function applyPlace(place){
     const areaRevision = drafts.areaRevision, areaOperation = drafts.areaOperation, busy = s.busy;
     if(!runtime||busy)return;if(!areaRevision){setError('Your saved area could not load. Try again.');savedArea.retry();return;}if(areaOperation&&JSON.stringify(areaOperation.place)!==JSON.stringify(place)){setError('Check the previous area change before choosing another.');return;}const operation=areaOperation??{id:crypto.randomUUID(),place,revision:areaRevision};setAreaOperation(operation);setBusy(true);setError('');try{const result=await runtime.request('explore.area.save',{place:operation.place,revision:operation.revision},{idempotencyKey:operation.id,expectedRevision:operation.revision});if(!validDiscoveryArea(result))throw new Error('invalid saved area');setArea(result.place??blankArea);setAreaRevision(result.revision);setAreaOperation(null);setLocalAutoScope();close();}catch(error){if(error instanceof FrontendServiceError&&error.code!=='unknown_outcome')setAreaOperation(null);setError(serviceMessage(error));}finally{setBusy(false);}
@@ -727,6 +756,42 @@ test('client: a never-saved read gives a usable revision, a search result saves,
   const reloaded = chooser(clientRuntime(h, 'alice'));
   await reloaded.load();
   assert.deepEqual(reloaded.drafts, { area: blankArea, areaRevision: 4, areaOperation: null });
+});
+
+test('client: the sheet\'s own example, "Charlotte or 28208", finds, saves and finds again through the chooser\'s own lookup', async () => {
+  const CHARLOTTE = { id: 'us-place:3712000', place: 'Charlotte', state: 'NC', label: 'Charlotte, NC', timezone: 'America/New_York' };
+  const ZIP = { id: 'us-zcta:28208', place: '28208', state: 'NC', label: 'ZIP 28208, NC', timezone: 'America/New_York' };
+  const h = harness();
+  const log = [];
+  const ui = chooser(clientRuntime(h, 'alice', { log }));
+  await ui.load();
+  let revision = 1;
+  // The State box is optional (placeholder "For example, North Carolina"), so try it empty, filled and padded.
+  for (const [typed, state, expected] of [['Charlotte', '', CHARLOTTE], ['  28208 ', 'North Carolina', ZIP], ['charlotte', ' NC ', CHARLOTTE]]) {
+    ui.open();
+    ui.draft = { place: typed, state };
+    await ui.search();
+    assert.equal(ui.error, '', `${typed}: no "No matching area" message`);
+    assert.deepEqual(ui.candidates, [expected], `${typed}: one candidate`);
+    await ui.applyPlace(ui.candidates[0]);
+    revision += 1;
+    assert.deepEqual(ui.drafts, { area: expected, areaRevision: revision, areaOperation: null }, `${typed}: saved as the server's own place`);
+    // Reopening puts the saved place in the box; searching it again finds the same place.
+    ui.open();
+    assert.deepEqual(ui.draft, expected);
+    await ui.search();
+    assert.deepEqual(ui.candidates, [expected], `${typed}: the saved area finds itself`);
+  }
+  // The query the runtime sent is the trimmed box, as the server's parser expects.
+  const searches = log.filter((entry) => entry.target.startsWith('/api/locations/search'));
+  assert.equal(searches[0].target, '/api/locations/search?query=Charlotte&state=');
+  assert.equal(searches[2].target, '/api/locations/search?query=28208&state=North+Carolina');
+  // A ZIP outside North Carolina is the honest empty answer, and its message is now true.
+  ui.open();
+  ui.draft = { place: '29707', state: '' };
+  await ui.search();
+  assert.deepEqual(ui.candidates, []);
+  assert.equal(ui.error, 'No matching area was found. Try a nearby city or a ZIP code.');
 });
 
 test('client: a lost response parks the operation, and the replay unparks it with the first outcome', async () => {

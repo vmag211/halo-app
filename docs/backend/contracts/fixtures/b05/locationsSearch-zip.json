@@ -1,0 +1,15 @@
+{
+  "operationId": "locationsSearch",
+  "status": 200,
+  "body": {
+    "candidates": [
+      {
+        "id": "us-zcta:28208",
+        "place": "28208",
+        "state": "NC",
+        "label": "ZIP 28208, NC",
+        "timezone": "America/New_York"
+      }
+    ]
+  }
+}

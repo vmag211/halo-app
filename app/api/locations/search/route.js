@@ -7,7 +7,9 @@ import { requestIdFor, validationError, internalError } from '@/lib/apiErrors';
  * GET /api/locations/search?query=Wake&state=NC (operation `locations.search`)
  *
  * The places a household can choose as its Explore area: North Carolina's
- * counties from the repo's public-domain gazetteer (B05 Ruling D4, lib/places.js).
+ * counties, Census places (cities, towns, villages, CDPs) and ZIP codes (ZCTAs)
+ * from the repo's public-domain Census gazetteers (B05 Ruling D4 and Task 8,
+ * lib/places.js).
  * No table is read and no provider is called; signing in is required, as for
  * every household-facing route.
  *

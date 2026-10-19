@@ -1,5 +1,5 @@
 /**
- * GET /api/locations/search (B05 Task 2, Rulings D4 and D10) on the isolated
+ * GET /api/locations/search (B05 Task 2 and Task 8, Rulings D4 and D10) on the isolated
  * harness: synthetic identities, an in-memory database that the route must not
  * touch, and a fetch that rejects any host.
  *
@@ -43,7 +43,7 @@ const nothingTouched = (h) => {
 
 test('a county query is a 200 with bare { candidates } that the frontend accepts, with a request id and no data key', async () => {
   const h = harness();
-  const res = await search(h, '?query=Wake&state=NC');
+  const res = await search(h, '?query=Wake%20County&state=NC');
   assert.equal(res.status, 200);
   assert.match(res.headers.get('x-request-id'), UUID);
   const body = await res.json();
@@ -60,15 +60,37 @@ test('the request the client sends (query and state trimmed, state possibly empt
   const body = await (await search(h, `?${params}`)).json();
   assert.deepEqual(body.candidates.map((c) => c.id), ['us-county:37119']);
   const prefix = await (await search(h, '?query=Ca&state=North%20Carolina')).json();
-  assert.equal(prefix.candidates.length, 6);
+  assert.equal(prefix.candidates.length, 20, 'six counties and the first places, cut at the client\'s cap');
   assert.equal(validPlaces(prefix), true);
-  assert.equal((await (await search(h, '?query=Wake')).json()).candidates.length, 1, 'no state at all is North Carolina too');
+  assert.deepEqual((await (await search(h, '?query=Wake')).json()).candidates.map((c) => c.id), ['us-county:37183', 'us-place:3770540'],
+    'no state at all is North Carolina too');
   nothingTouched(h);
 });
 
-test('nothing matching is a bare 200 { candidates: [] }, never a 404: a city, a ZIP, another state, an unknown name', async () => {
+test('a city and a ZIP code, the chooser\'s own examples, each answer the one place the client can save', async () => {
   const h = harness();
-  for (const query of ['?query=Charlotte&state=', '?query=28208&state=NC', '?query=Wake&state=SC', '?query=Atlantis&state=']) {
+  const CHARLOTTE = { id: 'us-place:3712000', place: 'Charlotte', state: 'NC', label: 'Charlotte, NC', timezone: 'America/New_York' };
+  const ZIP = { id: 'us-zcta:28208', place: '28208', state: 'NC', label: 'ZIP 28208, NC', timezone: 'America/New_York' };
+  for (const [query, expected] of [['Charlotte', CHARLOTTE], ['28208', ZIP], ['ZIP 28208', ZIP], ['charlotte', CHARLOTTE]]) {
+    for (const state of ['', 'NC', 'North Carolina']) {
+      const res = await search(h, `?${new URLSearchParams({ query, state })}`);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.deepEqual(body, { candidates: [expected] }, `${query} in "${state}"`);
+      assert.equal(validPlaces(body), true);
+    }
+  }
+  const partial = await (await search(h, '?query=2820&state=NC')).json();
+  assert.deepEqual(partial.candidates.map((c) => c.place), ['28202', '28203', '28204', '28205', '28206', '28207', '28208', '28209']);
+  const capped = await (await search(h, '?query=282')).json();
+  assert.equal(capped.candidates.length, 20);
+  assert.equal(validPlaces(capped), true);
+  nothingTouched(h);
+});
+
+test('nothing matching is a bare 200 { candidates: [] }, never a 404: another state, an unknown name, a ZIP outside NC', async () => {
+  const h = harness();
+  for (const query of ['?query=Charlotte&state=SC', '?query=28208&state=VA', '?query=Wake&state=SC', '?query=Atlantis&state=', '?query=29707&state=', '?query=28&state=NC']) {
     const res = await search(h, query);
     assert.equal(res.status, 200, query);
     const body = await res.json();
