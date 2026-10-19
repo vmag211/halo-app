@@ -152,11 +152,11 @@ test('the place and ZCTA gazetteer: header, 785 NC places with 7-digit GEOIDs, 8
     assert.match(file.sha256, /^[0-9a-f]{64}$/);
   }
   assert.equal(gazetteer.places.length, 785);
-  assert.ok(gazetteer.places.every((p) => /^37\d{5}$/.test(p.geoid) && Object.keys(p).join() === 'geoid,name'));
+  assert.ok(gazetteer.places.every((p) => /^37\d{5}$/.test(p.geoid) && Object.keys(p).join() === 'geoid,name,lat,lng'), 'B10 Task 1 added the internal point');
   assert.equal(new Set(gazetteer.places.map((p) => p.geoid)).size, 785);
   assert.equal(new Set(gazetteer.places.map((p) => p.name)).size, 785, 'no two places share a display name');
   assert.equal(gazetteer.zctas.length, 853);
-  assert.ok(gazetteer.zctas.every((z) => /^2[78]\d{3}$/.test(z.zcta) && Object.keys(z).join() === 'zcta'), 'NC ZIP codes are 27xxx and 28xxx');
+  assert.ok(gazetteer.zctas.every((z) => /^2[78]\d{3}$/.test(z.zcta) && Object.keys(z).join() === 'zcta,lat,lng'), 'NC ZIP codes are 27xxx and 28xxx (with the B10 point)');
   assert.equal(new Set(gazetteer.zctas.map((z) => z.zcta)).size, 853);
   // The display rule: the Census descriptor is gone, nothing reads as a county, no em dash.
   for (const { name } of gazetteer.places) {
@@ -408,4 +408,114 @@ test('parseLocationQuery: query trimmed 1 to 80, no control characters; state 0 
     assert.equal(typeof error.message, 'string');
     assert.equal(error.message.includes(EM_DASH), false);
   }
+});
+
+// ---------------------------------------------------------------- B10 Task 1: the search nits of
+// the B05 follow-ups round 2 review (.superpowers/sdd/b05-discovery-and-summaries/followups-2-review.md).
+
+test('F1: an alias typed in its other spelling is a whole word; "St", the Census spelling, still starts every St name', () => {
+  const labels = (query) => searchPlaces({ query, state: '' }).map((c) => c.label);
+  const SAINTS = ['St. Helena, NC', 'St. James, NC', 'St. Pauls, NC', 'St. Stephens, NC'];
+  for (const query of ['Saint', 'saint', 'SAINT', 'Saint ', 'Saint, NC']) assert.deepEqual(labels(query), SAINTS, query);
+  // "St" is a prefix as letters: the counties and places that start "St" come too, cut at 20.
+  const st = labels('St');
+  assert.equal(st.length, MAX_CANDIDATES);
+  for (const label of ['Stanly County, NC', 'Stokes County, NC', 'Staley, NC', 'Stallings, NC']) assert.ok(st.includes(label), label);
+  assert.ok(labels('Sta').includes('Statesville, NC'));
+  assert.ok(st.some((label) => !SAINTS.includes(label)), 'St is not only the four St. names');
+  // Both directions of each pair find the same names.
+  for (const [one, other] of [['Saint Pauls', 'St Pauls'], ['Saint Stephens', 'St. Stephens'], ['Mt Olive', 'Mount Olive'], ['Old Ft', 'Old Fort']]) {
+    assert.deepEqual(labels(one), labels(other), `${one} and ${other}`);
+  }
+  assert.deepEqual(labels('Saint J'), ['St. James, NC']);
+  // "Mt" is the whole word Mount, so it is not the start of Mountain Home or Mountain View, which "Mount" still is.
+  assert.deepEqual(labels('Mt'), ['Mount Airy, NC', 'Mount Gilead, NC', 'Mount Holly, NC', 'Mount Olive, NC', 'Mount Pleasant, NC']);
+  for (const label of ['Mountain Home, NC', 'Mountain View, NC']) assert.ok(labels('Mount').includes(label), label);
+  // Partial alias spellings, while "Saint" is typed, read as Saint once they find nothing alone.
+  for (const query of ['Sai', 'Sain', 'sai']) assert.deepEqual(labels(query), SAINTS, query);
+  assert.deepEqual(labels('S'), [], 'one character is still exact only');
+  assert.ok(labels('Sa').length > 0 && labels('Sa').every((label) => /^Sa/.test(label)), '"Sa" alone finds names that start "Sa", so it is not read as Saint');
+});
+
+test('F2: live typing never loses results mid-word on a County word, a Co word, an alias or a state', () => {
+  const labels = (query) => searchPlaces({ query, state: '' }).map((c) => c.label);
+  // 1. "County" while it is typed.
+  for (const query of ['Wake C', 'Wake Cou', 'Wake Coun', 'Wake Count', 'wake cou.']) assert.deepEqual(labels(query), ['Wake County, NC'], query);
+  assert.deepEqual(labels('Rutherford C'), ['Rutherford County, NC', 'Rutherford College, NC'], 'read both ways: the county, then the places');
+  assert.deepEqual(labels('Avery C'), ['Avery County, NC', 'Avery Creek, NC']);
+  assert.deepEqual(labels('Meck Cou'), ['Mecklenburg County, NC']);
+  // 2. A Co word that names no county exactly is also the start of a word.
+  assert.deepEqual(labels("Spivey's Co"), ["Spivey's Corner, NC"]);
+  assert.deepEqual(labels('Skippers Co'), ['Skippers Corner, NC']);
+  assert.deepEqual(labels('Walnut Co'), ['Walnut Cove, NC']);
+  assert.deepEqual(labels('Cape Co'), ['Cape Colony, NC']);
+  assert.deepEqual(labels('Fairview (Union Co'), ['Fairview (Union County), NC']);
+  assert.deepEqual(labels('Fairview (Union County'), ['Fairview (Union County), NC']);
+  // ...but after an exact county it is still the county word (pinned above: "Yadkin Co").
+  assert.deepEqual(labels('Yadkin Co'), ['Yadkin County, NC']);
+  assert.deepEqual(labels('Columbus County'), ['Columbus County, NC']);
+  // 3. Partial aliases: in the F1 test. 4. A state while it is typed reads as North Carolina.
+  for (const query of ['Charlotte, N', 'Charlotte, No', 'Charlotte, North', 'Charlotte, North ', 'Charlotte, North C', 'Charlotte, North Carolin',
+    'Charlotte N', 'Charlotte North', 'Charlotte North Car', 'Charlotte, N.']) {
+    assert.deepEqual(labels(query), ['Charlotte, NC'], query);
+  }
+  assert.deepEqual(labels('Raleigh, North Car'), ['Raleigh, NC']);
+  assert.deepEqual(labels('Wake Co, N'), ['Wake County, NC']);
+  assert.deepEqual(labels('28208, N'), ['ZIP 28208, NC']);
+  // Not a start of an NC form, or another state: still nothing.
+  for (const query of ['Charlotte, North D', 'Charlotte, Ne', 'Raleigh, ND', 'Charlotte, Carolina', 'Charlotte, S']) assert.deepEqual(labels(query), [], query);
+  // A partial state never outranks what the words already find ("Chapel Hi" is Chapel Hill).
+  assert.deepEqual(labels('Chapel Hi'), ['Chapel Hill, NC']);
+  assert.deepEqual(labels('Washington N'), labels('Washington'));
+  assert.deepEqual(labels('Scotland N'), ['Scotland Neck, NC'], 'not Scotland County: the words already find Scotland Neck');
+});
+
+test('F3: a trailing ", USA" or ", US" names the country and is dropped', () => {
+  const labels = (query) => searchPlaces({ query, state: '' }).map((c) => c.label);
+  for (const query of ['Charlotte, North Carolina, USA', 'Charlotte, NC, USA', 'Charlotte, NC, US', 'Charlotte, N.C., U.S.A.', 'Charlotte, USA',
+    'charlotte, us', 'Charlotte NC, USA', 'Charlotte, North Carolina, U', 'Charlotte, North Carolina, US ']) {
+    assert.deepEqual(labels(query), ['Charlotte, NC'], query);
+  }
+  assert.deepEqual(labels('Mecklenburg County, NC, USA'), ['Mecklenburg County, NC']);
+  assert.deepEqual(labels('28208, NC, USA'), ['ZIP 28208, NC']);
+  for (const query of ['Charlotte, SC, USA', 'Raleigh, VA, US', 'USA', ', USA', 'Charlotte, USSR', 'Charlotte USA']) assert.deepEqual(labels(query), [], query);
+  // Only when the words find nothing with it: "Fairview, U" is still the start of "Fairview, Union County".
+  assert.deepEqual(labels('Fairview, U'), ['Fairview (Union County), NC']);
+});
+
+test('typing sweep: every prefix of a sample of names, bare and with NC suffixes, still finds the name', () => {
+  // The method of the round 2 review's rv-f2-out/typing.mjs, as an assertion. Every county, every
+  // fourth place and every twentieth ZCTA, plus every place whose name an alias, a "C" word or
+  // punctuation touches. Allowed misses: a prefix shorter than the search minimum (one character,
+  // or a ZIP under three digits), a list cut at the cap of 20, and the pinned "Yadkin Co" rule.
+  const everything = allPlaces();
+  const places = everything.filter((c) => c.id.startsWith('us-place:'));
+  const zctas = everything.filter((c) => c.id.startsWith('us-zcta:'));
+  const special = (name) => /['().-]/.test(name) || / (St|Mount|Fort|C[a-z]*)\b/.test(name) || /^(St|Mount|Fort)\b/.test(name);
+  const sample = [
+    ...everything.filter((c) => c.id.startsWith('us-county:')),
+    ...places.filter((c, at) => at % 4 === 0 || special(c.place)),
+    ...zctas.filter((c, at) => at % 20 === 0),
+  ];
+  assert.ok(sample.length > 350, `${sample.length} names`);
+  const misses = new Set();
+  let checked = 0;
+  for (const { id, place } of sample) {
+    for (const suffix of ['', ', NC', ' NC', ', North Carolina', ' N.C.', ', North Carolina, USA']) {
+      const full = place + suffix;
+      for (let end = 1; end <= full.length; end += 1) {
+        const query = full.slice(0, end);
+        const typed = query.trim();
+        if (typed.length === 1 || /^\d{1,2}$/.test(typed)) continue;
+        checked += 1;
+        const found = searchPlaces({ query, state: '' });
+        if (found.length === MAX_CANDIDATES || found.some((c) => c.id === id)) continue;
+        assert.ok(found.length > 0, `${place}: ${JSON.stringify(query)} found nothing`);
+        misses.add(`${place} at ${JSON.stringify(query)}`);
+      }
+    }
+  }
+  assert.ok(checked > 40_000, `${checked} queries`);
+  // "Yadkin Co" and "Rutherford Co" are their counties only (pinned above); the next letter finds the College.
+  assert.deepEqual([...misses].sort(), ['Rutherford College at "Rutherford Co"', 'Yadkin College at "Yadkin Co"']);
 });
