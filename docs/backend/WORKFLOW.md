@@ -1,6 +1,6 @@
 # Resuming HALO backend work
 
-1. Read `AGENTS.md`, `docs/backend/checkpoint.md`, `docs/backend/requirements-tracker.md` and `docs/backend/YOUR_TODO.md`. Check `git status --short`, branch and recent commits before changing anything. Preserve unrelated frontend changes. `docs/backend-progress.md` has an older baseline; the checkpoint is the current B01 handoff.
+1. Read `docs/backend/STATE.md` FIRST: it is one page, it is regenerated as work lands, and it carries the current migration state, what is deliberately unbuilt and why, and what only Vibhav can decide. Then `AGENTS.md`, `docs/backend/checkpoint.md`, `docs/backend/requirements-tracker.md` and `docs/backend/YOUR_TODO.md`. Check `git status --short`, branch and recent commits before changing anything. Preserve unrelated frontend changes. `docs/backend-progress.md` has an older baseline; the checkpoint is the current B01 handoff.
 2. Read the authoritative spec sections for the next dependency-bounded package. **The complete spec is available; do not report it as missing.** The copy at `docs/product/HALO_BACKEND_WORKING_SPEC.partial.md` is cut off partway through BE-032 (`/api/journal/retrospective`), but the full 521,027-byte document is in this repository's git objects on the frontend ref. Read it with:
 
    ```
