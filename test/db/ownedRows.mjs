@@ -1,0 +1,92 @@
+/**
+ * One valid row for every household-owned table, owned by `owner`, for the
+ * PGlite tests that need a row in each: test/rlsIsolation.test.mjs (what a
+ * signed-in browser can reach) and test/privacyClearDb.test.mjs (what a
+ * privacy clear removes and keeps). Moved here from rlsIsolation unchanged
+ * (B07 plan, Task 1), so a new owned table gets one factory and both suites
+ * use it: rlsIsolation fails when a table in OWNED_TABLES has none.
+ *
+ * `n` varies the unique keys: seeds use 0, attempts and extra rows use 1, 2.
+ */
+
+/** A uuid derived from the owner's, so 0020's parent and child rows can be written without passing ids around. */
+export const lunaId = (owner, suffix) => `${owner.slice(0, 24)}${'0'.repeat(12 - suffix.length)}${suffix}`;
+
+/** A valid row for each owned table, owned by `owner`; `n` varies unique keys (seeds use 0, attempts use 1). */
+export const OWNED_ROW = {
+  profiles: (owner) => ({ id: owner, county: 'Test County' }),
+  daily_scores: (owner, n) => ({ profile_id: owner, date: `2026-09-1${n}`, aqi: 40 }),
+  home_risks: (owner) => ({ profile_id: owner }),
+  household_bands: (owner) => ({ profile_id: owner, has_child: true }),
+  symptom_logs: (owner, n) => ({ profile_id: owner, entry_date: `2026-09-1${n}`, symptoms: ['cough'] }),
+  alerts: (owner, n) => ({ profile_id: owner, type: 'air_quality', title: 'Air', message: 'Test alert', dedupe_key: `test-${n}` }),
+  notification_prefs: (owner) => ({ profile_id: owner }),
+  push_subscriptions: (owner, n) => ({
+    profile_id: owner,
+    endpoint: `https://fcm.googleapis.com/fcm/send/${owner}-${n}`,
+    p256dh: 'test-p256dh',
+    auth: 'test-auth',
+  }),
+  // Seeds are sequence 1 (current); an attempt is sequence 2, closed, so it never meets the one-current index.
+  home_contexts: (owner, n) => ({
+    profile_id: owner,
+    sequence: n + 1,
+    origin: n === 0 ? 'onboard' : 'move',
+    lat: 35.409,
+    lng: -80.58,
+    ...(n === 0 ? {} : { effective_to: '2026-09-15T00:00:00Z', closed_reason: 'moved' }),
+  }),
+  // 0017: operation_id has no default, so every sample supplies its own key.
+  operations: (owner) => ({
+    operation_id: crypto.randomUUID(),
+    profile_id: owner,
+    domain: 'actions',
+    kind: 'actions.commit',
+    status: 'pending',
+  }),
+  // 0020: one conversation per household, its turns ordered by seq, and one
+  // run per turn. The ids are derived from the owner so the child rows can
+  // point at the parent without the seed having to pass ids around, and the
+  // composite foreign keys in 0020 refuse any other pairing.
+  luna_conversations: (owner) => ({ id: lunaId(owner, 'c0de'), profile_id: owner }),
+  luna_turns: (owner, n) => ({
+    id: lunaId(owner, `ab0${n}`),
+    conversation_id: lunaId(owner, 'c0de'),
+    profile_id: owner,
+    seq: n + 1,
+    role: 'user',
+    body: `Test question ${n}`,
+  }),
+  luna_runs: (owner, n) => ({
+    profile_id: owner,
+    conversation_id: lunaId(owner, 'c0de'),
+    turn_id: lunaId(owner, `ab0${n}`),
+    client_message_id: lunaId(owner, `cd0${n}`),
+  }),
+  // 0021: every other column has a default that is already a valid snapshot
+  // value, so the owner is the whole row.
+  profile_preferences: (owner) => ({ profile_id: owner }),
+  // 0022: revision has no default and starts at 2 (1 is the never-saved state,
+  // which has no row), and the five place columns are set together.
+  explore_areas: (owner) => ({
+    profile_id: owner,
+    place_id: 'us-county:37159',
+    place: 'Rowan County',
+    state: 'NC',
+    label: 'Rowan County, NC',
+    timezone: 'America/New_York',
+    revision: 2,
+  }),
+  // 0023: a task key is unique per household, so `n` varies it; a preference
+  // key is one of six, so `n` picks another; the version starts at 1.
+  household_actions: (owner, n) => ({ profile_id: owner, action_key: `test-task-${n}`, title: 'Test task', reason: 'Test', origin: 'test', state: 'saved' }),
+  household_action_preferences: (owner, n) => ({ profile_id: owner, pref_key: n === 0 ? 'week:focus' : 'food-interests', value: n === 0 ? '"Test focus"' : '["fish"]' }),
+  household_action_state: (owner) => ({ profile_id: owner, version: 1 }),
+  // 0018: hashes only, and the columns accept nothing but 64 hex characters.
+  recovery_challenges: (owner, n) => ({
+    profile_id: owner,
+    email_hash: `${n}`.repeat(1).padEnd(64, 'a'),
+    nonce_hash: `${n}`.repeat(1).padEnd(64, 'b'),
+    expires_at: '2026-10-18T00:00:00Z',
+  }),
+};
