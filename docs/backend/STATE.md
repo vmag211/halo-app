@@ -85,7 +85,12 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
 
 ## Known live risks
 
-- **One abandoned operation locks a surface read-only forever. A reaper is built and in review** (reaps to `failed` on list, replay and reconcile); until it merges this bullet stands.
+- **RESOLVED 2026-10-18: one abandoned operation no longer locks a surface forever.** A reaper in
+  `lib/operations.js` settles stale owned pending rows to `failed` (`reason: 'abandoned'`) on list, replay
+  and reconcile, race-safe and owner scoped; every ledger route exports `maxDuration = 60` under the 120 s
+  staleness window, pinned by a structural test. Residual, accepted: a late `settle` can overwrite a
+  reaped row with the real outcome (converges to the truth). The original analysis follows for history.
+- *(History)* **One abandoned operation locks a surface read-only forever.**
   `effectiveStatus` only reports a stale pending row as `unknown` (`lib/operations.js:104-109`) while
   `listUnresolvedOperations` filters stored `status = pending` (`:226-244`), and no reaper exists:
   `settle(..., failed)` (`:168`) runs only when `execute` throws in-process, so a serverless timeout
