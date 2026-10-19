@@ -10,9 +10,11 @@
  *     never-saved state, which has no row, so a stored 1 would be
  *     indistinguishable from it.
  *  3. The five place fields are null together (a cleared area) or set
- *     together, because the client discards a partial place.
- *  4. Each field is at most 300 characters with no control character other
- *     than tab, line feed and carriage return: the client's `validPlaces`.
+ *     together, because the client discards a partial place, and a set field
+ *     is never blank (space, tab, LF and CR only), Ruling D6a.
+ *  4. Each field is at most 300 UTF-8 bytes (never more than the client's 300
+ *     UTF-16 units) with no control character other than tab, line feed and
+ *     carriage return: the client's `validPlaces`, or stricter.
  *  5. The compare and set the library relies on holds in the database: two
  *     first inserts leave one row and the loser gets a unique violation, and
  *     an update at a stale revision touches no row.
@@ -156,9 +158,20 @@ test('a set place has no blank field, so the database refuses what validDiscover
   assert.equal(spacedLabel?.code, '23514', 'a whitespace-only label is refused');
   assert.match(spacedLabel.message, /explore_areas_place_complete_check/);
   for (const column of PLACE_COLUMNS) {
-    for (const blank of ['', ' ', '    ']) {
+    // Space, tab, line feed and carriage return are the whitespace the
+    // control check admits, so each, alone or mixed, still counts as blank.
+    for (const blank of ['', ' ', '    ', '\t', '\n', '\r', ' \t\n\r ']) {
       const error = await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: blank });
       assert.equal(error?.code, '23514', `${column} = ${JSON.stringify(blank)} is refused`);
+      assert.match(error.message, /explore_areas_place_complete_check/);
+    }
+    // Whitespace inside or around a real value is not blank.
+    for (const value of ['Rowan\tCounty', ' Rowan ', '\tx\n']) {
+      assert.equal(
+        await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: value }),
+        null,
+        `${column} = ${JSON.stringify(value)} is not blank`,
+      );
     }
   }
   const { error } = await run(`update public.${TABLE} set place_id = ' ' where profile_id = $1`, [ALICE]);
@@ -170,12 +183,22 @@ test('a set place has no blank field, so the database refuses what validDiscover
   assert.equal(await insertArea({ profile_id: BOB, revision: 2 }), null, 'a cleared area (all null) is still storable');
 });
 
-test('each place field is at most 300 characters, the client\'s bound', async () => {
+test('each place field is at most 300 bytes, so it is never over the client\'s 300 UTF-16 units', async () => {
+  // The client's text(v, 300) is JavaScript .length (UTF-16 units). A UTF-8
+  // byte count is never smaller, so a 300-byte bound is always within it.
+  const accepted = ['x'.repeat(300), 'é'.repeat(150), '\u{1F600}'.repeat(75)];
+  const refused = ['x'.repeat(301), 'é'.repeat(151), '\u{1F600}'.repeat(76), '\u{1F600}'.repeat(300)];
+  for (const value of accepted) assert.ok(value.length <= 300, 'every accepted value is within the client\'s UTF-16 bound');
+  assert.ok('\u{1F600}'.repeat(300).length > 300, 'the case char_length() would wrongly accept: 300 code points, 600 units');
   for (const column of PLACE_COLUMNS) {
-    assert.equal(await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: 'x'.repeat(300) }), null, `${column} at 300`);
-    const error = await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: 'x'.repeat(301) });
-    assert.equal(error?.code, '23514', `${column} at 301 is refused`);
-    assert.match(error.message, /explore_areas_place_length_check/);
+    for (const value of accepted) {
+      assert.equal(await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: value }), null, `${column}: ${Buffer.byteLength(value)} bytes`);
+    }
+    for (const value of refused) {
+      const error = await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: value });
+      assert.equal(error?.code, '23514', `${column}: ${Buffer.byteLength(value)} bytes is refused`);
+      assert.match(error.message, /explore_areas_place_length_check/);
+    }
   }
 });
 

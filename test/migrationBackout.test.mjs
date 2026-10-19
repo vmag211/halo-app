@@ -535,11 +535,13 @@ async function assertBlankPlaceRefused(when) {
         if (!tx.closed) await tx.rollback();
       }
     });
-  for (const overrides of [{ place_id: '' }, { label: '   ' }]) {
+  const blanks = [{ place_id: '' }, { label: '   ' }, { label: '\t' }, { label: '\n' }, { label: '\r' }, { label: ' \t\n\r ' }];
+  for (const overrides of blanks) {
     const error = await attempt(overrides);
     assert.equal(error?.code, '23514', `${when}: ${JSON.stringify(overrides)} is refused`);
     assert.match(error.message, /explore_areas_place_complete_check/);
   }
+  assert.equal(await attempt({ label: 'Rowan\tCounty, NC' }), null, `${when}: a tab inside a value is not blank`);
 }
 
 test('0022 applies on top of 0021 and adds exactly the discovery-area table', async () => {

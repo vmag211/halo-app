@@ -574,7 +574,7 @@ Quiet, like 2.3, 2.4 and 2.9: it creates one new table and does not read or writ
 
 What it is for: the Explore screen lets a household choose the area it wants to discover things in, and that choice has to be kept by the server so every device sees the same one. It goes in the new `public.explore_areas`, one row per household, keyed by the profile (not by the home: the area does not move when the household moves). What is stored is the county-level place the household picked from the location search (its id, name, state, label and time zone), not the home address. A household that has never saved one has no row at all and reads as "no area, revision 1"; the first save writes revision 2, which is why a check refuses anything lower. Clearing the area keeps the row with an empty place and a higher revision.
 
-1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0022_explore_areas.sql` and run it. Safe to re-run.
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0022_explore_areas.sql` and run it. Safe to re-run. If an earlier copy of 0022 was ever run anywhere, run the back-out first (the block below, then `notify pgrst, 'reload schema';`), because a re-run keeps a check it already has under the same name rather than replacing it.
 2. Run the verification query in the comment at the end of that file. Expect one row, all five columns true. `no_client_access` false is the one that matters: it means the browser roles can still reach the table, and you should send Claude the row rather than leaving it.
 3. Run `notify pgrst, 'reload schema';`. Until it reloads, `GET` and `PATCH /api/explore/area` answer 503 `feature_unavailable` and nothing is written.
 

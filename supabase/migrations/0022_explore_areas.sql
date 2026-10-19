@@ -45,12 +45,15 @@
 -- together, because a partial place is something the client's validator would
 -- discard whole, and when they are set none of them may be blank (Ruling D6a).
 --
--- EVERY STORED VALUE IS ONE THE CLIENT CAN READ BACK. The bounds are the
+-- EVERY STORED VALUE IS ONE THE CLIENT CAN READ BACK. The bounds come from the
 -- client's own `validPlaces` (lib/frontend/production/explore-service.ts:9 on
--- the frontend branch): each field a string of at most 300 characters, with no
--- control character other than tab, line feed and carriage return. A value
+-- the frontend branch): each field a string of at most 300 UTF-16 units, with
+-- no control character other than tab, line feed and carriage return. A value
 -- outside them makes `validDiscoveryArea` reject the whole response, so the
--- database refuses to hold what could only be thrown away.
+-- database refuses to hold what could only be thrown away. Two checks here are
+-- deliberately stricter than the client: length is measured in UTF-8 bytes
+-- (never fewer than the UTF-16 units the client counts), and a set field may
+-- not be blank (Ruling D6a). Neither refuses anything the gazetteer produces.
 --
 -- Degrades cleanly: GET and PATCH /api/explore/area answer a non-retryable 503
 -- feature_unavailable until this is applied, the same convention 0016 to 0021
@@ -95,26 +98,37 @@ begin
   -- D6a), so the database refuses a place validDiscoveryArea would refuse,
   -- whatever the writer does. place_id is deliberately not tied to the
   -- `us-county:` form, because city and ZIP ids may follow (Open question 2).
-  -- btrim() trims spaces only, so this refuses an empty or all-space field;
-  -- a field of only tabs or newlines is left to the writer.
+  -- "Blank" means nothing but space, tab, line feed or carriage return: the
+  -- trim set is spelled out, because those four are the only ASCII whitespace
+  -- the control check below lets through (vertical tab and form feed are
+  -- already refused there), and an explicit set does not depend on the
+  -- database locale the way a `\S` class would. Whitespace inside a value, as
+  -- in 'Rowan<tab>County', is still allowed. Non-ASCII whitespace such as a
+  -- no-break space is not trimmed; the client does not trim either.
   if not exists (select 1 from pg_constraint where conname = 'explore_areas_place_complete_check') then
     alter table public.explore_areas add constraint explore_areas_place_complete_check
       check (num_nonnulls(place_id, place, state, label, timezone) = 0
           or (num_nonnulls(place_id, place, state, label, timezone) = 5
-              and btrim(place_id) <> ''
-              and btrim(place) <> ''
-              and btrim(state) <> ''
-              and btrim(label) <> ''
-              and btrim(timezone) <> ''));
+              and btrim(place_id, E' \t\n\r') <> ''
+              and btrim(place, E' \t\n\r') <> ''
+              and btrim(state, E' \t\n\r') <> ''
+              and btrim(label, E' \t\n\r') <> ''
+              and btrim(timezone, E' \t\n\r') <> ''));
   end if;
-  -- `text(place[key], 300)` in validPlaces: at most 300 characters each.
+  -- `text(place[key], 300)` in validPlaces counts JavaScript string length,
+  -- which is UTF-16 code units, not the code points char_length() counts (an
+  -- emoji is one code point but two units). The bound here is 300 BYTES of
+  -- UTF-8 instead, because a character never takes fewer UTF-8 bytes than
+  -- UTF-16 units, so anything this accepts the client also accepts. It is
+  -- stricter than the client for non-ASCII text (300 accented letters are
+  -- 600 bytes and are refused here), which no gazetteer name comes close to.
   if not exists (select 1 from pg_constraint where conname = 'explore_areas_place_length_check') then
     alter table public.explore_areas add constraint explore_areas_place_length_check
-      check (coalesce(char_length(place_id), 0) <= 300
-         and coalesce(char_length(place), 0) <= 300
-         and coalesce(char_length(state), 0) <= 300
-         and coalesce(char_length(label), 0) <= 300
-         and coalesce(char_length(timezone), 0) <= 300);
+      check (coalesce(octet_length(place_id), 0) <= 300
+         and coalesce(octet_length(place), 0) <= 300
+         and coalesce(octet_length(state), 0) <= 300
+         and coalesce(octet_length(label), 0) <= 300
+         and coalesce(octet_length(timezone), 0) <= 300);
   end if;
   -- The control characters the client's `text()` rejects. Tab, line feed and
   -- carriage return are permitted, as they are there. A null column is

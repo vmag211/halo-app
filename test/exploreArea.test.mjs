@@ -195,6 +195,24 @@ test('a database error that is not a conflict is thrown, not reported as one', a
   await assert.rejects(() => writeArea(failing, { profileId: ALICE, expectedRevision: 1, place: ROWAN }), (error) => error.code === '23514');
 });
 
+test('a database error on a later save is thrown, never reported as a stale revision', async () => {
+  // If this were mapped to a conflict, the route would answer 409
+  // stale_revision and the client would re-read and retry into the same fault.
+  // The stub has no select(): a re-read would fail loudly rather than produce
+  // a plausible current revision.
+  const failing = {
+    from: () => ({
+      update: () => ({
+        eq: () => ({ eq: () => ({ select: async () => ({ data: null, error: { code: '23514', message: 'check' } }) }) }),
+      }),
+    }),
+  };
+  await assert.rejects(
+    () => writeArea(failing, { profileId: ALICE, expectedRevision: 2, place: ROWAN }),
+    (error) => error.code === '23514',
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Before migration 0022
 // ---------------------------------------------------------------------------
