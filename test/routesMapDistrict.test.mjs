@@ -164,7 +164,8 @@ test('map: an Authorization header that is not a valid session is a 401 envelope
   assert.equal(ok.headers.get('x-request-id'), 'client-trace-0001');
   const anonymous = await h.call('/api/map', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
   assert.equal(anonymous.status, 200, 'no Authorization header at all is the public read');
-  assert.equal(anonymous.headers.get('x-request-id'), 'client-trace-0001');
+  // B05 follow-up (Task 6 review, finding 4): a shareable answer never carries the caller's id.
+  assert.match(anonymous.headers.get('x-request-id'), UUID, 'the shared answer carries an id the server chose');
 });
 
 test('map reads no household table: only the layer store and the public utilities', async () => {
@@ -309,6 +310,7 @@ test('district: an Authorization header that is not a valid session is a 401 env
   assert.equal((await district(h, 'alice', { 'x-request-id': 'client-trace-0001' })).headers.get('x-request-id'), 'client-trace-0001');
   const anonymous = await h.call('/api/district', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
   assert.equal(anonymous.status, 200, 'no Authorization header at all is the public read');
+  assert.match(anonymous.headers.get('x-request-id'), UUID, 'the shared answer carries an id the server chose, not client-trace-0001');
   assert.equal('household_county' in (await anonymous.json()), false);
 });
 

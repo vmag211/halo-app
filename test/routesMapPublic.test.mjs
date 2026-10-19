@@ -32,7 +32,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRouteHarness, muteConsoleError, LIMITER_UNAVAILABLE } from './helpers/routeHarness.mjs';
-import { expectEnvelope, loggedText } from './helpers/envelope.mjs';
+import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { loadFrontend } from './frontend-test-loader.mjs';
 import { parseMapComparisons, parseMapDistrict, parseMapLayer } from './helpers/frontendB05.mjs';
@@ -41,7 +41,7 @@ import { ARCGIS_WATER_BOUNDARIES, _resetWaterGeoCache } from '../lib/waterGeo.js
 
 // After the harness has registered its module hooks (lib/operations.js, under
 // lib/recovery.js, imports through the @/ alias).
-const { PRIVATE_CACHE_CONTROL, PUBLIC_CACHE_CONTROL } = await import('@/lib/publicAccess');
+const { PRIVATE_CACHE_CONTROL, PUBLIC_CACHE_CONTROL, withCachePolicy } = await import('@/lib/publicAccess');
 const { hashToken } = await import('@/lib/account');
 const { createProductionRuntime } = await loadFrontend('production/runtime');
 
@@ -281,6 +281,70 @@ test('anonymous comparison: the signed-in records, shared-cacheable; air with no
   await expectEnvelope(air, { status: 503, code: 'upstream_unavailable' });
   assertPrivate(air, 'anonymous air comparison 503');
   for (const each of [h, table]) assert.deepEqual(each.blockedFetches, []);
+});
+
+// ------------------------------------- refusals and request ids (follow-up round)
+
+/** The table `name` cannot be reached at all: every statement on it throws, like a dropped connection. */
+function unreachable(h, name) {
+  const from = h.db.from;
+  h.db.from = (table) => {
+    if (table === name) throw new Error('fetch failed');
+    return from(table);
+  };
+  return h;
+}
+
+test('an anonymous 400 and an anonymous 500 are private on all three routes: only a success is ever shared', async (t) => {
+  muteConsoleError(t);
+  const layers = await storedLayers(utilitiesFor('NC06510'));
+  // /api/district takes no parameters, so it has no 400.
+  for (const route of ['/api/map?layer=bogus', '/api/map?layer=radon&quarter=2024Q3', '/api/map/comparison?layer=bogus', `/api/map/comparison?layer=water&quarter=latest&ids=nope`]) {
+    const res = await get(harness({ layers }), route);
+    await expectEnvelope(res, { status: 400, code: 'validation_failed' });
+    assertPrivate(res, `anonymous 400 ${route}`);
+  }
+  for (const route of ROUTES) {
+    const res = await get(unreachable(harness({ layers }), 'map_layers'), route);
+    await expectEnvelope(res, { status: 500, code: 'internal_error' });
+    assertPrivate(res, `anonymous 500 ${route}`);
+  }
+});
+
+test('a shared answer never carries the caller\'s request id; every private answer still echoes it', async (t) => {
+  muteConsoleError(t);
+  const layers = await storedLayers(utilitiesFor('NC06520'));
+  const traced = { 'x-request-id': 'visitor-trace-0001' };
+  const seen = new Set();
+  // With nothing stored each route refuses: the comparison does for air (water falls back to UCMR 5).
+  const refusals = [['/api/map?layer=water', ['layer']], ['/api/district', []], [`/api/map/comparison?layer=air&quarter=latest&${ids(['370000011'])}`, []]];
+  for (const [at, route] of ROUTES.entries()) {
+    const shared = await get(harness({ layers }), route, { headers: traced });
+    assert.equal(shared.status, 200, route);
+    assertPublic(shared, route);
+    assert.match(shared.headers.get('x-request-id'), UUID, `${route}: the shared answer's id is the server's`);
+    seen.add(shared.headers.get('x-request-id'));
+    const untraced = await get(harness({ layers }), route);
+    assert.match(untraced.headers.get('x-request-id'), UUID, `${route}: with no client id, a server id as before`);
+    const signedIn = await get(harness({ layers }), route, { as: 'alice', headers: traced });
+    assert.equal(signedIn.headers.get('x-request-id'), 'visitor-trace-0001', `${route}: a private signed-in answer echoes`);
+    const [refusal, extraKeys] = refusals[at];
+    const refused = await get(harness(), refusal, { headers: traced });
+    await expectEnvelope(refused, { status: 503, code: 'upstream_unavailable', extraKeys, requestId: 'visitor-trace-0001' });
+    assertPrivate(refused, `${route}: an anonymous refusal is private and echoes`);
+    const broken = await get(unreachable(harness({ layers }), 'map_layers'), route, { headers: traced });
+    await expectEnvelope(broken, { status: 500, code: 'internal_error', requestId: 'visitor-trace-0001' });
+  }
+  assert.equal(seen.size, ROUTES.length, 'each shared answer has its own id');
+});
+
+test('withCachePolicy adds Authorization to a Vary the handler set, and never twice', () => {
+  const vary = (initial, anonymous) => withCachePolicy(new Response('{}', { headers: initial ? { Vary: initial } : {} }), { anonymous }).headers.get('vary');
+  for (const anonymous of [true, false]) {
+    assert.equal(vary(null, anonymous), 'Authorization');
+    assert.equal(vary('Accept-Encoding', anonymous), 'Accept-Encoding, Authorization');
+    assert.equal(vary('Accept-Encoding, authorization', anonymous), 'Accept-Encoding, authorization');
+  }
 });
 
 // --------------------------------------------------------- who is anonymous
