@@ -5,10 +5,43 @@ import { parseUuid, parseEnum } from '@/lib/validate';
 import {
   readOperation,
   isOperationsUnavailable,
+  listUnresolvedOperations,
   operationsUnavailable,
   OPERATION_DOMAINS,
   UNAUTHENTICATED_DOMAIN,
 } from '@/lib/operations';
+
+/**
+ * Where each domain's succeeded receipt carries its `unresolvedOperations`
+ * (Ruling S16). A receipt is stored with `[]` there (Ruling S14: a stored
+ * receipt is history, not a lock), and this route puts the household's LIVE
+ * list for that domain in its place, without the operation being read:
+ * settled operations are never listed live, so two operations cannot park
+ * each other for ever, and work that is genuinely still pending stays
+ * locked, because no client re-reads after a reconcile that succeeds
+ * (ProductionAlerts.tsx, ProductionPreferences.tsx, useAccountService.ts).
+ * A domain not named here is replayed exactly as stored.
+ */
+const LIVE_LIST_PATHS = Object.freeze({
+  account: ['snapshot', 'unresolvedOperations'],
+  alerts: ['unresolvedOperations'],
+  settings: ['snapshot', 'unresolvedOperations'],
+});
+
+/**
+ * The receipt with the live list at `path`, when the stored receipt carries a
+ * list there; otherwise the receipt as it is. Nothing is changed in place.
+ */
+async function withLiveList(receipt, { path, operationId, profileId, domain }) {
+  const parents = path.slice(0, -1);
+  const key = path.at(-1);
+  let holder = receipt;
+  for (const step of parents) holder = holder?.[step];
+  if (!holder || typeof holder !== 'object' || !Array.isArray(holder[key])) return receipt;
+  const live = (await listUnresolvedOperations(supabaseAdmin, { profileId, domains: [domain] })).filter((id) => id !== operationId);
+  const put = (node, [step, ...rest]) => ({ ...node, [step]: rest.length ? put(node[step], rest) : live });
+  return put(receipt, path);
+}
 
 /**
  * GET /api/operations?operationId=<uuid>&domain=<domain>
@@ -19,7 +52,9 @@ import {
  *
  * `status` is one of succeeded, failed, cancelled, pending, unknown. The first
  * three are settled and carry `result`, the canonical receipt the original
- * route returned, replayed verbatim so the client can finish what it started.
+ * route returned, replayed as stored so the client can finish what it started,
+ * except that a succeeded receipt in a domain of LIVE_LIST_PATHS carries the
+ * household's live unresolved list rather than the stored `[]` (Ruling S16).
  * `pending` means the work is genuinely still running. `unknown` means the
  * attempt was recorded but never settled and has outstripped its window: the
  * honest answer when a process died, and specifically NOT a failure, because
@@ -85,14 +120,21 @@ export async function GET(request) {
       });
     }
 
+    let result = operation.result && typeof operation.result === 'object' ? operation.result : {};
+    const path = LIVE_LIST_PATHS[operation.domain];
+    if (path && operation.status === 'succeeded') {
+      result = await withLiveList(result, { path, operationId: operation.operationId, profileId: userId, domain: operation.domain });
+    }
+
     return NextResponse.json(
       {
         // The stored receipt first, so the client sees exactly the body the
-        // original route returned and its domain validators still pass. The
+        // original route returned and its domain validators still pass, with
+        // the live unresolved list in place of the stored one (Ruling S16). The
         // canonical fields are written after it: a receipt frozen at write time
         // must never override the status computed now, which is the only place
         // a stale 'pending' becomes 'unknown'.
-        ...(operation.result && typeof operation.result === 'object' ? operation.result : {}),
+        ...result,
         operationId: operation.operationId,
         domain: operation.domain,
         kind: operation.kind,

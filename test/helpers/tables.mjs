@@ -182,6 +182,8 @@ export const HALO_TABLES = {
   profile_preferences: {
     primaryKey: 'profile_id',
     ownerColumn: 'profile_id',
+    // 0021's foreign key: a household with no profile row has no preferences row (review N1).
+    references: [{ column: 'profile_id', table: 'profiles', key: 'id' }],
     defaults: {
       revision: 1,
       display_appearance: 'system',

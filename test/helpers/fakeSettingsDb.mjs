@@ -2,8 +2,8 @@
  * In-memory stand-ins for what migration 0021 puts in the database for the
  * settings surface, on the fake Supabase:
  *
- *   installSettingsTriggers(h.db)   the triggers (Rulings S12 and S13)
- *   registerSaveSettings(h.db)      public.save_settings (Ruling S11)
+ *   installSettingsTriggers(h.db)   the triggers (Rulings S12, S13 and S15)
+ *   registerSaveSettings(h.db)      public.save_settings (Rulings S11 and S15)
  *   installSettingsDb(h.db)         both
  *
  * The triggers. Every write to a value in the settings snapshot advances
@@ -15,15 +15,24 @@
  * it differs from what no row reads as. And before a profile row is stored,
  * tenure is reconciled with renter_mode: a changed tenure answer sets
  * renter_mode from it; otherwise renter_mode true turns 'owner' or 'other'
- * into 'renter', and false turns 'renter' into null.
+ * into 'renter', and false turns 'renter' into null. When the ledger
+ * (operations) is declared, a settled 'settings' row may not change its status
+ * (HALO_OPERATION_SETTLED), as 0021's operations_settings_settled_guard says.
  *
- * save_settings follows the SQL function: the compare-and-set on the revision
- * with the group's preference columns, then the home details through the
+ * save_settings follows the SQL function step by step: the value checks, the
+ * profile, this operation's own pending ledger row (else
+ * HALO_OPERATION_NOT_PENDING), the notification and band rows made if missing
+ * when the save writes that group, the revision check
+ * (a miss removes what was made and writes nothing), the group's preference
+ * columns without the revision, then the home details through the
  * home-context functions registered on this fake (update_home_context_attributes
  * with a current home, transition_home_context when located without one, the
  * profile otherwise), the profile columns, the switches and the bands, then
- * the revision put back to expected + 1, all undone if anything throws
- * (db.atomically). It answers what the SQL answers.
+ * the revision put back to expected + 1 if any of that moved it, and the
+ * ledger row settled as succeeded with the receipt, all undone if anything
+ * throws (db.atomically). It answers what the SQL answers. Its receipt's
+ * snapshot is lib/settings.js settingsSnapshot; the SQL builds its own, and
+ * test/settingsSaveDb.test.mjs pins the two together.
  *
  * test/settingsSaveDb.test.mjs runs the same writes through these and through
  * the real 0021 on PGlite and fails when they disagree. Only installed when
@@ -36,9 +45,11 @@ import { rpcError } from './fakeSupabase.mjs';
 const { NOTIFICATION_TYPES } = await import('../../lib/alertInputs.js');
 const { BAND_KEYS } = await import('../../lib/household.js');
 const { roundCoord } = await import('../../lib/geocode.js');
+const { settingsSnapshot } = await import('../../lib/settings.js');
 
 export const SAVE_SETTINGS_ARGS = Object.freeze([
   'p_profile_id',
+  'p_operation_id',
   'p_expected_revision',
   'p_preferences',
   'p_profile',
@@ -126,6 +137,18 @@ export function installSettingsTriggers(db) {
         advance(tables, changedOwners(previous, rows, 'profile_id', BAND_KEYS, (row) => BAND_KEYS.some((key) => row[key] === true))),
     });
   }
+  if (declared(db, 'operations')) db.registerTrigger('operations', { before: guardSettledSettings });
+}
+
+/** guard_settled_settings_operation(): a settled 'settings' row keeps its status (Ruling S15). */
+function guardSettledSettings(previous, rows) {
+  const before = new Map(previous.map((row) => [row.operation_id, row]));
+  for (const row of rows) {
+    const old = before.get(row.operation_id);
+    if (old && old.domain === 'settings' && old.status !== 'pending' && row.status !== old.status) {
+      throw rpcError('P0001', 'HALO_OPERATION_SETTLED', `operation ${old.operation_id} is already ${old.status}`);
+    }
+  }
 }
 
 /** A stored point transition_home_context takes as it is (app/api/profile/route.js isStoredPoint). */
@@ -134,12 +157,35 @@ const isStoredPoint = (profile) =>
 
 const present = (value) => value !== null && value !== undefined && Object.keys(value).length > 0;
 
+/** The values each column allows (0021's checks), which save_settings checks itself (review finding B). */
+const CLOCK = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+const ZONE = /^[A-Za-z][A-Za-z0-9_+-]{0,39}(\/[A-Za-z0-9_+-]{1,40}){0,2}$/;
+const ALLOWED = Object.freeze({
+  display_appearance: /^(system|light|dark)$/,
+  display_palette: /^(ocean|forest|iris)$/,
+  display_scale: /^(100|115|130|150)$/,
+  display_motion: /^(system|full|reduce)$/,
+  quiet_from: CLOCK,
+  quiet_to: CLOCK,
+  quiet_zone: ZONE,
+  calendar_zone: ZONE,
+});
+
 export async function saveSettings(args, db) {
-  const { p_profile_id: id, p_expected_revision: expected } = args;
+  const { p_profile_id: id, p_operation_id: operationId, p_expected_revision: expected } = args;
+  const prefs = args.p_preferences ?? {};
   if (!id) throw rpcError('P0001', 'HALO_INVALID_INPUT', 'p_profile_id is required');
+  if (!operationId) throw rpcError('P0001', 'HALO_INVALID_INPUT', 'p_operation_id is required');
   if (!Number.isSafeInteger(expected) || expected < 1) throw rpcError('P0001', 'HALO_INVALID_INPUT', 'p_expected_revision must be a positive integer');
-  const unknown = Object.keys(args.p_preferences ?? {}).filter((key) => !PREFERENCE_COLUMNS.includes(key));
+  const unknown = Object.keys(prefs).filter((key) => !PREFERENCE_COLUMNS.includes(key));
   if (unknown.length) throw rpcError('P0001', 'HALO_INVALID_INPUT', `p_preferences has unknown keys: ${unknown.join(', ')}`);
+  const refused = Object.keys(ALLOWED).filter((key) => typeof prefs[key] === 'string' && !ALLOWED[key].test(prefs[key])).sort();
+  if (refused.length) throw rpcError('P0001', 'HALO_INVALID_INPUT', `p_preferences has a value its column does not allow: ${refused.join(', ')}`);
+  const profileValues = args.p_profile ?? {};
+  if ((Object.hasOwn(profileValues, 'tenure') && !['owner', 'renter', 'other'].includes(profileValues.tenure))
+    || (Object.hasOwn(profileValues, 'locale') && !['en', 'es'].includes(profileValues.locale))) {
+    throw rpcError('P0001', 'HALO_INVALID_INPUT', 'p_profile.tenure must be owner, renter or other, and p_profile.locale en or es');
+  }
 
   const run = async (query) => {
     const { data, error } = await query;
@@ -151,22 +197,42 @@ export async function saveSettings(args, db) {
     if (error) throw rpcError(error.code, error.message, error.details ?? null);
     return data;
   };
+  const pending = (query) => query.eq('operation_id', operationId).eq('profile_id', id).eq('domain', 'settings').eq('status', 'pending');
 
-  return db.atomically(async () => {
+  // The SQL holds the household's preferences row from its revision check to
+  // its commit, so a second save of the same household waits, then reads the
+  // revision the first one left. One chain per household on this fake models it.
+  return householdLock(db, id, () => db.atomically(async () => {
+    // 1. The profile, first (0021 round 3, finding E).
     if (!(await run(db.from('profiles').select('id').eq('id', id).maybeSingle()))) throw rpcError('P0001', 'HALO_PROFILE_NOT_FOUND');
-
-    const won = await run(
-      db.from('profile_preferences')
-        .update({ ...(args.p_preferences ?? {}), revision: expected + 1, updated_at: now() })
-        .eq('profile_id', id)
-        .eq('revision', expected)
-        .select('revision'),
-    );
-    if (won.length === 0) {
-      const current = await run(db.from('profile_preferences').select('revision').eq('profile_id', id).maybeSingle());
-      return { saved: false, revision: current?.revision ?? null };
+    // 2. This operation's own ledger row, still pending (Ruling S15).
+    if (!(await run(pending(db.from('operations').select('operation_id')).maybeSingle()))) {
+      throw rpcError('P0001', 'HALO_OPERATION_NOT_PENDING');
+    }
+    // 3. The notification and band rows exist when this save writes them (findings A and F).
+    //    All defaults, so no trigger advances anything.
+    const made = {};
+    for (const [table, group] of [['notification_prefs', args.p_notifications], ['household_bands', args.p_bands]]) {
+      made[table] = present(group)
+        && (await run(db.from(table).upsert({ profile_id: id }, { onConflict: 'profile_id', ignoreDuplicates: true }).select('profile_id'))).length > 0;
+    }
+    // 4. The revision check. A miss writes nothing: the rows step 3 made go again.
+    const stored = await run(db.from('profile_preferences').select('*').eq('profile_id', id).maybeSingle());
+    if (!stored || stored.revision !== expected) {
+      for (const table of ['notification_prefs', 'household_bands']) {
+        if (made[table]) await run(db.from(table).delete().eq('profile_id', id));
+      }
+      return { saved: false, revision: stored?.revision ?? null };
+    }
+    const quiet = (key) => (Object.hasOwn(prefs, key) ? prefs[key] : stored[key]);
+    if (quiet('quiet_enabled') && quiet('quiet_from') === quiet('quiet_to')) {
+      throw rpcError('P0001', 'HALO_INVALID_INPUT', 'quiet hours that are on need different start and end times');
     }
 
+    // 5. The group's columns, without the revision: the trigger advances it if a value changed (finding C).
+    await run(db.from('profile_preferences').update({ ...prefs, updated_at: now() }).eq('profile_id', id));
+
+    // 6. The other tables.
     if (args.p_home) {
       const home = await run(db.from('home_contexts').select('id, revision').eq('profile_id', id).is('effective_to', null).maybeSingle());
       if (home) {
@@ -193,19 +259,42 @@ export async function saveSettings(args, db) {
     }
     if (present(args.p_profile)) await run(db.from('profiles').update(args.p_profile).eq('id', id));
     if (present(args.p_notifications)) {
-      await run(db.from('notification_prefs').upsert({ ...args.p_notifications, updated_at: now(), profile_id: id }, { onConflict: 'profile_id' }));
+      await run(db.from('notification_prefs').update({ ...args.p_notifications, updated_at: now() }).eq('profile_id', id));
     }
     if (present(args.p_bands)) {
-      await run(db.from('household_bands').upsert({ ...args.p_bands, updated_at: now(), profile_id: id }, { onConflict: 'profile_id' }));
+      await run(db.from('household_bands').update({ ...args.p_bands, updated_at: now() }).eq('profile_id', id));
     }
-    // Exactly one advance for the whole save: the triggers moved it again in between.
-    await run(db.from('profile_preferences').update({ revision: expected + 1 }).eq('profile_id', id));
+
+    // 7. One advance for a save that changed something, none for one that did not.
+    const moved = (await run(db.from('profile_preferences').select('revision').eq('profile_id', id).single())).revision;
+    const changed = moved !== expected;
+    if (changed) await run(db.from('profile_preferences').update({ revision: expected + 1 }).eq('profile_id', id));
 
     const preferences = await run(db.from('profile_preferences').select('*').eq('profile_id', id).single());
     const profile = await run(db.from('profiles').select('home_year, water_source, locale, tenure, renter_mode').eq('id', id).single());
     const notifications = await run(db.from('notification_prefs').select('*').eq('profile_id', id).maybeSingle());
-    return { saved: true, revision: preferences.revision, preferences, profile, notifications: notifications ?? null };
-  });
+
+    // 8. Settle the operation's own row with the receipt the route stores (Rulings S14 and S15).
+    const receipt = {
+      operationId,
+      status: 'succeeded',
+      snapshot: settingsSnapshot({ preferences, profile, notifications, unresolvedOperations: [] }),
+    };
+    const settled = await run(pending(db.from('operations').update({ status: 'succeeded', result: receipt, updated_at: now() })).select('operation_id'));
+    if (settled.length !== 1) throw rpcError('P0001', 'HALO_OPERATION_NOT_PENDING');
+
+    return { saved: true, changed, revision: preferences.revision, preferences, profile, notifications: notifications ?? null };
+  }));
+}
+
+const locks = new WeakMap();
+/** Runs `fn` after every earlier call for this household on this fake has finished, as a row lock does. */
+function householdLock(db, id, fn) {
+  if (!locks.has(db)) locks.set(db, new Map());
+  const chains = locks.get(db);
+  const run = (chains.get(id) ?? Promise.resolve()).then(fn);
+  chains.set(id, run.catch(() => {}));
+  return run;
 }
 
 /** Registers the stand-in as rpc('save_settings'). */

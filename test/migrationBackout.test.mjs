@@ -442,6 +442,8 @@ const CHECKS_0021 = [
   'alerts_target_learn_check',
 ];
 const PATCHED_ALERT = '00000000-0000-4000-8000-00000000b001';
+const SETTINGS_OP = '00000000-0000-4000-8000-00000000b021';
+const settleSettingsOp = (status) => db.query('update public.operations set status = $2 where operation_id = $1', [SETTINGS_OP, status]);
 const columnExists = ([table, column]) =>
   exists(`exists (select 1 from pg_attribute where attrelid = 'public.${table}'::regclass
             and attname = '${column}' and not attisdropped)`);
@@ -462,8 +464,12 @@ test('0021 applies on top of 0020 and adds exactly its table, its tenure column 
      insert into public.alerts
        (id, profile_id, type, title, message, dedupe_key, revision, category, target_tab, target_destination, target_learn)
        values ('${PATCHED_ALERT}', '${ALICE}', 'new_water_results', 'New results',
-               'Your utility published new results.', 'backout-0021', 3, 'Home', 'home', 'tests', 'pfas');`,
+               'Your utility published new results.', 'backout-0021', 3, 'Home', 'home', 'tests', 'pfas');
+     insert into public.operations (operation_id, profile_id, domain, kind, status, result)
+       values ('${SETTINGS_OP}', '${ALICE}', 'settings', 'settings.save', 'succeeded', '{"status":"succeeded"}');`,
   );
+  // Ruling S15: a settled settings operation keeps its status.
+  await assert.rejects(settleSettingsOp('failed'), /HALO_OPERATION_SETTLED/);
 });
 
 test('backing out 0021 removes the table and the six columns and leaves the 0001..0020 schema exactly', async () => {
@@ -487,7 +493,22 @@ test('backing out 0021 removes the table and the six columns and leaves the 0001
     'renter_mode is untouched, so every existing reader keeps working',
   );
   assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  // The settings ledger row stays, an ordinary row again: with the guard gone its status can change.
+  await settleSettingsOp('failed');
+  await settleSettingsOp('succeeded');
   assert.deepEqual(await runAudit(db), audit20);
+});
+
+test('review finding D: the 0021 back-out drops every trigger before the table they write and the column they name', () => {
+  const statements = docBlock('backout-0021').split(';').map((part) => part.trim()).filter(Boolean);
+  const at = (pattern) => statements.findIndex((statement) => pattern.test(statement));
+  const triggers = statements.map((statement, index) => [statement, index]).filter(([statement]) => /^drop trigger/.test(statement));
+  assert.equal(triggers.length, 7, 'every trigger 0021 creates on another table');
+  for (const [statement, index] of triggers) {
+    assert.ok(index < at(/^drop table if exists public\.profile_preferences$/), `${statement} comes before the table`);
+    assert.ok(index < at(/drop column if exists tenure$/), `${statement} comes before the tenure column`);
+  }
+  assert.ok(at(/^drop function if exists public\.save_settings\(/) < at(/^drop table/), 'and so does the save function that writes it');
 });
 
 test('backing out 0021 is safe to run twice', async () => {
@@ -508,6 +529,8 @@ test('after the back-out, 0021 applies again and gives exactly the schema one pa
     [{ revision: 1 }],
     'the alert is back at revision 1, so a client holding revision 3 has to reload',
   );
+  // The guard is back on the surviving settings ledger row too.
+  await assert.rejects(settleSettingsOp('failed'), /HALO_OPERATION_SETTLED/);
 });
 
 // ---- 0022: one new table, keyed by the profile, which nothing else

@@ -31,11 +31,13 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { inspect } from 'node:util';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope, UUID } from './helpers/envelope.mjs';
 import { auditOwnerScope } from './helpers/isolationKit.mjs';
+import { overlapAtSettle } from './helpers/overlap.mjs';
 
 const { requestHash } = await import('@/lib/operations');
 const inbox = await import('@/lib/alertsInbox');
@@ -406,6 +408,33 @@ test('POST: the receipt lists other unsettled alerts operations but never its ow
   });
   const receipt = await (await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true }))).json();
   assert.deepEqual(receipt.unresolvedOperations, [OTHER_OP]);
+  // Ruling S14: that list is the direct answer's alone. The receipt the ledger
+  // keeps, which a replay and GET /api/operations serve, is history, not a lock.
+  assert.deepEqual(ledger(h, OP).result, { ...receipt, unresolvedOperations: [] });
+  const replay = await (await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true }))).json();
+  assert.deepEqual(replay, { ...receipt, unresolvedOperations: [] }, 'a replay is the stored receipt');
+  // Ruling S16: the reconcile carries the live list, so the other operation stays locked.
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${OP}&domain=alerts` })).json();
+  assert.deepEqual(reconciled.unresolvedOperations, [OTHER_OP]);
+  assert.deepEqual(reconciled.items, receipt.items);
+});
+
+test('Ruling S16 (S14 review probe): a tab that parked Q while R was also pending keeps R after reconciling Q', async () => {
+  const R = OTHER_OP;
+  const h = harness({
+    operations: ({ alice }) => [{ operation_id: R, profile_id: alice.id, domain: 'alerts', kind: 'alerts.update', status: 'pending', created_at: ago(1_000) }],
+  });
+  const tab = productionAlerts(h);
+  await tab.reload();
+  assert.equal(tab.unknown, R);
+  // Q runs, and its direct answer lists R.
+  const q = await (await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true }))).json();
+  assert.deepEqual(q.unresolvedOperations, [R]);
+  // What a load taken while Q and R were both pending leaves the hook holding: Q parked.
+  tab.park(OP);
+  await tab.retry();
+  assert.equal(tab.unknown, R, 'R is still pending, so it is not silently unlocked');
+  assert.deepEqual((await (await read(h)).json()).unresolvedOperations, [R]);
 });
 
 test('POST: GET /api/operations replays the succeeded receipt flat, and it passes the client validator', async () => {
@@ -638,6 +667,17 @@ function failSelect(h, table, matches, error = { code: '57014', message: 'cancel
     return builder;
   };
 }
+
+test('POST: a failure is logged as its code and message, never its details or hint (review of 0021, finding B)', async (t) => {
+  const logged = muteConsoleError(t);
+  const MARKER = 'MARKER-ALERTS-LOG-4471';
+  const h = harness();
+  failSelect(h, 'alerts', () => true, { code: '57014', message: 'canceling statement due to statement timeout', details: `Failing row contains (${MARKER})`, hint: MARKER });
+  await expectEnvelope(await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true })), { status: 500, code: 'internal_error' });
+  const lines = logged.mock.calls.flatMap((call) => call.arguments.map((arg) => inspect(arg, { depth: 8 }))).join('\n');
+  assert.match(lines, /57014 canceling statement due to statement timeout/);
+  assert.equal(lines.includes(MARKER), false, lines);
+});
 
 test('GET: a contract read that fails for any reason but a missing migration is a 500, not a quietly degraded inbox', async (t) => {
   const logged = muteConsoleError(t);
@@ -981,6 +1021,8 @@ function productionAlerts(h, as = 'alice') {
     get message() { return state.message || resource.error || (state.unknown ? 'An alert update needs a status check.' : ''); },
     get undo() { return state.undo; },
     get unknown() { return state.unknown; },
+    /** Test only: the lock a load leaves when `id` was the oldest unsettled operation it listed. */
+    park: (id) => { state.unknown = id; },
     item: (id) => state.items.find((i) => i.id === id),
     read: (item) => change([item], { read: true }),
     dismiss: async (item) => { const next = await change([item], { dismissed: true }); if (next) { state.undo = next.find((i) => i.id === item.id) ?? null; state.message = 'Alert dismissed.'; } },
@@ -1056,4 +1098,28 @@ test('client flow: a change another tab already made is a conflict, and a reload
   await client.retry();
   assert.deepEqual([client.message, client.item(A_NEW).read, client.item(A_NEW).revision], ['', true, 2]);
   assert.deepEqual(client.items, otherTab.items);
+});
+
+test('client flow, Ruling S14: two overlapping changes from two tabs no longer park each other for ever (review R1, reproduced)', { timeout: 10_000 }, async () => {
+  const h = harness();
+  const tab1 = productionAlerts(h);
+  const tab2 = productionAlerts(h);
+  await tab1.reload();
+  await tab2.reload();
+  const [first, second] = await overlapAtSettle(h.db, () => tab1.read(tab1.item(A_NEW)), () => tab2.read(tab2.item(A_ODD)));
+  assert.ok(first && second, 'both changes applied');
+  const [x, y] = h.db.rows('operations').map((op) => op.operation_id);
+  // Each one's read of the ledger saw the other pending, and each direct answer says so.
+  assert.deepEqual([tab1.unknown, tab2.unknown], [y, x]);
+  // "Check status" settles it in one step. Before Ruling S14, y's stored receipt
+  // named x and x's named y, so each check parked the other one: y, x, y, ...
+  await tab1.retry();
+  assert.deepEqual([tab1.unknown, tab1.message], [null, ''], 'tab 1 is unlocked by one check');
+  await tab2.retry();
+  assert.deepEqual([tab2.unknown, tab2.message], [null, ''], 'tab 2 is unlocked by one check');
+  assert.deepEqual([ledger(h, x).result.unresolvedOperations, ledger(h, y).result.unresolvedOperations], [[], []], 'the stored receipts are history');
+  // And the next retry is a plain reload that converges with the server.
+  await tab1.retry();
+  assert.deepEqual(tab1.items, (await (await read(h)).json()).items);
+  assert.deepEqual([row(h, A_NEW).read, row(h, A_ODD).read], [true, true]);
 });

@@ -11,7 +11,8 @@
  * returns PostgREST's PGRST205 error, which is how routes see "migration not
  * applied yet". Query behaviour lives in fakeQuery.mjs, constraints in
  * fakeTable.mjs, filters in fakeFilters.mjs. Not modelled: row-level security
- * (this is the service role), column lists, types, foreign keys, triggers.
+ * (this is the service role), column lists, types, and foreign keys and triggers
+ * other than those a table declares (fakeTable.mjs) or a test registers.
  */
 import { QueryBuilder } from './fakeQuery.mjs';
 import { FakeTable, pgError, wire } from './fakeTable.mjs';
@@ -37,7 +38,7 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
   let maxRows = Infinity;
 
   const declare = (name, declaration) => {
-    if (!store.has(name)) store.set(name, new FakeTable(name, declaration));
+    if (!store.has(name)) store.set(name, new FakeTable(name, declaration, (other) => store.get(other)));
     return store.get(name);
   };
   for (const [name, declaration] of Object.entries(tables)) declare(name, declaration);

@@ -35,6 +35,7 @@ import assert from 'node:assert/strict';
 import { basename } from 'node:path';
 import './helpers/routeLoader.mjs';
 import { createDb, listMigrations, MIGRATION_FILE, runAudit } from './db/pgliteHarness.mjs';
+import { ledgerClient as pgliteLedger } from './db/pgliteLedger.mjs';
 
 const { runOperation, readOperation } = await import('../lib/operations.js');
 
@@ -638,57 +639,16 @@ test('a settled actions row cannot change status; its receipt can be rewritten a
   await settle(pending, 'failed', { status: 'failed', reason: 'stale_revision' });
   assert.equal((await operation(pending)).status, 'failed', 'a pending row settles as before');
 
-  const settings = await ledgerRow(owner, { domain: 'settings', kind: 'settings.save', status: 'succeeded', result: { status: 'succeeded' } });
-  await settle(settings, 'failed', null);
-  assert.equal((await operation(settings)).status, 'failed', 'every other domain is unchanged');
+  // (settings has its own guard in 0021; alerts has none.)
+  const alerts = await ledgerRow(owner, { domain: 'alerts', kind: 'alerts.update', status: 'succeeded', result: { status: 'succeeded' } });
+  await settle(alerts, 'failed', null);
+  assert.equal((await operation(alerts)).status, 'failed', 'a domain without a guard is unchanged');
 });
-
-/**
- * Exactly the two supabase-js calls runOperation makes on the ledger (the
- * claim, an upsert that ignores duplicates, and the settle, an update by id),
- * run on PGlite, so the real lib/operations.js meets the real trigger.
- */
-function ledgerClient() {
-  return {
-    from(table) {
-      assert.equal(table, 'operations');
-      return {
-        upsert(row, { onConflict, ignoreDuplicates }) {
-          assert.deepEqual([onConflict, ignoreDuplicates], ['operation_id', true]);
-          return {
-            async select() {
-              const { rows } = await db.query(
-                `insert into public.operations (operation_id, profile_id, domain, kind, status, request_hash)
-                 values ($1, $2, $3, $4, $5, $6) on conflict (operation_id) do nothing returning operation_id`,
-                [row.operation_id, row.profile_id, row.domain, row.kind, row.status, row.request_hash],
-              );
-              return { data: rows, error: null };
-            },
-          };
-        },
-        update(values) {
-          return {
-            async eq(column, value) {
-              assert.equal(column, 'operation_id');
-              try {
-                await db.query(`update public.operations set status = $2, result = $3::jsonb, updated_at = $4 where operation_id = $1`,
-                  [value, values.status, json(values.result), values.updated_at]);
-                return { error: null };
-              } catch (error) {
-                return { error: { code: error.code, message: error.message } };
-              }
-            },
-          };
-        },
-      };
-    },
-  };
-}
 
 test('end to end with runOperation: a commit whose response is lost still reads as succeeded, with its receipt', async () => {
   const owner = await household();
   const operationId = uuid();
-  const supabase = ledgerClient();
+  const supabase = pgliteLedger(db);
   const logged = [];
   const original = console.error;
   console.error = (...args) => logged.push(args.join(' '));
