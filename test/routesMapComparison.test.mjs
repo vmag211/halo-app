@@ -229,6 +229,7 @@ function assertNeverComparable(body, ids) {
   for (const first of parsed) {
     assert.equal(first.coverage, 'partial');
     assert.equal(first.sourceVersion, null);
+    assert.equal(first.sourceName, 'Source not reported', 'no source name is sent, so the client names no release');
     for (const second of parsed) {
       for (const [compound] of compounds) {
         const rowsFor = comparisonRows(first, second, compound);
@@ -359,11 +360,14 @@ test('water with neither a stored layer nor a readable UCMR 5 table is a 503, wi
   noFetches(h);
 });
 
-test('air with no stored layer is a 503: never a live AirNow build', async () => {
-  const h = harness();
-  await expectEnvelope(await compare(h, { layer: 'air', quarter: 'latest', ids: AIR_IDS }), { status: 503, code: 'upstream_unavailable', retryable: true });
-  assert.deepEqual(tablesRead(h), ['map_layers']);
-  noFetches(h);
+test('air with no stored layer, or a stale one, is a 503: never a live AirNow build, and never an old hour served as the latest', async () => {
+  const staleAirLayer = { ...(await airLayer()), assembled_at: '2020-01-01T00:00:00.000Z' };
+  for (const layers of [[], [staleAirLayer]]) {
+    const h = harness({ layers });
+    await expectEnvelope(await compare(h, { layer: 'air', quarter: 'latest', ids: AIR_IDS }), { status: 503, code: 'upstream_unavailable', retryable: true });
+    assert.deepEqual(tablesRead(h), ['map_layers']);
+    noFetches(h);
+  }
 });
 
 for (const layer of ['facilities', 'radon']) {

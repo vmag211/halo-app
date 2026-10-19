@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { expectEnvelope, loggedText } from './helpers/envelope.mjs';
 import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
+import { quiet, setup } from './helpers/isolationKit.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { waterPayload, districtPayload, facilitiesPayload, airPayload, buildAndStoreAll } from '../lib/mapBuild.js';
 import { ARCGIS_WATER_BOUNDARIES, getWaterGeo } from '../lib/waterGeo.js';
@@ -684,6 +685,31 @@ test('geography outage: the daily pre-build with nothing stored yet stores no wa
   assert.deepEqual(db.rows('map_layers').map((row) => row.layer).sort(), ['air', 'facilities', 'radon']);
 });
 
+// The tests above hand buildAndStoreAll the lookup themselves. This one runs the
+// REAL daily job end to end, so it fails if the job ever stops passing the whole
+// getWaterGeo result (a bare Map would read as a complete lookup), however the
+// call is written. Only the source-text pin in the scan test guarded that before.
+test('geography outage: the real daily job, with ArcGIS down, keeps the seeded water and district rows byte for byte', async (t) => {
+  quiet(t);
+  const SECRET = 'cron-secret-for-tests';
+  // Every provider, ArcGIS included, is unanswered and gets a 503.
+  const ctx = setup({ env: { CRON_SECRET: SECRET } });
+  const rowOf = (layer) => JSON.stringify(ctx.h.db.rows('map_layers').find((row) => row.layer === layer));
+  const before = { water: rowOf('water'), district: rowOf('district') };
+  assert.ok(before.water && before.district, 'both rows are seeded');
+
+  const res = await ctx.h.call('/api/cron/daily', 'GET', { headers: { authorization: `Bearer ${SECRET}` } });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.ok(ctx.outbound.some((entry) => entry.url.startsWith(ARCGIS_WATER_BOUNDARIES)), 'the outage was really exercised');
+  assert.equal(body.water_geo.complete, false);
+  assert.deepEqual(body.map_layers.water, { ok: false, error: 'geography_incomplete' });
+  assert.deepEqual(body.map_layers.district, { ok: false, error: 'geography_incomplete' });
+  assert.equal(body.map_layers.radon.ok, true, 'the other layers still run');
+  assert.equal(rowOf('water'), before.water, 'the stored water layer is untouched');
+  assert.equal(rowOf('district'), before.district, 'the stored district view is untouched');
+});
+
 /** Live outages: every failed outcome above, and a partial one (the second of two batches fails). */
 const LIVE_OUTAGES = {
   ...Object.fromEntries(LOOKUP_FAILS.map((outcome) => [outcome, { utilities: (p) => utilitiesFor(p), answer: (u) => GEO_OUTCOMES[outcome](u) }])),
@@ -713,7 +739,13 @@ for (const [outcome, live] of Object.entries(LIVE_OUTAGES)) {
       assert.equal(body.geography_complete, false);
       assert.ok(body.located < body.count, 'some systems really are missing their location');
       assert.doesNotMatch(body.note, /no mapped service area/, 'never the false cause');
-      assert.match(body.note, /service-area lookup did not complete/);
+      // The exact words: in a partial outage some unlocated systems were in a
+      // batch that finished, so the note must not blame the lookup for all of them.
+      assert.equal(
+        body.note,
+        `The service-area lookup did not complete. ${body.count - body.located} of ${body.count} systems are shown without coordinates and carry severity; some or all of them may have a service area the lookup could not return.`,
+      );
+      assert.doesNotMatch(body.note, /\u2014/, 'no em dash in app-facing copy');
     }
     assert.equal(stub.calls.length > 0, true);
     assert.deepEqual(stub.unexpected, []);
