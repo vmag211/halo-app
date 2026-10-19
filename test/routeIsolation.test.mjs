@@ -87,6 +87,8 @@ const ROUTE_COVERAGE = {
   'PATCH /api/profile': 'isolation: only the caller\'s profile and home change, id in the body ignored, with and without the 0016 functions',
   'POST /api/push/subscribe': 'flows: a foreign endpoint is not taken over and the answer matches a fresh success',
   'DELETE /api/push/subscribe': 'flows: a foreign endpoint is not removed and the answer matches a missing endpoint',
+  'GET /api/settings': 'routesSettings: every statement is scoped to the caller on the query itself, each household reads only its own values and revision, a profile_id in the query changes nothing, and unresolvedOperations lists only the caller\'s own pending settings operations',
+  'PATCH /api/settings': 'routesSettings: a save writes only the caller\'s rows and every statement is scoped to the caller, a body naming another profile is refused and a query naming one is ignored, another household\'s revision or operation id gains nothing, and the other household is byte for byte unchanged',
   'GET /api/sources': 'isolation: read matrix (newest reading is the caller\'s)',
   'GET /api/volunteer': 'isolation: read matrix (county from the caller\'s profile)',
   'GET /api/week/changes': 'routesWeekChanges: only the ledger is touched, every statement scoped to the caller on the query itself, and only the caller\'s own pending week-updates operations are listed (another household\'s, a settled one and another domain\'s are not); a query or home-context header naming another household changes nothing; before 0017 the answer is feature_unavailable rather than an empty list',

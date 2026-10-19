@@ -263,6 +263,35 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
     rpcCalls,
 
     /**
+     * Installs a stand-in for a database trigger on a declared table (see FakeTable.triggers):
+     * `before(oldRows, newRows)` may change the planned rows in place, `after(oldRows, newRows,
+     * tables)` runs once the write is committed, where `tables(name)` is that table's FakeTable
+     * (or undefined), whose `rows` it may replace. Nothing a trigger does goes in queryLog: the
+     * route did not run it. Throws for an undeclared table.
+     */
+    registerTrigger: (name, { before, after } = {}) => {
+      const table = store.get(name);
+      if (!table) throw new Error(`fakeSupabase: no table "${name}" declared or seeded`);
+      if (before) table.triggers.before.push(before);
+      if (after) table.triggers.after.push((previous, rows) => after(previous, rows, (other) => store.get(other)));
+    },
+
+    /**
+     * A stand-in for a database function's transaction: runs fn, and if it throws, puts every
+     * table's rows back as they were before it ran, then rethrows. Not isolation: another call
+     * running at the same time sees the writes in between, and a rollback undoes its writes too.
+     */
+    atomically: async (fn) => {
+      const saved = new Map([...store].map(([name, table]) => [name, table.rows]));
+      try {
+        return await fn();
+      } catch (error) {
+        for (const [name, rows] of saved) store.get(name).rows = rows;
+        throw error;
+      }
+    },
+
+    /**
      * Every statement the routes ran, in order: { table, operation, filters, rows, values }.
      * `filters` are the parsed filter nodes ({ type: 'cmp', column, op, value }, ...), `rows`
      * the insert/upsert/delete payload and `values` the update payload. For audits such as
