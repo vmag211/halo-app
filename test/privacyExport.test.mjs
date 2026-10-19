@@ -232,7 +232,8 @@ test('every read names its columns from the inventory allowlist, never `*`', asy
   for (const { table, columns, head } of selects) {
     assert.notEqual(String(columns).trim(), '*', `${table} was read with *`);
     const names = String(columns).split(',').map((name) => name.trim());
-    const allowed = head ? [PRIVACY_INVENTORY[table].owner] : columnsFor(table, true);
+    // The allowlist, plus the paging and sort columns, which are read but never emitted (below).
+    const allowed = head ? [PRIVACY_INVENTORY[table].owner] : [...columnsFor(table, true), ...EXPORT_ORDER[table]];
     for (const name of names) assert.ok(allowed.includes(name), `${table}.${name} is read but not allowlisted`);
   }
 });
@@ -246,9 +247,33 @@ test('nothing but the allowlisted columns of each row is emitted, whatever extra
   });
   const built = await build(db, alice);
   assert.ok(!built.file.text.includes('ALICE-FUTURE-COLUMN-MARKER'));
-  for (const row of built.document.journal.symptom_logs) {
-    for (const key of Object.keys(row)) assert.ok(columnsFor('symptom_logs', true).includes(key), `symptom_logs.${key}`);
+  // Every row of every table: only its allowlist, so the page key read to page with (an
+  // internal `id` for most tables) never leaves.
+  let checked = 0;
+  for (const group of ALL_GROUPS) {
+    for (const [table, rows] of Object.entries(built.document[group])) {
+      if (!Array.isArray(rows)) continue;
+      for (const row of rows) {
+        checked += 1;
+        for (const key of Object.keys(row)) assert.ok(columnsFor(table, true, group).includes(key), `${group}.${table}.${key}`);
+      }
+    }
   }
+  assert.ok(checked > 20);
+  assert.ok(!('id' in built.document.home.daily_scores[0]) && !('id' in built.document.journal.symptom_logs[0]));
+});
+
+test('rows are in the file\'s order (EXPORT_ORDER), not the page key\'s', async () => {
+  const { db, alice } = world();
+  const built = await build(db, alice, ['home', 'journal'], true);
+  const dates = built.document.home.daily_scores.map((row) => row.date);
+  assert.ok(dates.length >= 5);
+  assert.deepEqual(dates, [...dates].sort());
+  const entries = built.document.journal.symptom_logs.map((row) => row.entry_date);
+  assert.deepEqual(entries, [...entries].sort());
+  // The seeded ids are random, so id order is not date order and the sort is doing the work.
+  const ids = db.rows('daily_scores').filter((row) => row.profile_id === alice.id).sort((a, b) => (a.id < b.id ? -1 : 1)).map((row) => row.date);
+  assert.notDeepEqual(ids, [...ids].sort());
 });
 
 // ---------------------------------------------------------------------------
@@ -309,9 +334,9 @@ test('D-P5: with preferences, the household\'s own confirmed email is exported; 
 
 test('D-P5: an anonymous login, an unconfirmed address and a pending change export no address', async () => {
   const anonymous = world({ identities: { alice: { email: null, emailConfirmedAt: null, isAnonymous: true } } });
-  assert.deepEqual((await build(anonymous.db, anonymous.alice, ['preferences'], true)).document.preferences['auth.users'], [{ email: null }]);
+  assert.deepEqual((await build(anonymous.db, anonymous.alice, ['preferences'], true)).document.preferences['auth.users'], []);
   const unconfirmed = world({ identities: { alice: { emailConfirmedAt: null } } });
-  assert.deepEqual((await build(unconfirmed.db, unconfirmed.alice, ['preferences'], true)).document.preferences['auth.users'], [{ email: null }]);
+  assert.deepEqual((await build(unconfirmed.db, unconfirmed.alice, ['preferences'], true)).document.preferences['auth.users'], []);
   const pending = world({ identities: { alice: { newEmail: 'alice-new@example.test', emailChangeSentAt: CONFIRMED } } });
   const text = (await build(pending.db, pending.alice, ['preferences'], true)).file.text;
   assert.ok(text.includes('alice@example.test'));
@@ -385,7 +410,9 @@ test('the header, the file and the manifest: every selected table counted, home_
     assert.equal(omitted[table], PRIVACY_INVENTORY[table].export.excluded);
   }
   const sum = Object.values(counts).flatMap((tables) => Object.values(tables)).reduce((a, b) => a + b, 0);
-  assert.equal(built.total, sum);
+  // The profile row is in home and preferences: one record, counted once (N5).
+  assert.equal(built.total, sum - 1);
+  assert.equal(document.manifest.records, built.total);
   assert.equal(built.bytes, exportResponseBytes(file));
   assert.deepEqual(exportPreview(built), { manifest: document.manifest, fields: built.fields });
   assert.deepEqual(built.fields.journal.symptom_logs, columnsFor('symptom_logs', true));
@@ -429,7 +456,7 @@ test('a missing table answered the Postgres way (42P01), and a missing counted t
     if (name !== 'luna_runs' && name !== 'push_subscriptions') return realFrom(name);
     const answer = { data: null, count: null, error: pgError('42P01', `relation "public.${name}" does not exist`) };
     const failing = { then: (resolve, reject) => Promise.resolve(answer).then(resolve, reject) };
-    for (const method of ['select', 'eq', 'neq', 'in', 'order', 'range']) failing[method] = () => failing;
+    for (const method of ['select', 'eq', 'neq', 'in', 'gt', 'order', 'limit']) failing[method] = () => failing;
     return failing;
   };
   const built = await build(db, alice);
@@ -452,6 +479,12 @@ for (const code of ['42703', 'PGRST204']) {
     assert.equal(profile.lat, 35.409);
     assert.ok(built.document.manifest.warnings.includes('profiles.tenure is not stored on this deployment yet, so it is left out.'));
     assert.ok(!built.fields.home.profiles.includes('tenure'));
+    // Only the column the error names is dropped: the other optional columns stay (N3).
+    assert.equal(profile.renter_mode, false);
+    assert.equal(profile.state, 'NC');
+    assert.ok(built.fields.home.profiles.includes('renter_mode') && built.fields.home.profiles.includes('state'));
+    const columnWarnings = built.document.manifest.warnings.filter((line) => line.endsWith('so it is left out.'));
+    assert.deepEqual(columnWarnings, ['profiles.tenure is not stored on this deployment yet, so it is left out.']);
     // The warn names the schema, never a value.
     for (const call of console.warn.mock.calls) assert.ok(!JSON.stringify(call.arguments).includes(alice.id));
   });
@@ -469,7 +502,7 @@ test('any other read error fails the build: a count has no "unknown" value (P11)
   db.from = (name) => {
     const builder = realFrom(name);
     if (name !== 'symptom_logs') return builder;
-    builder.range = () => ({ then: (resolve) => resolve({ data: null, count: null, error: pgError('57014', 'canceling statement due to statement timeout') }) });
+    builder.limit = () => ({ then: (resolve) => resolve({ data: null, count: null, error: pgError('57014', 'canceling statement due to statement timeout') }) });
     return builder;
   };
   await assert.rejects(build(db, alice, ['journal'], true), (error) => error.code === '57014');
@@ -514,6 +547,150 @@ for (const maxRows of [Infinity, 1000, 400]) {
     assert.equal(pages, Math.ceil(2500 / Math.min(maxRows, EXPORT_PAGE_SIZE)));
   });
 }
+
+/**
+ * Runs `between(realFrom)` once, after the first page of `table` has been
+ * answered and before the next is asked for: a write from another device or
+ * the backfill landing mid-export.
+ */
+function betweenPages(db, table, between) {
+  const realFrom = db.from;
+  let pages = 0;
+  db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== table) return builder;
+    const realThen = builder.then.bind(builder);
+    builder.then = (resolve, reject) => realThen(async (answer) => {
+      pages += 1;
+      if (pages === 1) await between(realFrom);
+      return resolve(answer);
+    }, reject);
+    return builder;
+  };
+  return () => pages;
+}
+
+test('a row written or deleted between pages never repeats or loses a row that was there before (N1, keyset paging)', async () => {
+  const { db, alice } = world({ adjust: manyReadings(2500) });
+  const before = db.rows('daily_scores').filter((row) => row.profile_id === alice.id).map((row) => row.date);
+  assert.equal(before.length, 2500);
+  const pages = betweenPages(db, 'daily_scores', async (realFrom) => {
+    // An older reading lands (a backfill), one with a key before the cursor and one after;
+    // and a reading already read is deleted. Offset paging would shift every later row.
+    db.seed('daily_scores', [
+      { id: 'a11ce000-0000-4000-8000-000000000001', profile_id: alice.id, date: '2010-01-01', score: 1, aqi: 1 },
+      { id: 'a11ce000-ffff-4000-8000-000000000001', profile_id: alice.id, date: '2010-01-02', score: 1, aqi: 1 },
+    ]);
+    const { error } = await realFrom('daily_scores').delete().eq('id', `a11ce000-9999-4000-8000-${(5).toString(16).padStart(12, '0')}`);
+    assert.equal(error, null);
+  });
+  const built = await build(db, alice, ['home'], false);
+  assert.ok(pages() >= 3);
+  const dates = built.document.home.daily_scores.map((row) => row.date);
+  const seen = new Map();
+  for (const date of dates) seen.set(date, (seen.get(date) ?? 0) + 1);
+  for (const date of before) assert.equal(seen.get(date), 1, `${date} appears ${seen.get(date) ?? 0} times`);
+  assert.equal(built.document.manifest.counts.home.daily_scores, dates.length);
+  assert.deepEqual(dates, [...dates].sort());
+});
+
+test('an answer without an exact count fails the build rather than guessing from a short page (N2)', async () => {
+  const { db, alice } = world({ adjust: manyReadings(2500) });
+  db.setMaxRows(400);
+  const realFrom = db.from;
+  db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== 'daily_scores') return builder;
+    const realThen = builder.then.bind(builder);
+    builder.then = (resolve, reject) => realThen((answer) => resolve({ ...answer, count: null }), reject);
+    return builder;
+  };
+  await assert.rejects(build(db, alice, ['home'], false), /without an exact count/);
+});
+
+test('a column retry starts the part\'s byte tally again, so an export that fits is not refused (N4)', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  // About 2.2 MB of alerts, just over one page: counting the first attempt's page twice would pass the cap.
+  const message = 'm'.repeat(2100);
+  const adjust = (seeded, ids) => {
+    for (let n = 0; n < 1001; n += 1) {
+      seeded.alerts.push({
+        id: `a11ce000-1111-4000-8000-${(0x1000 + n).toString(16).padStart(12, '0')}`, profile_id: ids.alice.id,
+        type: 'weather_advisory', title: 'Heat', message, dedupe_key: `bulk-${n}`, fired_at: '2026-09-01T10:00:00Z',
+      });
+    }
+  };
+  const plain = world({ adjust });
+  const fits = await build(plain.db, plain.alice, ['home'], false);
+  assert.equal(fits.tooLarge, false);
+  const firstPage = 1000 * Buffer.byteLength(JSON.stringify(fits.document.home.alerts.find((row) => row.message === message)), 'utf8');
+  assert.ok(fits.bytes + firstPage > EXPORT_MAX_RESPONSE_BYTES, 'the household is near enough the cap for the test to mean something');
+
+  // The same household, on a deployment whose alerts lack `category`, discovered on the SECOND page.
+  const { db, alice } = world({ adjust });
+  const realFrom = db.from;
+  let selects = 0;
+  db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== 'alerts') return builder;
+    const realSelect = builder.select.bind(builder);
+    builder.select = (columns, options) => {
+      if (String(columns).includes('category') && (selects += 1) === 2) {
+        builder.then = (resolve, reject) => Promise.resolve({ data: null, count: null, error: pgError('42703', 'column alerts.category does not exist') }).then(resolve, reject);
+      }
+      return realSelect(columns, options);
+    };
+    return builder;
+  };
+  const retried = await build(db, alice, ['home'], false);
+  assert.equal(selects, 2, 'the missing column was met on the second page');
+  assert.equal(retried.tooLarge, false);
+  assert.equal(retried.document.home.alerts.length, fits.document.home.alerts.length);
+  assert.ok(retried.document.manifest.warnings.includes(EXPORT_COPY.missingColumn('alerts', 'category')));
+});
+
+test('a coordinate in any form that is not a number becomes null, never passed through (N4)', async () => {
+  const { db, alice } = world({
+    adjust: (seeded, ids) => {
+      const context = seeded.home_contexts.find((row) => row.profile_id === ids.alice.id);
+      context.lat = { point: '35.408812' };
+      context.lng = true;
+      const profile = seeded.profiles.find((row) => row.id === ids.alice.id);
+      profile.lat = 'north';
+      profile.lng = '';
+    },
+  });
+  const built = await build(db, alice, ['home'], false);
+  const [context] = built.document.home.home_contexts;
+  assert.equal(context.lat, null);
+  assert.equal(context.lng, null);
+  assert.equal(built.document.home.profiles[0].lat, null);
+  assert.equal(built.document.home.profiles[0].lng, null);
+  assert.ok(!built.file.text.includes('35.408812'));
+});
+
+test('the review count counts each record once: the profile once across home and preferences, the login only with an email (N5)', async () => {
+  const { db, alice } = world();
+  const both = await build(db, alice, ['home', 'preferences'], false);
+  const { counts } = both.document.manifest;
+  assert.equal(counts.home.profiles, 1);
+  assert.equal(counts.preferences.profiles, 1);
+  const perGroup = Object.values(counts).flatMap((tables) => Object.values(tables)).reduce((a, b) => a + b, 0);
+  assert.equal(both.total, perGroup - 1);
+  assert.equal(both.document.manifest.records, both.total);
+  const homeOnly = await build(db, alice, ['home'], false);
+  const prefsOnly = await build(db, alice, ['preferences'], false);
+  assert.equal(both.total, homeOnly.total + prefsOnly.total - 1);
+  // Two parts of one table with disjoint row filters add up: season summaries and inbox alerts.
+  const alerts = await build(db, alice, ['home', 'journal'], true);
+  assert.equal(alerts.total, Object.values(alerts.document.manifest.counts).flatMap((tables) => Object.values(tables)).reduce((a, b) => a + b, 0) - 0);
+  // The login is a record only when it has an address to export.
+  assert.equal(prefsOnly.document.manifest.counts.preferences['auth.users'], 1);
+  const anonymous = world({ identities: { alice: { email: null, emailConfirmedAt: null, isAnonymous: true } } });
+  const anon = await build(anonymous.db, anonymous.alice, ['preferences'], false);
+  assert.equal(anon.document.manifest.counts.preferences['auth.users'], 0);
+  assert.equal(anon.total, prefsOnly.total - 1);
+});
 
 test('an oversize Luna history is tooLarge, with no document, and reading stops early', async () => {
   const big = 'x'.repeat(200_000);
@@ -586,7 +763,7 @@ after(async () => {
   await pg?.close();
 });
 
-test('every table the export pages has an order, and the order ends in a unique key of the migrated schema', async () => {
+test('every table the export pages has an order whose last column is, with the owner, a unique key of the migrated schema', async () => {
   const paged = new Set(exportParts(ALL_GROUPS, true)
     .filter((part) => !part.countAs && !part.countOnly && part.table !== 'auth.users')
     .map((part) => part.table));
@@ -601,9 +778,10 @@ test('every table the export pages has an order, and the order ends in a unique 
      group by c.relname, i.indexrelid`);
   for (const [table, order] of Object.entries(EXPORT_ORDER)) {
     const owner = PRIVACY_INVENTORY[table].owner;
-    const scope = new Set([...order, owner]);
+    // The page key alone (the last column), with the owner, must be unique: keyset pages compare only it.
+    const scope = new Set([order[order.length - 1], owner]);
     const unique = rows.filter((row) => row.table_name === table).some((row) => row.columns.every((column) => scope.has(column)));
-    assert.ok(unique, `${table}: ordering by ${order.join(', ')} within one household is not a unique order`);
+    assert.ok(unique, `${table}: ordering by ${order.join(', ')} within one household is not a unique page key`);
     const { rows: columns } = await pg.query(
       `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`, [table]);
     for (const column of order) assert.ok(columns.some((row) => row.column_name === column), `${table}.${column} does not exist`);
@@ -633,10 +811,11 @@ function pgliteClient(db, { email = 'owner@example.test' } = {}) {
           return builder;
         },
         eq: (column, value) => add(`${ident(column)} = ?`, value),
+        gt: (column, value) => add(`${ident(column)} > ?`, value),
         neq: (column, value) => add(`${ident(column)} <> ?`, value),
         in: (column, values) => add(`${ident(column)} = any(?)`, values),
         order(column, { ascending = true } = {}) { state.orders.push(`${ident(column)} ${ascending ? 'asc' : 'desc'}`); return builder; },
-        range(from, to) { state.offset = from; state.limit = to - from + 1; return builder; },
+        limit(count) { state.limit = count; return builder; },
         then(resolve, reject) { return run().then(resolve, reject); },
       };
       async function run() {

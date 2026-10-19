@@ -204,6 +204,8 @@ test('export: 200, a review the client opens, count = the document\'s records, p
   const alice = h.identities.alice;
   const built = await buildExportDocument(h.db, { profileId: alice.id, groups: [...EXPORT_GROUPS], privateText: true });
   assert.equal(result.review.count, built.total);
+  // What the panel shows ("N records in this review") is what the preview's manifest says, each record once.
+  assert.equal(result.raw.preview.manifest.records, result.review.count);
   assert.deepEqual(result.raw.preview.manifest.counts, built.document.manifest.counts);
   assert.deepEqual(result.raw.preview.fields, built.fields);
   // The preview names fields, never records.
@@ -478,7 +480,7 @@ test('a read that fails for any other reason is a 500 with nothing minted and no
   const realFrom = h.db.from;
   h.db.from = (name) => {
     const builder = realFrom(name);
-    if (name === 'symptom_logs') builder.range = () => ({ then: (resolve) => resolve({ data: null, count: null, error: pgError('57014', 'canceling statement due to statement timeout') }) });
+    if (name === 'symptom_logs') builder.limit = () => ({ then: (resolve) => resolve({ data: null, count: null, error: pgError('57014', 'canceling statement due to statement timeout') }) });
     return builder;
   };
   const result = await opened(h, { scope: 'export', groups: ['journal'], privateText: true });
