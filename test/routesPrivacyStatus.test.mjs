@@ -164,11 +164,19 @@ test('a settled privacy row, a settings row and another household\'s privacy row
 });
 
 test('a stale pending privacy row is reaped to failed and not listed, so a dead clear cannot lock the panel for ever', async () => {
-  const h = harness({ operations: [privacyRow({ created_at: ago(10 * 60 * 1000) })] });
+  const settingsOp = opId(5);
+  const h = harness({
+    operations: [
+      privacyRow({ created_at: ago(10 * 60 * 1000) }),
+      privacyRow({ operation_id: settingsOp, domain: 'settings', kind: 'settings.save', created_at: ago(10 * 60 * 1000) }),
+    ],
+  });
   assert.deepEqual(await (await read(h)).json(), { unresolvedOperations: [] });
   const row = h.db.rows('operations').find((item) => item.operation_id === OP_ALL);
   assert.equal(row.status, 'failed');
   assert.deepEqual(row.result, { status: 'failed', reason: 'abandoned' });
+  const other = h.db.rows('operations').find((item) => item.operation_id === settingsOp);
+  assert.equal(other.status, 'pending', 'only the privacy domain is reaped here; settings reaps its own');
   assertLedgerScoped(h, h.identities.alice.id, 'reap');
 });
 
