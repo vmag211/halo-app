@@ -64,7 +64,7 @@ lazy so `next build` needs no secrets. About 31 Playwright UI tests already fail
 | B02 identity linking and recovery | Complete except two tasks dropped on purpose, see below |
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
 | B04 settings and alerts | Complete. Four operations (`settings.read`, `settings.save`, `alerts.read`, `alerts.update`), contract `b04-1` with the reconcile, Rulings S1 to S16. `GET /api/capabilities` and `GET /api/evidence` dropped, see below |
-| B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-1` |
+| B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-2` |
 | B06 My Week (tasks) | Complete. `actions.load`, `actions.commit`, `week.changes`, `week.acknowledge` and the `actions` reconcile, migration 0023, contract `b06-1`, Rulings H1 to H33. `actions.*` behind the `tasks` flag; task retention decided 2026-10-19, so the flag may be turned on once 0023 is applied; the week strip is ungated |
 
 ## Migrations

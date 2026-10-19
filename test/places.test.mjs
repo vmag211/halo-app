@@ -235,20 +235,33 @@ test('a trailing state in the query is its state: North Carolina searches the wo
   assert.deepEqual(one('Wake, NC'), one('Wake'), 'the prefix matches of the words before the state are kept');
   assert.deepEqual(one('28208, NC'), one('28208'));
   assert.deepEqual(one('ZIP 28208 N.C.'), one('28208'));
-  // Any other state, as a code, a dotted code or a name, is a different state.
-  for (const query of ['Charlotte, SC', 'Charlotte S.C.', 'Charlotte South Carolina', 'Columbia, SC', 'Raleigh, VA', 'Charlotte, DC',
-    '28208 SC', 'Washington, PA', 'Washington Pa', 'Spencer, MO', 'Scotland NE', 'Helena, MT', 'Charlotte, West Virginia']) {
+  // Any other state set off by a comma, as a code, a dotted code or a name, is a different state,
+  // even where the words before it, or the whole query, would find an NC place.
+  for (const query of ['Raleigh, VA', 'Charlotte, SC', 'Charlotte, S.C.', 'Charlotte, South Carolina', 'Charlotte, Hawaii', 'Columbia, SC', 'Charlotte, DC',
+    '28208, SC', 'Washington, PA', 'Spencer, MO', 'Scotland, NE', 'Chapel, HI', 'Helena, MT', 'Charlotte, West Virginia']) {
     assert.deepEqual(one(query), [], query);
+  }
+  // Without a comma another state's code is still part of the name, so a word being typed keeps
+  // its prefix matches (live search never drops results mid-word).
+  assert.deepEqual(one('Chapel Hi').map((c) => c.label), ['Chapel Hill, NC']);
+  assert.deepEqual(one('Chapel Hil').map((c) => c.label), ['Chapel Hill, NC']);
+  assert.deepEqual(one('Washington Pa').map((c) => c.label), ['Washington Park, NC']);
+  assert.deepEqual(one('Scotland Ne').map((c) => c.label), ['Scotland Neck, NC']);
+  assert.deepEqual(one('Spencer Mo').map((c) => c.label), ['Spencer Mountain, NC']);
+  for (const query of ['Charlotte SC', 'Charlotte S.C.', 'Charlotte South Carolina', '28208 SC']) {
+    assert.deepEqual(one(query), [], `${query}: no NC name starts this way`);
   }
   // A name that is a state's is still the name when nothing comes before it, and it can carry the state.
   assert.deepEqual(one('Washington').map((c) => c.label), ['Washington County, NC', 'Washington, NC', 'Washington Park, NC']);
   assert.deepEqual(one('Washington, NC'), one('Washington'));
-  // "Co" is the county word, never Colorado; an exact NC name outranks the state reading.
+  // "Co" is the county word, never Colorado, with or without a comma.
   assert.deepEqual(one('Yadkin Co').map((c) => c.label), ['Yadkin County, NC']);
+  assert.deepEqual(one('Yadkin, Co').map((c) => c.label), ['Yadkin County, NC']);
   assert.deepEqual(one('Meck Co').map((c) => c.label), ['Mecklenburg County, NC'], 'a county prefix with Co. is not a query in Colorado');
   assert.deepEqual(one('Rocky Mt').map((c) => c.label), ['Rocky Mount, NC']);
   assert.deepEqual(one('Rocky Mt, NC').map((c) => c.label), ['Rocky Mount, NC']);
-  assert.deepEqual(one('Chapel Hi'), [], 'a trailing state code is not a prefix of a longer name');
+  // A disambiguated display name with its county, then the state.
+  assert.deepEqual(one('Fairview, Union County, NC').map((c) => c.label), ['Fairview (Union County), NC']);
 });
 
 test('aliases: Mt and Mount, St and Saint, Ft and Fort are one word, each needed by an NC name', () => {
