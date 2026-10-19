@@ -243,6 +243,18 @@ export const HALO_TABLES = {
     defaults: { updated_at: now },
   },
 
+  // 0025 (B08 plan, Task 1): one recorded daily maximum per home context,
+  // local date and factor, written only through record_daily_maxima. Keyed by
+  // the home, not the household, because a move starts a new series (E11).
+  // The owner cascades from profiles, and the composite link to home_contexts
+  // cascades too (E23), which the fake does not model. No value column has a
+  // default: a missing value is null with its missing_code, never 0.
+  daily_maxima: {
+    primaryKey: ['home_context_id', 'local_date', 'factor'],
+    ownerColumn: 'profile_id',
+    defaults: { created_at: now, updated_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },
@@ -250,6 +262,8 @@ export const HALO_TABLES = {
   learn_content: { primaryKey: ['topic', 'locale'] },
   volunteer_orgs: { primaryKey: 'id', unique: [['name']], defaults: { id: uuid } },
   assistant_corpus: { primaryKey: 'id', defaults: { id: uuid } },
+  // 0025: the recorder's one row (recording_from and the last run's counts), no household data.
+  daily_maxima_recorder: { primaryKey: 'singleton', defaults: { singleton: true } },
 };
 
 /** The declarations for just these tables (throws on a name that is not declared). */

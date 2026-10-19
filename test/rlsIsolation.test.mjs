@@ -47,6 +47,7 @@ const OWNED_TABLES = {
   household_actions: 'profile_id',  // 0023
   household_action_preferences: 'profile_id', // 0023
   household_action_state: 'profile_id', // 0023
+  daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
 };
 
 /**
@@ -77,6 +78,7 @@ const OWNER_DIRECT_ACCESS = {
   household_actions: [],          // 0023: no policy at all. A task is free text a person typed; My Week reads it through read_household_actions with the service role, and writes it only through commit_household_actions.
   household_action_preferences: [], // 0023: no policy at all. Read and written only inside the two 0023 functions, called by the service role.
   household_action_state: [],     // 0023: no policy at all. The commit version is internal and never leaves the server.
+  daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
 };
 
 /**
@@ -99,6 +101,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'household_actions', // 0023: free text a person typed; read and written only through the two 0023 functions, which only the service role may execute
   'household_action_preferences', // 0023: the same two functions only
   'household_action_state', // 0023: the internal commit version, never emitted
+  'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -109,6 +112,7 @@ const PUBLIC_REFERENCE_TABLES = {
   assistant_corpus: 'read', // 0007: curated source passages
   water_snapshots: 'none',  // 0010: per-utility reading fingerprints, no policies
   map_layers: 'none',       // 0011: pre-built map layers, no policies
+  daily_maxima_recorder: 'none', // 0025: the recorder's one row (recording_from and counts), no policies
 };
 
 /** Every function in schema public. 'service_role': only the service role may execute it. 'trigger': runs only as a trigger. */
@@ -131,6 +135,11 @@ const PUBLIC_FUNCTIONS = {
   clear_household_records: 'service_role',        // 0024: a privacy clear and its ledger settle in one transaction
   purge_privacy_receipts: 'service_role',         // 0024: settled privacy receipts go after 24 hours
   guard_settled_privacy_operation: 'trigger',     // 0024: a settled 'privacy' operation keeps its status
+  daily_maxima_schema_version: 'service_role',    // 0025: the evidence routes' probe
+  begin_daily_maxima_run: 'service_role',         // 0025: sets recording_from once
+  record_daily_maxima: 'service_role',            // 0025: one batch of daily maxima, pending rows only rewritten
+  finish_daily_maxima_run: 'service_role',        // 0025: the last run's time and counts
+  guard_final_daily_maximum: 'trigger',           // 0025: a recorded value or a final missing day is never rewritten
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -149,6 +158,8 @@ const REFERENCE_ROW = {
   assistant_corpus: () => ({ source_label: 'Test', source_url: 'https://example.test', retrieved: '2026-01-01', passage: 'Test' }),
   water_snapshots: (n) => ({ pwsid: `NC999000${n}`, fingerprint: 'test' }),
   map_layers: (n) => ({ layer: `test-${n}`, payload: {} }),
+  // One row only: an attempt (n = 1) is refused by privilege before the key is reached.
+  daily_maxima_recorder: (n) => ({ singleton: true, recording_from: `2026-09-0${n + 1}` }),
 };
 
 /**
@@ -176,12 +187,14 @@ const PROBE_COLUMN = {
   household_actions: 'title',
   household_action_preferences: 'value',
   household_action_state: 'version',
+  daily_maxima: 'value',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',
   assistant_corpus: 'passage',
   water_snapshots: 'fingerprint',
   map_layers: 'payload',
+  daily_maxima_recorder: 'last_run_at',
 };
 
 const COMMANDS = ['select', 'insert', 'update', 'delete'];

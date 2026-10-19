@@ -73,6 +73,7 @@ const CLEAR_ALL = {
   household_actions: 'delete',
   household_action_preferences: 'delete',
   household_action_state: 'delete',
+  daily_maxima: 'delete', // 0025: deleted before home_contexts when present, and counted (B08 E23)
 };
 const CLEAR_JOURNAL = {
   ...Object.fromEntries(Object.keys(CLEAR_ALL).map((table) => [table, 'keep'])),
@@ -117,6 +118,7 @@ const VARIANTS = {
   luna_runs: [0, 1],
   household_actions: [0, 1, 2],
   household_action_preferences: [0, 1],
+  daily_maxima: [0, 1],
 };
 
 const contextId = (owner, n) => `${owner.slice(0, 24)}00000000c${n}0${n}`.slice(0, 36);
@@ -458,7 +460,7 @@ test('clear all: privacy_counts read before the claim is exactly what the clear 
 test('privacy_counts for a household with nothing reads every key as 0, the profile included', async () => {
   await scenario(async (tx) => {
     const all = (await tx.query(`select public.privacy_counts($1, 'all') as c`, [CAROL])).rows[0].c;
-    assert.equal(Object.keys(all).length, 18);
+    assert.equal(Object.keys(all).length, 19);
     assert.ok(Object.values(all).every((n) => Number(n) === 0), JSON.stringify(all));
     assert.deepEqual((await tx.query(`select public.privacy_counts($1, 'journal') as c`, [CAROL])).rows[0].c, { symptom_logs: 0, alerts: 0 });
   }, { seed: false });
@@ -503,6 +505,7 @@ test('the clear\'s steps run in the ruled order: profile lock, ledger lock, fing
   const order = ['notification_prefs x', 'household_bands x', 'profile_preferences x'].map((table) => at(`delete from public.${table}`));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(at('delete from public.daily_scores x') < at('delete from public.home_contexts x'));
+  assert.ok(at('delete from public.daily_maxima x') < at('delete from public.home_contexts x'));
 });
 
 test('clear all on a household with only a profile settles and resets nothing it does not need to', async () => {

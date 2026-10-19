@@ -774,6 +774,55 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **a clear that already ran stays done.** Records it deleted are gone for good, and backing out does not bring them back. Otherwise nothing is lost, because 0024 creates no table and the back-out drops none. Privacy receipts already in `public.operations` stay; they hold an operation id, a status and a scope, no record content, and with the guard gone they are ordinary ledger rows again, and they are no longer purged after 24 hours until 0024 is applied again. Nothing cascades, and 0023 is untouched.
 
+### 2.15 Apply 0025 (each day's recorded maximum, for Patterns and Season)
+
+**Written, applied nowhere yet.** Needs only 0016, which production has, so it can go **before or after 0024**: its first statement checks for `public.home_contexts` and stops with `HALO 0025 cannot be applied: missing public.home_contexts (0016)` otherwise. Apply it as soon as the recorder is deployed (B08 Tasks 1 to 3): a day is recorded only from the first run on, and a day that passes before that can never be recorded (no backfill, B08 Ruling E9).
+
+Quiet, like 2.11: it creates two new tables, one index and five functions, and one trigger on its own new table, none of which anything is waiting on. The two foreign keys take a brief SHARE ROW EXCLUSIVE on `profiles` and `home_contexts` as they are created, so an onboarding save or a new anonymous sign-up could wait a moment. Nothing existing is read or rewritten.
+
+What it is for: the Patterns and Season screens compare check-ins with the environment, and only accept a series of **daily maxima**. Nothing holds one today (B08 plan, `docs/backend/plans/b08-evidence.md`, Task 1):
+
+- `public.daily_maxima`: one row per home, day (America/New_York) and factor (Air or UV): that day's largest hourly value, or why there is none (`pending` while the recorder may still look, then `source_gap` or `unavailable` for good), the source as a code (`airnow_station` measured, `open_meteo_cams` or `open_meteo_forecast` modeled), the AirNow station code for a measured home, and how many hours the day had and how many were observed. A value needs at least three quarters of the day's hours. Your decisions of 2026-10-19 are in it: modeled maxima are allowed and marked modeled, a home never mixes measured and modeled in one series (the write function refuses a second source), and rows are **kept until deleted** (clear all, or deleting the account).
+- `public.daily_maxima_recorder`: one row, the first recorded day (`recording_from`, set once, never moved) and the last run's counts. No household data.
+- `record_daily_maxima`, `begin_daily_maxima_run`, `finish_daily_maxima_run` and the probe `daily_maxima_schema_version`, all for the service role only.
+- A trigger, `daily_maxima_final_guard`: a recorded value, or a final missing day, can never be changed afterwards, by anyone.
+
+Deleting a home deletes its maxima, and so does deleting the account (both links cascade, unlike `daily_scores`). 0024's clear all deletes them and counts them in the review, whichever of the two is applied first; Clear Journal keeps them.
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0025_daily_maxima.sql` and run it, or paste `docs/backend/apply/apply-0025.sql`, which is the same file inside one transaction (run `rollback;` if the editor says the transaction is aborted, then send the error). Either is safe to re-run.
+2. Run the verification query: the comment at the end of the migration file, or `docs/backend/apply/verify-0025.sql`. The file's query returns **one row with all eight columns true**; the bundle's returns `all_migrations_ok = true`, `checks_run = 8`, `failing = none`:
+   - `rls_on`, `no_policies`, `no_client_access`: both tables are closed to the browser roles;
+   - `functions_service_role_only`: neither browser role can execute any of the five functions, and `service_role` can execute the four that are called;
+   - `functions_invoker_pinned`: all five run with the caller's rights and a fixed search path;
+   - `final_guard_on`: the trigger is on `public.daily_maxima`;
+   - `both_links_cascade`: the links to `profiles` and `home_contexts` both delete with their parent;
+   - `fourteen_checks`: exactly 14 CHECK constraints on `public.daily_maxima`.
+
+   `no_client_access` false is the one that matters: the rows reveal where a household lives and when, so stop and send Claude the row. `fourteen_checks` false means an older copy of 0025 was run before: run the back-out block, then apply again.
+3. Run `notify pgrst, 'reload schema';`.
+
+Until this is applied, the recorder and `GET /api/evidence`, once deployed, report the feature as unavailable. Nothing else reads these tables, so the existing app is unaffected either way.
+
+#### If you need to back out 0025
+
+The recorder and `GET /api/evidence` go back to reporting the feature as unavailable, exactly as before it was applied, so this stops recording rather than breaking the existing app. The probe is dropped first, so both stop at once. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0025 -->
+
+```sql
+drop function if exists public.daily_maxima_schema_version();
+drop function if exists public.begin_daily_maxima_run(date);
+drop function if exists public.record_daily_maxima(jsonb);
+drop function if exists public.finish_daily_maxima_run(jsonb);
+drop table if exists public.daily_maxima;
+drop table if exists public.daily_maxima_recorder;
+drop function if exists public.guard_final_daily_maximum();
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: **every recorded daily maximum is deleted for good**, and `recording_from` with it, because both tables go. The days already recorded cannot be recorded again (no backfill), so a back-out leaves a permanent gap in the history from the first recorded day to the reapply. Nothing else is touched: 0024's clear keeps working (it reads this table only when it exists), and `daily_scores`, `home_contexts` and everything 0016 to 0024 created stay as they are.
+
 
 ---
 

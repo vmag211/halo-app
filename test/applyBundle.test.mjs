@@ -150,3 +150,94 @@ test('the 0024 bundle over a schema without 0023 refuses and leaves nothing appl
     await db.close();
   }
 });
+
+// ---- The 0025 bundle (B08 Task 1): one migration that needs only 0016, so
+// it is proved over 0001 to 0023 (production, with 0024 still pending), over
+// 0001 to 0024, and with 0024 applied after it.
+
+const MAXIMA = BUNDLES.find((bundle) => bundle.bundleFile === 'apply-0025.sql');
+const MAXIMA_CHECKS = { all_migrations_ok: true, checks_run: 8, failing: 'none' };
+const asNumbers = (row) => ({ ...row, checks_run: Number(row.checks_run) });
+
+test('the 0025 bundle and check are committed, current, and hold exactly 0025', () => {
+  assert.ok(MAXIMA, 'no apply-0025.sql bundle in BUNDLES');
+  assert.deepEqual([...MAXIMA.migrations], ['0025_daily_maxima']);
+  assert.equal(committed(MAXIMA.bundleFile), buildBundle(MAXIMA), 'run node scripts/build-apply-bundle.mjs');
+  assert.equal(committed(MAXIMA.verifyFile), buildVerify(MAXIMA), 'run node scripts/build-apply-bundle.mjs');
+  assert.ok(!buildBundle(MAXIMA).includes('-- 0024_privacy_clear.sql'), 'the 0025 bundle does not carry 0024');
+});
+
+for (const upTo of [23, 24]) {
+  test(`the 0025 bundle applies on top of 0001 to 00${upTo}, twice, and every check passes`, async () => {
+    const db = await createDb({ upTo });
+    try {
+      await applySql(db.pg, 'the 0025 bundle', buildBundle(MAXIMA));
+      assert.deepEqual(asNumbers(await verify(db, MAXIMA)), MAXIMA_CHECKS);
+      await applySql(db.pg, 'the 0025 bundle, again', buildBundle(MAXIMA));
+      assert.deepEqual(asNumbers(await verify(db, MAXIMA)), MAXIMA_CHECKS);
+      assert.deepEqual((await db.query(`select public.daily_maxima_schema_version() as v`)).rows, [{ v: 1 }]);
+    } finally {
+      await db.close();
+    }
+  });
+}
+
+test('0025 first and 0024 after it: both checks pass, and clear all removes and counts the maxima', async () => {
+  const db = await createDb({ upTo: 23 });
+  const owner = 'a11ce000-0000-4000-8000-000000000025';
+  const home = 'a11ce000-0000-4000-8000-00000000c025';
+  const operation = '00000000-0000-4000-8000-0000000b0825';
+  try {
+    await applySql(db.pg, 'the 0025 bundle', buildBundle(MAXIMA));
+    await applySql(db.pg, 'the 0024 bundle', buildBundle(PRIVACY));
+    assert.deepEqual(asNumbers(await verify(db, MAXIMA)), MAXIMA_CHECKS);
+    assert.equal((await verify(db, PRIVACY)).all_migrations_ok, true);
+    await db.exec(`insert into auth.users (id, is_anonymous) values ('${owner}', true);
+      insert into public.home_contexts (id, profile_id, sequence, origin, lat, lng) values ('${home}', '${owner}', 1, 'onboard', 35.409, -80.58);
+      insert into public.daily_maxima (profile_id, home_context_id, local_date, factor, value, unit, source_code, method_version,
+                                       time_zone, hours_expected, hours_observed, retrieved_at)
+        values ('${owner}', '${home}', '2026-10-20', 'uv', 4.2, 'UV index', 'open_meteo_forecast', 'daily-max-v1',
+                'America/New_York', 24, 24, '2026-10-21T12:00:00Z');
+      insert into public.operations (operation_id, profile_id, domain, kind) values ('${operation}', '${owner}', 'privacy', 'privacy.clear.all');`);
+    const { rows: [{ counts }] } = await db.query(`select public.privacy_counts($1, 'all') as counts`, [owner]);
+    assert.equal(Number(counts.daily_maxima), 1);
+    const { rows: [{ out }] } = await db.query(
+      `select public.clear_household_records($1, $2, 'all', public.privacy_fingerprint($1, array['profiles', 'home_contexts',
+         'household_bands', 'symptom_logs', 'notification_prefs', 'push_subscriptions', 'profile_preferences', 'explore_areas',
+         'household_actions', 'household_action_preferences', 'luna_conversations', 'luna_turns'])) as out`,
+      [owner, operation],
+    );
+    assert.equal(out.receipt.status, 'succeeded');
+    assert.deepEqual((await db.query(`select count(*)::int as n from public.daily_maxima`)).rows, [{ n: 0 }]);
+  } finally {
+    await db.close();
+  }
+});
+
+test('the 0025 check names an open grant and a link that no longer cascades', async () => {
+  const db = await createDb({ upTo: 23 });
+  try {
+    await applySql(db.pg, 'the 0025 bundle', buildBundle(MAXIMA));
+    await db.exec('grant select on public.daily_maxima to anon');
+    await db.exec(`alter table public.daily_maxima drop constraint daily_maxima_home_context_fkey;
+      alter table public.daily_maxima add constraint daily_maxima_home_context_fkey foreign key (profile_id, home_context_id)
+        references public.home_contexts (profile_id, id) on delete no action`);
+    const row = await verify(db, MAXIMA);
+    assert.equal(row.all_migrations_ok, false);
+    assert.deepEqual(row.failing.split(', ').sort(), ['0025.both_links_cascade', '0025.no_client_access']);
+  } finally {
+    await db.close();
+  }
+});
+
+test('the 0025 bundle over a schema without 0016 refuses and leaves nothing applied', async () => {
+  const db = await createDb({ upTo: 15 });
+  try {
+    await assert.rejects(() => applySql(db.pg, 'the 0025 bundle', buildBundle(MAXIMA)), /HALO 0025 cannot be applied: missing public\.home_contexts \(0016\)/);
+    await db.exec('rollback');
+    const { rows } = await db.query("select to_regclass('public.daily_maxima') as maxima, to_regprocedure('public.daily_maxima_schema_version()') as probe");
+    assert.deepEqual(rows[0], { maxima: null, probe: null });
+  } finally {
+    await db.close();
+  }
+});

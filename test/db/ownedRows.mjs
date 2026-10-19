@@ -12,6 +12,13 @@
 /** A uuid derived from the owner's, so 0020's parent and child rows can be written without passing ids around. */
 export const lunaId = (owner, suffix) => `${owner.slice(0, 24)}${'0'.repeat(12 - suffix.length)}${suffix}`;
 
+/**
+ * The id of a household's n-th seeded home context, derived from the owner's
+ * like lunaId, so 0025's daily maxima can name their home without passing ids
+ * around (test/privacyClearDb.test.mjs used the same values before this).
+ */
+export const homeContextId = (owner, n) => lunaId(owner, `c${n}0${n}`);
+
 /** A valid row for each owned table, owned by `owner`; `n` varies unique keys (seeds use 0, attempts use 1). */
 export const OWNED_ROW = {
   profiles: (owner) => ({ id: owner, county: 'Test County' }),
@@ -29,6 +36,7 @@ export const OWNED_ROW = {
   }),
   // Seeds are sequence 1 (current); an attempt is sequence 2, closed, so it never meets the one-current index.
   home_contexts: (owner, n) => ({
+    id: homeContextId(owner, n),
     profile_id: owner,
     sequence: n + 1,
     origin: n === 0 ? 'onboard' : 'move',
@@ -82,6 +90,22 @@ export const OWNED_ROW = {
   household_actions: (owner, n) => ({ profile_id: owner, action_key: `test-task-${n}`, title: 'Test task', reason: 'Test', origin: 'test', state: 'saved' }),
   household_action_preferences: (owner, n) => ({ profile_id: owner, pref_key: n === 0 ? 'week:focus' : 'food-interests', value: n === 0 ? '"Test focus"' : '["fish"]' }),
   household_action_state: (owner) => ({ profile_id: owner, version: 1 }),
+  // 0025: a recorded Air maximum at the household's current home (sequence
+  // 1), modeled, from a full day. `n` varies the date, which is in the key.
+  daily_maxima: (owner, n) => ({
+    profile_id: owner,
+    home_context_id: homeContextId(owner, 0),
+    local_date: `2026-09-1${n}`,
+    factor: 'air',
+    value: 40 + n,
+    unit: 'AQI',
+    source_code: 'open_meteo_cams',
+    method_version: 'daily-max-v1',
+    time_zone: 'America/New_York',
+    hours_expected: 24,
+    hours_observed: 24,
+    retrieved_at: '2026-09-20T12:00:00Z',
+  }),
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,

@@ -1,0 +1,671 @@
+-- HALO: each day's recorded maximum per home, the recorder's one-row state,
+-- the write function with its finality rule, and the status probe (B08 plan,
+-- docs/backend/plans/b08-evidence.md, Task 1, Rulings E1 to E4, E8 to E10,
+-- E16, E22 and E23; Vibhav's decisions of 2026-10-19).
+--
+-- Run once in the Supabase SQL editor, AFTER 0016. Safe to re-run. It needs
+-- nothing newer than 0016: it may be applied before or after 0024, and 0024's
+-- clear removes these rows either way (see DELETION below).
+--
+-- Locks: creates two new tables, one index, five functions and one trigger on
+-- the new table, which nothing can be waiting on. The two foreign keys take a
+-- brief SHARE ROW EXCLUSIVE on public.profiles and public.home_contexts as
+-- they are created, so an onboarding save or a new anonymous sign-up could
+-- wait a moment. Nothing existing is read or rewritten.
+--
+-- REFUSES TO APPLY ON A LAGGING SCHEMA. The first statement checks that
+-- public.home_contexts (0016) exists and raises naming it otherwise, so the
+-- composite link below can never be created half way.
+--
+-- ---------------------------------------------------------------------------
+-- WHAT THIS IS FOR
+-- ---------------------------------------------------------------------------
+-- The Patterns and Season screens compare check-ins with the environment, and
+-- the client accepts only a series whose basis is 'daily maximum'. Nothing on
+-- the server holds one: daily_scores are app-time observations, the moments
+-- HALO happened to look, and are never relabelled or copied (E1). From the
+-- day the recorder first runs, it fetches each completed day's hourly series
+-- and stores here the largest hourly value per home context and factor. Days
+-- before that have no daily maximum and are never backfilled (E9).
+--
+--   public.daily_maxima            one row per home context, local date and
+--                                  factor ('air' or 'uv', E7)
+--   public.daily_maxima_recorder   one row: recording_from, set once by the
+--                                  first run and never moved (E9), and the
+--                                  last run's time and counts. No household
+--                                  data.
+--
+-- THE DAY (E2). local_date is the America/New_York calendar date, local
+-- midnight to local midnight: 24 hourly slots, 23 on the spring-forward date
+-- and 25 on the fall-back date. Every row stores time_zone and
+-- hours_expected, and a CHECK pins the zone.
+--
+-- THE VALUE (E3). The largest hourly value of one source series over the
+-- day's slots, computed after the day ended. A value needs at least
+-- ceil(0.75 * hours_expected) observed hours (18 of 24, 18 of 23, 19 of 25),
+-- held here by a CHECK as the backstop of the recorder's own rule, so one
+-- observation is never a maximum (E6). Air is an integer AQI, UV an index.
+--
+-- MEASURED OR MODELED, NEVER MIXED (E8, E17; Vibhav 2026-10-19). Modeled
+-- maxima are allowed under the label and are marked modeled by their
+-- source_code. A home never mixes the two in one series: once a home context
+-- has a row with a source for a factor and method version, every other row
+-- with a source for that home, factor and version must name the same source,
+-- or record_daily_maxima refuses with HALO_SOURCE_KIND_FIXED. A CHECK pairs
+-- each source with its factor, and requires a station code exactly for a
+-- measured (AirNow station) row.
+--
+-- FINAL MEANS FINAL (E4). A row is 'pending' while the recorder may still
+-- look at its day. A recorded value, or a final 'source_gap' or
+-- 'unavailable', is never rewritten: record_daily_maxima updates only a
+-- pending row, and the trigger daily_maxima_final_guard refuses any UPDATE of
+-- a row that is not pending, whoever runs it. Deleting is not governed (the
+-- person's clear and every cascade delete).
+--
+-- ---------------------------------------------------------------------------
+-- THE FUNCTIONS, FOR THE CALLERS (lib/dailyMaximaStore.js, B08 Task 3)
+-- ---------------------------------------------------------------------------
+-- All five are security invoker with search_path pinned to public, and only
+-- service_role may execute the four that are called.
+--
+--   public.daily_maxima_schema_version() returns int
+--     Immutable, always 1. The probe: a missing function (PGRST202 or 42883)
+--     means 0025 is not applied, and the evidence routes answer 503 (E19).
+--
+--   public.begin_daily_maxima_run(p_first_day date) returns date
+--     Writes the recorder's row with recording_from = p_first_day if there is
+--     none, and returns the stored recording_from either way. A later call
+--     never moves it (E9).
+--
+--   public.record_daily_maxima(p_rows jsonb) returns jsonb
+--     Writes 1 to 1000 rows in one transaction and returns
+--       {"inserted": n, "updated": n, "kept": n, "skipped": n}
+--     Each element of p_rows is an object with exactly these keys (the ones
+--     marked ? may be null or absent, the rest are required):
+--       profile_id, home_context_id (uuid strings), local_date ('YYYY-MM-DD'),
+--       factor, value?, unit, source_code?, station_id?, method_version,
+--       time_zone, hours_expected, hours_observed (integers), missing_code?,
+--       retrieved_at (a timestamp string)
+--     Per row, in this order:
+--       skipped   the household or its home context no longer exists (deleted
+--                 while the run was working), so the row is not written and
+--                 the rest of the batch is
+--       inserted  no row for (home_context_id, local_date, factor) yet
+--       updated   the stored row was 'pending'
+--       kept      the stored row is final (a value, 'source_gap' or
+--                 'unavailable'), and is left exactly as it was
+--     Every refusal below, and any CHECK violation, writes nothing of the
+--     batch.
+--
+--   public.finish_daily_maxima_run(p_counts jsonb) returns timestamptz
+--     Records the run's time and counts on the recorder's row and returns the
+--     time. p_counts is an object of at most 32 keys whose values are
+--     non-negative integers: counts only, never a coordinate, an id or
+--     provider text.
+--
+--   public.guard_final_daily_maximum() returns trigger
+--     The trigger function of daily_maxima_final_guard. Not callable.
+--
+-- Refusals are SQLSTATE P0001 with exactly this message. DETAIL names the
+-- argument or the rule, never a row value or an id (0021 review finding B),
+-- read by a helper modelled on haloRefusal (lib/homeContextRpc.js):
+--   HALO_INVALID_INPUT        a null or malformed argument: p_rows not an
+--                             array of 1 to 1000 objects, an unknown or a
+--                             missing key, a value of the wrong type, a date
+--                             that is not a calendar date, the same home,
+--                             date and factor twice in one batch, or a row
+--                             naming another household's home context
+--   HALO_BEFORE_RECORDING     a row dated before recording_from, or any row
+--                             before the first run has begun (E9)
+--   HALO_SOURCE_KIND_FIXED    a row whose source differs from the one this
+--                             home, factor and method version already have (E8)
+--   HALO_RECORDING_NOT_BEGUN  finish_daily_maxima_run before any begin
+--   HALO_DAILY_MAXIMUM_FINAL  the trigger: a row that is not pending may not
+--                             be updated (E4)
+-- A CHECK violation (23514) or a foreign key violation (23503) is Postgres's
+-- own error, and it too leaves nothing of the batch written.
+--
+-- Locks taken by record_daily_maxima, per row: FOR KEY SHARE on the profile,
+-- then on the home context, then the row's own insert or update. The profile
+-- comes first, as every writer of a household takes it, so a privacy clear
+-- (0024), which holds the profile FOR UPDATE and deletes the home context,
+-- makes the row wait and then skip it rather than deadlock with it.
+--
+-- ---------------------------------------------------------------------------
+-- DELETION (E23)
+-- ---------------------------------------------------------------------------
+-- (profile_id, home_context_id) references home_contexts (profile_id, id) ON
+-- DELETE CASCADE, a deliberate difference from daily_scores' NO ACTION
+-- (0016), and profile_id references profiles ON DELETE CASCADE. So deleting
+-- the account, or deleting a home context, deletes that home's maxima. 0024's
+-- clear all deletes this table explicitly, before home_contexts, when it
+-- exists, and counts it; without 0024 the cascade alone would remove it.
+-- Clear Journal does not touch it. Nothing else deletes a home context.
+--
+-- Degrades cleanly: until this is applied, the recorder and GET /api/evidence
+-- answer a non-retryable 503 feature_unavailable from the probe (E19, a
+-- missing function is PGRST202 or 42883, a missing table PGRST205 or 42P01).
+-- Nothing else reads these tables.
+--
+-- Retention: decided by Vibhav on 2026-10-19. Daily maxima are kept until
+-- deleted: the person clears their data (0024's clear all) or deletes the
+-- account. No purge job, and none is invented. GET /api/evidence serves the
+-- latest 84 days (E14); older rows are kept, not deleted.
+--
+-- Privacy: dated Air and UV values at a home's stored point, the method, the
+-- coverage counts, the AirNow station code for a measured home and when HALO
+-- fetched the series. No free text, and no upstream text (an AirNow site name)
+-- is stored. The station and the values reveal the home's area, and the dates
+-- when the household lived there: classes household_context and
+-- location_approximate. The service role is the only reader. Row level
+-- security is on with no policy at all and the default privileges are
+-- revoked, so not even the owner can read the rows with their own session.
+
+-- ---------------------------------------------------------------------------
+-- 1. Refuse to apply on a lagging schema
+-- ---------------------------------------------------------------------------
+
+do $$
+begin
+  if to_regclass('public.home_contexts') is null then
+    raise exception 'HALO 0025 cannot be applied: missing public.home_contexts (0016). Apply 0016 first.';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 2. Tables
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.daily_maxima (
+  -- The owner, so an account deletion cascades.
+  profile_id      uuid not null references public.profiles (id) on delete cascade,
+  -- The stay the point belongs to (E11). Linked to its owner below.
+  home_context_id uuid not null,
+  -- The America/New_York calendar date (E2).
+  local_date      date not null,
+  -- 'air' or 'uv' (E7).
+  factor          text not null,
+  -- Null exactly when missing_code is set; never 0 for a missing day.
+  value           double precision,
+  -- 'AQI' for air, 'UV index' for uv.
+  unit            text not null,
+  -- 'airnow_station' (measured), 'open_meteo_cams' or 'open_meteo_forecast'
+  -- (modeled), or null for a row with no source yet (E17).
+  source_code     text,
+  -- The AirNow AQS code of the nearest station that reported, for an
+  -- airnow_station row only (E8).
+  station_id      text,
+  -- The method version, 'daily-max-v1' (E10).
+  method_version  text not null,
+  -- 'America/New_York' (E2).
+  time_zone       text not null,
+  -- 23, 24 or 25 (E2).
+  hours_expected  smallint not null,
+  -- The least-covered pollutant's count of hourly values (E3).
+  hours_observed  smallint not null,
+  -- 'pending', 'source_gap' or 'unavailable' (E4); null for a value.
+  missing_code    text,
+  -- When HALO fetched the series. Audit only, never emitted (E16).
+  retrieved_at    timestamptz not null,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  primary key (home_context_id, local_date, factor),
+  -- E23: a home's maxima go with the home. 0016's unique (profile_id, id) is
+  -- what this points at, so a row can only name its own household's home.
+  constraint daily_maxima_home_context_fkey foreign key (profile_id, home_context_id)
+    references public.home_contexts (profile_id, id) on delete cascade
+);
+
+create table if not exists public.daily_maxima_recorder (
+  -- One row only.
+  singleton      boolean primary key default true check (singleton),
+  -- Set once by the first run and never moved (E9).
+  recording_from date not null,
+  last_run_at    timestamptz,
+  -- Counts only.
+  last_run       jsonb
+);
+
+-- Each check is added separately and idempotently, so re-running is safe and a
+-- partially applied earlier run is completed rather than erroring.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_factor_check') then
+    alter table public.daily_maxima add constraint daily_maxima_factor_check
+      check (factor in ('air', 'uv'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_unit_check') then
+    alter table public.daily_maxima add constraint daily_maxima_unit_check
+      check ((factor = 'air' and unit = 'AQI') or (factor = 'uv' and unit = 'UV index'));
+  end if;
+  -- A value, or a reason it is missing: exactly one of the two.
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_value_missing_check') then
+    alter table public.daily_maxima add constraint daily_maxima_value_missing_check
+      check ((value is null) = (missing_code is not null));
+  end if;
+  -- Finite and not negative. NaN sorts above Infinity in Postgres, so the
+  -- upper bound refuses it too.
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_value_range_check') then
+    alter table public.daily_maxima add constraint daily_maxima_value_range_check
+      check (value is null or (value >= 0 and value < 'Infinity'::double precision));
+  end if;
+  -- An AQI is a whole number (E3).
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_air_integer_check') then
+    alter table public.daily_maxima add constraint daily_maxima_air_integer_check
+      check (factor <> 'air' or value is null or value = trunc(value));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_missing_code_check') then
+    alter table public.daily_maxima add constraint daily_maxima_missing_code_check
+      check (missing_code is null or missing_code in ('pending', 'source_gap', 'unavailable'));
+  end if;
+  -- Each source belongs to one factor (E17).
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_source_check') then
+    alter table public.daily_maxima add constraint daily_maxima_source_check
+      check (source_code is null
+          or (factor = 'air' and source_code in ('airnow_station', 'open_meteo_cams'))
+          or (factor = 'uv' and source_code = 'open_meteo_forecast'));
+  end if;
+  -- A value always says where it came from.
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_value_source_check') then
+    alter table public.daily_maxima add constraint daily_maxima_value_source_check
+      check (value is null or source_code is not null);
+  end if;
+  -- A station code exactly for a measured row (E8), and only a short code,
+  -- never a site name.
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_station_check') then
+    alter table public.daily_maxima add constraint daily_maxima_station_check
+      check ((source_code = 'airnow_station' and station_id is not null and station_id ~ '^[0-9A-Za-z-]{1,32}$')
+          or (source_code is distinct from 'airnow_station' and station_id is null));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_hours_expected_check') then
+    alter table public.daily_maxima add constraint daily_maxima_hours_expected_check
+      check (hours_expected between 23 and 25);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_hours_observed_check') then
+    alter table public.daily_maxima add constraint daily_maxima_hours_observed_check
+      check (hours_observed between 0 and hours_expected);
+  end if;
+  -- The E3 backstop: no value from less than three quarters of the day.
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_coverage_check') then
+    alter table public.daily_maxima add constraint daily_maxima_coverage_check
+      check (value is null or hours_observed >= ceil(0.75 * hours_expected));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_method_version_check') then
+    alter table public.daily_maxima add constraint daily_maxima_method_version_check
+      check (btrim(method_version) <> '' and char_length(method_version) <= 64);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_time_zone_check') then
+    alter table public.daily_maxima add constraint daily_maxima_time_zone_check
+      check (time_zone = 'America/New_York');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'daily_maxima_recorder_last_run_check') then
+    alter table public.daily_maxima_recorder add constraint daily_maxima_recorder_last_run_check
+      check (last_run is null or jsonb_typeof(last_run) = 'object');
+  end if;
+end $$;
+
+-- What GET /api/evidence reads (owner, home, date range), and what the
+-- cascade from a home context looks rows up by.
+create index if not exists daily_maxima_owner_context_date
+  on public.daily_maxima (profile_id, home_context_id, local_date);
+
+alter table public.daily_maxima enable row level security;
+alter table public.daily_maxima_recorder enable row level security;
+
+-- No policy, deliberately: every read and write is a route or the recorder
+-- using the service role. Supabase's default privileges would otherwise grant
+-- anon and authenticated arwdDxtm on these new public tables, so revoking here
+-- is what closes that, as 0016 to 0023 do.
+revoke all on table public.daily_maxima from anon, authenticated;
+revoke all on table public.daily_maxima_recorder from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 3. daily_maxima_schema_version: the probe (E19)
+-- ---------------------------------------------------------------------------
+
+create or replace function public.daily_maxima_schema_version()
+returns int
+language sql
+immutable
+security invoker
+set search_path = public
+as $$
+  select 1;
+$$;
+
+revoke execute on function public.daily_maxima_schema_version() from public, anon, authenticated;
+grant execute on function public.daily_maxima_schema_version() to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 4. begin_daily_maxima_run: recording_from is set once (E9)
+-- ---------------------------------------------------------------------------
+
+create or replace function public.begin_daily_maxima_run(p_first_day date)
+returns date
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  started date;
+begin
+  if p_first_day is null then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_first_day is required';
+  end if;
+  insert into public.daily_maxima_recorder (singleton, recording_from)
+    values (true, p_first_day)
+    on conflict (singleton) do nothing;
+  select r.recording_from into started from public.daily_maxima_recorder r where r.singleton;
+  return started;
+end;
+$$;
+
+revoke execute on function public.begin_daily_maxima_run(date) from public, anon, authenticated;
+grant execute on function public.begin_daily_maxima_run(date) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 5. record_daily_maxima: one batch, one transaction (E3, E4, E8, E9)
+-- ---------------------------------------------------------------------------
+-- Every row is parsed and checked before anything is written, so a malformed
+-- row, a duplicate or a date before recording_from refuses the batch whole.
+
+create or replace function public.record_daily_maxima(p_rows jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  allowed  constant text[] := array[
+    'profile_id', 'home_context_id', 'local_date', 'factor', 'value', 'unit', 'source_code', 'station_id',
+    'method_version', 'time_zone', 'hours_expected', 'hours_observed', 'missing_code', 'retrieved_at'
+  ];
+  required constant text[] := array[
+    'profile_id', 'home_context_id', 'local_date', 'factor', 'unit', 'method_version', 'time_zone',
+    'hours_expected', 'hours_observed', 'retrieved_at'
+  ];
+  strings  constant text[] := array[
+    'profile_id', 'home_context_id', 'local_date', 'factor', 'unit', 'source_code', 'station_id',
+    'method_version', 'time_zone', 'missing_code', 'retrieved_at'
+  ];
+  integers constant text[] := array['hours_expected', 'hours_observed'];
+  parsed   public.daily_maxima[] := '{}';
+  item     jsonb;
+  r        public.daily_maxima;
+  started  date;
+  context_owner uuid;
+  inserted int := 0;
+  updated  int := 0;
+  kept     int := 0;
+  skipped  int := 0;
+begin
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_rows must be a json array';
+  end if;
+  if jsonb_array_length(p_rows) not between 1 and 1000 then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_rows must hold 1 to 1000 rows';
+  end if;
+
+  -- 1. Parse every row.
+  for item in select e from jsonb_array_elements(p_rows) e loop
+    if jsonb_typeof(item) <> 'object' then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'every row must be a json object';
+    end if;
+    if exists (select 1 from jsonb_object_keys(item) k where k <> all (allowed)) then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'a row has a key the table does not hold';
+    end if;
+    if exists (select 1 from unnest(required) k where coalesce(jsonb_typeof(item -> k), 'null') = 'null') then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'a row is missing a required key';
+    end if;
+    if exists (select 1 from unnest(strings) k
+                where coalesce(jsonb_typeof(item -> k), 'null') not in ('null', 'string')) then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'a text field is not a string';
+    end if;
+    if exists (select 1 from unnest(integers) k where jsonb_typeof(item -> k) <> 'number')
+       or coalesce(jsonb_typeof(item -> 'value'), 'null') not in ('null', 'number') then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'a number field is not a number';
+    end if;
+    if (item ->> 'local_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'local_date must be YYYY-MM-DD';
+    end if;
+    begin
+      r := null;
+      r.profile_id      := (item ->> 'profile_id')::uuid;
+      r.home_context_id := (item ->> 'home_context_id')::uuid;
+      r.local_date      := (item ->> 'local_date')::date;
+      r.factor          := item ->> 'factor';
+      r.value           := (item ->> 'value')::double precision;
+      r.unit            := item ->> 'unit';
+      r.source_code     := item ->> 'source_code';
+      r.station_id      := item ->> 'station_id';
+      r.method_version  := item ->> 'method_version';
+      r.time_zone       := item ->> 'time_zone';
+      r.hours_expected  := (item ->> 'hours_expected')::smallint;
+      r.hours_observed  := (item ->> 'hours_observed')::smallint;
+      r.missing_code    := item ->> 'missing_code';
+      r.retrieved_at    := (item ->> 'retrieved_at')::timestamptz;
+    exception
+      when invalid_text_representation or invalid_datetime_format or datetime_field_overflow
+        or numeric_value_out_of_range then
+        raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+          detail = 'a row has a value that is not of its column''s type';
+    end;
+    parsed := parsed || r;
+  end loop;
+
+  -- 2. One row per home, date and factor in a batch.
+  if exists (select 1 from unnest(parsed) x group by x.home_context_id, x.local_date, x.factor having count(*) > 1) then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'a home, date and factor appear twice';
+  end if;
+
+  -- 3. Nothing before recording began (E9).
+  select d.recording_from into started from public.daily_maxima_recorder d where d.singleton;
+  if started is null then
+    raise exception 'HALO_BEFORE_RECORDING' using errcode = 'P0001', detail = 'recording has not begun';
+  end if;
+  if exists (select 1 from unnest(parsed) x where x.local_date < started) then
+    raise exception 'HALO_BEFORE_RECORDING' using errcode = 'P0001', detail = 'a row is dated before recording_from';
+  end if;
+
+  -- 4. Write, row by row.
+  foreach r in array parsed loop
+    -- The profile first, as every writer of a household takes it, then the
+    -- home. A household or home deleted while the run worked is skipped.
+    perform 1 from public.profiles p where p.id = r.profile_id for key share;
+    if not found then
+      skipped := skipped + 1;
+      continue;
+    end if;
+    select h.profile_id into context_owner from public.home_contexts h where h.id = r.home_context_id for key share;
+    if not found then
+      skipped := skipped + 1;
+      continue;
+    end if;
+    if context_owner <> r.profile_id then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+        detail = 'a row names a home context of another household';
+    end if;
+
+    -- One source per home, factor and method version (E8).
+    if r.source_code is not null and exists (
+      select 1 from public.daily_maxima d
+       where d.home_context_id = r.home_context_id and d.factor = r.factor
+         and d.method_version = r.method_version
+         and d.source_code is not null and d.source_code <> r.source_code
+    ) then
+      raise exception 'HALO_SOURCE_KIND_FIXED' using errcode = 'P0001',
+        detail = 'this home already records this factor from another source';
+    end if;
+
+    insert into public.daily_maxima (
+      profile_id, home_context_id, local_date, factor, value, unit, source_code, station_id,
+      method_version, time_zone, hours_expected, hours_observed, missing_code, retrieved_at
+    ) values (
+      r.profile_id, r.home_context_id, r.local_date, r.factor, r.value, r.unit, r.source_code, r.station_id,
+      r.method_version, r.time_zone, r.hours_expected, r.hours_observed, r.missing_code, r.retrieved_at
+    )
+    on conflict (home_context_id, local_date, factor) do nothing;
+    if found then
+      inserted := inserted + 1;
+      continue;
+    end if;
+
+    -- Only a pending row is ever rewritten (E4).
+    update public.daily_maxima d
+       set value = r.value, unit = r.unit, source_code = r.source_code, station_id = r.station_id,
+           method_version = r.method_version, time_zone = r.time_zone,
+           hours_expected = r.hours_expected, hours_observed = r.hours_observed,
+           missing_code = r.missing_code, retrieved_at = r.retrieved_at, updated_at = now()
+     where d.home_context_id = r.home_context_id and d.local_date = r.local_date and d.factor = r.factor
+       and d.missing_code = 'pending';
+    if found then
+      updated := updated + 1;
+    else
+      kept := kept + 1;
+    end if;
+  end loop;
+
+  return jsonb_build_object('inserted', inserted, 'updated', updated, 'kept', kept, 'skipped', skipped);
+end;
+$$;
+
+revoke execute on function public.record_daily_maxima(jsonb) from public, anon, authenticated;
+grant execute on function public.record_daily_maxima(jsonb) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 6. finish_daily_maxima_run: the last run's time and counts
+-- ---------------------------------------------------------------------------
+
+create or replace function public.finish_daily_maxima_run(p_counts jsonb)
+returns timestamptz
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  finished timestamptz := now();
+begin
+  if p_counts is null or jsonb_typeof(p_counts) <> 'object' then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_counts must be a json object';
+  end if;
+  if (select count(*) from jsonb_object_keys(p_counts)) > 32 then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_counts holds at most 32 counts';
+  end if;
+  -- CASE, so a value is cast to a number only once it is known to be one.
+  if exists (select 1 from jsonb_each(p_counts) c
+              where case when c.key !~ '^[a-z][a-zA-Z0-9_]{0,63}$' or jsonb_typeof(c.value) <> 'number' then true
+                         else (c.value #>> '{}')::numeric < 0
+                           or (c.value #>> '{}')::numeric <> trunc((c.value #>> '{}')::numeric) end) then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+      detail = 'p_counts must map short names to non-negative integers';
+  end if;
+  update public.daily_maxima_recorder d
+     set last_run_at = finished, last_run = p_counts
+   where d.singleton;
+  if not found then
+    raise exception 'HALO_RECORDING_NOT_BEGUN' using errcode = 'P0001', detail = 'no run has begun';
+  end if;
+  return finished;
+end;
+$$;
+
+revoke execute on function public.finish_daily_maxima_run(jsonb) from public, anon, authenticated;
+grant execute on function public.finish_daily_maxima_run(jsonb) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 7. A row that is not pending is never rewritten (E4)
+-- ---------------------------------------------------------------------------
+-- record_daily_maxima already updates only pending rows; this holds the rule
+-- for every other writer too, the service role included. A delete is not an
+-- update, so the clear and every cascade still remove rows.
+
+create or replace function public.guard_final_daily_maximum()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  raise exception 'HALO_DAILY_MAXIMUM_FINAL' using errcode = 'P0001',
+    detail = 'a recorded daily maximum or a final missing day is never rewritten';
+end;
+$$;
+
+revoke execute on function public.guard_final_daily_maximum() from public, anon, authenticated;
+
+create or replace trigger daily_maxima_final_guard
+  before update on public.daily_maxima
+  for each row
+  when (old.missing_code is distinct from 'pending')
+  execute function public.guard_final_daily_maximum();
+
+-- ---------------------------------------------------------------------------
+-- Verification (read only). Expect one row, all eight columns true.
+-- ---------------------------------------------------------------------------
+--   select
+--     (select bool_and(relrowsecurity) from pg_class
+--       where oid in ('public.daily_maxima'::regclass, 'public.daily_maxima_recorder'::regclass)) as rls_on,
+--     (select count(*) from pg_policies
+--       where schemaname = 'public' and tablename in ('daily_maxima', 'daily_maxima_recorder')) = 0
+--       as no_policies,
+--     not exists (
+--       select 1 from unnest(array['anon', 'authenticated']) as r
+--        cross join unnest(array['public.daily_maxima', 'public.daily_maxima_recorder']) as t
+--        where has_any_column_privilege(r, t, 'SELECT')
+--           or has_any_column_privilege(r, t, 'INSERT')
+--           or has_any_column_privilege(r, t, 'UPDATE')
+--           or has_table_privilege(r, t, 'DELETE'))
+--       as no_client_access,
+--     not exists (
+--       select 1 from unnest(array['anon', 'authenticated']) as r
+--        cross join unnest(array['public.daily_maxima_schema_version()', 'public.begin_daily_maxima_run(date)',
+--                                'public.record_daily_maxima(jsonb)', 'public.finish_daily_maxima_run(jsonb)',
+--                                'public.guard_final_daily_maximum()']) as f
+--        where has_function_privilege(r, f, 'EXECUTE'))
+--       and (select bool_and(has_function_privilege('service_role', f, 'EXECUTE'))
+--              from unnest(array['public.daily_maxima_schema_version()', 'public.begin_daily_maxima_run(date)',
+--                                'public.record_daily_maxima(jsonb)', 'public.finish_daily_maxima_run(jsonb)']) as f)
+--       as functions_service_role_only,
+--     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--       where n.nspname = 'public' and not p.prosecdef and 'search_path=public' = any (p.proconfig)
+--         and p.proname in ('daily_maxima_schema_version', 'begin_daily_maxima_run', 'record_daily_maxima',
+--                           'finish_daily_maxima_run', 'guard_final_daily_maximum')) = 5
+--       as functions_invoker_pinned,
+--     exists (select 1 from pg_trigger
+--       where tgrelid = 'public.daily_maxima'::regclass and tgname = 'daily_maxima_final_guard')
+--       as final_guard_on,
+--     (select count(*) from pg_constraint
+--       where conrelid = 'public.daily_maxima'::regclass and contype = 'f' and confdeltype = 'c') = 2
+--       as both_links_cascade,
+--     (select count(*) from pg_constraint
+--       where conrelid = 'public.daily_maxima'::regclass and contype = 'c') = 14
+--       as fourteen_checks;
+--
+-- ---------------------------------------------------------------------------
+-- If you need to back out 0025
+-- ---------------------------------------------------------------------------
+-- The recorder and GET /api/evidence go back to answering a non-retryable 503
+-- feature_unavailable from the probe, exactly as before this is applied, so
+-- backing out stops recording rather than breaking the existing app. The
+-- probe goes first, so they stop at once.
+--
+-- What is lost: every recorded daily maximum and recording_from, because both
+-- tables are dropped. Days already past cannot be recorded again by this
+-- method (E9 forbids a backfill), so a back-out leaves a permanent gap from
+-- the first recorded day to the reapply. 0024's clear keeps working: it
+-- deletes this table only when it exists. daily_scores, home_contexts and
+-- everything 0016 to 0024 created are untouched.
+--
+-- The tested copy of this block is in docs/backend/YOUR_TODO.md, which is what
+-- test/migrationBackout.test.mjs runs.
+--
+-- <!-- backout-0025 -->
+-- drop function if exists public.daily_maxima_schema_version();
+-- drop function if exists public.begin_daily_maxima_run(date);
+-- drop function if exists public.record_daily_maxima(jsonb);
+-- drop function if exists public.finish_daily_maxima_run(jsonb);
+-- drop table if exists public.daily_maxima;
+-- drop table if exists public.daily_maxima_recorder;
+-- drop function if exists public.guard_final_daily_maximum();
+--
+-- Then run: notify pgrst, 'reload schema';
