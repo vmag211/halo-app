@@ -280,7 +280,7 @@
             }
           },
           "409": {
-            "description": "stale_revision (with the current revision), unknown_conversation, run_open, or operation_mismatch",
+            "description": "stale_revision (with the current revision), unknown_conversation, run_open, operation_mismatch, or, on a replay of an earlier attempt that did not finish, abandoned (the attempt never settled and was reaped) or attempt_failed (it failed with no receipt). Both of the last two are terminal, so the client clears its parked operation.",
             "headers": {
               "X-Request-Id": {
                 "schema": {
@@ -917,7 +917,9 @@
               "stale_revision",
               "unknown_conversation",
               "run_open",
-              "operation_mismatch"
+              "operation_mismatch",
+              "abandoned",
+              "attempt_failed"
             ]
           },
           "revision": {
