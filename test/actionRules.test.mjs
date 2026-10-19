@@ -620,6 +620,53 @@ test('H25: a failure already in the stored snapshot blocks no unrelated save; on
     { ok: false, reason: 'invalid_result', message: drifted });
 });
 
+test('H25: the weekly review planner re-sending the whole stored map is not blocked by a drifted row (R1-1)', () => {
+  const drifted = 'Choose a valid timezone.';
+  const household4 = () => {
+    const base = household();
+    base.metas.k4 = meta({ time: '08:00', note: 'Bring water' });
+    return base;
+  };
+  // The planner's shape (F: WeekReviewPlanner.tsx:17): the whole metas map,
+  // a signature for every task, and the focus and availability preferences.
+  const planner = (base, moves) => ({
+    kind: 'revise',
+    changes: moves.map(([id, date]) => { const row = base.actions.find((a) => a.id === id); return { id, revision: row.revision, patch: { title: row.title, date, state: row.state } }; }),
+    metadata: structuredClone(base.metas),
+    expectedMetadata: Object.fromEntries(base.actions.map((row) => [row.key, JSON.stringify(base.metas[row.key] ?? null)])),
+    preferences: { 'week:focus': 'k2', 'week:availability': { '2026-10-12': 120 } },
+  });
+  // The control: no drifted row, the planner moving task id-1 saves.
+  const clean = household4();
+  clean.metas.k3 = meta({ zone: 'America/Chicago' });
+  assert.equal(run(clean, planner(clean, [['id-1', '2026-10-15']])).ok, true);
+
+  const base = household4();
+  base.metas.k3 = meta({ zone: 'Mars/Olympus_Mons' });
+  // The drifted task is not among the changes: the save succeeds, and writes
+  // only the move and the preferences.
+  const moved = run(base, planner(base, [['id-1', '2026-10-15']]));
+  assert.equal(moved.ok, true, JSON.stringify(moved));
+  assert.deepEqual(moved.writes.metas, []);
+  assert.deepEqual(moved.writes.updates.map((update) => update.id), ['id-1']);
+  assert.ok(sameValue(moved.next.metas.k3, base.metas.k3));
+  // The drifted task is among the changes: refused with its own sentence.
+  assert.deepEqual(run(base, planner(base, [['id-1', '2026-10-15'], ['id-3', '2026-10-16']])), { ok: false, reason: 'invalid_result', message: drifted });
+  // Re-sending only the drifted meta, unchanged: a no-op that succeeds.
+  const resent = run(base, { kind: 'revise', changes: [], metadata: { k3: structuredClone(base.metas.k3) }, expectedMetadata: { k3: JSON.stringify(base.metas.k3) } });
+  assert.equal(resent.ok, true, JSON.stringify(resent));
+  assert.equal(resent.noop, true);
+  // A meta re-sent unchanged on a CHANGED action is still checked unmerged, as
+  // the reference does: a stored partial meta on a moved task is refused.
+  const partial = household4();
+  partial.metas.k4 = { time: '08:00', note: 'Bring water' };
+  assert.equal(validActionSnapshot(partial), true, 'a partial stored meta loads (merged)');
+  assert.equal(run(partial, planner(partial, [['id-1', '2026-10-15']])).ok, true, 'and re-sent unchanged on an unchanged task it is fine');
+  assert.deepEqual(run(partial, planner(partial, [['id-4', '2026-11-03']])), { ok: false, reason: 'invalid_result', message: 'The task schedule is invalid.' });
+  const reference = applyReviewActionCommand(partial, planner(partial, [['id-4', '2026-11-03']]), ids());
+  assert.equal(reference, null, 'the reference refuses it the same way');
+});
+
 test('H25: a drifted stored preference blocks no unrelated save; a fix of it succeeds', () => {
   const base = household();
   base.metas.k1 = meta({ time: '02:30' });
@@ -640,6 +687,17 @@ test('H25: a drifted stored preference blocks no unrelated save; a fix of it suc
   assert.equal(validActionSnapshot(fixed.next), true);
   assert.deepEqual(run(base, { kind: 'revise', changes: [{ id: 'id-1', revision: 2, patch: { title: 'Keep my water report', date: '2026-03-08', state: 'saved' } }] }),
     { ok: false, reason: 'invalid_result', message: 'Choose a valid dated time outside clock-change gaps or ambiguous times.' });
+});
+
+test('L1: a task key over 1,000 UTF-8 bytes is a 400, before it can overflow the unique index', () => {
+  const add = (key) => run({ actions: [], metas: {}, preferences: {} }, { kind: 'add', seeds: [{ key, title: 'T', reason: '', origin: '' }], date: '' });
+  assert.equal(add('k'.repeat(1000)).ok, true);
+  assert.deepEqual(codes(add('k'.repeat(1001))), ['key_too_long']);
+  // Bytes, not characters: 250 four-byte characters fit, 334 three-byte ones do not.
+  assert.equal(add('🌱'.repeat(250)).ok, true);
+  assert.deepEqual(codes(add('€'.repeat(334))), ['key_too_long']);
+  // The longest keys the client builds are far below it (F: MyWeekWorkspace.tsx:97,126).
+  for (const key of [`personal:${OP}`, `personal:${OP}:occurrence:2026-10-20`, `explore:project:${OP}:step:${OP}`, `outdoors:${OP}:check-forecast`]) assert.equal(add(key).ok, true, key);
 });
 
 test('H26: nesting deeper than 32 is a 400, never a stack overflow', () => {
