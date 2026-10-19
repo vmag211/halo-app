@@ -4,7 +4,7 @@ One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
 Updated 2026-10-18. Branch `vmag211/backend`, 43 commits ahead of origin, nothing merged to main.
-**2,459 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
+**2,498 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
 pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score).
 
 ## What exists
@@ -31,7 +31,8 @@ design-breaking mismatches before implementation. They are not a substitute for 
 | B01 baseline, identity, home context | Complete |
 | B02 identity linking and recovery | Complete except two tasks dropped on purpose, see below |
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
-| B04 settings and alerts | In progress. Migration 0021 first, then two routes in parallel |
+| B04 settings and alerts | In progress. Migration 0021 merged (reviewed, Rulings S7 to S10); routes 2a and 2b next |
+| B05 discovery and summaries | Planned (`plans/b05-discovery-and-summaries.md`), Tasks 1 and 2 in progress |
 
 ## Migrations
 
@@ -39,7 +40,7 @@ design-breaking mismatches before implementation. They are not a substitute for 
 validated; 0017 and 0018 the same day; the `TRUNCATE` privilege remedy in `YOUR_TODO.md` 2.7 also
 applied). Use the state query in `YOUR_TODO.md` 2.6 rather than trusting any document, including this one.
 
-**0019, 0020 and 0021 are written and applied nowhere.** All three are additive and none rewrites data.
+**0019, 0020 and 0021 are written and applied nowhere** (0021 merged 2026-10-18; it no longer carries a tenure/renter_mode cross-check, Ruling S7). All three are additive and none rewrites data.
 Apply them as one batch when ready; each has apply steps and a tested back-out block in `YOUR_TODO.md`.
 
 ## What is deliberately not built, and why
@@ -84,7 +85,7 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
 
 ## Known live risks
 
-- **One abandoned operation locks a surface read-only forever, and no task owns the fix.**
+- **One abandoned operation locks a surface read-only forever. A reaper is built and in review** (reaps to `failed` on list, replay and reconcile); until it merges this bullet stands.
   `effectiveStatus` only reports a stale pending row as `unknown` (`lib/operations.js:104-109`) while
   `listUnresolvedOperations` filters stored `status = pending` (`:226-244`), and no reaper exists:
   `settle(..., failed)` (`:168`) runs only when `execute` throws in-process, so a serverless timeout
