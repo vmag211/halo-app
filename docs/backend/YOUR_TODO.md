@@ -470,7 +470,7 @@ Not done here, and your call whether it is worth it: the other tables still gran
 
 ### 2.8 Apply 0019 (which intent wrote a recovery challenge)
 
-**Not applied yet.** Needs 0018 first.
+**Applied to production 2026-10-19** (with 2.13, all 26 checks true). Needed 0018 first.
 
 Quiet, and quieter than 2.3 and 2.4: it adds one column with a constant default and one check to `recovery_challenges`, a table nothing else references. Postgres records a constant default in the catalog instead of rewriting the table, so no existing row is scanned; the lock it takes on that one table is held for the moment the catalog is written. No other table is read or written, and no row changes.
 
@@ -497,7 +497,7 @@ What this does NOT restore or undo: no challenge row is deleted, but which inten
 
 ### 2.9 Apply 0020 (Luna's conversations, turns and runs)
 
-**Not applied yet.** Needs 0019 first (only because the migrations are applied in order; 0020 touches nothing 0018 or 0019 created).
+**Applied to production 2026-10-19** (with 2.13, all 26 checks true). Needed 0019 first (only because the migrations are applied in order; 0020 touches nothing 0018 or 0019 created).
 
 Quiet, like 2.3 and 2.4: it creates three new tables and one index and does not read or write any existing table, so nothing else is blocked while it runs. Creating the foreign keys to `profiles` takes a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment.
 
@@ -529,7 +529,7 @@ What this does NOT restore or undo: every conversation, every turn and every run
 
 ### 2.10 Apply 0021 (settings preferences, tenure, and the alerts columns)
 
-**Not applied yet.** Needs 0020 first (only because the migrations are applied in order; 0021 touches nothing 0020 created).
+**Applied to production 2026-10-19** (with 2.13, all 26 checks true). Needed 0020 first (only because the migrations are applied in order; 0021 touches nothing 0020 created).
 
 **Final form, safe to apply as far as review can tell (2026-10-19).** The file was amended three times after Task 1 merged: `save_settings` and the revision and tenure triggers (Rulings S11 to S13), then the review fixes A to D with the save settling its own ledger row (Ruling S15), then fixes E and F. The fourth review approved it. The two deadlocks the reviews found are fixed. A first-time notifications or household write against a save is fixed by creating that group's row before the revision lock, and only when that group is sent, so `household_set` stays false for a household that never answered. A save during account deletion is fixed by locking the profile before the ledger row, the same order as the delete's cascade. Both fixes were reasoned through on paper. The local database (PGlite) has one connection, so no test can run two transactions against each other. The only change since the approval is one reflowed comment line.
 
@@ -592,7 +592,7 @@ What this does NOT restore or undo: every household's display, quiet-hours, cale
 
 ### 2.11 Apply 0022 (a household's saved discovery area)
 
-**Not applied yet.** Needs 0021 first (only because the migrations are applied in order; 0022 touches nothing 0021 created).
+**Applied to production 2026-10-19** (with 2.13, all 26 checks true). Needed 0021 first (only because the migrations are applied in order; 0022 touches nothing 0021 created).
 
 Quiet, like 2.3, 2.4 and 2.9: it creates one new table and does not read or write any existing table, so nothing else is blocked while it runs. Creating the foreign key to `profiles` takes a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment.
 
@@ -620,7 +620,7 @@ What this does NOT restore or undo: every household's chosen discovery area is d
 
 ### 2.12 Apply 0023 (a household's tasks for My Week)
 
-**Not applied yet.** Needs 0022 first (only because the migrations are applied in order; 0023 touches nothing 0022 created).
+**Applied to production 2026-10-19** (with 2.13, all 26 checks true). Needed 0022 first (only because the migrations are applied in order; 0023 touches nothing 0022 created).
 
 Quiet, like 2.11, with one difference. It creates three new tables, one index and two functions, none of which anything is waiting on, and the foreign keys to `profiles` take a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment. It also adds one trigger to `public.operations` (0017's ledger), which takes the same brief lock on that table: any save that is claiming or settling its ledger row at that moment waits for it. Nothing existing is read or rewritten.
 

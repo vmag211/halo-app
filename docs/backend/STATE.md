@@ -73,7 +73,10 @@ lazy so `next build` needs no secrets. About 31 Playwright UI tests already fail
 validated; 0017 and 0018 the same day; the `TRUNCATE` privilege remedy in `YOUR_TODO.md` 2.7 also
 applied). Use the state query in `YOUR_TODO.md` 2.6 rather than trusting any document, including this one.
 
-**0019 to 0023 are written and applied nowhere** (0021 merged 2026-10-18 and amended three times by
+**0019 to 0023 are applied to production** (2026-10-19, by Vibhav, in one paste of
+`docs/backend/apply/apply-0019-to-0023.sql`; `verify-0019-to-0023.sql` returned
+`all_migrations_ok = true, checks_run = 26, failing = none`). Production still runs `main`, which does
+not use these tables, so nothing changes for users until the backend branch is deployed. History: (0021 merged 2026-10-18 and amended three times by
 2026-10-19: `save_settings` and the revision and tenure triggers, Rulings S11 to S13; review fixes A
 to D with S15, the save settling its own ledger row; and fixes E and F. It carries no
 tenure/renter_mode cross-check, Ruling S7. 0022, `explore_areas`, for B05; 0023, My Week's tasks,
