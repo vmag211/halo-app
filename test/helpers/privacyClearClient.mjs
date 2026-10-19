@@ -2,7 +2,9 @@
  * The privacy panel's handling of a clear's answer, TRANSCRIBED from
  * components/production/ProductionPrivacy.tsx in this tree (the frontend as
  * merged at 1253025, ref 5ac06f6), for the B07 Task 6 suites
- * (test/routesPrivacyClear.test.mjs and test/routesPrivacyClearDb.test.mjs):
+ * (test/routesPrivacyClear.test.mjs and test/routesPrivacyClearDb.test.mjs)
+ * and the Task 5 suite (test/routesPrivacyExport.test.mjs), where an export's
+ * answer reaches the same accept and `downloadWeekFile` records the file:
  *
  * - `accept` (ProductionPrivacy.tsx:23), VERBATIM with the parameter types
  *   removed and nothing else changed. ACCEPT_SOURCE below is the function's
@@ -43,6 +45,9 @@ export const MESSAGES = Object.freeze({
   conflict: 'This item changed. Review the latest version before saving.',
   validation: 'Check the highlighted information and try again.',
   unavailable: 'This service is unavailable. Try again later.',
+  downloaded: 'Your export was downloaded.',
+  notReady: 'The export is not ready to download. Check its status.',
+  rateLimited: 'Please wait before trying again.',
 });
 
 /**

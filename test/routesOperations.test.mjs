@@ -346,3 +346,80 @@ test('H17, H18: with tasks off a succeeded actions operation is the non-retryabl
   const missing = actionsHarness({ withFunction: false });
   await expectEnvelope(await read(missing, 'alice', `operationId=${ACTIONS_OK}&domain=actions`), { status: 503, code: 'feature_unavailable', retryable: false });
 });
+
+// ---------------------------------------------------------------------------
+// B07 Ruling P9: the privacy overlay (an export's file, rebuilt; nothing else)
+// ---------------------------------------------------------------------------
+
+const EXPORT_NEW = '88888888-8888-4888-8888-888888888881';
+const EXPORT_OLD = '88888888-8888-4888-8888-888888888882';
+const EXPORT_FAILED = '88888888-8888-4888-8888-888888888883';
+const EXPORT_ODD = '88888888-8888-4888-8888-888888888884';
+const CLEAR_DONE = '88888888-8888-4888-8888-888888888885';
+const MINUTE = 60 * 1000;
+
+const privacyRow = (operationId, kind, status, result, createdAgo) => ({
+  operation_id: operationId, domain: 'privacy', kind, status, request_hash: `hash-${operationId}`, result, created_at: ago(createdAgo),
+});
+const exportReceipt = (operationId, selection = { groups: ['tasks'], privateText: false }) => ({ operationId, status: 'succeeded', scope: 'export', selection });
+
+function privacyHarness() {
+  return harness({
+    extra: [
+      privacyRow(EXPORT_NEW, 'privacy.export', 'succeeded', exportReceipt(EXPORT_NEW), 9 * MINUTE),
+      privacyRow(EXPORT_OLD, 'privacy.export', 'succeeded', exportReceipt(EXPORT_OLD), 11 * MINUTE),
+      privacyRow(EXPORT_FAILED, 'privacy.export', 'failed', { operationId: EXPORT_FAILED, status: 'failed', reason: 'too_large' }, MINUTE),
+      privacyRow(EXPORT_ODD, 'privacy.export', 'succeeded', exportReceipt(EXPORT_ODD, { groups: 'everything' }), MINUTE),
+      privacyRow(CLEAR_DONE, 'privacy.clear.all', 'succeeded', { operationId: CLEAR_DONE, status: 'succeeded', scope: 'all' }, MINUTE),
+    ],
+  });
+}
+
+/** What every domain answered before the privacy overlay: the stored receipt, then the canonical fields. */
+function asStored(h, operationId) {
+  const row = h.db.rows('operations').find((item) => item.operation_id === operationId);
+  return { ...row.result, operationId, domain: row.domain, kind: row.kind, status: row.status, created_at: row.created_at };
+}
+
+test('P9: a succeeded export recorded 9 minutes ago carries a file rebuilt from its stored selection; the rest of the body is as stored', async () => {
+  const h = privacyHarness();
+  const body = await (await read(h, 'alice', `operationId=${EXPORT_NEW}&domain=privacy`)).json();
+  const { file, ...rest } = body;
+  assert.deepEqual(rest, asStored(h, EXPORT_NEW));
+  assert.equal(file.mime, 'application/json');
+  assert.match(file.name, /^halo[-\w]*\.(json|csv)$/);
+  const document = JSON.parse(file.text);
+  assert.deepEqual([document.format, document.groups, document.privateText], ['halo-export-v1', ['tasks'], false]);
+  assert.ok(!('data' in body));
+  assert.ok(!JSON.stringify(h.db.rows('operations').find((row) => row.operation_id === EXPORT_NEW).result).includes('halo-export'), 'nothing was stored');
+});
+
+test('P9: after the window, a failed export, a clear and an unreadable selection are answered exactly as stored, with nothing rebuilt', async (t) => {
+  const logged = muteConsoleError(t);
+  const h = privacyHarness();
+  for (const id of [EXPORT_OLD, EXPORT_FAILED, CLEAR_DONE, EXPORT_ODD]) {
+    const from = h.db.queryLog.length;
+    const body = await (await read(h, 'alice', `operationId=${id}&domain=privacy`)).json();
+    assert.deepEqual(body, asStored(h, id), id);
+    assert.ok(h.db.queryLog.slice(from).every((q) => q.table === 'operations'), `${id}: no record was read`);
+  }
+  const line = loggedText(logged);
+  assert.match(line, /no readable selection/);
+  assert.ok(!line.includes(EXPORT_ODD) && !line.includes(h.identities.alice.id), line);
+});
+
+test('P9: another household cannot reconcile alice\'s export (the identical 404); privacy stays out of the live-list overlay', async () => {
+  const h = privacyHarness();
+  await expectEnvelope(await read(h, 'bob', `operationId=${EXPORT_NEW}&domain=privacy`), { status: 404, code: 'not_found' });
+  const source = (await import('node:fs')).readFileSync(new URL('../app/api/operations/route.js', import.meta.url), 'utf8');
+  const paths = source.slice(source.indexOf('const LIVE_LIST_PATHS'), source.indexOf('});', source.indexOf('const LIVE_LIST_PATHS')));
+  assert.ok(!paths.includes('privacy'));
+});
+
+test('other domains replay exactly as before the privacy overlay: a settled settings save and a reaped alert update', async () => {
+  const h = privacyHarness();
+  assert.deepEqual(await (await read(h, 'alice', `operationId=${OP}&domain=settings`)).json(), asStored(h, OP));
+  const reaped = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
+  assert.deepEqual(reaped, asStored(h, DEAD));
+  assert.equal(reaped.status, 'failed');
+});
