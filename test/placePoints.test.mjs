@@ -161,6 +161,11 @@ test('exactPlaces: exact county, place and ZCTA matches of one segment, kinds ke
     assert.deepEqual(exactPlaces(text), none, JSON.stringify(text));
   }
   for (const value of [null, undefined, 28202, {}, ['Charlotte']]) assert.deepEqual(exactPlaces(value), none, JSON.stringify(value));
+  // An alias typed in its other spelling is a whole word (Task 1 review N2): "Saint" is never the
+  // start of a joined name, so "Saint Anley" is not Stanley and "Saint Okes" is not Stokes County.
+  assert.ok(ids('Stanley').places.length === 1 && ids('Stokes').counties.length === 1, 'the names exist');
+  assert.equal(ids('Mountain Home').places.length, 1);
+  for (const text of ['Saint Anley', 'Saint Okes', 'Saint Atesville', 'Mt Ain Home', 'Mt Ain View']) assert.deepEqual(exactPlaces(text), none, text);
   // Every county and every place is found exactly by its own name.
   for (const candidate of allPlaces()) {
     const found = exactPlaces(candidate.place);

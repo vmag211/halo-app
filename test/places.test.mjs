@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 // F: explore-service.ts:8-9,67, transcribed once for every B05 suite (see the helper's header).
 import { validPlaces } from './helpers/frontendB05.mjs';
 
-const { searchPlaces, placeById, parseLocationQuery, allPlaces, MAX_CANDIDATES } = await import('../lib/places.js');
+const { searchPlaces, placeById, parseLocationQuery, allPlaces, exactPlaces, MAX_CANDIDATES } = await import('../lib/places.js');
 const source = JSON.parse(readFileSync(new URL('../lib/data/ncCounties.json', import.meta.url), 'utf8'));
 const gazetteer = JSON.parse(readFileSync(new URL('../lib/data/ncPlaces.json', import.meta.url), 'utf8'));
 
@@ -61,7 +61,9 @@ test('the gazetteer is exactly North Carolina\'s 100 counties, GEOIDs 37xxx, ids
   assert.deepEqual(new Set(all.map((c) => c.id)), new Set(source.counties.map((c) => `us-county:${c.geoid}`)));
 });
 
-test('every county is found by exact name in any case; with "County" or "Co." it is the only answer, without it the first', () => {
+test('every county is found by exact name in any case; with "County" it is the only answer, with "Co." or without it the first', () => {
+  // B10 Task 2 (Task 1 review N1): after "Co" a place the whole query starts still follows the county.
+  const AFTER_CO = { Yadkin: ['Yadkin College, NC'], Rutherford: ['Rutherford College, NC'] };
   for (const county of source.counties) {
     const expected = {
       id: `us-county:${county.geoid}`,
@@ -71,8 +73,13 @@ test('every county is found by exact name in any case; with "County" or "Co." it
       timezone: 'America/New_York',
     };
     const n = bare(county.name);
-    for (const query of [county.name, county.name.toUpperCase(), `${n} co.`, `${n} Co`, `  ${n} County  `]) {
+    for (const query of [county.name, county.name.toUpperCase(), `  ${n} County  `]) {
       assert.deepEqual(searchPlaces({ query, state: '' }), [expected], `${county.name} by "${query}"`);
+    }
+    for (const query of [`${n} co.`, `${n} Co`]) {
+      const found = searchPlaces({ query, state: '' });
+      assert.deepEqual(found[0], expected, `${county.name} by "${query}"`);
+      assert.deepEqual(found.slice(1).map((c) => c.label), AFTER_CO[n] ?? [], `${county.name} by "${query}": only places it starts follow`);
     }
     // A bare name can also be a place (Columbus, Cherokee) or start one (Wake Forest), and those follow.
     for (const query of [n, n.toUpperCase(), n.toLowerCase(), `  ${n}  `]) {
@@ -110,7 +117,8 @@ test('a query of two or more characters also matches by prefix: exact first, the
   assert.deepEqual(searchPlaces({ query: 'Columbus', state: '' }).map((c) => c.label), ['Columbus County, NC', 'Columbus, NC']);
   assert.deepEqual(searchPlaces({ query: 'Columbus County', state: '' }).map((c) => c.label), ['Columbus County, NC'],
     'a County suffix is a county query: the town of Columbus is not offered');
-  assert.deepEqual(searchPlaces({ query: 'Yadkin Co', state: '' }).map((c) => c.label), ['Yadkin County, NC'], 'and "Co" is not a prefix of Yadkin College');
+  assert.deepEqual(searchPlaces({ query: 'Yadkin Co', state: '' }).map((c) => c.label), ['Yadkin County, NC', 'Yadkin College, NC'],
+    'the county leads, and Yadkin College, which "Yadkin Co" starts, follows (Task 1 review N1)');
   assert.deepEqual(searchPlaces({ query: 'Yadkin', state: '' }).map((c) => c.label), ['Yadkin County, NC', 'Yadkin College, NC', 'Yadkinville, NC']);
   assert.deepEqual(searchPlaces({ query: 'Cherokee', state: '' }).map((c) => c.id), ['us-county:37039', 'us-place:3712140']);
   // An exact place ahead of a county prefix: Ruth is a town, and Rutherford County starts with it.
@@ -255,8 +263,8 @@ test('a trailing state in the query is its state: North Carolina searches the wo
   assert.deepEqual(one('Washington').map((c) => c.label), ['Washington County, NC', 'Washington, NC', 'Washington Park, NC']);
   assert.deepEqual(one('Washington, NC'), one('Washington'));
   // "Co" is the county word, never Colorado, with or without a comma.
-  assert.deepEqual(one('Yadkin Co').map((c) => c.label), ['Yadkin County, NC']);
-  assert.deepEqual(one('Yadkin, Co').map((c) => c.label), ['Yadkin County, NC']);
+  assert.deepEqual(one('Yadkin Co').map((c) => c.label), ['Yadkin County, NC', 'Yadkin College, NC']);
+  assert.deepEqual(one('Yadkin, Co').map((c) => c.label), ['Yadkin County, NC', 'Yadkin College, NC']);
   assert.deepEqual(one('Meck Co').map((c) => c.label), ['Mecklenburg County, NC'], 'a county prefix with Co. is not a query in Colorado');
   assert.deepEqual(one('Rocky Mt').map((c) => c.label), ['Rocky Mount, NC']);
   assert.deepEqual(one('Rocky Mt, NC').map((c) => c.label), ['Rocky Mount, NC']);
@@ -451,8 +459,9 @@ test('F2: live typing never loses results mid-word on a County word, a Co word, 
   assert.deepEqual(labels('Cape Co'), ['Cape Colony, NC']);
   assert.deepEqual(labels('Fairview (Union Co'), ['Fairview (Union County), NC']);
   assert.deepEqual(labels('Fairview (Union County'), ['Fairview (Union County), NC']);
-  // ...but after an exact county it is still the county word (pinned above: "Yadkin Co").
-  assert.deepEqual(labels('Yadkin Co'), ['Yadkin County, NC']);
+  // ...and after an exact county it is the county word too: the county leads, the places follow (N1).
+  assert.deepEqual(labels('Yadkin Co'), ['Yadkin County, NC', 'Yadkin College, NC']);
+  assert.deepEqual(labels('Rutherford Co'), ['Rutherford County, NC', 'Rutherford College, NC']);
   assert.deepEqual(labels('Columbus County'), ['Columbus County, NC']);
   // 3. Partial aliases: in the F1 test. 4. A state while it is typed reads as North Carolina.
   for (const query of ['Charlotte, N', 'Charlotte, No', 'Charlotte, North', 'Charlotte, North ', 'Charlotte, North C', 'Charlotte, North Carolin',
@@ -468,6 +477,22 @@ test('F2: live typing never loses results mid-word on a County word, a Co word, 
   assert.deepEqual(labels('Chapel Hi'), ['Chapel Hill, NC']);
   assert.deepEqual(labels('Washington N'), labels('Washington'));
   assert.deepEqual(labels('Scotland N'), ['Scotland Neck, NC'], 'not Scotland County: the words already find Scotland Neck');
+});
+
+test('N1 (B10 Task 2): after an exact county and its "Co" word, places the whole query starts follow the county', () => {
+  const labels = (query) => searchPlaces({ query, state: '' }).map((c) => c.label);
+  // The two names the Task 1 review's sweep found: the county first, and the College still offered.
+  for (const query of ['Yadkin Co', 'yadkin co.', 'Yadkin Co, NC']) assert.deepEqual(labels(query), ['Yadkin County, NC', 'Yadkin College, NC'], query);
+  for (const query of ['Rutherford Co', 'Rutherford Co.']) assert.deepEqual(labels(query), ['Rutherford County, NC', 'Rutherford College, NC'], query);
+  // The next letters narrow to the College, as before.
+  assert.deepEqual(labels('Yadkin Col'), ['Yadkin College, NC']);
+  // A full "County" word starts no place, so it is still the county only, and so is the Columbus case.
+  for (const query of ['Yadkin County', 'Rutherford County', 'Columbus County', 'Columbus Co']) assert.equal(labels(query).length, 1, query);
+  // The bare name is unchanged: the county, then the places it starts.
+  assert.deepEqual(labels('Yadkin'), ['Yadkin County, NC', 'Yadkin College, NC', 'Yadkinville, NC']);
+  // exactPlaces stays strict: no prefix after "Co".
+  assert.deepEqual(exactPlaces('Yadkin Co').places, []);
+  assert.deepEqual(exactPlaces('Yadkin Co').counties.map((c) => c.label), ['Yadkin County, NC']);
 });
 
 test('F3: a trailing ", USA" or ", US" names the country and is dropped', () => {
@@ -487,7 +512,7 @@ test('typing sweep: every prefix of a sample of names, bare and with NC suffixes
   // The method of the round 2 review's rv-f2-out/typing.mjs, as an assertion. Every county, every
   // fourth place and every twentieth ZCTA, plus every place whose name an alias, a "C" word or
   // punctuation touches. Allowed misses: a prefix shorter than the search minimum (one character,
-  // or a ZIP under three digits), a list cut at the cap of 20, and the pinned "Yadkin Co" rule.
+  // or a ZIP under three digits) and a list cut at the cap of 20. Since N1 nothing else is allowed.
   const everything = allPlaces();
   const places = everything.filter((c) => c.id.startsWith('us-place:'));
   const zctas = everything.filter((c) => c.id.startsWith('us-zcta:'));
@@ -516,6 +541,6 @@ test('typing sweep: every prefix of a sample of names, bare and with NC suffixes
     }
   }
   assert.ok(checked > 40_000, `${checked} queries`);
-  // "Yadkin Co" and "Rutherford Co" are their counties only (pinned above); the next letter finds the College.
-  assert.deepEqual([...misses].sort(), ['Rutherford College at "Rutherford Co"', 'Yadkin College at "Yadkin Co"']);
+  // "Yadkin Co" and "Rutherford Co" used to be their counties only; since N1 the College follows the county.
+  assert.deepEqual([...misses].sort(), []);
 });
