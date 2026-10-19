@@ -1,14 +1,17 @@
 /**
  * Builds lib/data/ncPlaces.json, the North Carolina cities, towns, villages,
  * census-designated places and ZIP Code Tabulation Areas behind
- * GET /api/locations/search (B05 Task 8), from U.S. Census Bureau files that
- * were downloaded by hand and reviewed first.
+ * GET /api/locations/search (B05 Task 8), with the Census internal point of
+ * every county, place and ZCTA for GET /api/forecast (B10 Task 1), from U.S.
+ * Census Bureau files that were downloaded by hand and reviewed first.
  *
  *   node scripts/build-nc-places.mjs \
  *     --places <2026_gaz_place_37.txt> \
  *     --zctas <2026_Gaz_zcta_national.txt, unzipped> \
  *     --zctaZip <2026_Gaz_zcta_national.zip> \
  *     --relationship <tab20_zcta520_county20_natl.txt> \
+ *     --counties <2026_Gaz_counties_national.txt, unzipped> \
+ *     --countiesZip <2026_Gaz_counties_national.zip> \
  *     --retrieved 2026-10-19 \
  *     --out lib/data/ncPlaces.json
  *
@@ -41,15 +44,25 @@
  * file gives it a part with land area inside an NC county (GEOID 37xxx). A
  * ZCTA that crosses the state line is included, because some of it is in NC.
  * Each must also be in the 2026 ZCTA Gazetteer, or the build stops.
+ *
+ * POINTS (B10 Task 1, ruling F2). Every county, place and ZCTA carries its
+ * Census internal point (INTPTLAT, INTPTLONG), rounded to 3 decimals, the
+ * precision a saved home is stored at (lib/geocode.js roundCoord). Each value
+ * must be a plain decimal of latitude or longitude, or the build stops. The
+ * counties are the NC rows of the 2026 county Gazetteer (USPS NC, GEOID 37xxx),
+ * and they must be exactly the 100 GEOIDs of lib/data/ncCounties.json. A ZCTA
+ * that crosses the state line keeps its own point, which may lie outside NC.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
+import counties from '../lib/data/ncCounties.json' with { type: 'json' };
 import { countyForPoint } from '../lib/geoContainment.js';
+import { roundCoord } from '../lib/geocode.js';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((pairs, value, at, all) => (at % 2 === 0 ? [...pairs, [value.replace(/^--/, ''), all[at + 1]]] : pairs), []),
 );
-for (const name of ['places', 'zctas', 'zctaZip', 'relationship', 'retrieved', 'out']) {
+for (const name of ['places', 'zctas', 'zctaZip', 'relationship', 'counties', 'countiesZip', 'retrieved', 'out']) {
   if (!args[name]) throw new Error(`--${name} is required`);
 }
 if (!/^\d{4}-\d{2}-\d{2}$/.test(args.retrieved)) throw new Error('--retrieved is a YYYY-MM-DD date');
@@ -60,6 +73,7 @@ const SOURCES = [
   { url: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_gaz_place_37.txt', file: 'places' },
   { url: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_Gaz_zcta_national.zip', file: 'zctaZip', unzipped: 'zctas' },
   { url: 'https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt', file: 'relationship' },
+  { url: 'https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/2026_Gaz_counties_national.zip', file: 'countiesZip', unzipped: 'counties' },
 ];
 // The county of a place that shares its name must hold for every point this far (in degrees,
 // about a kilometre) around the place's internal point, five times the ~200 m simplification
@@ -92,6 +106,19 @@ function cleanName(raw) {
   return name;
 }
 
+/**
+ * The Census internal point of a row, rounded to 3 decimals. The Gazetteer writes each as a
+ * plain decimal; anything else, or a value outside latitude and longitude, stops the build.
+ */
+function point(row, what) {
+  const decimal = /^-?\d{1,3}\.\d+$/;
+  if (!decimal.test(row.INTPTLAT) || !decimal.test(row.INTPTLONG)) throw new Error(`${what}: a malformed internal point`);
+  const lat = Number(row.INTPTLAT);
+  const lng = Number(row.INTPTLONG);
+  if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) throw new Error(`${what}: an internal point out of range`);
+  return { lat: roundCoord(lat), lng: roundCoord(lng) };
+}
+
 // ---------------------------------------------------------------- places
 
 const places = table(args.places).map((row) => {
@@ -103,7 +130,8 @@ const places = table(args.places).map((row) => {
   if (!row.NAME.endsWith(suffix)) throw new Error(`${row.NAME} does not end in "${suffix}"`);
   const name = cleanName(row.NAME.slice(0, -suffix.length));
   if (/ County$/.test(name)) throw new Error(`${row.NAME} would read as a county`);
-  return { geoid: row.GEOID, name, lat: Number(row.INTPTLAT), lng: Number(row.INTPTLONG) };
+  // The unrounded point decides a shared name's county below; the rounded one is written.
+  return { geoid: row.GEOID, name, lat: Number(row.INTPTLAT), lng: Number(row.INTPTLONG), point: point(row, row.GEOID) };
 });
 if (new Set(places.map((p) => p.geoid)).size !== places.length) throw new Error('a place GEOID repeats');
 
@@ -130,7 +158,7 @@ places.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 // ----------------------------------------------------------------- ZCTAs
 
-const gazetteer = new Set(table(args.zctas).map((row) => row.GEOID));
+const gazetteer = new Map(table(args.zctas).map((row) => [row.GEOID, row]));
 const zctas = new Set();
 for (const row of table(args.relationship)) {
   if (!row.GEOID_ZCTA5_20 || !/^37\d{3}$/.test(row.GEOID_COUNTY_20) || !(Number(row.AREALAND_PART) > 0)) continue;
@@ -139,16 +167,31 @@ for (const row of table(args.relationship)) {
   zctas.add(row.GEOID_ZCTA5_20);
 }
 
+// -------------------------------------------------------------- counties
+
+const countyPoints = table(args.counties)
+  .filter((row) => row.USPS === 'NC')
+  .map((row) => {
+    if (!/^37\d{3}$/.test(row.GEOID)) throw new Error(`a malformed NC county GEOID: ${row.GEOID}`);
+    return { geoid: row.GEOID, ...point(row, row.GEOID) };
+  })
+  .sort((a, b) => (a.geoid < b.geoid ? -1 : a.geoid > b.geoid ? 1 : 0));
+const expectedCounties = counties.counties.map((c) => c.geoid).sort();
+if (countyPoints.map((c) => c.geoid).join() !== expectedCounties.join()) {
+  throw new Error('the NC rows of the county Gazetteer are not exactly the 100 counties of lib/data/ncCounties.json');
+}
+
 // ---------------------------------------------------------------- output
 
 const header = {
-  source: 'U.S. Census Bureau: 2026 Gazetteer Files (North Carolina places, and national ZIP Code Tabulation Areas), with the 2020 ZCTA to county relationship file to select the NC ZCTAs',
-  vintage: 'Places: 2026 Gazetteer, boundaries as of January 1, 2026 (the vintage of TIGERweb Current, from which ncCounties.json was taken). ZCTAs: the 2020 Census ZCTA5 set, which the 2026 Gazetteer still carries',
+  source: 'U.S. Census Bureau: 2026 Gazetteer Files (North Carolina places, national ZIP Code Tabulation Areas, and national counties for the internal points of the NC counties), with the 2020 ZCTA to county relationship file to select the NC ZCTAs',
+  vintage: 'Places: 2026 Gazetteer, boundaries as of January 1, 2026 (the vintage of TIGERweb Current, from which ncCounties.json was taken). ZCTAs: the 2020 Census ZCTA5 set, which the 2026 Gazetteer still carries. County internal points: 2026 Gazetteer, the same vintage as the places',
   retrieved: args.retrieved,
   licence: 'Public domain: a work of the U.S. federal government, not subject to copyright in the United States (17 U.S.C. 105). The Census Bureau states its data is "freely available for use and re-use by the public" (https://www.census.gov/open/) and that its TIGER/Line products "are not copyrighted" and are "free to use in a product or publication, however acknowledgement must be given to the U.S. Census Bureau as the source" (TIGER/Line 2026 place metadata, Use Constraints). Credit: U.S. Census Bureau',
   files: SOURCES.map(({ url, file, unzipped }) => ({ url, sha256: sha256(args[file]), ...(unzipped ? { unzippedSha256: sha256(args[unzipped]) } : {}) })),
   nameRule: 'Census NAME less its trailing LSAD descriptor (city, town, village or CDP), spelled as the Census writes it. Two places that would share a name each carry their county in parentheses. A U+2014 is replaced by ", " at build time (none in this vintage). Built by scripts/build-nc-places.mjs',
   zctaRule: 'Every ZCTA with land area in an NC county in the 2020 ZCTA to county relationship file, cross-state ZCTAs included',
+  pointRule: 'Census internal point (INTPTLAT and INTPTLONG of the 2026 Gazetteer files), rounded to 3 decimals. A cross-state ZCTA keeps its own point, which may lie outside NC',
   disambiguated,
 };
 
@@ -156,13 +199,16 @@ const lines = [
   '{',
   ...Object.entries(header).map(([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)},`),
   '  "places": [',
-  places.map(({ geoid, name }) => `    ${JSON.stringify({ geoid, name })}`).join(',\n'),
+  places.map(({ geoid, name, point: { lat, lng } }) => `    ${JSON.stringify({ geoid, name, lat, lng })}`).join(',\n'),
   '  ],',
   '  "zctas": [',
-  [...zctas].sort().map((zcta) => `    ${JSON.stringify({ zcta })}`).join(',\n'),
+  [...zctas].sort().map((zcta) => `    ${JSON.stringify({ zcta, ...point(gazetteer.get(zcta), zcta) })}`).join(',\n'),
+  '  ],',
+  '  "counties": [',
+  countyPoints.map((county) => `    ${JSON.stringify(county)}`).join(',\n'),
   '  ]',
   '}',
   '',
 ];
 writeFileSync(args.out, lines.join('\n'));
-console.log(`${places.length} places (${disambiguated.length} disambiguated), ${zctas.size} ZCTAs written to ${args.out}`);
+console.log(`${places.length} places (${disambiguated.length} disambiguated), ${zctas.size} ZCTAs, ${countyPoints.length} county points written to ${args.out}`);
