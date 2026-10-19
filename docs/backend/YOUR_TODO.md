@@ -632,13 +632,29 @@ What it is for: My Week (`/app`, `/plan`) shows "Your tasks could not load" toda
 - `read_household_actions` (the one snapshot every My Week read uses) and `commit_household_actions` (one save: every task, detail and preference change and the save's own ledger receipt commit together or not at all, so a save that "did not apply" really did not).
 - A guard on `public.operations`: once a My Week save's ledger row says `succeeded` or `failed`, its status can no longer change, so a save whose response is lost on the way back can never be recorded as failed after its task was written. Every other kind of operation is unaffected.
 
-**Applying this does not turn My Week's tasks on.** The routes that use it are not built yet, and when they are, they stay behind a server flag that is off by default (`HALO_FEATURE_TASKS`), because no retention period for a task has been approved (you confirmed on 2026-10-18 that it stays off until you approve one; see Part 3 item 4 and the three `household_action*` rows in `docs/backend/privacy-and-retention.md`).
+**Applying this does not turn My Week's tasks on.** The routes that use it are now built (B06): `GET /api/frontend/actions`, `POST /api/frontend/actions/commands` and the `actions` reconcile in `GET /api/operations`. All three stay behind a server flag that is off by default, `HALO_FEATURE_TASKS`, because no retention period for a task has been approved. You confirmed on 2026-10-18 that it stays off until you approve one (see Part 3 item 4 and the three `household_action*` rows in `docs/backend/privacy-and-retention.md`). While the flag is off, the load and a succeeded reconcile answer 503 `feature_unavailable`, and a save answers "Saving tasks in My Week is not available yet. Nothing was saved." with nothing recorded. That holds whether or not 0023 is applied. The week strip routes (`GET /api/week/changes` and its acknowledge) need only 0017, which is already applied, and are not behind the flag.
+
+What the final 0023 creates, so you can recognise it:
+
+- three tables;
+- one index, `household_actions_owner_created`, plus the unique key on `(profile_id, action_key)`, which Postgres names `household_actions_profile_id_action_key_key`;
+- ten CHECK constraints: seven on `household_actions` (state, revision, title, key, meta, note and due date), two on `household_action_preferences` (key and value) and one on `household_action_state` (version);
+- three functions: `read_household_actions`, `commit_household_actions` and the guard's own `guard_settled_action_operation`;
+- one trigger on `public.operations`, `operations_actions_settled_guard`.
 
 1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0023_household_actions.sql` and run it. Safe to re-run. If an earlier copy of 0023 was ever run anywhere, run the back-out first (the block below, then `notify pgrst, 'reload schema';`), because a re-run keeps a check it already has under the same name rather than replacing it.
-2. Run the verification query in the comment at the end of that file. Expect one row, all six columns true. `no_client_access` false is the one that matters: a task is free text somebody typed, so if it comes back false, stop and send Claude the row.
-3. Run `notify pgrst, 'reload schema';`. Until it reloads, the My Week routes (once built) answer 503 `feature_unavailable` and nothing is written.
+2. Run the verification query in the comment at the end of that file. Expect **one row with all six columns true**:
+   - `rls_on`: row level security is on for all three tables;
+   - `no_policies`: no policy exists on any of them, so the count of policies is 0;
+   - `no_client_access`: `anon` and `authenticated` have no SELECT, INSERT, UPDATE or DELETE on any of the three;
+   - `functions_service_role_only`: neither browser role can execute either function, and `service_role` can execute both;
+   - `settled_guard_on`: the trigger is on `public.operations`;
+   - `ten_checks`: exactly 10 CHECK constraints across the three tables.
 
-Until this is applied, the My Week task routes report the feature as unavailable. Nothing else reads these tables, so the existing app is unaffected either way.
+   `no_client_access` false is the one that matters: a task is free text somebody typed, so if it comes back false, stop and send Claude the row. `ten_checks` false means an older copy of 0023 was run before. Run the back-out block, then apply again.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, the My Week routes answer 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the My Week task routes report the feature as unavailable. Nothing else reads these tables, so the existing app is unaffected either way. Note that the read-only query in 2.6 still stops at 0019, so it does not show 0023. The 0023 verification query above is the check to use. 0023 is the fifth pending migration, after 0019, 0020, 0021 and 0022, and it can be applied in the same batch.
 
 #### If you need to back out 0023
 
@@ -724,6 +740,16 @@ From B05 (discovery). File and line references are to `origin/codex/october15-re
 13. **(F3) The Explore area chooser promises city and ZIP.** Its copy says "For example, Charlotte or 28208" and "Try a nearby city or a ZIP code" (`ExploreDiscovery.tsx:59,62`). The backend serves North Carolina counties only (D4), so "Charlotte" and "28208" answer no candidates, and `validPlaces` has no way to say "unsupported geography" (AC-115). Until open question 2 is decided, the copy should ask for a county.
 14. **(F4) Send only the compared pair to `map.comparison`.** `MapPreview.tsx:316` sends every visible id in one GET parameter. The server accepts up to 2,000, but about 780 NC ids already exceed common URL limits (about 18 bytes each once encoded), and a 431 reads as "blocked". Today's layer of about 290 systems fits.
 15. **(Account, frontend N1) Drop a receipt's own id from the ids the account surface waits on.** `components/production/useAccountService.ts:21` copies `receipt.snapshot.unresolvedOperations` into `unknown` as it is. The backend now never lists a receipt's own operation there (pinned in `test/routesAccountCommands.test.mjs`, "A receipt never lists its own operation as unresolved"). As defense in depth, filter out the receipt's own `id` at `:21` and at the matching hydrate sites that set `unknown` from a snapshot, so that a self-listing receipt can never lock the surface with no way out but a reload.
+
+From B06 (My Week and its strip). File and line references are to `origin/codex/october15-review-refinement` (5ac06f6). The contract is `docs/backend/contracts/b06.openapi.json`, with fixtures under `docs/backend/contracts/fixtures/b06/`. None of these blocks the backend. The tasks flag is off, so My Week does not load in production yet either way.
+
+16. **(F4) Reload My Week after a refused or conflicting save.** A 200 `failed` receipt (a stale revision, changed details, a task deleted on another device) and a 409 both reach `mutate`, which shows the message and returns `false` (`components/expanded/ExpandedPreviewState.tsx:93`). It does not reload. The person's snapshot stays stale, so the same edit is refused again on every retry until a manual page reload. The server's refusal messages say "Reload My Week" for this reason. A reload on `failed` (as `reconcile` already does at `:114`) would fix it.
+17. **(F7) A reconcile that answers 404 locks My Week until a page reload.** A save whose request never reached the server leaves no ledger row, so `operations.read` answers 404. `reconcile` treats any thrown error as "Could not check this save. No new save was sent." and keeps `unknownOperation` (`ExpandedPreviewState.tsx:116`), so nothing can be saved until the page reloads. The backend's 404 is honest: the operation was never recorded. The client could treat a 404 for its own operation id as "nothing was applied", clear the lock and reload. The week strip has the same shape (`WeekUpdates.tsx:23`), but its acknowledgement always reaches the ledger, so it is reachable only when the request never arrived.
+18. **The tasks flag is off, and My Week then says "Your tasks could not load. Reconnect and try again."** (`ExpandedPreviewState.tsx:77`). That sentence suggests a fix the person cannot make. If that is not acceptable while retention is being decided, the contract needs an availability field, as `opportunities.search` has, so the screen can say tasks are not available yet. This is open question 4 in the B06 plan.
+19. **`meta.history` has no bound.** Every change appends a line (`ExpandedPreviewState.tsx:151`) and every save sends the whole history, so a long-lived task eventually cannot be saved under the 4,000,000-byte cap. The server imposes no cap of its own, because a cap would brick the task at that point (Ruling H23). The contract needs a bound, and Vibhav needs to agree it (BE-327).
+20. **The `clear` command kind is a 400.** It has no production sender, and clearing tasks belongs to `privacy.clear`. If a sender is added, it needs a backend ruling first.
+21. **Year 0000 is refused by the server.** `validActionDate` accepts `0000-01-01` (`lib/frontend/expanded-preview.ts:30-35`), but a Postgres date cannot hold it, so the server answers a 400 (Ruling H13). Refusing it in the client too would show a field error instead of the generic validation message.
+22. **`X-Halo-Home-Context` is ignored for tasks.** Tasks belong to the household, not a home (Ruling H2), so `portableTasks` (`lib/frontend/production/account-service.ts:6`) has nothing to carry on a move yet. Whether tasks should be per home is Vibhav's decision (open question 2 in the B06 plan).
 
 ## Part 5. Small follow-ups that are NOT scheduled (decide if you want them)
 

@@ -1,0 +1,10 @@
+{
+  "operationId": "weekAcknowledge",
+  "status": 200,
+  "body": {
+    "operationId": "0b060000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "reason": "unknown_change",
+    "message": "That update is not available to review, so nothing was changed."
+  }
+}

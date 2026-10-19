@@ -1,0 +1,27 @@
+{
+  "operationId": "actionsCommit",
+  "status": 200,
+  "body": {
+    "operationId": "0b060000-0000-4000-8000-000000000001",
+    "status": "succeeded",
+    "snapshot": {
+      "actions": [
+        {
+          "id": "0b060000-0000-4000-8000-000000000002",
+          "key": "personal:1",
+          "date": "",
+          "state": "saved",
+          "title": "Read the water report",
+          "origin": "Personal",
+          "reason": "Due this week",
+          "revision": 1
+        }
+      ],
+      "metas": {},
+      "preferences": {},
+      "unresolvedOperations": [
+        "0b060000-0000-4000-8000-000000000003"
+      ]
+    }
+  }
+}

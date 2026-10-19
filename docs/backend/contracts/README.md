@@ -1,6 +1,25 @@
 # HALO executable API contracts
 
-One document per build package, each covering only the operations that package changed. `b01.openapi.json` is version `b01-1` (six B01 operations), `b03.openapi.json` is version `b03-1` (the six Luna operations B03 built), `b04.openapi.json` is version `b04-1` (the four settings and alerts operations B04 built, plus the reconcile both clients use) and `b05.openapi.json` is version `b05-1` (the six discovery operations B05 built or fixed). All are OpenAPI 3.1 with the same shape: a `paths` map whose statuses are the ones the handlers can actually produce, synthetic `{ operationId, status, body }` fixtures under `fixtures/<package>/`, and an Ajv 2020 conformance suite that runs the real handlers through the isolated route harness. None certifies a deployment, a provider right or a source's meaning.
+One document per build package, each covering only the operations that package changed. `b01.openapi.json` is version `b01-1` (six B01 operations), `b03.openapi.json` is version `b03-1` (the six Luna operations B03 built), `b04.openapi.json` is version `b04-1` (the four settings and alerts operations B04 built, plus the reconcile both clients use), `b05.openapi.json` is version `b05-1` (the six discovery operations B05 built or fixed) and `b06.openapi.json` is version `b06-1` (the four My Week operations B06 built, plus the `actions` and `week-updates` half of the reconcile). All are OpenAPI 3.1 with the same shape: a `paths` map whose statuses are the ones the handlers can actually produce, synthetic `{ operationId, status, body }` fixtures under `fixtures/<package>/`, and an Ajv 2020 conformance suite that runs the real handlers through the isolated route harness. None certifies a deployment, a provider right or a source's meaning.
+
+## B06 My Week contract
+
+`b06.openapi.json`, version `b06-1`, has the same shape as the documents listed above. It documents `actionsLoad` (`GET /api/frontend/actions`), `actionsCommit` (`POST /api/frontend/actions/commands`), `weekChanges` (`GET /api/week/changes`), `weekAcknowledge` (`POST /api/week/changes/acknowledge`) and `operationsRead`, which here covers only the `actions` and `week-updates` domains of `GET /api/operations`. Each operation names its registry entry in `x-halo-operation`. There are 60 fixtures under `fixtures/b06/`. `test/contractsB06.test.mjs` is the conformance suite. It goes further than B05's in three ways.
+
+- **It judges answers by what the client does with them, not only by their shape.** Every real handler answer and every fixture is run through the client's own code, transcribed once in `test/helpers/frontendB06.mjs`: the runtime's status mapping and unwrap, the action adapter, My Week's load, save and reconcile decisions, and the week strip. The suite then asserts the client's state: whether My Week is ready, whether it is locked and on which operation, and which sentence it shows. For example, a 409 must clear without a lock, a 5xx on a save must lock and reconcile, and a reconciled `failed` must say "No save was applied" and reload.
+- **Every fixture is a real handler's answer.** Each fixture is the normalised body a handler produced in that file, with ids renumbered and timestamps fixed. A test fails if any fixture drifts from today's handler. After a deliberate contract change, regenerate them with `node test/contractsB06.test.mjs --write-b06-fixtures`.
+- **The routes agree with each other.** A save's receipt snapshot is the next load. A reconcile is the current snapshot plus the live unresolved list, the same list at the top level and at `snapshot` (Ruling S16). The empty household is the same bytes, `{"actions":[],"metas":{},"preferences":{},"unresolvedOperations":[]}`, on the load, a receipt and its reconcile. A drift test also holds `lib/actionRules.js` (the server's copy of the client's rules, Ruling H15) to the independent transcription on a shared corpus.
+
+Several schema constraints describe this release, not the operations for all time:
+
+- `WeekChanges.changes` has `maxItems: 0`, because no change source exists (Ruling H4).
+- `WeekAcknowledgeRefused` can only be `failed` (Ruling H19).
+- `ActionSnapshot` forbids `reminderStates`, because there is no scheduler.
+- `ActionsCommand` has no `clear` kind (Ruling H14).
+
+A 200 refusal's `message` is fixed per reason, and an `invalid_result` refusal carries the client's own sentence. The ledger stores a code (`check`, Ruling H33), which `operations.read` replays. The tasks capability is off by default, so `actions.load` and a succeeded `actions` reconcile answer the non-retryable 503 while it is off, and a save answers a 200 `failed` receipt with the disabled reason and no ledger row (Ruling H17).
+
+Run `node --test test/contractsB06.test.mjs`. Migration 0023 is applied nowhere, and the flag is on in no environment. Nothing here has run against a real Supabase project.
 
 ## B04 settings and alerts contract
 

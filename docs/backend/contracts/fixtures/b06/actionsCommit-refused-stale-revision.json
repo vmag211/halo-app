@@ -1,0 +1,16 @@
+{
+  "operationId": "actionsCommit",
+  "status": 200,
+  "body": {
+    "operationId": "0b060000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "reason": "stale_revision",
+    "message": "This task changed since you opened it. Nothing was saved. Reload My Week to see the latest version.",
+    "revisions": [
+      {
+        "id": "0b060000-0000-4000-8000-000000000002",
+        "revision": 2
+      }
+    ]
+  }
+}

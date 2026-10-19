@@ -1,0 +1,14 @@
+{
+  "operationId": "operationsRead",
+  "status": 200,
+  "body": {
+    "status": "failed",
+    "reason": "invalid_result",
+    "check": "time",
+    "unresolvedOperations": [],
+    "operationId": "0b060000-0000-4000-8000-000000000001",
+    "domain": "actions",
+    "kind": "actions.commit",
+    "created_at": "2026-10-19T12:00:00.000Z"
+  }
+}

@@ -27,8 +27,9 @@
  *     with `validActionDate` (lib/frontend/expanded-preview.ts:30-35).
  *
  * All of it is transcribed from `origin/codex/october15-review-refinement`
- * (5ac06f6) with `git show`, types stripped and nothing improved. React state
- * becomes plain fields. A transcription that always agreed would prove nothing,
+ * (5ac06f6) with `git show`, types stripped and nothing improved, once, in
+ * test/helpers/frontendB06.mjs, which test/contractsB06.test.mjs shares. React
+ * state becomes plain fields. A transcription that always agreed would prove nothing,
  * so `the transcription rejects what the client rejects` shows it refusing.
  *
  * Everything runs on the isolated harness: synthetic identities, an in-memory
@@ -42,6 +43,7 @@ import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs
 import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
+import { changeEvidenceKey, clientRuntime, messages, weekStrip } from './helpers/frontendB06.mjs';
 
 const { requestHash } = await import('@/lib/operations');
 
@@ -111,14 +113,8 @@ const weekRow = (overrides = {}) => ({
   ...overrides,
 });
 
-/**
- * U+2014, built from its code point so this file carries no em dash of its
- * own (AGENTS.md). Where the client's regular expression matches every
- * U+2014 (its unicode escape, global flag), the transcription below uses
- * `EM_DASH_ALL`, which matches the same thing.
- */
+/** U+2014, built from its code point so this file carries no em dash of its own (AGENTS.md). */
 const EM_DASH = String.fromCharCode(0x2014);
-const EM_DASH_ALL = new RegExp(EM_DASH, 'g');
 
 const assertNoEmDash = (value, label) =>
   assert.ok(!JSON.stringify(value).includes(EM_DASH), `${label}: app-facing copy uses no em dash`);
@@ -516,174 +512,9 @@ test('no server-authored string in either route has an em dash (H22, T13)', () =
 });
 
 // ---------------------------------------------------------------------------
-// The client, transcribed (origin/codex/october15-review-refinement, 5ac06f6)
+// The client, transcribed (origin/codex/october15-review-refinement, 5ac06f6),
+// one copy in test/helpers/frontendB06.mjs shared with contractsB06
 // ---------------------------------------------------------------------------
-
-/** runtime.ts:12-14 */
-class FrontendServiceError extends Error {
-  constructor(code, message, operationId, retryAfter, fields) {
-    super(message);
-    this.code = code;
-    this.operationId = operationId;
-    this.retryAfter = retryAfter;
-    this.fields = fields;
-    this.name = 'FrontendServiceError';
-  }
-}
-
-/** runtime.ts:28-32, the registry entries this surface uses. */
-const productionOperations = {
-  'operations.read': { path: '/api/operations' },
-  'week.changes': { path: '/api/week/changes' },
-  'week.acknowledge': { path: '/api/week/changes/acknowledge', method: 'POST' },
-};
-
-/** runtime.ts:91-97 */
-const messages = {
-  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
-  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
-  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
-  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
-  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
-};
-/** runtime.ts:98 */
-function serviceMessage(error) { return error instanceof FrontendServiceError ? error.message : messages.unavailable; }
-
-/**
- * `request` (runtime.ts:105-158) with the harness as `fetch`. Kept: the
- * registry lookup, the method and mutation rule (:111), the operation id
- * (:112), the query building (:125-129), the headers (:130-136), the body
- * (:138) and the whole response handling (:143-157). Left out: credentials,
- * timeouts and aborts, which a route cannot affect. `lose` drops the response
- * after the server has handled it, which is the timeout path of :118.
- */
-function clientRuntime(h, who, { homeContextId = null } = {}) {
-  return {
-    async request(operation, body, options = {}) {
-      const endpoint = productionOperations[operation];
-      const method = endpoint.method ?? 'GET', mutation = method !== 'GET';
-      const operationId = mutation ? options.idempotencyKey ?? crypto.randomUUID() : undefined;
-      let sent = false;
-      try {
-        let path = endpoint.path;
-        if (!mutation && body && typeof body === 'object') {
-          const query = new URLSearchParams();
-          for (const [key, value] of Object.entries(body)) if (value !== undefined && value !== null) query.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-          if (query.size) path += `?${query}`;
-        }
-        const headers = { Accept: 'application/json' };
-        if (homeContextId) headers['X-Halo-Home-Context'] = homeContextId;
-        if (options.expectedRevision !== undefined) headers['If-Match'] = String(options.expectedRevision);
-        if (operationId) headers['Idempotency-Key'] = operationId;
-        if (mutation) headers['Content-Type'] = 'application/json';
-        sent = true;
-        const response = await h.call(endpoint.path, method, {
-          as: who,
-          url: path,
-          headers,
-          rawBody: mutation ? JSON.stringify(body ?? {}) : undefined,
-        });
-        if (options.lose) throw new Error('response lost');
-        const json = await response.json().catch(() => null);
-        if (!response.ok) {
-          const code = response.status === 401 ? 'session' : response.status === 403 ? 'permission' : response.status === 409 || response.status === 412 ? 'conflict' : response.status === 400 || response.status === 422 ? 'validation' : response.status === 429 ? 'rate_limited' : response.status >= 500 && mutation ? 'unknown_outcome' : 'unavailable';
-          const retry = Number(response.headers.get('Retry-After')); throw new FrontendServiceError(code, messages[code], operationId, Number.isFinite(retry) && retry > 0 ? retry : undefined);
-        }
-        if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response', messages[mutation ? 'unknown_outcome' : 'invalid_response'], operationId);
-        if (Object.hasOwn(json, 'data')) {
-          const envelope = json;
-          return (envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data) && envelope.meta ? { ...envelope.data, _meta: envelope.meta } : envelope.data);
-        }
-        return json;
-      } catch (error) {
-        if (error instanceof FrontendServiceError) throw error;
-        const code = sent && mutation ? 'unknown_outcome' : 'unavailable';
-        throw new FrontendServiceError(code, messages[code], operationId);
-      }
-    },
-  };
-}
-
-/** expanded-preview.ts:30-35 */
-function validActionDate(value) {
-  if (value === '') return true;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T12:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-
-/** week-planning.ts:29 */
-const changeEvidenceKey = (change) => `${change.id}:${change.version}`;
-/** week-planning.ts:30 */
-function usableWeekChanges(changes, actions, acknowledged) { return changes.filter((change, index) => Boolean(change.id && change.id.length <= 240 && change.version && change.version.length <= 100 && change.sourceVersion) && ['date-changed', 'cancelled', 'report', 'routine', 'conditions', 'missing-origin'].includes(change.kind) && changes.findIndex(c => changeEvidenceKey(c) === changeEvidenceKey(change)) === index && actions.some(a => a.id === change.actionId && a.key === change.actionKey && a.state !== 'completed') && !acknowledged.includes(changeEvidenceKey(change))).map(change => ({ ...change, title: change.title.replace(EM_DASH_ALL, ',').slice(0, 160), summary: change.summary.replace(EM_DASH_ALL, ',').slice(0, 600), sourceLabel: change.sourceLabel.replace(EM_DASH_ALL, ',').slice(0, 100), date: change.date && validActionDate(change.date) ? change.date : '', sourceUrl: change.sourceUrl && /^https:\/\//i.test(change.sourceUrl) ? change.sourceUrl : undefined })); }
-
-/**
- * `useWeekChanges` in production (WeekUpdates.tsx:14-25) and `WeekUpdateList`'s
- * render decision (:30), as a plain object. `sourceReady` is the workspace
- * scenario check of :19; production starts it `ready` (digest 6.2).
- */
-function weekStrip(runtime, { actions = [], metas = {}, sourceReady = true } = {}) {
-  const strip = {
-    acknowledged: [], unknown: null, feedback: '', pending: false,
-    live: { data: null, loading: true, error: null },
-    retries: 0,
-
-    /** ProductionContext.tsx:14, the read `useProductionResource('week.changes',{})` makes. */
-    async load() {
-      await runtime.request('week.changes', JSON.parse(JSON.stringify({}))).then(
-        (data) => { strip.live = { data, loading: false, error: null }; },
-        (error) => { strip.live = { data: null, loading: false, error: serviceMessage(error) }; },
-      );
-      // :17, the restore effect.
-      const restored = strip.live.data?.unresolvedOperations?.[0];
-      if (typeof restored === 'string' && !strip.unknown) strip.unknown = restored;
-    },
-
-    /** :18 */
-    liveChanges() {
-      const live = strip.live;
-      return Array.isArray(live.data?.changes) ? live.data.changes.filter(change => change && change.sample === false && typeof change.id === 'string' && typeof change.version === 'string' && typeof change.title === 'string' && typeof change.summary === 'string' && typeof change.sourceLabel === 'string' && typeof change.sourceVersion === 'string' && actions.some(action => action.id === change.actionId && action.key === change.actionKey) && (!change.sourceUrl || /^https:\/\//.test(change.sourceUrl))) : [];
-    },
-
-    /** :21 (the `runtime` branch) and :25 */
-    changes() {
-      const changes = usableWeekChanges(strip.liveChanges(), actions, strip.acknowledged).filter(change => !metas[change.actionKey]?.archived);
-      return sourceReady ? changes : [];
-    },
-
-    /** :25 `statusMessage` */
-    statusMessage() { return strip.live.error; },
-
-    /** :23, the runtime branch, verbatim apart from React state. */
-    async acknowledge(change, { lose = false } = {}) {
-      if (strip.pending || !change && !strip.unknown) return;
-      strip.pending = true; const operationId = strip.unknown ?? crypto.randomUUID();
-      try {
-        const receipt = await runtime.request(strip.unknown ? 'operations.read' : 'week.acknowledge', strip.unknown ? { operationId, domain: 'week-updates' } : { operationId, id: change.id, version: change.version, actionId: change.actionId }, { idempotencyKey: operationId, lose });
-        if (receipt.operationId === operationId && ['failed', 'cancelled'].includes(receipt.status)) { strip.unknown = null; strip.feedback = 'The update was not applied. You can try again.'; return; }
-        if (receipt.operationId !== operationId || receipt.status !== 'succeeded' || !Array.isArray(receipt.acknowledged) || !receipt.acknowledged.every(key => typeof key === 'string')) { strip.unknown = operationId; strip.feedback = 'The update is not confirmed. Select Reviewed again to check its status.'; return; }
-        strip.acknowledged = receipt.acknowledged; strip.unknown = null; strip.feedback = 'Update reviewed. Your task is unchanged.'; strip.retries += 1;
-      } catch (e) { if (e instanceof FrontendServiceError && e.code === 'unknown_outcome') strip.unknown = operationId; strip.feedback = serviceMessage(e); }
-      finally { strip.pending = false; }
-    },
-
-    /** :25 `checkStatus` */
-    checkStatus() { return strip.acknowledge(); },
-
-    /**
-     * :30, what `WeekUpdateList` renders: 'nothing' (null), 'status-check'
-     * ("An update needs a status check." or the feedback, with "Check update
-     * status"), 'unavailable' ("Plan updates are unavailable." with Try
-     * again), or 'list' ("A change to review").
-     */
-    render() {
-      const changes = strip.changes();
-      if (!changes.length) return strip.unknown ? { kind: 'status-check', text: strip.feedback || 'An update needs a status check.' } : strip.statusMessage() ? { kind: 'unavailable', text: 'Plan updates are unavailable.' } : null;
-      return { kind: 'list', count: changes.length };
-    },
-  };
-  return strip;
-}
 
 /** A change the client could hold, bound to a loaded task: only used to drive the transcription. */
 const TASK = { id: ACTION, key: 'home:record-1', title: 'Retest the kitchen tap', reason: '', origin: '', date: '', state: 'saved', revision: 1 };

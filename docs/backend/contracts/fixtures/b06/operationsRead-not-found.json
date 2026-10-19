@@ -1,0 +1,12 @@
+{
+  "operationId": "operationsRead",
+  "status": 404,
+  "body": {
+    "error": "That request was not found.",
+    "code": "not_found",
+    "message": "That request was not found.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

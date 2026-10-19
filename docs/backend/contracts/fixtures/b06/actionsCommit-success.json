@@ -1,0 +1,40 @@
+{
+  "operationId": "actionsCommit",
+  "status": 200,
+  "body": {
+    "operationId": "0b060000-0000-4000-8000-000000000001",
+    "status": "succeeded",
+    "snapshot": {
+      "actions": [
+        {
+          "id": "0b060000-0000-4000-8000-000000000002",
+          "key": "personal:1",
+          "date": "2026-10-20",
+          "state": "saved",
+          "title": "Test the kitchen tap",
+          "origin": "Personal",
+          "reason": "Due this week",
+          "revision": 1
+        }
+      ],
+      "metas": {
+        "personal:1": {
+          "note": "",
+          "time": "02:30",
+          "zone": "America/New_York",
+          "paused": false,
+          "history": [],
+          "archived": false,
+          "duration": 60,
+          "reminder": false,
+          "recurrence": "none",
+          "completedOn": ""
+        }
+      },
+      "preferences": {
+        "week:focus": "Water at home"
+      },
+      "unresolvedOperations": []
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "operationId": "weekChanges",
+  "status": 200,
+  "body": {
+    "changes": [],
+    "unresolvedOperations": []
+  }
+}

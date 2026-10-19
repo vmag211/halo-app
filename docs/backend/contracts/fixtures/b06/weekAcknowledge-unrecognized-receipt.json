@@ -1,0 +1,13 @@
+{
+  "operationId": "weekAcknowledge",
+  "status": 409,
+  "body": {
+    "error": "That earlier review cannot be confirmed here. Nothing new was changed.",
+    "code": "conflict",
+    "message": "That earlier review cannot be confirmed here. Nothing new was changed.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b06-contract-0001",
+    "reason": "unrecognized_receipt"
+  }
+}
