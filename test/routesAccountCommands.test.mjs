@@ -993,7 +993,9 @@ test('an operation still running is reported as pending, so the client parks it 
   assert.equal(h.db.rows('recovery_challenges').length, 0, 'and nothing is done a second time');
 });
 
-test('an attempt that was recorded and never settled is unknown, which is not a failure', async () => {
+test('an attempt that was recorded and never settled is reaped by its own replay and answered as failed, not run again', async () => {
+  // No read of the inventory happens first: the replay meets its own stale
+  // claim and settles it, so the client is not left parking an id for ever.
   const h = harness({
     operations: [
       { operation_id: op(1), kind: 'account.request-recovery', status: 'pending', created_at: ago(10 * 60 * 1000) },
@@ -1005,8 +1007,11 @@ test('an attempt that was recorded and never settled is unknown, which is not a 
     expectedRevision: 1,
     operationId: op(1),
   })).json();
-  assert.equal(receipt.status, 'unknown');
+  assertAccountReceipt(receipt, op(1));
+  assert.equal(receipt.status, 'failed');
+  assert.equal(h.db.rows('operations')[0].status, 'failed', 'settled in the ledger, not only in the answer');
   assert.equal(h.db.rows('recovery_challenges').length, 0);
+  assert.equal(h.provider.length, 0, 'the provider was not asked again');
 });
 
 // ---------------------------------------------------------------------------

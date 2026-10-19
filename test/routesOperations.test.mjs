@@ -91,35 +91,39 @@ test('a settled operation replays the original receipt, so the client can finish
   assert.deepEqual(body.snapshot, { revision: 4 }, 'the domain payload comes through for its own validator');
 });
 
-test('a crashed operation reads as unknown, which is not failure: the effect may have applied', async () => {
+test('a crashed operation is reaped by the reconcile itself and reads as failed, with a receipt the client accepts', async () => {
+  // No inventory read happens first. A reconcile is often the only request a
+  // client makes about a parked id, so it settles the stale claim itself
+  // rather than answering 'unknown' for ever.
   const h = harness();
-  const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
-  assert.equal(body.status, 'unknown');
-  assert.equal(body.operationId, DEAD);
-  assert.ok(!('items' in body), 'an unsettled operation has no receipt to hand back');
-});
-
-test('once the inventory read reaps a crashed operation, reconciling it reads a failed receipt the client accepts', async () => {
-  const h = harness();
-  const { listUnresolvedOperations, ABANDONED_REASON } = await import('../lib/operations.js');
-  // What any surface's initial read does before it lists unresolved work.
-  assert.deepEqual(await listUnresolvedOperations(h.db, { profileId: h.identities.alice.id, domains: ['alerts'] }), []);
-
+  const { ABANDONED_REASON } = await import('../lib/operations.js');
   const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
   assert.equal(body.status, 'failed', 'settled, so the client clears it instead of parking it again');
   assert.equal(body.operationId, DEAD, 'with its own id, which every receipt validator requires');
   assert.equal(body.reason, ABANDONED_REASON);
   assert.ok(['succeeded', 'pending', 'unknown', 'failed'].includes(body.status), 'a status validSummaryReceipt accepts');
   assert.ok(!('items' in body) && !('snapshot' in body), 'and no domain payload is invented for it');
+  assert.equal(h.db.rows('operations').find((row) => row.operation_id === DEAD).status, 'failed', 'settled in the ledger');
+});
+
+test('once the inventory read has reaped a crashed operation, reconciling it reads the same failed receipt', async () => {
+  const h = harness();
+  const { listUnresolvedOperations, ABANDONED_REASON } = await import('../lib/operations.js');
+  // What any surface's initial read does before it lists unresolved work.
+  assert.deepEqual(await listUnresolvedOperations(h.db, { profileId: h.identities.alice.id, domains: ['alerts'] }), []);
+  const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
+  assert.equal(body.status, 'failed');
+  assert.equal(body.operationId, DEAD);
+  assert.equal(body.reason, ABANDONED_REASON);
 });
 
 test('a stored receipt cannot override the status computed now', async () => {
-  // The crashed row is settled in the table as 'pending'; the route must still
-  // say 'unknown' because of its age, rather than echoing the stored word.
+  // The crashed row is stored as 'pending'; the route must answer with the
+  // settled outcome computed now, never echo the stored word.
   const h = harness();
   const body = await (await read(h, 'alice', `operationId=${DEAD}&domain=alerts`)).json();
   assert.notEqual(body.status, 'pending');
-  assert.equal(body.status, 'unknown');
+  assert.equal(body.status, 'failed');
 });
 
 // ---------------------------------------------------------------------------

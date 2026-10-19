@@ -108,12 +108,6 @@ function interleaved(db, beforeReap) {
 
 test('a stale pending row is reaped to failed and no longer locks the surface', async () => {
   const db = ledger([pending(STALE)]);
-  assert.equal(
-    (await readOperation(db, { operationId: STALE, profileId: ALICE, domain: 'account' })).status,
-    'unknown',
-    'before the reap a reader is told unknown, which is the window the reaper uses',
-  );
-
   assert.deepEqual(await list(db), [], 'the abandoned id is gone from the inventory, so the lock lifts');
 
   const reaped = row(db, STALE);
@@ -298,6 +292,113 @@ test('a replay with different input after the reap is still refused as a mismatc
     ),
     /OPERATION_INPUT_MISMATCH/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// The replay and reconcile paths reap their own key
+// ---------------------------------------------------------------------------
+// Some surfaces never list the inventory (a PATCH replayed with the same
+// Idempotency-Key, Luna's clear), and a client reconciling a parked id may
+// only ever call GET /api/operations. Both meet their stale row directly.
+
+const replay = (db, operationId, input = {}) =>
+  runOperation(
+    db,
+    { operationId, profileId: ALICE, domain: 'account', kind: 'account.request-recovery', input },
+    async () => { throw new Error('a replay must never run the effect'); },
+  );
+
+test('a replay that meets its own stale row reaps it and is answered failed, with no inventory read', async () => {
+  const db = ledger([pending(STALE), pending(FRESH)]);
+  const outcome = await replay(db, STALE);
+  assert.equal(outcome.replayed, true);
+  assert.equal(outcome.status, 'failed', 'a settled outcome, not an in-flight pending one');
+  assert.deepEqual(outcome.result, { operationId: STALE, status: 'failed', reason: ABANDONED_REASON });
+  assert.equal(row(db, STALE).status, 'failed', 'settled in the ledger, not only in the answer');
+  assert.equal(row(db, FRESH).status, 'pending', 'and only its own key: a replay is not a sweep');
+});
+
+test('a reconcile that meets its own stale row reaps it and reads failed', async () => {
+  const db = ledger([pending(STALE), pending(ELSEWHERE)]);
+  const read = await readOperation(db, { operationId: STALE, profileId: ALICE, domain: 'account' });
+  assert.equal(read.status, 'failed');
+  assert.deepEqual(read.result, { operationId: STALE, status: 'failed', reason: ABANDONED_REASON });
+  assert.equal(row(db, ELSEWHERE).status, 'pending', 'another stale key of the same owner waits for its own read');
+});
+
+test('a replay or reconcile inside the window is still pending and writes nothing', async () => {
+  const db = ledger([pending(FRESH, { created_at: freshAt() })]);
+  assert.equal((await replay(db, FRESH)).status, 'pending');
+  assert.equal((await readOperation(db, { operationId: FRESH, profileId: ALICE, domain: 'account' })).status, 'pending');
+  assert.equal(row(db, FRESH).updated_at, LONG_AGO);
+  assert.equal(db.queryLog.filter((entry) => entry.operation === 'update').length, 0);
+});
+
+test('a replay with different input is refused before anything is reaped', async () => {
+  const db = ledger([pending(STALE)]);
+  await assert.rejects(replay(db, STALE, { other: 1 }), /OPERATION_INPUT_MISMATCH/);
+  assert.equal(row(db, STALE).status, 'pending', 'a mismatched caller changes nothing');
+});
+
+test("another household's replay of the same id reaps nothing and learns nothing", async () => {
+  const db = ledger([pending(STALE)]);
+  await assert.rejects(
+    runOperation(
+      db,
+      { operationId: STALE, profileId: BOB, domain: 'account', kind: 'account.request-recovery', input: {} },
+      async () => { throw new Error('must not run'); },
+    ),
+    /OPERATION_INPUT_MISMATCH/,
+  );
+  assert.equal(await readOperation(db, { operationId: STALE, profileId: BOB, domain: 'account' }), null);
+  assert.equal(row(db, STALE).status, 'pending', "alice's row is not bob's to settle");
+});
+
+test('a replay whose row settles in the gap answers with the real outcome, not the reap', async () => {
+  const base = ledger([pending(STALE)]);
+  const success = { operationId: STALE, status: 'succeeded', snapshot: { revision: 1 } };
+  const db = interleaved(base, async () => {
+    await base
+      .from('operations')
+      .update({ status: 'succeeded', result: success, updated_at: new Date().toISOString() })
+      .eq('operation_id', STALE);
+  });
+  const outcome = await replay(db, STALE);
+  assert.equal(outcome.status, 'succeeded', 'the row is read again after the reap, so the winner is what is reported');
+  assert.deepEqual(outcome.result, success);
+  assert.equal(row(base, STALE).status, 'succeeded');
+});
+
+test('a replay whose reap cannot run still answers unknown, exactly as before the reaper', async () => {
+  const base = ledger([pending(STALE)]);
+  const db = {
+    ...base,
+    from(name) {
+      const builder = base.from(name);
+      if (name !== 'operations') return builder;
+      builder.update = () => ({
+        eq() { return this; },
+        in() { return this; },
+        lt() { return this; },
+        then: (onFulfilled) =>
+          Promise.resolve({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+            .then(onFulfilled),
+      });
+      return builder;
+    },
+  };
+  const original = console.error;
+  const logged = [];
+  console.error = (...args) => { logged.push(args.join(' ')); };
+  try {
+    const outcome = await replay(db, STALE);
+    assert.equal(outcome.status, 'unknown');
+    assert.equal(outcome.result, null);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(row(base, STALE).status, 'pending');
+  assert.equal(logged.length, 1);
 });
 
 // ---------------------------------------------------------------------------

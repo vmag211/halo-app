@@ -652,12 +652,41 @@ test('the same operation id with different input is a conflict, never a wrong re
   assert.equal(h.db.rows('luna_conversations').find((row) => row.id === ALICE_CONV).revision, 5, 'nothing happened twice');
 });
 
-test('an attempt that never settled is reported as unconfirmed, and is not cleared a second time to find out', async () => {
+test('an attempt from a process that died is reaped on replay: a terminal 409, and nothing is cleared a second time', async () => {
+  // Past the ledger's staleness window, the replay reaps the claim to failed
+  // (lib/operations.js, reapIfAbandoned), so the client is given a terminal
+  // answer instead of the retryable 503 it would otherwise get for ever.
+  // PENDING A RULING: this route maps the reaped reason ('abandoned') to its
+  // catch-all 'unknown_conversation' refusal. The status is the point of this
+  // test, so the reason is deliberately not pinned here.
+  const h = harness({
+    operations: [
+      {
+        operation_id: OP,
+        profile_id: 'alice',
+        domain: 'luna',
+        kind: 'luna.clear',
+        status: 'pending',
+        request_hash: requestHash({ id: ALICE_CONV, revision: 4 }),
+        created_at: ago(10 * 60 * 1000),
+      },
+    ],
+  });
+  const response = await clearAs(h, 'alice', { id: ALICE_CONV, revision: 4 });
+  const body = await expectEnvelope(response, { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+  assert.ok(!('messages' in body), 'a failed outcome is not answered with a conversation');
+  assertNoEmDash(body, 'the reaped answer');
+  assert.equal(h.db.rows('operations').find((row) => row.operation_id === OP).status, 'failed');
+  assert.equal(h.db.rows('luna_turns').filter((row) => row.conversation_id === ALICE_CONV).length, ALICE_TURNS.length,
+    'the transcript is untouched: the earlier attempt owns this operation');
+  assert.equal(h.db.rows('luna_conversations').find((row) => row.id === ALICE_CONV).revision, 4);
+});
+
+test('an attempt still running is reported as unconfirmed, and is not cleared a second time to find out', async () => {
   const hash = requestHash({ id: ALICE_CONV, revision: 4 });
-  // A concurrent attempt still running, and one from a process that died
-  // before it settled (past the ledger's staleness window, so a reader calls
-  // it 'unknown'). Neither has a receipt, and neither may be guessed at.
-  for (const createdAt of [ago(1_000), ago(10 * 60 * 1000)]) {
+  // A concurrent attempt still inside its window has no receipt, and may not
+  // be guessed at.
+  for (const createdAt of [ago(1_000)]) {
     const h = harness({
       operations: [
         {
