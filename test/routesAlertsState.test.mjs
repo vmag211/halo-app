@@ -17,12 +17,17 @@
  * 1. Additive. GET keeps every legacy key (StageSession still reads `alerts`)
  *    beside `items` and `unresolvedOperations`, and before 0021 (or 0017) it
  *    serves the legacy keys alone, never a 503 (Ruling S10).
- * 2. Ruling S1. `unresolvedOperations` is a lock, so it is exactly the
- *    household's stored-pending `alerts` operations, stale ones included.
+ * 2. Ruling S1. `unresolvedOperations` is a lock, so it is exactly what the
+ *    ledger lists: the household's pending `alerts` operations, after its
+ *    reaper has settled abandoned ones as failed. This route filters nothing.
  * 3. Ruling S6. Reading never marks read; only `alerts.update` does.
  * 4. All or nothing. One stale or foreign row refuses the whole selection with
  *    a 409, and a foreign id is indistinguishable from a missing one.
  * 5. Idempotent through the ledger, domain `alerts`, and nothing else.
+ * 6. Honest outcomes. Nothing that can fail runs between the write and the
+ *    ledger settle, so an applied change is never recorded as failed.
+ * 7. The client's own consumption logic, transcribed at the end of this file,
+ *    driven over the real handlers.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -141,7 +146,7 @@ test('GET: the contract inbox and the legacy list are both present, and the body
   assert.deepEqual(body.unresolvedOperations, []);
   assert.deepEqual(body.items[0], {
     id: A_NEW, revision: 1, title: 'Air quality dropped', body: 'Air quality dropped to Elevated today.', category: 'Conditions',
-    date: '2026-10-14', read: false, dismissed: false, target: { tab: 'today', learn: 'air' }, kind: 'air_quality_change',
+    date: '2026-10-14', read: false, dismissed: false, target: { tab: 'today' }, kind: 'air_quality_change',
   });
   assert.equal(JSON.stringify(body).includes('BOB-ONLY'), false);
 });
@@ -163,10 +168,10 @@ test('GET: each kind the backend writes maps to its category and target, an unkn
   const body = await (await read(h)).json();
   assert.equal(validAlertSnapshot(body), true);
   assert.deepEqual(Object.fromEntries(body.items.map((item) => [item.title, [item.kind, item.category, item.target]])), {
-    air_quality_change: ['air_quality_change', 'Conditions', { tab: 'today', learn: 'air' }],
+    air_quality_change: ['air_quality_change', 'Conditions', { tab: 'today' }],
     weather_advisory: ['weather_advisory', 'Conditions', { tab: 'today' }],
     new_water_results: ['new_water_results', 'Home', { tab: 'home' }],
-    radon_season: ['radon_season', 'Home', { tab: 'home', destination: 'tests', learn: 'radon' }],
+    radon_season: ['radon_season', 'Home', { tab: 'home', destination: 'tests' }],
     season_summary: ['season_summary', 'Your week', { tab: 'plan', destination: 'recap' }],
     air_quality: ['app', 'Conditions', { tab: 'today' }],
     made_up: ['app', 'Conditions', { tab: 'today' }],
@@ -186,7 +191,7 @@ test('GET: a category and target the producer stored win over the mapping; one t
   assert.equal(validAlertSnapshot(body), true);
   assert.deepEqual(body.items.map((item) => [item.category, item.target]), [
     ['Your week', { tab: 'plan', destination: 'outdoors', learn: 'pollen' }],
-    ['Home', { tab: 'home', destination: 'tests', learn: 'radon' }],
+    ['Home', { tab: 'home', destination: 'tests' }],
   ]);
 });
 
@@ -222,7 +227,7 @@ test('the alert rules no longer write an em dash into any alert', () => {
   for (const alert of fired) assert.equal(`${alert.title} ${alert.message}`.includes('\u2014'), false, alert.message);
 });
 
-test('GET: unresolvedOperations is exactly this household\'s stored-pending alerts operations, stale ones included (Ruling S1)', async () => {
+test('GET: unresolvedOperations is exactly this household\'s pending alerts operations; a stale one is reaped to failed first, not hidden (Ruling S1)', async () => {
   const h = harness({
     operations: ({ alice, bob }) => [
       { operation_id: '0e000000-0000-4000-8000-000000000011', profile_id: alice.id, domain: 'alerts', kind: 'alerts.update', status: 'pending', created_at: ago(5_000) },
@@ -234,8 +239,14 @@ test('GET: unresolvedOperations is exactly this household\'s stored-pending aler
     ],
   });
   const body = await (await read(h)).json();
-  assert.deepEqual(body.unresolvedOperations, ['0e000000-0000-4000-8000-000000000012', '0e000000-0000-4000-8000-000000000011'], 'oldest first, the stale one too');
+  assert.deepEqual(body.unresolvedOperations, ['0e000000-0000-4000-8000-000000000011'], 'the fresh pending one, and nothing else');
   assert.equal(validAlertSnapshot(body), true);
+  // The 24-hour-old claim is not filtered out by this route: the ledger's
+  // reaper settled it as failed, so it is no longer unresolved, and a
+  // reconcile of it reads the truth.
+  assert.deepEqual([ledger(h, '0e000000-0000-4000-8000-000000000012').status, ledger(h, '0e000000-0000-4000-8000-000000000012').result],
+    ['failed', { status: 'failed', reason: 'abandoned' }]);
+  assert.equal(ledger(h, '0e000000-0000-4000-8000-000000000011').status, 'pending', 'a fresh claim is never reaped');
   assert.deepEqual((await (await read(h, 'bob')).json()).unresolvedOperations, ['0e000000-0000-4000-8000-000000000016']);
 });
 
@@ -264,13 +275,17 @@ test('GET: before 0017 (no ledger) the legacy keys are served, the contract keys
   assert.equal(h.db.queryLog.filter((q) => q.table === 'alerts').length, 2, 'the legacy list and its count, and no contract read');
 });
 
-test('GET: reading the inbox, as often as you like, marks nothing read and writes nothing (Ruling S6)', async () => {
+test('GET: reading the inbox, as often as you like, marks nothing read and writes nothing to alerts (Ruling S6)', async () => {
   const h = harness();
   const before = h.db.rows('alerts');
   for (let i = 0; i < 3; i += 1) await read(h);
   await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${OP}&domain=alerts` });
   assert.deepEqual(h.db.rows('alerts'), before);
-  assert.deepEqual(h.db.queryLog.filter((q) => q.operation !== 'select'), []);
+  assert.deepEqual(alertWrites(h), [], 'no statement but a select ever reaches alerts');
+  // The one write a read may make is the ledger's reaper, settling abandoned
+  // operations; it never touches an alert.
+  const others = h.db.queryLog.filter((q) => q.operation !== 'select' && q.table !== 'alerts');
+  assert.ok(others.every((q) => q.table === 'operations' && q.operation === 'update' && q.values.status === 'failed'), JSON.stringify(others));
 });
 
 test('GET: every statement is scoped to the caller, and ids in the query change nothing', async () => {
@@ -322,14 +337,42 @@ test('POST: dismiss and then Undo are two revision-bound changes; the dismissed 
   assert.equal(row(h, A_NEW).dismissed, false);
 });
 
-test('POST: mark all as read covers every selected row, across rows at different revisions', async () => {
+test('POST: mark all as read across rows at different revisions [A rev1, B rev3] is ONE statement, and every row lands strictly higher', async () => {
   const h = harness();
   const selection = [{ id: A_NEW, revision: 1 }, { id: A_ODD, revision: 3 }];
   const receipt = await (await update(h, change(OP, selection, { read: true }))).json();
   assert.equal(receipt.status, 'succeeded');
+  assert.equal(validAlertSnapshot(receipt), true);
   assert.equal(alertReceiptCovers(receipt, selection, { read: true }), true);
-  assert.deepEqual([row(h, A_NEW).revision, row(h, A_ODD).revision], [2, 4]);
+  assert.deepEqual([row(h, A_NEW).read, row(h, A_ODD).read], [true, true]);
+  assert.deepEqual([row(h, A_NEW).revision, row(h, A_ODD).revision], [4, 4], 'max(expected) + 1 for every row: strictly higher for each');
   assert.deepEqual([row(h, A_READ).revision, row(h, A_GONE).revision], [1, 1], 'unselected rows are untouched');
+  // All or nothing by construction: one compare-and-set statement for both
+  // revision groups, so no error can land between two of them.
+  const writes = alertWrites(h);
+  assert.equal(writes.length, 1, 'a single write statement');
+  assert.deepEqual(writes[0].values, { read: true, revision: 4 });
+});
+
+test('POST: when that one statement errors, nothing in a mixed-revision selection is applied', async (t) => {
+  muteConsoleError(t);
+  const h = harness();
+  const before = h.db.rows('alerts');
+  const realFrom = h.db.from.bind(h.db);
+  h.db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== 'alerts') return builder;
+    const real = builder.update.bind(builder);
+    builder.update = (...args) => {
+      real(...args);
+      builder.then = (resolve, reject) => Promise.resolve({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }).then(resolve, reject);
+      return builder;
+    };
+    return builder;
+  };
+  await expectEnvelope(await update(h, change(OP, [{ id: A_NEW, revision: 1 }, { id: A_ODD, revision: 3 }], { read: true })), { status: 500, code: 'internal_error' });
+  assert.deepEqual(h.db.rows('alerts'), before, 'neither row was changed');
+  assert.equal(ledger(h, OP).status, 'failed', 'and failed is the truth');
 });
 
 test('POST: a patch that changes nothing visible still advances the revision, because the receipt must prove it', async () => {
@@ -500,6 +543,134 @@ test('POST: when a write that built on this one gets in before the put-back, not
   assert.ok(logged.mock.calls.length > 0);
 });
 
+test('POST: a short row count in the one statement leaves nothing applied: each row goes back to its OWN previous value', async () => {
+  // A1 unread, A3 already read, A4 changed by another writer between the
+  // check and the write. All three at revision 1, so one group by revision
+  // would restore A3 to A1's previous value and make it unread: a row the
+  // person never asked to change.
+  const [A1, A3, A4] = [A_NEW, A_READ, A_ODD];
+  const h = harness({
+    alerts: ({ alice }) => [
+      { id: A1, profile_id: alice.id, type: 'weather_advisory', title: 'One', message: 'm', dedupe_key: '1', fired_at: '2026-10-14T13:00:00Z' },
+      { id: A3, profile_id: alice.id, type: 'weather_advisory', title: 'Three', message: 'm', dedupe_key: '3', fired_at: '2026-10-12T13:00:00Z', read: true },
+      { id: A4, profile_id: alice.id, type: 'weather_advisory', title: 'Four', message: 'm', dedupe_key: '4', fired_at: '2026-10-11T13:00:00Z' },
+    ],
+  });
+  interleave(h, { 1: (from) => from('alerts').update({ dismissed: true, revision: 2 }).eq('id', A4) });
+  const res = await update(h, change(OP, [{ id: A1, revision: 1 }, { id: A3, revision: 1 }, { id: A4, revision: 1 }], { read: false }));
+  await expectEnvelope(res, { status: 409, code: 'conflict', extraKeys: ['reason'] });
+  assert.deepEqual([row(h, A1).read, row(h, A1).revision], [false, 3], 'A1 is as it was, at a revision that only rose');
+  assert.deepEqual([row(h, A3).read, row(h, A3).revision], [true, 3], 'A3 was read before, and is read again');
+  assert.deepEqual([row(h, A4).read, row(h, A4).dismissed, row(h, A4).revision], [false, true, 2], 'the other writer\'s change stands');
+  assert.deepEqual([ledger(h, OP).status, ledger(h, OP).result.reason], ['failed', 'stale_selection']);
+});
+
+/**
+ * Makes every read that runs after the first write to alerts answer a
+ * database error, as a dropped connection would. Writes still run.
+ */
+function failReadsAfterAlertWrite(h) {
+  const realFrom = h.db.from.bind(h.db);
+  let wrote = false;
+  const refused = [];
+  h.db.from = (name) => {
+    const builder = realFrom(name);
+    const realUpdate = builder.update.bind(builder);
+    const realSelect = builder.select.bind(builder);
+    let writing = false;
+    builder.update = (...args) => { writing = true; if (name === 'alerts') wrote = true; return realUpdate(...args); };
+    builder.select = (...args) => {
+      const out = realSelect(...args);
+      if (wrote && !writing) {
+        refused.push(name);
+        builder.then = (resolve, reject) => Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } }).then(resolve, reject);
+      }
+      return out;
+    };
+    return builder;
+  };
+  return refused;
+}
+
+test('POST: nothing that can fail runs between the commit and the settle; a read that would fail there cannot record an applied change as failed', async () => {
+  const h = harness({
+    operations: ({ alice }) => [{ operation_id: OTHER_OP, profile_id: alice.id, domain: 'alerts', kind: 'alerts.update', status: 'pending', created_at: ago(1_000) }],
+  });
+  const refused = failReadsAfterAlertWrite(h);
+  const selection = [{ id: A_NEW, revision: 1 }];
+  const res = await update(h, change(OP, selection, { read: true }));
+  assert.equal(res.status, 200);
+  const receipt = await res.json();
+  assert.deepEqual(refused, [], 'no read ran after the write');
+  assert.equal(receipt.status, 'succeeded');
+  assert.equal(validAlertSnapshot(receipt), true);
+  assert.equal(alertReceiptCovers(receipt, selection, { read: true }), true);
+  assert.deepEqual(receipt.unresolvedOperations, [OTHER_OP], 'read before the write, and still not its own id');
+  assert.deepEqual([row(h, A_NEW).read, row(h, A_NEW).revision], [true, 2]);
+  assert.equal(ledger(h, OP).status, 'succeeded', 'the ledger records what happened');
+  assert.deepEqual(ledger(h, OP).result.items, receipt.items);
+});
+
+test('POST: after the compare-and-set the only statement is the ledger settle', async () => {
+  const h = harness();
+  await update(h, change(OP, [{ id: A_NEW, revision: 1 }, { id: A_ODD, revision: 3 }], { read: true }));
+  const log = h.db.queryLog;
+  const write = log.findIndex((q) => q.table === 'alerts' && q.operation === 'update');
+  assert.ok(write >= 0);
+  assert.deepEqual(log.slice(write + 1).map((q) => [q.table, q.operation, q.values?.status]), [['operations', 'update', 'succeeded']]);
+});
+
+/**
+ * Makes statements on `table` that `matches` (given the selected columns)
+ * answer a database error that is NOT a missing migration.
+ */
+function failSelect(h, table, matches, error = { code: '57014', message: 'canceling statement due to statement timeout' }) {
+  const realFrom = h.db.from.bind(h.db);
+  h.db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== table) return builder;
+    const realSelect = builder.select.bind(builder);
+    builder.select = (columns, ...rest) => {
+      const out = realSelect(columns, ...rest);
+      if (matches(columns)) builder.then = (resolve, reject) => Promise.resolve({ data: null, error }).then(resolve, reject);
+      return out;
+    };
+    return builder;
+  };
+}
+
+test('GET: a contract read that fails for any reason but a missing migration is a 500, not a quietly degraded inbox', async (t) => {
+  const logged = muteConsoleError(t);
+  const inboxFails = harness();
+  failSelect(inboxFails, 'alerts', (columns) => columns === inbox.ALERT_ITEM_COLUMNS);
+  await expectEnvelope(await read(inboxFails), { status: 500, code: 'internal_error' });
+
+  const ledgerFails = harness();
+  failSelect(ledgerFails, 'operations', () => true);
+  await expectEnvelope(await read(ledgerFails), { status: 500, code: 'internal_error' });
+  assert.ok(logged.mock.calls.length >= 2);
+});
+
+test('an alert stored with an empty title is left out of the contract inbox, so it cannot make the client discard the rest', async () => {
+  const h = harness({
+    alerts: ({ alice }) => [
+      { id: A_NEW, profile_id: alice.id, type: 'weather_advisory', title: 'Kept', message: 'm', dedupe_key: '1', fired_at: '2026-10-14T13:00:00Z' },
+      { id: A_READ, profile_id: alice.id, type: 'weather_advisory', title: '', message: 'm', dedupe_key: '2', fired_at: '2026-10-13T13:00:00Z' },
+    ],
+  });
+  const body = await (await read(h)).json();
+  assert.equal(validAlertSnapshot(body), true, 'the inbox is accepted');
+  assert.deepEqual(body.items.map((item) => item.id), [A_NEW]);
+  assert.deepEqual(body.alerts.map((a) => a.id), [A_NEW, A_READ], 'the legacy list is exactly as stored');
+  // A receipt is built the same way, so it is accepted too.
+  const receipt = await (await update(h, change(OP, [{ id: A_NEW, revision: 1 }], { read: true }))).json();
+  assert.equal(validAlertSnapshot(receipt), true);
+  assert.deepEqual(receipt.items.map((item) => item.id), [A_NEW]);
+  // The pure filter, on its own.
+  assert.deepEqual([{ title: 'x', fired_at: '2026-10-14T13:00:00Z' }, { title: '', fired_at: '2026-10-14T13:00:00Z' }, { title: null, fired_at: '2026-10-14T13:00:00Z' }, { title: 'x', fired_at: 'nope' }]
+    .map(inbox.isPresentableAlert), [true, false, false, false]);
+});
+
 // ---------------------------------------------------------------------------
 // POST: idempotency through the ledger
 // ---------------------------------------------------------------------------
@@ -535,18 +706,28 @@ test('POST: the same operation id with a different selection or patch is a 409 m
   assert.deepEqual(h.db.rows('alerts'), before);
 });
 
-test('POST: a replay of an operation still running, or that died, is pending or unknown with no inbox, and writes nothing', async () => {
+test('POST: a replay of an operation still running is pending with no inbox; one that died is reaped and a terminal 409; neither writes an alert', async () => {
   const body = change(OP, [{ id: A_NEW, revision: 1 }], { read: true });
   const hash = requestHash({ selection: body.selection, patch: body.patch });
-  for (const [createdAt, status] of [[ago(1_000), 'pending'], [ago(10 * 60_000), 'unknown']]) {
-    const h = harness({
-      operations: ({ alice }) => [{ operation_id: OP, profile_id: alice.id, domain: 'alerts', kind: 'alerts.update', status: 'pending', request_hash: hash, created_at: createdAt }],
-    });
-    const res = await update(h, body);
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { operationId: OP, status });
-    assert.deepEqual(alertWrites(h), []);
-  }
+  const seeded = (createdAt) => harness({
+    operations: ({ alice }) => [{ operation_id: OP, profile_id: alice.id, domain: 'alerts', kind: 'alerts.update', status: 'pending', request_hash: hash, created_at: createdAt }],
+  });
+
+  const running = seeded(ago(1_000));
+  const res = await update(running, body);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { operationId: OP, status: 'pending' });
+  assert.deepEqual(alertWrites(running), []);
+  assert.equal(ledger(running, OP).status, 'pending', 'a running claim is not reaped');
+
+  // Ten minutes old is past the ledger's window: the replay reaps its own key,
+  // and the answer is the abandoned refusal, not a change performed late.
+  const died = seeded(ago(10 * 60_000));
+  const envelope = await expectEnvelope(await update(died, body), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+  assert.equal(envelope.reason, 'operation_abandoned');
+  assert.deepEqual([ledger(died, OP).status, ledger(died, OP).result], ['failed', { status: 'failed', reason: 'abandoned' }]);
+  assert.deepEqual(alertWrites(died), []);
+  assert.equal(row(died, A_NEW).read, false);
 });
 
 test('POST: a replay that meets a settled failed row is a terminal 409 with the recorded reason, in both stored shapes', async () => {
@@ -709,4 +890,170 @@ test('every mapped target is one the client can route, and the mapping covers ex
     assert.equal(validAlertSnapshot({ items: [item], unresolvedOperations: [] }), true, kind);
   }
   assert.equal(inbox.MAX_SELECTION, 100);
+});
+
+// ---------------------------------------------------------------------------
+// The client's consumption logic over the real handlers
+//
+// `useProductionAlerts` (components/production/ProductionAlerts.tsx on
+// origin/codex/october15-review-refinement), transcribed: React state becomes
+// plain fields, `useProductionResource('alerts.read')` and its effect become
+// `reload()`, and `runtime.request` becomes the real route handlers plus
+// runtime.ts's status mapping (:144), its JSON check and its envelope unwrap
+// (:149-152), with its messages (:91-97). Everything else is the hook's own
+// logic, branch for branch: the four-way receipt split, the
+// `unresolvedOperations[0]` lock on read and on receipt, the pre-request
+// {id, revision} gate, Undo re-selecting the row from the receipt, and the
+// reconcile through `operations.read`. A body the validators accept but the
+// hook mishandles fails here.
+// ---------------------------------------------------------------------------
+
+const RUNTIME_MESSAGES = {
+  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
+  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
+  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
+  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
+  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
+};
+class FrontendServiceError extends Error { constructor(code) { super(RUNTIME_MESSAGES[code]); this.code = code; } }
+const serviceMessage = (error) => (error instanceof FrontendServiceError ? error.message : RUNTIME_MESSAGES.unavailable);
+
+function productionAlerts(h, as = 'alice') {
+  const sent = [];
+  async function request(operation, body, idempotencyKey) {
+    const mutation = operation === 'alerts.update';
+    sent.push(operation);
+    let response;
+    if (operation === 'alerts.read') response = await read(h, as);
+    else if (operation === 'operations.read') response = await h.call('/api/operations', 'GET', { as, url: `/api/operations?${new URLSearchParams(body)}` });
+    else response = await h.call(ROUTE, 'POST', { as, body, headers: { 'idempotency-key': idempotencyKey } });
+    const json = await response.json().catch(() => null);
+    if (!response.ok) {
+      const s = response.status;
+      throw new FrontendServiceError(s === 401 ? 'session' : s === 403 ? 'permission' : s === 409 || s === 412 ? 'conflict' : s === 400 || s === 422 ? 'validation' : s === 429 ? 'rate_limited' : s >= 500 && mutation ? 'unknown_outcome' : 'unavailable');
+    }
+    if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response');
+    if (Object.hasOwn(json, 'data')) return json.data;
+    return json;
+  }
+
+  const resource = { data: null, error: '', loading: false };
+  const state = { items: [], message: '', undo: null, pending: false, unknown: null };
+  let lock = false;
+
+  async function reload() {
+    resource.loading = true;
+    resource.error = '';
+    try { resource.data = await request('alerts.read', {}); } catch (error) { resource.data = null; resource.error = serviceMessage(error); } finally { resource.loading = false; }
+    if (resource.data) {
+      if (validAlertSnapshot(resource.data)) { state.items = resource.data.items; state.unknown = resource.data.unresolvedOperations[0] ?? null; } else state.message = 'Alerts could not be verified. Please retry.';
+    }
+  }
+  async function change(selected, patch) {
+    if (lock || state.unknown || resource.loading || resource.error || selected.length === 0) return false;
+    if (selected.some((item) => !state.items.some((current) => current.id === item.id && current.revision === item.revision))) { state.message = 'These alerts changed. Reload before trying again.'; return false; }
+    lock = true; state.pending = true; const operationId = crypto.randomUUID();
+    try {
+      const value = await request('alerts.update', { operationId, selection: selected.map(({ id, revision }) => ({ id, revision })), patch }, operationId);
+      if (value.operationId === operationId && ['failed', 'cancelled'].includes(value.status)) { state.message = 'The update was not applied.'; return false; }
+      if (value.operationId !== operationId || value.status !== 'succeeded' || !validAlertSnapshot(value) || !alertReceiptCovers(value, selected, patch)) { state.unknown = operationId; state.message = 'The update is not confirmed. Check its status.'; return false; }
+      state.items = value.items; state.unknown = value.unresolvedOperations[0] ?? null; state.message = ''; return value.items;
+    } catch (error) {
+      if (error instanceof FrontendServiceError && error.code === 'unknown_outcome') state.unknown = operationId;
+      state.message = serviceMessage(error); return false;
+    } finally { lock = false; state.pending = false; }
+  }
+  async function retry() {
+    if (!state.unknown) { state.message = ''; await reload(); return; }
+    if (lock) return;
+    lock = true; state.pending = true;
+    try {
+      const value = await request('operations.read', { operationId: state.unknown, domain: 'alerts' });
+      if (value.operationId === state.unknown && value.status === 'succeeded' && validAlertSnapshot(value)) { state.items = value.items; state.unknown = value.unresolvedOperations[0] ?? null; state.message = ''; }
+      else if (value.operationId === state.unknown && (value.status === 'failed' || value.status === 'cancelled')) { state.unknown = null; await reload(); state.message = 'The update was not applied.'; }
+      else state.message = 'The update is still being checked.';
+    } catch (error) { state.message = serviceMessage(error); } finally { lock = false; state.pending = false; }
+  }
+  return {
+    sent, reload, retry,
+    get items() { return state.items; },
+    get unread() { return state.items.filter((i) => !i.read && !i.dismissed).length; },
+    get message() { return state.message || resource.error || (state.unknown ? 'An alert update needs a status check.' : ''); },
+    get undo() { return state.undo; },
+    get unknown() { return state.unknown; },
+    item: (id) => state.items.find((i) => i.id === id),
+    read: (item) => change([item], { read: true }),
+    dismiss: async (item) => { const next = await change([item], { dismissed: true }); if (next) { state.undo = next.find((i) => i.id === item.id) ?? null; state.message = 'Alert dismissed.'; } },
+    restore: async () => { if (state.undo && await change([state.undo], { dismissed: false })) { state.undo = null; state.message = 'Alert restored.'; } },
+    all: () => change(state.items.filter((i) => !i.read && !i.dismissed), { read: true }),
+  };
+}
+
+const A_FIVE = 'a11ce000-2222-4000-8000-000000000005';
+const withFifth = (ids) => [...seedAlerts(ids), { id: A_FIVE, profile_id: ids.alice.id, type: 'weather_advisory', title: 'Heat advisory', message: 'm', dedupe_key: 'a-5', fired_at: '2026-10-10T13:00:00Z' }];
+
+test('client flow: read, mark read, dismiss, Undo and mark all across two revisions converge with the server, never locked, never told "not applied"', async () => {
+  const h = harness({ alerts: withFifth });
+  const client = productionAlerts(h);
+  const server = async () => (await (await read(h)).json()).items;
+
+  await client.reload();
+  assert.deepEqual([client.message, client.unknown, client.items.length, client.unread], ['', null, 5, 3]);
+
+  assert.ok(await client.read(client.item(A_FIVE)), 'mark as read');
+  assert.deepEqual([client.message, client.unknown, client.unread, client.item(A_FIVE).revision], ['', null, 2, 2]);
+  assert.deepEqual(client.items, await server());
+
+  await client.dismiss(client.item(A_READ));
+  assert.deepEqual([client.message, client.unknown, client.undo?.dismissed, client.undo?.revision], ['Alert dismissed.', null, true, 2]);
+  assert.ok(client.item(A_READ), 'the dismissed row stays in the inbox for Undo');
+  await client.restore();
+  assert.deepEqual([client.message, client.unknown, client.undo, row(h, A_READ).dismissed, row(h, A_READ).revision], ['Alert restored.', null, null, false, 3]);
+  assert.deepEqual(client.items, await server());
+
+  // Mark all: A_NEW at revision 1 and A_ODD at revision 3.
+  assert.deepEqual(client.items.filter((i) => !i.read && !i.dismissed).map((i) => [i.id, i.revision]), [[A_NEW, 1], [A_ODD, 3]]);
+  assert.ok(await client.all(), 'mark all as read');
+  assert.deepEqual([client.message, client.unknown, client.unread], ['', null, 0]);
+  assert.deepEqual([client.item(A_NEW).revision, client.item(A_ODD).revision], [4, 4]);
+  assert.deepEqual(client.items, await server());
+  assert.deepEqual(client.sent, ['alerts.read', 'alerts.update', 'alerts.update', 'alerts.update', 'alerts.update'], 'no reconcile was ever needed');
+});
+
+test('client flow: an empty household is an empty inbox, and "Mark all as read" sends nothing', async () => {
+  const h = harness({ alerts: () => [] });
+  const client = productionAlerts(h);
+  await client.reload();
+  assert.deepEqual([client.message, client.unknown, client.items, client.unread], ['', null, [], 0]);
+  assert.equal(await client.all(), false);
+  assert.deepEqual(client.sent, ['alerts.read'], 'no request for an empty selection');
+});
+
+test('client flow: when a read after the write would fail, the person still sees the change confirmed, not "The update was not applied."', async () => {
+  const h = harness();
+  const client = productionAlerts(h);
+  await client.reload();
+  const realFrom = h.db.from;
+  failReadsAfterAlertWrite(h);
+  assert.ok(await client.read(client.item(A_NEW)));
+  h.db.from = realFrom;
+  assert.deepEqual([client.message, client.unknown, client.item(A_NEW).read], ['', null, true]);
+  // And a reconcile, had one been needed, would say the same.
+  const [{ operation_id: operationId }] = h.db.rows('operations');
+  const status = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${operationId}&domain=alerts` })).json();
+  assert.equal(status.status, 'succeeded');
+});
+
+test('client flow: a change another tab already made is a conflict, and a reload converges', async () => {
+  const h = harness();
+  const client = productionAlerts(h);
+  const otherTab = productionAlerts(h);
+  await client.reload();
+  await otherTab.reload();
+  assert.ok(await otherTab.read(otherTab.item(A_NEW)));
+  assert.equal(await client.read(client.item(A_NEW)), false);
+  assert.deepEqual([client.message, client.unknown], [RUNTIME_MESSAGES.conflict, null]);
+  await client.retry();
+  assert.deepEqual([client.message, client.item(A_NEW).read, client.item(A_NEW).revision], ['', true, 2]);
+  assert.deepEqual(client.items, otherTab.items);
 });

@@ -9,7 +9,7 @@ import {
   runOperation,
 } from '@/lib/operations';
 import { isSettingsAlertsUnavailable, settingsAlertsUnavailable } from '@/lib/settingsAlerts';
-import { applyAlertPatch, parseAlertStateBody, readAlertItems } from '@/lib/alertsInbox';
+import { applyAlertPatch, inboxItems, parseAlertStateBody, readAlertRows } from '@/lib/alertsInbox';
 
 /**
  * POST /api/alerts/state  (`alerts.update`, B04 plan Task 2b)
@@ -141,25 +141,45 @@ async function requireAlertColumns(supabase, profileId) {
 }
 
 /**
- * The receipt body after a change that applied: the inbox as it now is, with
- * every selected row in it, and the household's unsettled `alerts` operations.
+ * Everything a succeeded receipt needs except the changed rows, read BEFORE
+ * the write: the inbox page (newest first, dismissed included) and the
+ * household's unsettled `alerts` operations.
  *
- * This operation's own ledger row is still `pending` while this runs (the
- * ledger settles it after the receipt is built, lib/operations.js), so the
- * inventory necessarily lists it. It is taken out of the receipt, and only it:
- * the receipt IS this operation's settlement, and the client parks
- * `unresolvedOperations[0]` as unknown and locks the inbox
- * (ProductionAlerts.tsx:17), so leaving it in would make every successful
- * change lock the surface, and a reconcile through GET /api/operations would
- * replay the same receipt and lock it again. Every other unsettled operation
- * stays, exactly as listUnresolvedOperations returns it (Ruling S1). If the
- * settle itself then fails, the row stays pending and the next GET lists it,
- * which is the truth.
+ * Why before. The ledger settles the operation only after `execute` returns
+ * (lib/operations.js), and anything that throws in between makes it record
+ * `failed` with no receipt. Once the compare-and-set has committed, that would
+ * be false for good: the alert IS read, while a replay answers
+ * "That change did not complete" and a reconcile tells the person "The update
+ * was not applied." So nothing that can fail runs after the write. The write
+ * returns the changed rows in full and the receipt is assembled from them and
+ * from what is read here, in memory (receiptBody). If the settle itself then
+ * fails, the row stays pending and is reaped later, which is the ledger's
+ * documented trade-off.
+ *
+ * What it costs. The page is a few milliseconds older than the write: an
+ * alert the daily job inserts in between is missing from this receipt and
+ * appears on the next read, and an unselected row another writer changed in
+ * between shows its earlier revision, so a change to it is a conflict and a
+ * reload. Neither is a false claim about this operation.
+ *
+ * This operation's own ledger row is still `pending` here, so the inventory
+ * necessarily lists it. It is taken out, and only it: the receipt IS this
+ * operation's settlement, and the client parks `unresolvedOperations[0]` as
+ * unknown and locks the inbox (ProductionAlerts.tsx:17), so leaving it in would
+ * make every successful change lock the surface, and a reconcile through
+ * GET /api/operations would replay the same receipt and lock it again. Every
+ * other unsettled operation stays, exactly as listUnresolvedOperations returns
+ * it (Ruling S1).
  */
-async function receiptBody(supabase, { profileId, operationId, selection }) {
-  const items = await readAlertItems(supabase, profileId, { include: selection.map((row) => row.id) });
+async function readReceiptContext(supabase, { profileId, operationId }) {
+  const page = await readAlertRows(supabase, profileId);
   const unresolved = await listUnresolvedOperations(supabase, { profileId, domains: ['alerts'] });
-  return { status: 'succeeded', items, unresolvedOperations: unresolved.filter((id) => id !== operationId) };
+  return { page, unresolvedOperations: unresolved.filter((id) => id !== operationId) };
+}
+
+/** The succeeded receipt, assembled in memory: it cannot fail. */
+function receiptBody({ page, unresolvedOperations }, changedRows) {
+  return { status: 'succeeded', items: inboxItems(page, changedRows), unresolvedOperations };
 }
 
 export async function POST(request) {
@@ -204,11 +224,13 @@ export async function POST(request) {
         input: { selection: [...selection].sort((a, b) => (a.id < b.id ? -1 : 1)), patch },
       },
       async () => {
+        const context = await readReceiptContext(supabaseAdmin, { profileId: userId, operationId });
         const result = await applyAlertPatch(supabaseAdmin, { profileId: userId, selection, patch });
         // Terminal, and recorded as what happened, so a replay answers the
         // same way. No inbox goes into a refusal: nothing changed.
         if (!result.ok) return { status: 'failed', reason: result.reason };
-        return receiptBody(supabaseAdmin, { profileId: userId, operationId, selection });
+        // Nothing fallible from here to the settle (readReceiptContext).
+        return receiptBody(context, result.rows);
       },
     );
 

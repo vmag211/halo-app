@@ -53,6 +53,17 @@ import { readAlertItems } from '@/lib/alertsInbox';
  * Opening an alert is not reading it (Ruling S6). This route reads; it never
  * marks anything read, and neither does anything else except an explicit
  * `alerts.update` (POST /api/alerts/state).
+ *
+ * THE LEGACY POST IS NOT REVISION-AWARE. It changes `read` and `dismissed`
+ * without advancing `alerts.revision` (0021), so it is the one writer the
+ * contract's compare-and-set cannot see: a client holding a row at revision N
+ * would still match it after this route changed it, and the put-back in
+ * POST /api/alerts/state (lib/alertsInbox.js, applyAlertPatch) could undo a
+ * change made here. It is left as it is because nothing in production calls it:
+ * its only caller is `markAlerts` (stage-api.ts:157), used only by
+ * components/stage/StageApp.tsx, which nothing imports; the daily job only
+ * inserts. It must not be revived without a compare-and-set revision bump, and
+ * it is retired together with StageApp.
  */
 const POST_MAX_BYTES = 2048;
 
