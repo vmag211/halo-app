@@ -8,7 +8,7 @@
  * incomplete-coverage warning present. No row can render "Aligned evidence" or
  * "Limited comparison".
  *
- * THE CLIENT CODE BELOW IS TRANSCRIBED, not summarised, from
+ * THE CLIENT CODE USED HERE IS TRANSCRIBED, not summarised (test/helpers/frontendB05.mjs), from
  * `origin/codex/october15-review-refinement` (read with `git show`; the files
  * are not checked out here), TypeScript to JavaScript with the types stripped
  * and nothing else changed:
@@ -39,110 +39,8 @@ import { expectEnvelope } from './helpers/envelope.mjs';
 import { airPayload } from '../lib/mapBuild.js';
 import { assembleWaterFeatures } from '../lib/mapData.js';
 import { comparisonRecords, COMPARISON_COPY } from '../lib/mapComparison.js';
-
-// ------------------------------------------------- transcribed: stage-values.ts
-
-const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
-const finite = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;
-function safeText(value, fallback = '') {
-  return typeof value === 'string' ? value.replace(/\s*\u2014\s*/g, ', ').trim() : fallback;
-}
-const rows = (value) => Array.isArray(value) ? value.filter(item => item !== null && typeof item === 'object' && !Array.isArray(item)).map(record) : [];
-function safeUrl(value) {
-  if (typeof value !== 'string') return null;
-  try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; }
-}
-function isoDate(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const date = new Date(`${value}T12:00:00Z`);
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null;
-}
-function timestamp(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
-}
-
-// -------------------------------------------------- transcribed: map-service.ts
-
-const nullable = (value) => safeText(value)||null;
-const dayOrTime = (value) => isoDate(value)??timestamp(value);
-const key = (value) => typeof value==='string' && value.trim() && value.length<=200 && !/[\u0000-\u001f]/.test(value) ? value.trim() : null;
-const required = ()=>{throw new Error('invalid_map_response');};
-
-function parseMapComparisons(value,ids){
-  if(!Array.isArray(value))return required();
-  const seen=new Set(ids);
-  return rows(value).flatMap(item=>{
-    const id=key(item.id);if(!id||!seen.has(id))return [];
-    return [{id,name:safeText(item.name,id),kind:safeText(item.kind),scope:safeText(item.scope),denominator:nullable(item.denominator),sourceVersion:nullable(item.sourceVersion),sourceName:safeText(item.sourceName,'Source not reported'),sourceUrl:safeUrl(item.sourceUrl),backgroundUrl:safeUrl(item.backgroundUrl)??'',status:['available','withdrawn'].includes(String(item.status))?item.status:'unavailable',coverage:['complete','partial'].includes(String(item.coverage))?item.coverage:'unknown',coverageLabel:safeText(item.coverageLabel,'Coverage not reported'),values:rows(item.values).map(v=>({analyte:safeText(v.analyte),value:finite(v.value),unit:safeText(v.unit),observedAt:dayOrTime(v.observedAt),period:nullable(v.period),periodLabel:safeText(v.periodLabel,'Not reported'),method:nullable(v.method),qualifier:['reported','estimated','non-detect'].includes(String(v.qualifier))?v.qualifier:'unknown'}))}];
-  });
-}
-
-// ------------------------------------- transcribed: map-preview.ts, copy subset
-
-const compounds = [ ['overall', 'Overall water'], ['pfoa', 'PFOA'], ['pfos', 'PFOS'], ['pfhxs', 'PFHxS'], ['pfna', 'PFNA'], ['genx', 'GenX'], ['hazard', 'Hazard index'] ];
-const c = {
-  matched: 'Aligned evidence', limited: 'Limited comparison', unavailable: 'Not comparable',
-  unknown: 'Not supplied',
-  dateDifference: 'Observation dates differ. Read the dates before interpreting the values.',
-  incomplete: 'Coverage is incomplete. These records do not describe all testing or all time periods.',
-  scopeWater: 'Public water system', scopeAir: 'Monitoring station',
-  waterEvidence: 'Reported water result', airEvidence: 'Hourly monitor observation',
-  reasons: {
-    same: 'Choose two different public records.', missing: 'A comparable value is missing.', status: 'A record is unavailable or withdrawn.',
-    analyte: 'The analytes or pollutants differ.', units: 'The original units differ. No conversion is assumed.',
-    period: 'The observation periods do not align.', date: 'An observation date is missing or invalid.', method: 'The methods are different or not supplied.',
-    kind: 'The evidence kinds differ.', scope: 'The geographic scopes differ.',
-    denominator: 'The comparison bases differ or are unknown.', source: 'Source versions differ or are unknown.',
-    qualifier: 'An estimated, censored or unqualified value cannot be treated as an exact measurement.',
-  },
-};
-
-// --------------------------------------- transcribed: map-comparison-preview.ts
-
-function validObservationDate(value) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) || !Number.isFinite(Date.parse(value))) return false;
-  const day = value.slice(0,10);
-  return new Date(`${day}T00:00:00Z`).toISOString().slice(0,10) === day;
-}
-
-function comparisonRows(first, second, compound) {
-  const names = first.kind === c.airEvidence ? [first.values[0]?.analyte ?? c.unknown]
-    : compound === 'overall' ? first.values.filter(value => value.unit !== 'index').map(value => value.analyte)
-      : [compound === 'hazard' ? 'Hazard index' : compounds.find(item => item[0] === compound)?.[1] ?? c.unknown];
-  return names.map(analyte => {
-    const a = first.values.find(value => value.analyte === analyte);
-    // Retain the actual second pollutant for explanation rather than substituting a missing same-pollutant value.
-    const b = second.kind === c.airEvidence ? second.values[0] : second.values.find(value => value.analyte === analyte);
-    return { analyte, first: a, second: b, ...compareEvidence(first, second, a, b) };
-  });
-}
-
-function compareEvidence(first, second, a, b) {
-  const reasons = [];
-  const warnings = [];
-  if (first.id === second.id) reasons.push(c.reasons.same);
-  if (first.status !== 'available' || second.status !== 'available') reasons.push(c.reasons.status);
-  if (!a || !b || a.value === null || b.value === null || !Number.isFinite(a.value) || !Number.isFinite(b.value)) reasons.push(c.reasons.missing);
-  if (!a?.analyte || a.analyte !== b?.analyte) reasons.push(c.reasons.analyte);
-  if (!a?.unit || a.unit !== b?.unit) reasons.push(c.reasons.units);
-  if (!a?.period || a.period !== b?.period) reasons.push(c.reasons.period);
-  if (!validObservationDate(a?.observedAt) || !validObservationDate(b?.observedAt)) reasons.push(c.reasons.date);
-  if (!a?.method || a.method !== b?.method) reasons.push(c.reasons.method);
-  if (!first.kind || first.kind !== second.kind) reasons.push(c.reasons.kind);
-  if (!first.scope || first.scope !== second.scope) reasons.push(c.reasons.scope);
-  if (!first.denominator || first.denominator !== second.denominator) reasons.push(c.reasons.denominator);
-  if (!first.sourceVersion || first.sourceVersion !== second.sourceVersion) reasons.push(c.reasons.source);
-  if (a?.qualifier !== 'reported' || b?.qualifier !== 'reported') reasons.push(c.reasons.qualifier);
-  if (a?.observedAt !== b?.observedAt) warnings.push(c.dateDifference);
-  if (first.coverage !== 'complete' || second.coverage !== 'complete') warnings.push(c.incomplete);
-  return { compatible: reasons.length === 0, reasons, warnings };
-}
-
-// ------------------------------------------ transcribed: MapComparison.tsx:64
-
-const rowLabel = (row) => row.compatible ? (row.warnings.length ? c.limited : c.matched) : c.unavailable;
+// The client code, transcribed once for every B05 suite (see the helper's header).
+import { parseMapComparisons, compounds, c, comparisonRows, compareEvidence, rowLabel } from './helpers/frontendB05.mjs';
 
 // ------------------------------------------------------------------- fixtures
 

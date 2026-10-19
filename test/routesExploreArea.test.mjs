@@ -6,11 +6,15 @@
  * The authority is the frontend on `origin/codex/october15-review-refinement`:
  *
  *   validDiscoveryArea   lib/frontend/production/explore-service.ts:8-9,67-69,
- *                        transcribed verbatim below with its helpers and
- *                        self-checked against what the client rejects.
+ *                        transcribed verbatim with its helpers (shared, in
+ *                        test/helpers/frontendB05.mjs) and self-checked
+ *                        below against what the client rejects.
  *   the client's runtime lib/frontend/production/runtime.ts:12-13,46-48,91-97,
  *                        107-159 (request, headers, status to failure code,
- *                        envelope unwrap), transcribed with the types removed.
+ *                        envelope unwrap), transcribed with the types removed;
+ *                        the blob branch (runtime.ts:139), scopeKey and the
+ *                        operations this file does not use are elided, as
+ *                        they are unreachable for these operations.
  *   the area chooser     components/expanded/ExploreDiscovery.tsx:33-36,45,60-61
  *                        (read, save, park and replay), transcribed with the
  *                        React state replaced by plain fields.
@@ -28,6 +32,8 @@ import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { auditOwnerScope } from './helpers/isolationKit.mjs';
 import { expectEnvelope, UUID } from './helpers/envelope.mjs';
+// F: explore-service.ts:8-9,66-69, transcribed once for every B05 suite (see the helper's header).
+import { validPlaces, validDiscoveryArea } from './helpers/frontendB05.mjs';
 
 const { requestHash } = await import('@/lib/operations');
 
@@ -103,13 +109,6 @@ const areaWrites = (h) => h.db.queryLog.filter((q) => q.table === 'explore_areas
 const snapshot = (h) => JSON.stringify({ areas: h.db.rows('explore_areas'), ops: h.db.rows('operations') });
 const assertNoEmDash = (value, label) =>
   assert.equal(JSON.stringify(value).includes(EM_DASH), false, `${label}: no em dash`);
-
-// ---------------------------------------------------------------- transcribed (F: explore-service.ts:8-9,67-69)
-const object = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-const text = (value, max = 10000) => typeof value === 'string' && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
-function validPlaces(value){return object(value)&&Array.isArray(value.candidates)&&value.candidates.length<=20&&value.candidates.every(place=>object(place)&&['id','place','state','label','timezone'].every(key=>text(place[key],300))&&!!place.id);}
-function validDiscoveryArea(value){return object(value)&&Number.isSafeInteger(value.revision)&&Number(value.revision)>0&&(value.place===null||validPlaces({candidates:[value.place]}))&&(value.pendingOperation===undefined||object(value.pendingOperation)&&text(value.pendingOperation.id,200)&&!!value.pendingOperation.id&&(value.pendingOperation.place===null||validPlaces({candidates:[value.pendingOperation.place]})));}
-// ----------------------------------------------------------------
 
 /** A success the client accepts: exactly `{place, revision}`, valid, bare, and never parked. */
 async function expectArea(res, expected, label) {
@@ -537,7 +536,7 @@ test('the route source has no em dash and declares maxDuration under the ledger 
 // The client's consumption logic over the real handlers
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------- transcribed (F: runtime.ts:11-13,46-48,91-97,107-159), types removed
+// ---------------------------------------------------------------- transcribed (F: runtime.ts:11-13,46-48,91-97,107-159), types removed; the blob branch (:139), scopeKey and unused operations elided (unreachable for these operations)
 class FrontendServiceError extends Error {
   constructor(code, message, operationId, retryAfter, fields) { super(message); this.code = code; this.operationId = operationId; this.retryAfter = retryAfter; this.fields = fields; this.name = 'FrontendServiceError'; }
 }
@@ -616,8 +615,10 @@ const blankArea = { place: '', state: '' };
 
 /**
  * One device's area chooser (F: ExploreDiscovery.tsx:31-61). `useHomeDraft`
- * is a persisted draft, so `drafts` survives a reload and is shared by two
- * choosers built over it; the React state of :40-43 is per chooser. The bodies
+ * keeps its drafts in in-memory session state (HomeWorkspaceSession, F:
+ * components/homeguard/HomeWorkspaceState.tsx:51), so `drafts` survives a
+ * remount of the chooser within the session, not a page reload, and is shared
+ * by two choosers built over it; the React state of :40-43 is per chooser. The bodies
  * of the read effect (:45), applyPlace (:60, the lines in the try/catch
  * verbatim) and the parked view (:61) are the client's.
  */
@@ -739,7 +740,7 @@ test('client: a lost response parks the operation, and the replay unparks it wit
   ui.editing = false;
   assert.equal(ui.parked(), true, 'the chooser shows "Check saved area"');
   assert.equal(areaRow(h).revision, 2, 'the server did apply it');
-  // A reload keeps the persisted draft, reads the new revision, and the button replays the same operation.
+  // A remount of the chooser keeps the session's draft, reads the new revision, and the button replays the same operation.
   const after = chooser(clientRuntime(h, 'alice'), drafts);
   after.editing = false;
   await after.load();

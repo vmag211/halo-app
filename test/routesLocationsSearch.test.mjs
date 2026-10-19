@@ -3,7 +3,7 @@
  * harness: synthetic identities, an in-memory database that the route must not
  * touch, and a fetch that rejects any host.
  *
- * `validPlaces` is transcribed verbatim from
+ * `validPlaces` is transcribed verbatim (test/helpers/frontendB05.mjs) from
  * `lib/frontend/production/explore-service.ts` on
  * `origin/codex/october15-review-refinement` (lines 8-9 and 67); its self-check,
  * that it rejects what the client rejects, is in test/places.test.mjs.
@@ -13,12 +13,8 @@ import assert from 'node:assert/strict';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
-
-// ---------------------------------------------------------------- transcribed (F: explore-service.ts:8-9,67)
-const object = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-const text = (value, max = 10000) => typeof value === 'string' && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
-function validPlaces(value){return object(value)&&Array.isArray(value.candidates)&&value.candidates.length<=20&&value.candidates.every(place=>object(place)&&['id','place','state','label','timezone'].every(key=>text(place[key],300))&&!!place.id);}
-// ----------------------------------------------------------------
+// F: explore-service.ts:8-9,67, transcribed once for every B05 suite (see the helper's header).
+import { validPlaces } from './helpers/frontendB05.mjs';
 
 const EM_DASH = String.fromCharCode(0x2014);
 const WAKE = { id: 'us-county:37183', place: 'Wake County', state: 'NC', label: 'Wake County, NC', timezone: 'America/New_York' };
