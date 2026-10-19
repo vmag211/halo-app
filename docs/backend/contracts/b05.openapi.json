@@ -237,8 +237,8 @@
       "get": {
         "operationId": "locationsSearch",
         "x-halo-operation": "locations.search",
-        "summary": "North Carolina counties a household can choose as its Explore area",
-        "description": "A licence-free county gazetteer (the repo's public-domain Census TIGERweb county set, B05 Ruling D4). No table is read and no provider is called. Matching ignores case, whitespace, punctuation and a trailing County or Co.; an exact name comes first; a query of two or more characters also matches the start of a name; at most 20 candidates. A city or a ZIP code finds nothing until open question 2 is decided, so \"Charlotte\" and \"28208\" are a 200 with no candidates, which the client shows as no matching area. The body cannot say \"unsupported geography\" (finding F3). Bare body (Ruling D10).",
+        "summary": "North Carolina counties, cities and towns, and ZIP codes a household can choose as its Explore area",
+        "description": "Licence-free public-domain Census gazetteers in the repo (B05 Ruling D4, widened by Task 8): the TIGERweb county set, the 2026 Gazetteer places (cities, towns, villages and census-designated places) and the 2020 ZCTAs with land in North Carolina. No table is read and no provider is called. Matching ignores case, whitespace and punctuation; a county also matches without a trailing County or Co., and after that word a place matches only its whole name. Every exact match comes before every prefix match, and within each counties come before places, each by name, so \"Wake\" is Wake County then Wake Forest. A query of two or more characters also matches the start of a name. A query of digits, optionally after ZIP, is a ZIP code: five digits are one exact ZCTA, three or four digits the ZCTAs they start, ZCTAs in numeric order. At most 20 candidates, a cap short queries such as \"Ca\" or \"282\" reach. So the chooser's examples, \"Charlotte\" and \"28208\", each answer one candidate. A non-NC state, or an unknown name or ZIP, is a 200 with no candidates, which the client shows as no matching area; the body cannot say \"unsupported geography\" (finding F3). Bare body (Ruling D10).",
         "parameters": [
           {
             "name": "query",
@@ -464,7 +464,7 @@
         "operationId": "exploreAreaSave",
         "x-halo-operation": "explore.area.save",
         "summary": "Save or clear the household's discovery area",
-        "description": "The body is exactly { place, revision }; anything else is refused. Only place.id is read: it is resolved against the county gazetteer and the gazetteer's own five fields are stored and returned (Ruling D8), so an unknown id is a 400 and a forged label never reaches the database. Idempotency is the operation ledger (domain explore, kind explore.area.save): the Idempotency-Key header is required, the precondition is checked inside the operation so a replay gets the first outcome, and the ledger input is { place, revision } as sent. Every refusal is a 409 the client maps to a conflict, which clears its parked operation; the reason says why (see the 409). A pending attempt inside the ledger's window is the one replay whose outcome is honestly unknown, the retryable 503 upstream_unavailable; settling a stale one depends on the reaper. Production enablement waits on migration 0022 being applied.",
+        "description": "The body is exactly { place, revision }; anything else is refused. Only place.id is read: it is resolved against the county, place and ZCTA gazetteers (lib/places.js placeById) and the gazetteer's own five fields are stored and returned (Ruling D8), so an unknown id is a 400 and a forged label never reaches the database. Idempotency is the operation ledger (domain explore, kind explore.area.save): the Idempotency-Key header is required, the precondition is checked inside the operation so a replay gets the first outcome, and the ledger input is { place, revision } as sent. Every refusal is a 409 the client maps to a conflict, which clears its parked operation; the reason says why (see the 409). A pending attempt inside the ledger's window is the one replay whose outcome is honestly unknown, the retryable 503 upstream_unavailable; settling a stale one depends on the reaper. Production enablement waits on migration 0022 being applied.",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -1009,11 +1009,11 @@
         }
       },
       "DiscoveryPlace": {
-        "description": "The frontend's DiscoveryPlace (explore-service.ts:66-67): five strings of at most 300 SafeText characters, id non-empty. The id pattern, the state and the timezone are statements about THIS release, which serves North Carolina counties only (Ruling D4): a city or ZIP gazetteer under open question 2 is a new contract version.",
+        "description": "The frontend's DiscoveryPlace (explore-service.ts:66-67): five strings of at most 300 SafeText characters, id non-empty. The id pattern, the state and the timezone are statements about THIS release, which serves North Carolina only (Ruling D4): its 100 counties, its Census places (cities, towns, villages and census-designated places) and its ZIP Code Tabulation Areas (B05 Task 8, open question 2 answered by Vibhav on 2026-10-19). Any other geography is a new contract version.",
         "type": "object",
         "properties": {
           "id": {
-            "description": "us-county:<GEOID>, a five-digit NC county GEOID",
+            "description": "us-county:<GEOID> (a five-digit NC county GEOID), us-place:<GEOID> (a seven-digit NC Census place GEOID) or us-zcta:<ZCTA5> (a five-digit NC ZCTA, 27xxx or 28xxx)",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SafeText"
@@ -1021,12 +1021,12 @@
               {
                 "maxLength": 300,
                 "minLength": 1,
-                "pattern": "^us-county:37[0-9]{3}$"
+                "pattern": "^(us-county:37[0-9]{3}|us-place:37[0-9]{5}|us-zcta:2[78][0-9]{3})$"
               }
             ]
           },
           "place": {
-            "description": "<Name> County",
+            "description": "<Name> County for a county, <Name> for a place (the Census name less its city, town, village or CDP word; two places of one name carry their county in parentheses), <ZCTA5> for a ZIP code",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SafeText"
@@ -1040,7 +1040,7 @@
             "const": "NC"
           },
           "label": {
-            "description": "<Name> County, NC",
+            "description": "<Name> County, NC; <Name>, NC; or ZIP <ZCTA5>, NC",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SafeText"

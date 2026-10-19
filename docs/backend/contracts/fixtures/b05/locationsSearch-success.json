@@ -9,6 +9,13 @@
         "state": "NC",
         "label": "Wake County, NC",
         "timezone": "America/New_York"
+      },
+      {
+        "id": "us-place:3770540",
+        "place": "Wake Forest",
+        "state": "NC",
+        "label": "Wake Forest, NC",
+        "timezone": "America/New_York"
       }
     ]
   }

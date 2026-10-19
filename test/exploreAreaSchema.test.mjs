@@ -220,6 +220,42 @@ test('no control character other than tab, line feed and carriage return, as the
   }
 });
 
+test('every place the gazetteers can answer, county, city or ZIP (B05 Task 8), is storable under 0022\'s own checks', async () => {
+  // placeById is the only writer of these columns (Ruling D8), so every candidate it can return
+  // must pass the place checks. A copy of the table with the same CHECK constraints (no key, so
+  // no profile per row is needed) takes all of them in one insert, which fails whole on any refusal.
+  const { allPlaces, placeById } = await import('../lib/places.js');
+  const everything = allPlaces();
+  assert.equal(everything.length, 100 + 785 + 853);
+  await db.exec('create temp table gazetteer_check (like public.explore_areas including constraints including defaults)');
+  try {
+    const copied = await db.query(
+      `select conname from pg_constraint where conrelid = 'gazetteer_check'::regclass and contype = 'c' order by conname`,
+    );
+    assert.deepEqual(copied.rows.map((row) => row.conname), [
+      'explore_areas_place_complete_check', 'explore_areas_place_control_check', 'explore_areas_place_length_check', 'explore_areas_revision_check',
+    ], 'the copy carries the four checks of 0022');
+    const column = (key) => everything.map((candidate) => placeById(candidate.id)[key]);
+    const insert = (ids, places, states, labels, zones) => db.query(
+      `insert into gazetteer_check (profile_id, place_id, place, state, label, timezone, revision)
+       select gen_random_uuid(), t.* , 2 from unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[]) as t`,
+      [ids, places, states, labels, zones],
+    );
+    await insert(column('id'), column('place'), column('state'), column('label'), column('timezone'));
+    const stored = await db.query('select count(*)::int as n, count(distinct place_id)::int as ids from gazetteer_check');
+    assert.deepEqual(stored.rows[0], { n: everything.length, ids: everything.length });
+    // The copy does refuse: one blank name among them fails the whole insert.
+    const places = column('place');
+    places[150] = ' \t';
+    await assert.rejects(
+      insert(column('id'), places, column('state'), column('label'), column('timezone')),
+      (error) => error.code === '23514' && /explore_areas_place_complete_check/.test(error.message),
+    );
+  } finally {
+    await db.exec('drop table if exists gazetteer_check');
+  }
+});
+
 // ---------------------------------------------------------------------------
 // The compare and set the library relies on (lib/exploreArea.js)
 // ---------------------------------------------------------------------------

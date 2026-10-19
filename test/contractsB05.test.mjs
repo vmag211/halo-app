@@ -509,17 +509,25 @@ test('B05 handler conformance: map.district answers a view the client parses, or
   await authOutage(harness(), 'mapDistrict');
 });
 
-test('B05 handler conformance: locations.search answers counties, and nothing for a city or a ZIP', async (t) => {
+test('B05 handler conformance: locations.search answers counties, cities and ZIP codes, each as its fixture shows', async (t) => {
   muteConsoleError(t);
   const h = harness();
-  const { body } = await call(h, 'locationsSearch', { query: `?${new URLSearchParams({ query: 'Wake', state: 'NC' })}` });
+  const fixtureBody = (name) => fixtures.find((item) => item.name === name).body;
+  const { body } = await call(h, 'locationsSearch', { query: `?${new URLSearchParams({ query: 'Wake County', state: 'NC' })}` });
   assert.deepEqual(body, { candidates: [WAKE] });
-  for (const query of ['Charlotte', '28208']) {
-    const { body: none } = await call(h, 'locationsSearch', { query: `?${new URLSearchParams({ query, state: '' })}` });
-    assert.deepEqual(none, { candidates: [] }, `${query}: open question 2`);
+  // The fixtures are the real answers to the queries they stand for, not hand-made look-alikes.
+  for (const [query, name] of [['Wake', 'locationsSearch-success.json'], ['Charlotte', 'locationsSearch-city.json'], ['28208', 'locationsSearch-zip.json'], ['Atlantis', 'locationsSearch-empty.json']]) {
+    const { body: found } = await call(h, 'locationsSearch', { query: `?${new URLSearchParams({ query, state: '' })}` });
+    assert.deepEqual(found, fixtureBody(name), `${query}: ${name}`);
   }
-  const { body: many } = await call(h, 'locationsSearch', { query: '?query=Ca' });
-  assert.ok(many.candidates.length > 1 && many.candidates.length <= 20);
+  for (const [query, state] of [['Charlotte', 'SC'], ['28208', 'Virginia'], ['29707', '']]) {
+    const { body: none } = await call(h, 'locationsSearch', { query: `?${new URLSearchParams({ query, state })}` });
+    assert.deepEqual(none, { candidates: [] }, `${query} in "${state}": not North Carolina`);
+  }
+  for (const query of ['Ca', '282']) {
+    const { body: many } = await call(h, 'locationsSearch', { query: `?query=${query}` });
+    assert.equal(many.candidates.length, 20, `${query}: the documented cap is reached and validated`);
+  }
   await call(h, 'locationsSearch', { query: '?query=', expected: 400 });
   await call(h, 'locationsSearch', { query: `?query=Wake&state=${'x'.repeat(41)}`, expected: 400 });
   await call(h, 'locationsSearch', { query: '?query=Wake', as: null, expected: 401 });
@@ -645,7 +653,7 @@ test('a locations.search candidate saved through PATCH and read through GET is t
   const h = harness();
   let { body: area } = await call(h, 'exploreAreaRead');
   let key = 100;
-  for (const query of ['Wake', 'Mecklenburg County', 'new-hanover', 'Robeson Co.']) {
+  for (const query of ['Wake', 'Mecklenburg County', 'new-hanover', 'Robeson Co.', 'Charlotte', '28208', 'Fairview (Union County)', "spivey's corner"]) {
     const { body: found } = await call(h, 'locationsSearch', { query: `?${new URLSearchParams({ query, state: 'NC' })}` });
     const candidate = found.candidates[0];
     assert.ok(candidate, `${query}: a candidate`);

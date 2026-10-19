@@ -12,7 +12,7 @@ import { placeById } from '@/lib/places';
  *
  * The household's chosen discovery area on the Explore screen (B05 plan, Task
  * 4; Rulings D5 to D10). The answer is always exactly the client's
- * `DiscoveryArea`, `{ place, revision }`, bare (D10): `place` is a county from
+ * `DiscoveryArea`, `{ place, revision }`, bare (D10): `place` is a county, city or ZIP code from
  * GET /api/locations/search or null, and `revision` is a positive integer the
  * client sends back as `If-Match` on its next save.
  *
@@ -29,7 +29,7 @@ import { placeById } from '@/lib/places';
  * area belongs to the household, so X-Halo-Home-Context is ignored (D5).
  *
  * The server canonicalizes the place (D8). Only `place.id` is read from the
- * client; it is resolved against the county gazetteer and the gazetteer's own
+ * client; it is resolved against the gazetteers (lib/places.js placeById) and their own
  * five fields are what is stored and returned. A label, a timezone or anything
  * else the client sent is never stored, and an id the gazetteer does not know is
  * a validation failure. That matters beyond tidiness: migration 0022's checks
