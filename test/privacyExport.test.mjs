@@ -1,0 +1,774 @@
+/**
+ * lib/privacyExport.js: the export document and the clear preview (B07 plan,
+ * Task 4; Rulings P5, P8, P11 and P13; Vibhav's D-P2, D-P4 and D-P5).
+ *
+ *   1. The allowlist trap (trap P-12, AC-281), by KEY and by VALUE, over the
+ *      isolation seed with every group: no credential, hash, ledger internal,
+ *      legacy exact location, provider payload, idempotency key or owner id
+ *      reaches the document, and nothing of the other household does.
+ *   2. Private text off removes every private value and excludes the
+ *      conversation, as the client does.
+ *   3. D-P5: the confirmed email with `preferences`; rounded coordinates with
+ *      `home`, a legacy six-decimal row and a numeric string included.
+ *   4. The manifest, the tolerant reads (P11), paging past PostgREST's
+ *      max_rows, the 4,000,000-byte cap, and stored text kept verbatim (C8).
+ *   5. The paging order pinned to the migrated schema's unique keys, and the
+ *      whole builder run against real Postgres (PGlite), so a column or order
+ *      name the fake would answer with a silent null fails here.
+ *   6. The clear preview.
+ */
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
+import { HALO_TABLES, OWNED_TABLES } from './helpers/tables.mjs';
+import { auditOwnerScope } from './helpers/isolationKit.mjs';
+import { withoutColumn } from './helpers/missingColumn.mjs';
+import { pgError } from './helpers/fakeTable.mjs';
+import {
+  ENDPOINT,
+  actionId,
+  entryId,
+  lunaRunId,
+  markersOf,
+  seedHouseholds,
+} from './helpers/isolationSeed.mjs';
+import { createDb } from './db/pgliteHarness.mjs';
+import { OWNED_ROW, lunaId } from './db/ownedRows.mjs';
+import {
+  CLEAR_PREVIEW_BUCKETS,
+  EXPORT_COPY,
+  EXPORT_FORMAT,
+  EXPORT_MAX_RESPONSE_BYTES,
+  EXPORT_MIME,
+  EXPORT_ORDER,
+  EXPORT_PAGE_SIZE,
+  buildClearPreview,
+  buildExportDocument,
+  clearTotal,
+  exportFileName,
+  exportPreview,
+  exportResponseBytes,
+  privacyLimitKey,
+} from '../lib/privacyExport.js';
+import {
+  EXPORT_GROUPS,
+  INVENTORY_COPY,
+  PRIVACY_INVENTORY,
+  columnsFor,
+  exportParts,
+} from '../lib/privacyInventory.js';
+
+const EM_DASH = String.fromCharCode(0x2014);
+const ALL_GROUPS = [...EXPORT_GROUPS];
+const NOW = new Date('2026-10-19T15:00:00Z');
+const CONFIRMED = '2026-10-01T12:00:00Z';
+
+/** The client's file-name rule (ProductionPrivacy.tsx:23). */
+const CLIENT_FILE_NAME = /^halo[-\w]*\.(json|csv)$/;
+
+/** Keys that must never appear anywhere in an export document (trap P-12, P2, UI-146). */
+const DENIED_KEYS = new Set([
+  'endpoint', 'p256dh', 'auth', 'request_hash', 'result', 'email_hash', 'nonce_hash', 'address', 'zip',
+  'onboard_request_id', 'details', 'dedupe_key', 'client_message_id', 'profile_id', 'match_method',
+  'backfill_state', 'backfill_from', 'backfill_to', 'home_context_id', 'new_email', 'email_change',
+  'conversation_id', 'turn_id', 'target_tab', 'target_destination', 'target_learn',
+]);
+
+const SEASON = {
+  alice: { title: 'ALICE-SEASON-TITLE', message: 'ALICE-SEASON-MESSAGE-MARKER you logged 3 days' },
+  bob: { title: 'BOB-SEASON-TITLE', message: 'BOB-SEASON-MESSAGE-MARKER you logged 9 days' },
+};
+/** A stored note carrying U+2014, which the export must keep exactly (C8). */
+const DASHED_NOTE = `ALICE-DASH-NOTE before${EM_DASH}after`;
+const ADDRESS = { alice: 'ALICE-ADDRESS-MARKER 12 Elm Street', bob: 'BOB-ADDRESS-MARKER 9 Oak Road' };
+
+const identitySpec = (overrides = {}) => ({
+  alice: { id: '00000000-0000-4000-8000-000000000001', name: 'alice', email: 'alice@example.test', emailConfirmedAt: CONFIRMED, ...overrides.alice },
+  bob: { id: '00000000-0000-4000-8000-000000000002', name: 'bob', email: 'bob@example.test', emailConfirmedAt: CONFIRMED, ...overrides.bob },
+});
+
+/**
+ * A fake service-role client over the isolation seed, with each household's
+ * season summaries, a legacy exact address, a six-decimal legacy coordinate
+ * and a note holding U+2014 added.
+ */
+function world({ adjust, identities: identityOverrides, tables = HALO_TABLES } = {}) {
+  const identities = identitySpec(identityOverrides);
+  const rows = seedHouseholds(identities, {
+    now: NOW,
+    adjust: (seeded, ids) => {
+      for (const who of ['alice', 'bob']) {
+        const id = ids[who].id;
+        seeded.alerts.push({
+          id: `${who === 'alice' ? 'a11ce000' : 'b0b00000'}-1111-4000-8000-0000000000aa`, profile_id: id, type: 'season_summary',
+          title: SEASON[who].title, message: SEASON[who].message, dedupe_key: `season_summary:fall:${who}`,
+          fired_at: '2026-10-01T10:00:00Z',
+        });
+        seeded.profiles.find((row) => row.id === id).address = ADDRESS[who];
+      }
+      const alice = seeded.profiles.find((row) => row.id === ids.alice.id);
+      alice.lat = 35.408812;
+      alice.lng = -80.579524;
+      seeded.symptom_logs.push({
+        id: entryId('alice', 50), profile_id: ids.alice.id, entry_date: '2026-10-10', band: 'household',
+        symptoms: ['ALICE-DASH-SYMPTOM'], severity: 'mild', note: DASHED_NOTE,
+      });
+      adjust?.(seeded, ids);
+    },
+  });
+  const declared = Object.fromEntries(Object.entries(tables).filter(([name]) => name in tables));
+  const seed = Object.fromEntries(Object.entries(rows).filter(([name]) => name in declared));
+  const db = createFakeSupabase({ tables: declared, seed, identities: Object.values(identities) });
+  return { db, alice: identities.alice, bob: identities.bob, rows };
+}
+
+/** Every key at any depth of a value. */
+function allKeys(value, out = new Set()) {
+  if (Array.isArray(value)) for (const item of value) allKeys(item, out);
+  else if (value && typeof value === 'object') {
+    for (const [key, inner] of Object.entries(value)) {
+      out.add(key);
+      allKeys(inner, out);
+    }
+  }
+  return out;
+}
+
+/** Every number at any depth, with the key it sits under. */
+function numbersUnder(value, keys, out = []) {
+  if (Array.isArray(value)) for (const item of value) numbersUnder(item, keys, out);
+  else if (value && typeof value === 'object') {
+    for (const [key, inner] of Object.entries(value)) {
+      if (keys.includes(key) && inner !== null) out.push(inner);
+      numbersUnder(inner, keys, out);
+    }
+  }
+  return out;
+}
+
+const decimals = (n) => (String(n).split('.')[1] ?? '').length;
+
+/** Records each select's column list on a fake, so a test can check every read is an allowlist. */
+function recordSelects(db) {
+  const realFrom = db.from;
+  const selects = [];
+  db.from = (name) => {
+    const builder = realFrom(name);
+    const realSelect = builder.select.bind(builder);
+    builder.select = (columns, options) => {
+      selects.push({ table: name, columns, head: options?.head === true });
+      return realSelect(columns, options);
+    };
+    return builder;
+  };
+  return selects;
+}
+
+const build = (db, owner, groups = ALL_GROUPS, privateText = true, extra = {}) =>
+  buildExportDocument(db, { profileId: owner.id, groups, privateText, now: NOW, ...extra });
+
+// ---------------------------------------------------------------------------
+// 1. The allowlist trap, by key and by value
+// ---------------------------------------------------------------------------
+
+test('every group with private text: no denied key anywhere in the document (trap P-12, by key)', async () => {
+  const { db, alice } = world();
+  const built = await build(db, alice);
+  assert.equal(built.tooLarge, false);
+  const keys = allKeys(built.document);
+  for (const denied of DENIED_KEYS) assert.ok(!keys.has(denied), `the export carries the key ${denied}`);
+  // The parsed file is the same document: nothing is added between them.
+  assert.deepEqual(JSON.parse(built.file.text), built.document);
+});
+
+test('every group with private text: no credential, hash, ledger, legacy location, payload or owner VALUE (trap P-12, by value)', async () => {
+  const { db, alice, rows } = world();
+  const text = (await build(db, alice)).file.text;
+  const challenge = rows.recovery_challenges.find((row) => row.profile_id === alice.id);
+  const run = rows.luna_runs.find((row) => row.profile_id === alice.id);
+  const forbidden = {
+    'push endpoint': ENDPOINT.alice,
+    'push p256dh': 'ALICE-P256DH-MARKER',
+    'push auth': 'ALICE-AUTH-MARKER',
+    'ledger request_hash': 'ALICE-REQUEST-HASH-MARKER',
+    'ledger result': 'ALICE-RECEIPT-MARKER',
+    'recovery email hash': challenge.email_hash,
+    'recovery nonce hash': challenge.nonce_hash,
+    'legacy address': ADDRESS.alice,
+    'legacy zip': '28025',
+    'onboard_request_id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'daily_scores.details': 'ALICE-POLLUTANT-MARKER',
+    'alert dedupe_key': 'alice-one',
+    'season dedupe_key': 'season_summary:fall:alice',
+    'luna client_message_id': run.client_message_id,
+    'profile_id': alice.id,
+    'home_risks (unaudited)': 'ALICE-HOME-RISK-MARKER',
+    'home_contexts.match_method': 'mapbox_geocode_arcgis_point',
+  };
+  assert.equal(run.client_message_id, lunaRunId('alice', 9));
+  for (const [what, value] of Object.entries(forbidden)) {
+    assert.ok(!text.includes(value), `the export carries ${what}`);
+  }
+  // The positive control: the search above would see a value that is there.
+  assert.ok(text.includes('ALICE-NOTE-MARKER'));
+  assert.ok(text.includes(actionId('alice', 1)), 'a task id is exported, so a person can recognise the record');
+});
+
+test('another household\'s markers never appear in the document (HO-066, BE-380)', async () => {
+  const { db, alice, bob } = world();
+  const text = (await build(db, alice)).file.text;
+  for (const marker of [...markersOf('bob', bob), SEASON.bob.title, SEASON.bob.message, ADDRESS.bob, 'bob@example.test', 'BOB-WEEK-FOCUS-MARKER']) {
+    assert.ok(!text.includes(marker), `alice's export carries bob's ${marker}`);
+  }
+  auditOwnerScope(db.queryLog, alice.id, 'export');
+});
+
+test('every read names its columns from the inventory allowlist, never `*`', async () => {
+  const { db, alice } = world();
+  const selects = recordSelects(db);
+  await build(db, alice);
+  assert.ok(selects.length >= Object.keys(EXPORT_ORDER).length);
+  for (const { table, columns, head } of selects) {
+    assert.notEqual(String(columns).trim(), '*', `${table} was read with *`);
+    const names = String(columns).split(',').map((name) => name.trim());
+    const allowed = head ? [PRIVACY_INVENTORY[table].owner] : columnsFor(table, true);
+    for (const name of names) assert.ok(allowed.includes(name), `${table}.${name} is read but not allowlisted`);
+  }
+});
+
+test('nothing but the allowlisted columns of each row is emitted, whatever extra columns a stored row holds', async () => {
+  const { db, alice } = world({
+    adjust: (seeded, ids) => {
+      // A column a future migration adds, which no allowlist names.
+      seeded.symptom_logs.find((row) => row.profile_id === ids.alice.id).secret_future_column = 'ALICE-FUTURE-COLUMN-MARKER';
+    },
+  });
+  const built = await build(db, alice);
+  assert.ok(!built.file.text.includes('ALICE-FUTURE-COLUMN-MARKER'));
+  for (const row of built.document.journal.symptom_logs) {
+    for (const key of Object.keys(row)) assert.ok(columnsFor('symptom_logs', true).includes(key), `symptom_logs.${key}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 2. Private text off
+// ---------------------------------------------------------------------------
+
+test('private text off: no symptom, note, band, Luna text, task note, focus sentence or season statement', async () => {
+  const { db, alice } = world();
+  const built = await build(db, alice, ALL_GROUPS, false);
+  const text = built.file.text;
+  for (const marker of [
+    'ALICE-COUGH-MARKER', 'ALICE-WHEEZE-MARKER', 'ALICE-NOTE-MARKER', 'ALICE-DASH-NOTE', 'ALICE-DASH-SYMPTOM',
+    'ALICE-LUNA-QUESTION-MARKER', 'ALICE-LUNA-ANSWER-MARKER', 'ALICE-LUNA-SOURCE-MARKER',
+    'ALICE-TASK-NOTE-MARKER', 'Moved to Monday', 'ALICE-WEEK-FOCUS-MARKER', SEASON.alice.message,
+  ]) {
+    assert.ok(!text.includes(marker), `private text leaked: ${marker}`);
+  }
+  const keys = allKeys(built.document);
+  for (const band of ['has_pregnant', 'has_senior', 'has_toddler', 'has_child', 'has_teen', 'has_adult', 'has_respiratory', 'possibly_illness', 'symptoms', 'note', 'history', 'body']) {
+    assert.ok(!keys.has(band), `private field ${band} present without private text`);
+  }
+  for (const row of built.document.journal.symptom_logs) assert.ok(!('severity' in row) && !('band' in row));
+  assert.deepEqual(built.document.conversation, { excluded: 'Private text was not selected.' });
+  assert.equal(built.document.conversation.excluded, INVENTORY_COPY.conversationExcluded);
+  // Base fields stay: the season summary's title and date, the task's planning details.
+  assert.ok(text.includes(SEASON.alice.title));
+  const task = built.document.tasks.household_actions[0];
+  assert.equal(task.title, 'ALICE-TASK-TITLE-MARKER');
+  assert.deepEqual(Object.keys(task.meta).sort(), ['archived', 'completedOn', 'duration', 'paused', 'recurrence', 'reminder', 'time', 'zone']);
+  // What was left out whole, and why.
+  const omitted = built.document.manifest.omitted.map((item) => item.table);
+  for (const table of ['household_bands', 'luna_conversations', 'luna_turns', 'luna_runs']) assert.ok(omitted.includes(table), table);
+});
+
+test('private text on: the private values are there, exactly as stored', async () => {
+  const { db, alice } = world();
+  const built = await build(db, alice, ALL_GROUPS, true);
+  const bands = built.document.home.household_bands[0];
+  assert.equal(bands.has_pregnant, true);
+  assert.ok(built.document.conversation.luna_turns.some((turn) => turn.body === 'ALICE-LUNA-QUESTION-MARKER'));
+  assert.ok(built.document.journal.alerts.some((alert) => alert.message === SEASON.alice.message));
+  assert.equal(built.document.tasks.household_actions[0].meta.note, 'ALICE-TASK-NOTE-MARKER');
+  assert.ok(built.document.tasks.household_action_preferences.some((pref) => pref.value === 'ALICE-WEEK-FOCUS-MARKER'));
+});
+
+// ---------------------------------------------------------------------------
+// 3. D-P5: the email and the rounded location
+// ---------------------------------------------------------------------------
+
+test('D-P5: with preferences, the household\'s own confirmed email is exported; without it, no email is read', async () => {
+  const { db, alice } = world();
+  const withPrefs = await build(db, alice, ['preferences'], false);
+  assert.deepEqual(withPrefs.document.preferences['auth.users'], [{ email: 'alice@example.test' }]);
+  assert.equal(withPrefs.document.manifest.counts.preferences['auth.users'], 1);
+  const without = await build(db, alice, ['home', 'tasks'], true);
+  assert.ok(!without.file.text.includes('alice@example.test'));
+});
+
+test('D-P5: an anonymous login, an unconfirmed address and a pending change export no address', async () => {
+  const anonymous = world({ identities: { alice: { email: null, emailConfirmedAt: null, isAnonymous: true } } });
+  assert.deepEqual((await build(anonymous.db, anonymous.alice, ['preferences'], true)).document.preferences['auth.users'], [{ email: null }]);
+  const unconfirmed = world({ identities: { alice: { emailConfirmedAt: null } } });
+  assert.deepEqual((await build(unconfirmed.db, unconfirmed.alice, ['preferences'], true)).document.preferences['auth.users'], [{ email: null }]);
+  const pending = world({ identities: { alice: { newEmail: 'alice-new@example.test', emailChangeSentAt: CONFIRMED } } });
+  const text = (await build(pending.db, pending.alice, ['preferences'], true)).file.text;
+  assert.ok(text.includes('alice@example.test'));
+  assert.ok(!text.includes('alice-new@example.test'), 'a pending address change is not exported (Open question 11)');
+});
+
+test('D-P5: with home, every coordinate has at most 3 decimals, a legacy six-decimal row and a numeric string included', async () => {
+  const { db, alice } = world({
+    adjust: (seeded, ids) => {
+      const context = seeded.home_contexts.find((row) => row.profile_id === ids.alice.id);
+      context.lat = '35.408812';
+      context.lng = -80.5795249;
+    },
+  });
+  const built = await build(db, alice, ['home'], false);
+  const coordinates = numbersUnder(built.document, ['lat', 'lng']);
+  assert.ok(coordinates.length >= 4);
+  for (const value of coordinates) {
+    assert.equal(typeof value, 'number');
+    assert.ok(decimals(value) <= 3, `${value} has more than 3 decimals`);
+  }
+  assert.equal(built.document.home.profiles[0].lat, 35.409);
+  assert.equal(built.document.home.profiles[0].lng, -80.58);
+  assert.equal(built.document.home.home_contexts[0].lat, 35.409);
+  assert.ok(!built.file.text.includes('35.408812') && !built.file.text.includes('80.579524'));
+  assert.equal(built.document.exactLocation, 'excluded');
+});
+
+// ---------------------------------------------------------------------------
+// 4. The document, the manifest and the tolerant reads
+// ---------------------------------------------------------------------------
+
+test('the header, the file and the manifest: every selected table counted, home_risks warned, exclusions named', async () => {
+  const { db, alice, rows } = world();
+  const built = await build(db, alice);
+  const { document, file } = built;
+  assert.equal(document.format, EXPORT_FORMAT);
+  assert.equal(document.generatedAt, NOW.toISOString());
+  assert.equal(document.scope, 'export');
+  assert.deepEqual(document.groups, ALL_GROUPS);
+  assert.equal(document.privateText, true);
+  assert.equal(document.manifest.schemaVersion, 1);
+  assert.ok(!('origin' in document) && !('authoritative' in document), 'never the wireframe header');
+  assert.equal(file.mime, EXPORT_MIME);
+  assert.equal(file.mime, 'application/json');
+  assert.match(file.name, CLIENT_FILE_NAME);
+  assert.equal(file.name, 'halo-export-2026-10-19.json');
+  assert.equal(file.text, JSON.stringify(document, null, 2));
+
+  const own = (table) => rows[table].filter((row) => row[PRIVACY_INVENTORY[table].owner] === alice.id);
+  const { counts } = document.manifest;
+  assert.deepEqual(counts.journal, {
+    alerts: own('alerts').filter((row) => row.type === 'season_summary').length,
+    symptom_logs: own('symptom_logs').length,
+  });
+  assert.equal(counts.home.daily_scores, own('daily_scores').length);
+  assert.equal(counts.home.alerts, own('alerts').filter((row) => row.type !== 'season_summary').length);
+  assert.equal(counts.home.home_risks, 1);
+  assert.equal(counts.preferences.push_subscriptions, 1);
+  assert.equal(document.preferences.deviceDelivery, 1);
+  assert.deepEqual(document.home.home_risks, { count: 1 });
+  assert.equal(counts.conversation.luna_turns, 2);
+  // Every table of every selected group is named.
+  for (const part of exportParts(ALL_GROUPS, true)) {
+    assert.ok(Number.isSafeInteger(counts[part.group][part.table]), `${part.group}.${part.table} is not counted`);
+  }
+  assert.ok(document.manifest.warnings.includes(INVENTORY_COPY.homeRisksWarning));
+  assert.ok(document.manifest.warnings.includes(EXPORT_COPY.weekJournalNotExported));
+  const omitted = Object.fromEntries(document.manifest.omitted.map((item) => [item.table, item.reason]));
+  for (const table of ['operations', 'recovery_challenges', 'household_action_state']) {
+    assert.equal(omitted[table], PRIVACY_INVENTORY[table].export.excluded);
+  }
+  const sum = Object.values(counts).flatMap((tables) => Object.values(tables)).reduce((a, b) => a + b, 0);
+  assert.equal(built.total, sum);
+  assert.equal(built.bytes, exportResponseBytes(file));
+  assert.deepEqual(exportPreview(built), { manifest: document.manifest, fields: built.fields });
+  assert.deepEqual(built.fields.journal.symptom_logs, columnsFor('symptom_logs', true));
+  assert.deepEqual(built.fields.preferences.deviceDelivery, ['count']);
+});
+
+test('only the selected groups are read and written, in the client\'s group order', async () => {
+  const { db, alice } = world();
+  const built = await build(db, alice, ['preferences', 'tasks'], false);
+  assert.deepEqual(built.document.groups, ['tasks', 'preferences']);
+  for (const group of ['home', 'explore', 'journal', 'conversation']) assert.ok(!(group in built.document), group);
+  const read = new Set(db.queryLog.map((query) => query.table));
+  for (const table of ['symptom_logs', 'daily_scores', 'luna_turns', 'home_contexts']) assert.ok(!read.has(table), `${table} was read`);
+});
+
+test('a stored note holding U+2014 survives into the file unchanged; no server sentence has one (C8, AC-012)', async () => {
+  const { db, alice } = world();
+  const built = await build(db, alice, ['journal'], true);
+  assert.ok(built.document.journal.symptom_logs.some((row) => row.note === DASHED_NOTE));
+  assert.ok(built.file.text.includes(DASHED_NOTE));
+  const server = JSON.stringify([built.document.manifest, EXPORT_COPY.missingTable('x'), EXPORT_COPY.missingColumn('x', 'y'),
+    ...Object.values(EXPORT_COPY).filter((value) => typeof value === 'string'),
+    buildClearPreview({ scope: 'all', counts: { profiles: 1 } }), buildClearPreview({ scope: 'journal', counts: {} })]);
+  assert.ok(!server.includes(EM_DASH));
+});
+
+test('a table this deployment lacks is zero rows with a not-stored warning, not a failure (P11, PGRST205)', async () => {
+  const tables = Object.fromEntries(Object.entries(HALO_TABLES).filter(([name]) => name !== 'explore_areas'));
+  const { db, alice } = world({ tables });
+  const built = await build(db, alice);
+  assert.equal(built.tooLarge, false);
+  assert.deepEqual(built.document.explore.explore_areas, []);
+  assert.equal(built.document.manifest.counts.explore.explore_areas, 0);
+  assert.ok(built.document.manifest.warnings.includes('explore_areas is not stored on this deployment yet, so it is counted as zero.'));
+});
+
+test('a missing table answered the Postgres way (42P01), and a missing counted table, are zero with a warning', async () => {
+  const { db, alice } = world();
+  const realFrom = db.from;
+  db.from = (name) => {
+    if (name !== 'luna_runs' && name !== 'push_subscriptions') return realFrom(name);
+    const answer = { data: null, count: null, error: pgError('42P01', `relation "public.${name}" does not exist`) };
+    const failing = { then: (resolve, reject) => Promise.resolve(answer).then(resolve, reject) };
+    for (const method of ['select', 'eq', 'neq', 'in', 'order', 'range']) failing[method] = () => failing;
+    return failing;
+  };
+  const built = await build(db, alice);
+  assert.deepEqual(built.document.conversation.luna_runs, []);
+  assert.equal(built.document.preferences.deviceDelivery, 0);
+  assert.ok(built.document.manifest.warnings.includes(EXPORT_COPY.missingTable('luna_runs')));
+  assert.ok(built.document.manifest.warnings.includes(EXPORT_COPY.missingTable('push_subscriptions')));
+});
+
+for (const code of ['42703', 'PGRST204']) {
+  test(`a missing optional column (profiles.tenure, ${code}) is left out with a warning; the rest of the row stays`, async (t) => {
+    t.mock.method(console, 'warn', () => {});
+    const { db, alice } = world();
+    const failed = withoutColumn(db, 'profiles', 'tenure', code);
+    const built = await build(db, alice, ['home', 'preferences'], false);
+    assert.ok(failed.length >= 1);
+    const profile = built.document.home.profiles[0];
+    assert.ok(!('tenure' in profile));
+    assert.equal(profile.county, 'Cabarrus County');
+    assert.equal(profile.lat, 35.409);
+    assert.ok(built.document.manifest.warnings.includes('profiles.tenure is not stored on this deployment yet, so it is left out.'));
+    assert.ok(!built.fields.home.profiles.includes('tenure'));
+    // The warn names the schema, never a value.
+    for (const call of console.warn.mock.calls) assert.ok(!JSON.stringify(call.arguments).includes(alice.id));
+  });
+}
+
+test('a missing column that is not optional is a failure, not a quietly smaller export (P11)', async () => {
+  const { db, alice } = world();
+  withoutColumn(db, 'profiles', 'county', '42703');
+  await assert.rejects(build(db, alice, ['home'], false), (error) => error.code === '42703');
+});
+
+test('any other read error fails the build: a count has no "unknown" value (P11)', async () => {
+  const { db, alice } = world();
+  const realFrom = db.from;
+  db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== 'symptom_logs') return builder;
+    builder.range = () => ({ then: (resolve) => resolve({ data: null, count: null, error: pgError('57014', 'canceling statement due to statement timeout') }) });
+    return builder;
+  };
+  await assert.rejects(build(db, alice, ['journal'], true), (error) => error.code === '57014');
+});
+
+test('a failed read of the login fails the build (the provider is down)', async () => {
+  const { db, alice } = world();
+  db.auth.admin.getUserById = async () => ({ data: { user: null }, error: { status: 503, message: 'fetch failed' } });
+  await assert.rejects(build(db, alice, ['preferences'], false));
+});
+
+// ---------------------------------------------------------------------------
+// Paging and the size cap
+// ---------------------------------------------------------------------------
+
+function manyReadings(n) {
+  return (seeded, ids) => {
+    seeded.daily_scores = seeded.daily_scores.filter((row) => row.profile_id !== ids.alice.id);
+    const start = Date.UTC(2019, 0, 1);
+    for (let i = 0; i < n; i += 1) {
+      seeded.daily_scores.push({
+        id: `a11ce000-9999-4000-8000-${i.toString(16).padStart(12, '0')}`,
+        profile_id: ids.alice.id,
+        date: new Date(start + i * 86_400_000).toISOString().slice(0, 10),
+        score: i % 100, aqi: 40, created_at: '2026-01-01T00:00:00Z',
+      });
+    }
+  };
+}
+
+for (const maxRows of [Infinity, 1000, 400]) {
+  test(`a 2,500-reading household exports all 2,500, in date order (PostgREST max_rows ${maxRows})`, async () => {
+    const { db, alice } = world({ adjust: manyReadings(2500) });
+    db.setMaxRows(maxRows);
+    const built = await build(db, alice, ['home'], false);
+    const readings = built.document.home.daily_scores;
+    assert.equal(readings.length, 2500);
+    assert.equal(built.document.manifest.counts.home.daily_scores, 2500);
+    assert.equal(new Set(readings.map((row) => row.date)).size, 2500);
+    assert.deepEqual(readings.map((row) => row.date), [...readings.map((row) => row.date)].sort());
+    const pages = db.queryLog.filter((query) => query.table === 'daily_scores').length;
+    assert.equal(pages, Math.ceil(2500 / Math.min(maxRows, EXPORT_PAGE_SIZE)));
+  });
+}
+
+test('an oversize Luna history is tooLarge, with no document, and reading stops early', async () => {
+  const big = 'x'.repeat(200_000);
+  const { db, alice } = world({
+    adjust: (seeded, ids) => {
+      for (let n = 0; n < 30; n += 1) {
+        seeded.luna_turns.push({
+          id: `a11ce000-6666-4000-8000-${(100 + n).toString(16).padStart(12, '0')}`, conversation_id: seeded.luna_conversations[0].id,
+          profile_id: ids.alice.id, seq: 100 + n, role: 'user', body: big, created_at: '2026-10-01T00:00:00Z',
+        });
+      }
+    },
+  });
+  const built = await build(db, alice);
+  assert.equal(built.tooLarge, true);
+  assert.equal(built.document, null);
+  assert.equal(built.file, null);
+  // The table read after the oversize one never was.
+  assert.ok(!db.queryLog.some((query) => query.table === 'luna_runs'));
+});
+
+test('the cap is on the serialized receipt, escaping included: rows under the cap whose file is over it are tooLarge', async () => {
+  // Quotes double when the row is serialized and double again inside the receipt.
+  const quotes = '"'.repeat(1_200_000);
+  const { db, alice } = world({
+    adjust: (seeded, ids) => {
+      seeded.symptom_logs.push({ id: entryId('alice', 60), profile_id: ids.alice.id, entry_date: '2026-10-11', note: quotes });
+    },
+  });
+  const built = await build(db, alice, ['journal'], true);
+  assert.equal(built.tooLarge, true);
+  assert.ok(built.bytes > EXPORT_MAX_RESPONSE_BYTES);
+  // And just under: the same note at a quarter of the length fits.
+  const small = world({
+    adjust: (seeded, ids) => {
+      seeded.symptom_logs.push({ id: entryId('alice', 60), profile_id: ids.alice.id, entry_date: '2026-10-11', note: '"'.repeat(300_000) });
+    },
+  });
+  const fits = await build(small.db, small.alice, ['journal'], true);
+  assert.equal(fits.tooLarge, false);
+  assert.ok(fits.bytes <= EXPORT_MAX_RESPONSE_BYTES);
+  assert.ok(fits.file.text.length <= 10 * 1024 * 1024, 'and far under the client\'s own limit');
+});
+
+test('exportFileName is the household\'s local date and passes the client\'s rule', () => {
+  assert.equal(exportFileName(new Date('2026-10-20T02:00:00Z')), 'halo-export-2026-10-19.json');
+  assert.equal(exportFileName(new Date('2026-10-20T02:00:00Z'), 'UTC'), 'halo-export-2026-10-20.json');
+  assert.match(exportFileName(NOW), CLIENT_FILE_NAME);
+  assert.equal(privacyLimitKey('abc'), 'privacy:abc');
+});
+
+test('the builder refuses a selection that is not a valid export (no groups, an unknown group, a non-boolean)', async () => {
+  const { db, alice } = world();
+  await assert.rejects(build(db, alice, [], true));
+  await assert.rejects(build(db, alice, ['home', 'home'], true));
+  await assert.rejects(build(db, alice, ['everything'], true));
+  await assert.rejects(build(db, alice, ['home'], 'yes'));
+  await assert.rejects(buildExportDocument(db, { groups: ['home'], privateText: true }));
+});
+
+// ---------------------------------------------------------------------------
+// 5. The paging order against the schema, and the builder on real Postgres
+// ---------------------------------------------------------------------------
+
+let pg;
+before(async () => {
+  pg = await createDb();
+});
+after(async () => {
+  await pg?.close();
+});
+
+test('every table the export pages has an order, and the order ends in a unique key of the migrated schema', async () => {
+  const paged = new Set(exportParts(ALL_GROUPS, true)
+    .filter((part) => !part.countAs && !part.countOnly && part.table !== 'auth.users')
+    .map((part) => part.table));
+  assert.deepEqual([...paged].sort(), Object.keys(EXPORT_ORDER).sort());
+  const { rows } = await pg.query(`
+    select c.relname as table_name, array_agg(a.attname::text order by a.attname) as columns
+      from pg_index i
+      join pg_class c on c.oid = i.indrelid
+      join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+      join pg_attribute a on a.attrelid = c.oid and a.attnum = any(i.indkey)
+     where i.indisunique and i.indpred is null
+     group by c.relname, i.indexrelid`);
+  for (const [table, order] of Object.entries(EXPORT_ORDER)) {
+    const owner = PRIVACY_INVENTORY[table].owner;
+    const scope = new Set([...order, owner]);
+    const unique = rows.filter((row) => row.table_name === table).some((row) => row.columns.every((column) => scope.has(column)));
+    assert.ok(unique, `${table}: ordering by ${order.join(', ')} within one household is not a unique order`);
+    const { rows: columns } = await pg.query(
+      `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`, [table]);
+    for (const column of order) assert.ok(columns.some((row) => row.column_name === column), `${table}.${column} does not exist`);
+  }
+});
+
+/**
+ * The few query builder calls the export makes, run on PGlite as the service
+ * role, answering as PostgREST does (rows through json_build_object, a
+ * Postgres error as {code, message}). Anything else throws.
+ */
+function pgliteClient(db, { email = 'owner@example.test' } = {}) {
+  const ident = (name) => {
+    const trimmed = String(name).trim();
+    assert.match(trimmed, /^[a-z_][a-z0-9_]*$/);
+    return `"${trimmed}"`;
+  };
+  return {
+    from(table) {
+      const state = { columns: null, head: false, count: null, where: [], params: [], orders: [], offset: 0, limit: null };
+      const add = (sql, value) => { state.params.push(value); state.where.push(sql.replace('?', `$${state.params.length}`)); return builder; };
+      const builder = {
+        select(columns, { count = null, head = false } = {}) {
+          state.columns = String(columns).split(',').map(ident);
+          state.count = count;
+          state.head = head;
+          return builder;
+        },
+        eq: (column, value) => add(`${ident(column)} = ?`, value),
+        neq: (column, value) => add(`${ident(column)} <> ?`, value),
+        in: (column, values) => add(`${ident(column)} = any(?)`, values),
+        order(column, { ascending = true } = {}) { state.orders.push(`${ident(column)} ${ascending ? 'asc' : 'desc'}`); return builder; },
+        range(from, to) { state.offset = from; state.limit = to - from + 1; return builder; },
+        then(resolve, reject) { return run().then(resolve, reject); },
+      };
+      async function run() {
+        const where = state.where.length ? ` where ${state.where.join(' and ')}` : '';
+        try {
+          return await db.asService(async (tx) => {
+            const count = state.count === 'exact'
+              ? (await tx.query(`select count(*)::int as n from public.${ident(table)}${where}`, state.params)).rows[0].n
+              : null;
+            if (state.head) return { data: null, count, error: null };
+            const fields = state.columns.map((column) => `'${column.slice(1, -1)}', ${column}`).join(', ');
+            const order = state.orders.length ? ` order by ${state.orders.join(', ')}` : '';
+            const page = state.limit === null ? '' : ` limit ${state.limit} offset ${state.offset}`;
+            const { rows } = await tx.query(`select json_build_object(${fields}) as row from public.${ident(table)}${where}${order}${page}`, state.params);
+            return { data: rows.map((row) => row.row), count, error: null };
+          });
+        } catch (error) {
+          return { data: null, count: null, error: { code: error.code ?? null, message: error.message } };
+        }
+      }
+      return builder;
+    },
+    auth: { admin: { getUserById: async (id) => ({ data: { user: { id, email, email_confirmed_at: CONFIRMED } }, error: null }) } },
+  };
+}
+
+/** What the Postgres run seeds per household, parents before children: [table, the `n` of each row]. */
+const SEED_PLAN = [
+  ['home_contexts', [0, 1]],
+  ['luna_conversations', [0]],
+  ['luna_turns', [0, 1]],
+  ['luna_runs', [0]],
+  ['daily_scores', [0, 1]],
+  ['home_risks', [0]],
+  ['household_bands', [0]],
+  ['symptom_logs', [0, 1]],
+  ['alerts', [0, 1]],
+  ['notification_prefs', [0]],
+  ['push_subscriptions', [0, 1]],
+  ['profile_preferences', [0]],
+  ['explore_areas', [0]],
+  ['household_actions', [0, 1]],
+  ['household_action_preferences', [0, 1]],
+];
+
+test('on real Postgres: every allowlisted column, filter and order runs, and every seeded row of the household is exported', async () => {
+  const owner = 'e1000000-0000-4000-8000-0000000000e1';
+  const other = 'e2000000-0000-4000-8000-0000000000e2';
+  await pg.exec(`insert into auth.users (id, is_anonymous) values ('${owner}', false), ('${other}', false) on conflict do nothing`);
+  const insert = async (table, row) => {
+    const columns = Object.keys(row);
+    const values = Object.values(row).map((value) => (value && typeof value === 'object' && !Array.isArray(value) ? JSON.stringify(value) : value));
+    await pg.asService((tx) => tx.query(
+      `insert into public."${table}" (${columns.map((c) => `"${c}"`).join(', ')}) values (${columns.map((_, at) => `$${at + 1}`).join(', ')})`,
+      values,
+    ), { commit: true });
+  };
+  for (const who of [owner, other]) {
+    await pg.asService((tx) => tx.query(`update public.profiles set lat = 35.408812, lng = -80.579524, county = 'Test County', tenure = 'owner' where id = $1`, [who]), { commit: true });
+    // Parents first (0016, 0020 foreign keys); two rows where a table holds many, one where it holds one.
+    for (const [table, ns] of SEED_PLAN) {
+      for (const n of ns) {
+        const row = OWNED_ROW[table](who, n);
+        if (table === 'alerts' && n === 1) row.type = 'season_summary';
+        if (table === 'luna_runs') Object.assign(row, { status: 'completed', settled_at: '2026-09-10T00:00:00Z' });
+        await insert(table, row);
+      }
+    }
+  }
+  // Every exported owned table is seeded, so no part is checked against an empty table.
+  const seeded = new Set(SEED_PLAN.map(([table]) => table));
+  for (const table of Object.keys(OWNED_TABLES)) {
+    if (PRIVACY_INVENTORY[table].export.excluded || table === 'profiles') continue;
+    assert.ok(seeded.has(table), `${table} is not seeded`);
+  }
+  assert.equal(lunaId(owner, 'c0de').length, 36);
+
+  const built = await buildExportDocument(pgliteClient(pg), { profileId: owner, groups: ALL_GROUPS, privateText: true, now: NOW });
+  assert.equal(built.tooLarge, false);
+  assert.deepEqual(built.document.manifest.warnings.filter((line) => line.includes('not stored on this deployment')), []);
+  const counted = async (table, extra = '') => (await pg.query(`select count(*)::int as n from public."${table}" where ${PRIVACY_INVENTORY[table].owner} = $1${extra}`, [owner])).rows[0].n;
+  const { counts } = built.document.manifest;
+  assert.equal(counts.home.daily_scores, await counted('daily_scores'));
+  assert.equal(counts.journal.symptom_logs, await counted('symptom_logs'));
+  assert.equal(counts.journal.alerts, await counted('alerts', ` and type = 'season_summary'`));
+  assert.equal(counts.home.alerts, await counted('alerts', ` and type <> 'season_summary'`));
+  assert.equal(counts.conversation.luna_turns, await counted('luna_turns'));
+  assert.equal(counts.tasks.household_actions, await counted('household_actions'));
+  assert.equal(counts.tasks.household_action_preferences, await counted('household_action_preferences'));
+  assert.equal(counts.preferences.push_subscriptions, await counted('push_subscriptions'));
+  assert.ok(counts.home.daily_scores >= 2 && counts.tasks.household_action_preferences === 2);
+  assert.equal(built.document.home.profiles[0].lat, 35.409);
+  assert.equal(built.document.home.profiles[0].tenure, 'owner');
+  const keys = allKeys(built.document);
+  for (const denied of DENIED_KEYS) assert.ok(!keys.has(denied), denied);
+  assert.ok(!built.file.text.includes(other) && !built.file.text.includes(owner));
+});
+
+// ---------------------------------------------------------------------------
+// 6. The clear preview
+// ---------------------------------------------------------------------------
+
+test('the journal preview: symptom logs and season summaries under journal, the sum equal to the count', () => {
+  const preview = buildClearPreview({ scope: 'journal', counts: { symptom_logs: 4, alerts: 2 } });
+  assert.deepEqual(preview.remove, { journal: 6 });
+  assert.equal(clearTotal({ symptom_logs: 4, alerts: 2 }), 6);
+  assert.ok(preview.keep.includes(EXPORT_COPY.keepOutsideJournal));
+  assert.ok(preview.keep.includes(EXPORT_COPY.keepLogin) && preview.keep.includes(EXPORT_COPY.keepReceipt));
+  assert.deepEqual(preview.notStored, [INVENTORY_COPY.weekJournalNotStored]);
+  assert.deepEqual(preview.limits, [EXPORT_COPY.limitDownloads, EXPORT_COPY.limitBackups]);
+  assert.ok(!('after' in preview));
+  assert.deepEqual(buildClearPreview({ scope: 'journal', counts: { symptom_logs: 0, alerts: 0 } }).remove, { journal: 0 });
+});
+
+test('the all preview: every counted table in a bucket, an unknown one under other, and the buckets add up to the count', () => {
+  const counts = Object.fromEntries(Object.keys(CLEAR_PREVIEW_BUCKETS).map((table, at) => [table, at + 1]));
+  counts.some_future_table = 5;
+  const preview = buildClearPreview({ scope: 'all', counts });
+  const sum = Object.values(preview.remove).reduce((a, b) => a + b, 0);
+  assert.equal(sum, clearTotal(counts));
+  assert.equal(preview.remove.other, 5);
+  assert.equal(preview.remove.journal, counts.symptom_logs);
+  assert.equal(preview.remove.alerts, counts.alerts);
+  assert.equal(preview.remove.requests, counts.operations);
+  assert.deepEqual(preview.after, [EXPORT_COPY.afterAll]);
+  assert.ok(!preview.keep.includes(EXPORT_COPY.keepOutsideJournal));
+  // Every table the clear counts (0024 privacy_counts) has a bucket.
+  const sql = readFileSync(new URL('../supabase/migrations/0024_privacy_clear.sql', import.meta.url), 'utf8');
+  const countsAll = sql.slice(sql.indexOf('create or replace function public.privacy_counts'));
+  const body = countsAll.slice(0, countsAll.indexOf('$$;'));
+  const named = [...body.matchAll(/^\s*'([a-z_]+)', \(select count/gm)].map((match) => match[1]);
+  assert.ok(named.length >= 18, `found ${named.length} counted tables in 0024`);
+  for (const table of named) assert.ok(Object.hasOwn(CLEAR_PREVIEW_BUCKETS, table), `${table} has no preview bucket`);
+  assert.throws(() => buildClearPreview({ scope: 'export', counts }));
+});
