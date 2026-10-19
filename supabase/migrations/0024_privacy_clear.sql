@@ -46,8 +46,9 @@
 --     in any order (the order passed does not change the result). Anything
 --     else is HALO_INVALID_INPUT. An empty array gives one fixed constant.
 --     Server-written tables (daily_scores, alerts, home_risks, luna_runs,
---     household_action_state, operations) are deliberately not fingerprinted
---     (P6), so a background refresh does not void a review. For the same
+--     household_action_state, operations, and daily_maxima where 0025 is
+--     applied) are deliberately not fingerprinted (P6), so a background
+--     refresh does not void a review. For the same
 --     reason home_contexts is hashed without its four backfill_* columns,
 --     which the history backfill writes in the background.
 --     Luna's answer turns are server-written too, and so are the revision and
