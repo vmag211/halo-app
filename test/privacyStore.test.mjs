@@ -163,6 +163,16 @@ test('the clear\'s receipt is rebuilt from known values only, never copied whole
   assert.deepEqual(Object.keys(receipt), ['operationId', 'status', 'scope']);
 });
 
+test('the clear\'s receipt check lowercases the operation id, as Postgres writes a uuid (Task 2 review, finding 7)', async () => {
+  const upper = OP.toUpperCase();
+  const client = stubClient(ok({ receipt: { operationId: OP, status: 'succeeded', scope: 'all' }, removed: 3 }));
+  const result = await clearHouseholdRecords(client, { profileId: ALICE, operationId: upper, scope: 'all', fingerprint: 'f' });
+  assert.deepEqual(result, { receipt: { operationId: OP, status: 'succeeded', scope: 'all' }, removed: 3 });
+  // A receipt for another id is still refused, in any case.
+  const other = stubClient(ok({ receipt: { operationId: OP.replace(/1$/, '2'), status: 'succeeded', scope: 'all' }, removed: 3 }));
+  await assert.rejects(clearHouseholdRecords(other, { profileId: ALICE, operationId: upper, scope: 'all', fingerprint: 'f' }), /unexpected shape/);
+});
+
 // ---------------------------------------------------------------------------
 // 3. Refusals and "not applied yet"
 // ---------------------------------------------------------------------------

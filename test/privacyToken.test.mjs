@@ -12,14 +12,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { SCRUBBED_ENV } from './helpers/sandbox.mjs';
 import {
   MIN_REVIEW_KEY_LENGTH,
   REVIEW_TOKEN_TTL_MS,
   mintReviewToken,
   privacyReviewKey,
+  readReviewSelection,
   verifyReviewToken,
 } from '../lib/privacyToken.js';
+import { fingerprintTables } from '../lib/privacyInventory.js';
 
 const ALICE = '00000000-0000-4000-8000-000000000001';
 const BOB = '00000000-0000-4000-8000-000000000002';
@@ -209,6 +212,50 @@ test('anything that is not a token this code mints is malformed', () => {
   ]) {
     assert.deepEqual(verify(token), { ok: false, reason: 'malformed' }, String(token).slice(0, 40));
   }
+});
+
+test('readReviewSelection reads the claimed selection with the same parser, and null for anything malformed', () => {
+  const { reviewToken } = mint({ groups: ['tasks', 'home'], privateText: true });
+  assert.deepEqual(readReviewSelection(reviewToken), { scope: 'export', groups: ['home', 'tasks'], privateText: true });
+  assert.deepEqual(readReviewSelection(mint({ scope: 'all', groups: [] }).reviewToken), { scope: 'all', groups: [], privateText: false });
+  const payload = decodePayload(reviewToken);
+  const [, macSegment] = reviewToken.split('.');
+  for (const token of [
+    undefined, null, 42, '', 'abc', `${reviewToken}.extra`, 'a'.repeat(2000), `.${macSegment}`,
+    `${encodePayload({ ...payload, v: 2 })}.${macSegment}`,
+    `${encodePayload({ ...payload, g: ['tasks', 'home'] })}.${macSegment}`,
+    `${encodePayload({ ...payload, g: [] })}.${macSegment}`,
+  ]) {
+    assert.equal(readReviewSelection(token), null, String(token).slice(0, 40));
+    // Exactly the tokens verify calls malformed.
+    assert.deepEqual(verify(token), { ok: false, reason: 'malformed' });
+  }
+});
+
+test('readReviewSelection is untrusted: it reads a forged selection, which then fails to verify', () => {
+  const { reviewToken } = mint({ groups: ['tasks'] });
+  const [, macSegment] = reviewToken.split('.');
+  const forged = `${encodePayload({ ...decodePayload(reviewToken), g: ['conversation', 'tasks'], p: true })}.${macSegment}`;
+  assert.deepEqual(readReviewSelection(forged), { scope: 'export', groups: ['conversation', 'tasks'], privateText: true });
+  assert.deepEqual(verify(forged), { ok: false, reason: 'mismatch' });
+});
+
+test('the export flow: read the claimed groups, fingerprint their tables, then verify (Task 2 review, finding 3)', () => {
+  // A stand-in for privacy_fingerprint: a value per table set, as the database's would be.
+  const fingerprintOf = (tables) => createHash('sha256').update(`${ALICE}:${tables.join(',')}`).digest('hex');
+  const groups = ['tasks', 'journal'];
+  const { reviewToken } = mintReviewToken(KEY, review({ groups, fingerprint: fingerprintOf(fingerprintTables('export', groups)) }));
+  const claimed = readReviewSelection(reviewToken);
+  const fingerprint = fingerprintOf(fingerprintTables(claimed.scope, claimed.groups));
+  assert.deepEqual(verifyReviewToken(KEY, reviewToken, { profileId: ALICE, fingerprint, now: NOW }), {
+    ok: true, scope: 'export', groups: ['journal', 'tasks'], privateText: false,
+  });
+  // A widened claim leads to another table set, so another fingerprint, so a mismatch.
+  const [, macSegment] = reviewToken.split('.');
+  const widened = `${encodePayload({ ...decodePayload(reviewToken), g: ['home', 'journal', 'tasks'] })}.${macSegment}`;
+  const claimedWide = readReviewSelection(widened);
+  const wideFingerprint = fingerprintOf(fingerprintTables(claimedWide.scope, claimedWide.groups));
+  assert.deepEqual(verifyReviewToken(KEY, widened, { profileId: ALICE, fingerprint: wideFingerprint, now: NOW }), { ok: false, reason: 'mismatch' });
 });
 
 test('mint refuses input a route should already have refused', () => {
