@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "provider": "NWS API, active alerts for a point",
+    "recorded": "https://api.weather.gov/alerts/active?point=35.23,-80.84",
+    "retrieved": "2026-10-19",
+    "docs": [
+      "https://www.weather.gov/documentation/services-web-api",
+      "https://www.weather.gov/documentation/services-web-alerts",
+      "https://api.weather.gov/openapi.json (AlertStatus, AlertMessageType, Alert.expires, Alert.ends, ProblemDetail)"
+    ],
+    "edits": "none; recorded response as received (no alerts were active)"
+  },
+  "response": {
+    "@context": {
+      "@version": "1.1"
+    },
+    "type": "FeatureCollection",
+    "features": [],
+    "title": "Current watches, warnings, and advisories for 35.23 N, 80.84 W",
+    "updated": "2026-10-19T16:45:30+00:00"
+  }
+}

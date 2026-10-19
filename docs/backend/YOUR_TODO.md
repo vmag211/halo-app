@@ -798,6 +798,7 @@ What this does NOT restore or undo: **a clear that already ran stays done.** Rec
    - Confirm in Vercel that `ASSISTANT_SEND_HOUSEHOLD_CONTEXT` is set to `false` in EVERY environment (Production, Preview and Development), or
    - Tell Claude to change the check so it sends only when the value is exactly `true` (fails closed, with a test). With that change an unset variable means "do not send".
    `docs/backend/privacy-and-retention.md` lists exactly what leaves when it sends.
+8. **Set `NWS_CONTACT` before the forecast goes live (B10).** The National Weather Service asks every caller of `api.weather.gov` to identify itself with a contact in the `User-Agent`. You decided (2026-10-19) that the contact is your own email address. Set `NWS_CONTACT` to it in Vercel, in every environment that should show "Official notices" (Production, Preview and Development), as a Sensitive server-only variable (never `NEXT_PUBLIC_`), then redeploy. Your address is deliberately not written anywhere in the repository: `.env.example` holds only the placeholder `you@example.com`, which the code treats as unset. While it is unset (or left at the placeholder), the forecast makes no NWS request and the Official notices row shows the frontend's own fallback, "Warnings unavailable. Check the official site." It is sent only to `api.weather.gov`, as `(HALO, <your contact>)`, and never logged or returned (`lib/forecast/nwsAlerts.js`).
 
 ### Decided 2026-10-18 by Vibhav
 

@@ -1,0 +1,828 @@
+{
+  "_fixture": {
+    "provider": "NWS API, active alerts",
+    "recorded": "https://api.weather.gov/alerts/active (national feed, features copied from it)",
+    "retrieved": "2026-10-19",
+    "docs": [
+      "https://www.weather.gov/documentation/services-web-api",
+      "https://www.weather.gov/documentation/services-web-alerts",
+      "https://api.weather.gov/openapi.json (AlertStatus, AlertMessageType, Alert.expires, Alert.ends, ProblemDetail)"
+    ],
+    "testClock": "2026-10-19T17:00:00Z",
+    "edits": [
+      "Features are recorded ones (Flood Warning Update, Wind Advisory Update, Test Message) wrapped in the recorded point-response envelope; geometry set to null and description and instruction cut to 160 characters.",
+      "ends and expires rewritten around the test clock.",
+      "Hand-edited copies of the recorded Wind Advisory, each with a new id: event renamed Tornado Watch and Heat Advisory (kept); status Exercise (dropped); messageType Cancel (dropped); ends in the past (dropped); no ends and expires in the past (dropped)."
+    ]
+  },
+  "response": {
+    "@context": {
+      "@version": "1.1"
+    },
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.658dc4e5dae666306649f395305d42ff37cae055.001.1",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.658dc4e5dae666306649f395305d42ff37cae055.001.1",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.658dc4e5dae666306649f395305d42ff37cae055.001.1",
+          "areaDesc": "Lake, FL; Volusia, FL",
+          "geocode": {
+            "SAME": [
+              "012069",
+              "012127"
+            ],
+            "UGC": [
+              "FLC069",
+              "FLC127"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/county/FLC069",
+            "https://api.weather.gov/zones/county/FLC127"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.ae8e54e11e9105fc7e4866ee9a809176c3d3d8bf.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.ae8e54e11e9105fc7e4866ee9a809176c3d3d8bf.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:58:00-04:00"
+            }
+          ],
+          "sent": "2026-10-19T09:56:00-04:00",
+          "effective": "2026-10-19T09:56:00-04:00",
+          "onset": "2026-10-19T09:56:00-04:00",
+          "expires": "2026-10-19T22:00:00-04:00",
+          "ends": "2026-10-20T09:00:00-04:00",
+          "status": "Actual",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Severe",
+          "certainty": "Observed",
+          "urgency": "Immediate",
+          "event": "Flood Warning",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Melbourne FL",
+          "headline": "Flood Warning issued October 19 at 9:56AM EDT by NWS Melbourne FL",
+          "description": "...The Flood Warning continues for the following rivers in Florida...\n\nSt Johns River Near Astor affecting Lake and Volusia Counties.\n\n.Persistent northeast win",
+          "instruction": "Motorists should not attempt to drive around barricades or drive cars\nthrough flooded areas.\n\nCaution is urged when walking near riverbanks.\n\nAdditional informa",
+          "response": "Avoid",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "FLSMLB"
+            ],
+            "WMOidentifier": [
+              "WGUS82 KMLB 191356"
+            ],
+            "NWSheadline": [
+              "FLOOD WARNING REMAINS IN EFFECT UNTIL FURTHER NOTICE"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "EAS-ORG": [
+              "WXR"
+            ],
+            "VTEC": [
+              "/O.CON.KMLB.FL.W.0003.000000T0000Z-000000T0000Z/"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e267454960d05028ffb17d918dbfe239270f59aa.001.1,2026-10-18T09:11:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ec86a5b25822e52f8e371f554242bdd67483342f.001.1,2026-10-17T20:54:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7f1892302e6e287d1231cf4d12f60f419868b375.001.1,2026-10-17T09:04:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8aa4ca8f0a91b6616676b40340c36ef2b6f9788d.001.1,2026-10-16T21:21:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.dfc8045564b49517706a7715d068ca72ead6ebb3.001.1,2026-10-16T10:44:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7e5a6b135466609b1033d13cc0d52d1891c646cf.001.1,2026-10-15T21:36:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.0102843d75ecf5c8efce3bbb90291fc98fa94c78.001.1,2026-10-15T15:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ece4802e04c97e36732b09ba56c6d3b0cce4d6b0.001.1,2026-10-15T08:56:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.011da60a226f747f480bb13e59db22de16ce56bc.001.1,2026-10-14T21:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.01cad9b4e67f37952508b00d4685605493f467ec.001.1,2026-10-14T09:36:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.cacb082fe46e65e21cf29078d2437d1e542052ac.001.1,2026-10-13T21:38:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.86e5ca154ce010d13141ad4199d0f6fac1291abb.001.1,2026-10-13T10:11:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4517560c40277faebb26d5855ccac4fd7e44860c.001.1,2026-10-12T21:06:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.20f1624737d138d123829411894af55024fce115.001.1,2026-10-12T10:19:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ea811d5fb114d663e21d6b716b75c3dfbb56ce7b.001.1,2026-10-11T21:51:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fcb53b77fafcd10f7f3046434d04cef22dd0bca6.001.1,2026-10-11T11:01:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b426cf88562c3f2344793ae431fbc46ad7363ab7.001.1,2026-10-10T21:43:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.a7086518664f7fe6da003a715a0944cf95960638.001.1,2026-10-10T12:14:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e2e9ae2594103671ac374c677fd0eac7bef3a271.001.1,2026-10-09T20:39:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8a3dd7595a5686c7b226150184ef3ef916f9c33d.001.1,2026-10-09T08:52:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.36254b6b2cc30b96af78b5ddccf3eecd597d2c5e.001.1,2026-10-09T00:09:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8757dc22c528c67fe6f6c1975d46b5b177ecb9a3.001.1,2026-10-08T21:59:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.52572978a4c286c19f5039b707506f65bb11d4f0.001.1,2026-10-08T22:34:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4005b1c5d9f2d912d3640b6fd16da3a7dfa314b0.001.1,2026-10-08T10:05:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.3291d526cabe593657cc11dd69dad3433dc800f5.001.1,2026-10-08T09:58:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2d26e4d2ee1b9e255115bd0b478eb1efdecbdd34.001.1,2026-10-07T19:36:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e5435b68e1ad2031724f8b67da651e8b47f906f1.001.1,2026-10-07T14:30:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.a3489ac5dc4a2782ddacffcbc40bd6c036b56e1c.001.1,2026-10-06T21:45:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.9e4d9436c0e7b6043fa60b5d83484fce1dfd4ab4.001.1,2026-10-06T07:40:00-04:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "FLS"
+            ],
+            "NationalWeatherService": [
+              "FLW"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-19T20:00:00-04:00",
+          "ends": null,
+          "status": "Actual",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Wind Advisory",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Wind Advisory issued October 19 at 6:29AM AKDT until October 20 at 10:00PM AKDT by NWS Juneau AK",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.tornado",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.tornado",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.tornado",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-19T19:00:00-04:00",
+          "ends": "2026-10-19T19:00:00-04:00",
+          "status": "Actual",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Tornado Watch",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Tornado Watch issued (hand-edited fixture)",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.heat",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.heat",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.heat",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-19T12:30:00-04:00",
+          "ends": "2026-10-19T20:00:00-04:00",
+          "status": "Actual",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Heat Advisory",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Heat Advisory issued (hand-edited fixture)",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0-KEEPALIVE-12783",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0-KEEPALIVE-12783",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0-KEEPALIVE-12783",
+          "areaDesc": "Montgomery",
+          "geocode": {
+            "SAME": [
+              "024031"
+            ],
+            "UGC": [
+              "MDC031"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/county/MDC031"
+          ],
+          "references": [],
+          "sent": "2026-10-19T16:45:14+00:00",
+          "effective": "2026-10-19T16:45:14+00:00",
+          "onset": null,
+          "expires": "2026-10-19T23:00:00-04:00",
+          "ends": null,
+          "status": "Test",
+          "messageType": "Alert",
+          "category": "Met",
+          "severity": "Unknown",
+          "certainty": "Unknown",
+          "urgency": "Unknown",
+          "event": "Test Message",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS",
+          "headline": null,
+          "description": "Monitoring message only. Please disregard.",
+          "instruction": "Monitoring message only. Please disregard.",
+          "response": "None",
+          "note": "This is only a test for monitoring of vital dissemination systems.",
+          "parameters": {
+            "AWIPSidentifier": [
+              "KEPWBC"
+            ],
+            "WMOidentifier": [
+              "NZUS91 KWBC 191645"
+            ],
+            "BLOCKCHANNEL": [
+              "CMAS",
+              "EAS",
+              "NWEM"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "TST"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.exercise",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.exercise",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.exercise",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-20T08:00:00-04:00",
+          "ends": "2026-10-20T08:00:00-04:00",
+          "status": "Exercise",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Flood Watch",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Flood Watch issued (hand-edited fixture)",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.cancel",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.cancel",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.cancel",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-20T08:00:00-04:00",
+          "ends": "2026-10-20T08:00:00-04:00",
+          "status": "Actual",
+          "messageType": "Cancel",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Winter Storm Warning",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Winter Storm Warning issued (hand-edited fixture)",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.ended",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.ended",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.ended",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-19T23:00:00-04:00",
+          "ends": "2026-10-19T12:00:00-04:00",
+          "status": "Actual",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Coastal Flood Advisory",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Coastal Flood Advisory issued (hand-edited fixture)",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      },
+      {
+        "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.expired",
+        "type": "Feature",
+        "geometry": null,
+        "properties": {
+          "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.expired",
+          "@type": "wx:Alert",
+          "id": "urn:oid:2.49.0.1.840.0.0410614e3f361153e9915198520f3a71233735ca.002.1.expired",
+          "areaDesc": "City and Borough of Yakutat",
+          "geocode": {
+            "SAME": [
+              "002282"
+            ],
+            "UGC": [
+              "AKZ317"
+            ]
+          },
+          "affectedZones": [
+            "https://api.weather.gov/zones/forecast/AKZ317"
+          ],
+          "references": [
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.706367ef2b71fc62f46ca3e380ff6e65a844e2f5.001.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T20:47:00-08:00"
+            },
+            {
+              "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "identifier": "urn:oid:2.49.0.1.840.0.66bc2aaecd1c83ca9ba359bb5dbfc23fec6534ed.002.1",
+              "sender": "w-nws.webmaster@noaa.gov",
+              "sent": "2026-10-18T23:17:00-08:00"
+            }
+          ],
+          "sent": "2026-10-19T06:29:00-08:00",
+          "effective": "2026-10-19T06:29:00-08:00",
+          "onset": "2026-10-19T16:00:00-08:00",
+          "expires": "2026-10-19T11:00:00-04:00",
+          "ends": null,
+          "status": "Actual",
+          "messageType": "Update",
+          "category": "Met",
+          "severity": "Moderate",
+          "certainty": "Likely",
+          "urgency": "Expected",
+          "event": "Dense Fog Advisory",
+          "sender": "w-nws.webmaster@noaa.gov",
+          "senderName": "NWS Juneau AK",
+          "headline": "Dense Fog Advisory issued (hand-edited fixture)",
+          "description": "* WHAT...Southeast winds 20 to 30 mph with gusts up to 55 mph\nexpected.\n\n* WHERE...City and Borough of Yakutat.\n\n* WHEN...From 4 PM this afternoon to 10 PM AKDT",
+          "instruction": "Winds this strong can make travel difficult. Use extra caution.\nEnsure boats and vessels are secure.",
+          "response": "Execute",
+          "note": null,
+          "parameters": {
+            "AWIPSidentifier": [
+              "NPWAJK"
+            ],
+            "WMOidentifier": [
+              "WWAK77 PAJK 191429"
+            ],
+            "NWSheadline": [
+              "WIND ADVISORY REMAINS IN EFFECT FROM 4 PM THIS AFTERNOON TO 10 PM AKDT TUESDAY"
+            ],
+            "BLOCKCHANNEL": [
+              "EAS",
+              "NWEM",
+              "CMAS"
+            ],
+            "VTEC": [
+              "/O.CON.PAJK.WI.Y.0055.261020T0000Z-261021T0600Z/"
+            ],
+            "eventEndingTime": [
+              "2026-10-20T22:00:00-08:00"
+            ],
+            "expiredReferences": [
+              "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.906974e8af1f5c1130bd037bce2930d3ecbeabcd.002.1,2026-10-18T14:18:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7d13abb9980855690b7b0c4b9033bd6db0bc0f3d.005.1,2026-10-18T13:41:00-08:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ad0f69139b5ec8ef419a1f2d373370a59e9a47de.001.1,2026-10-18T05:42:00-08:00"
+            ]
+          },
+          "scope": "Public",
+          "code": "IPAWSv1.0",
+          "language": "en-US",
+          "web": "http://www.weather.gov",
+          "eventCode": {
+            "SAME": [
+              "NWS"
+            ],
+            "NationalWeatherService": [
+              "WIY"
+            ]
+          }
+        }
+      }
+    ],
+    "title": "Current watches, warnings, and advisories for 35.23 N, 80.84 W (hand-assembled)",
+    "updated": "2026-10-19T16:45:30+00:00"
+  }
+}
