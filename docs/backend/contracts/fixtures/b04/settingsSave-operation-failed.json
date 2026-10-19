@@ -1,0 +1,13 @@
+{
+  "operationId": "settingsSave",
+  "status": 409,
+  "body": {
+    "error": "That save did not complete. Review the latest settings before saving again.",
+    "code": "conflict",
+    "message": "That save did not complete. Review the latest settings before saving again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001",
+    "reason": "operation_failed"
+  }
+}

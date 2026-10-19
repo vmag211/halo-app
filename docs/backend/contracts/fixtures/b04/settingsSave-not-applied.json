@@ -1,0 +1,8 @@
+{
+  "operationId": "settingsSave",
+  "status": 200,
+  "body": {
+    "operationId": "0b040000-0000-4000-8000-000000000004",
+    "status": "failed"
+  }
+}

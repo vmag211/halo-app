@@ -1,0 +1,14 @@
+{
+  "operationId": "settingsSave",
+  "status": 409,
+  "body": {
+    "error": "These settings changed. Review the latest values before saving.",
+    "code": "conflict",
+    "message": "These settings changed. Review the latest values before saving.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001",
+    "reason": "stale_revision",
+    "revision": 5
+  }
+}

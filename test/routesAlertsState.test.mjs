@@ -6,7 +6,8 @@
  * receipt and throws the whole inbox away if one row fails it, and on a change
  * it also runs `alertReceiptCovers`, which needs every selected row back at a
  * strictly higher revision with the patched fields equal to the patch. Both are
- * transcribed below from lib/frontend/production/alerts-service.ts on
+ * transcribed in test/helpers/frontendB04.mjs from
+ * lib/frontend/production/alerts-service.ts on
  * origin/codex/october15-review-refinement (and `validActionDate` from
  * lib/frontend/expanded-preview.ts:30-34, `notificationKinds` from
  * lib/frontend/settings-preview.ts:2), changed only from TypeScript to
@@ -26,7 +27,7 @@
  * 5. Idempotent through the ledger, domain `alerts`, and nothing else.
  * 6. Honest outcomes. Nothing that can fail runs between the write and the
  *    ledger settle, so an applied change is never recorded as failed.
- * 7. The client's own consumption logic, transcribed at the end of this file,
+ * 7. The client's own consumption logic, transcribed in the same helper,
  *    driven over the real handlers.
  */
 import { test } from 'node:test';
@@ -38,32 +39,19 @@ import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope, UUID } from './helpers/envelope.mjs';
 import { auditOwnerScope } from './helpers/isolationKit.mjs';
 import { overlapAtSettle } from './helpers/overlap.mjs';
+import {
+  RUNTIME_MESSAGES, alertReceiptCovers, notificationKinds, productionAlerts, validAlertSnapshot,
+} from './helpers/frontendB04.mjs';
 
 const { requestHash } = await import('@/lib/operations');
 const inbox = await import('@/lib/alertsInbox');
 const { evaluateAlerts } = await import('@/lib/alertRules');
 
 // ---------------------------------------------------------------------------
-// The frontend validators, transcribed (TypeScript types removed, nothing else)
+// The frontend validators (validAlertSnapshot, alertReceiptCovers) and the
+// client's own inbox hook (productionAlerts) are transcribed once, in
+// test/helpers/frontendB04.mjs, and shared with test/contractsB04.test.mjs
 // ---------------------------------------------------------------------------
-
-const notificationKinds = ['air_quality_change', 'weather_advisory', 'new_water_results', 'radon_season', 'season_summary'];
-function validActionDate(value) {
-  if (value === '') return true;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T12:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-const destinations={home:['tests','maintenance','food','summary'],plan:['journal','patterns','recap','outdoors','reminders'],today:[]};
-const factors=['air','uv','pollen','mold','pfas','radon','lead'];
-function source(value){if(!value)return true;try{const url=new URL(value.url);return typeof value.title==='string'&&!!value.title&&url.protocol==='https:'&&!url.username&&!url.password;}catch{return false;}}
-function validAlertSnapshot(value){
- const v=value;
- return !!v&&Array.isArray(v.unresolvedOperations)&&v.unresolvedOperations.every(id=>typeof id==='string'&&!!id)&&Array.isArray(v.items)&&new Set(v.items.map(item=>item?.id)).size===v.items.length&&v.items.every(item=>item&&typeof item.id==='string'&&!!item.id&&Number.isSafeInteger(item.revision)&&item.revision>0&&typeof item.title==='string'&&!!item.title&&typeof item.body==='string'&&['Home','Your week','Conditions'].includes(item.category)&&!!item.date&&validActionDate(item.date)&&typeof item.read==='boolean'&&typeof item.dismissed==='boolean'&&[...notificationKinds,'app'].includes(item.kind)&&item.target&&Object.hasOwn(destinations,item.target.tab)&&(!item.target.destination||destinations[item.target.tab].includes(item.target.destination))&&(!item.target.learn||factors.includes(item.target.learn))&&source(item.source));
-}
-function alertReceiptCovers(value,selected,patch){
- return selected.length>0&&selected.every(previous=>{const next=value.items.find(item=>item.id===previous.id);return !!next&&next.revision>previous.revision&&(patch.read===undefined||next.read===patch.read)&&(patch.dismissed===undefined||next.dismissed===patch.dismissed);});
-}
 
 test('the transcribed validators still reject what the frontend tests reject, so they are not vacuous', () => {
   const row = { id: 'a', revision: 1, title: 'T', body: '', category: 'Home', date: '2026-10-13', read: false, dismissed: false, target: { tab: 'home', destination: 'tests' }, kind: 'app' };
@@ -679,6 +667,22 @@ test('POST: a failure is logged as its code and message, never its details or hi
   assert.equal(lines.includes(MARKER), false, lines);
 });
 
+test('GET: a failed read is logged as its code and message, never its details or hint, for the ledger read and the inbox read alike (task 3 review B1)', async (t) => {
+  const logged = muteConsoleError(t);
+  const MARKER = 'MARKER-ALERTS-GET-LOG-5512';
+  const error = { code: 'XX000', message: 'the read failed', details: `Failing row contains (${MARKER})`, hint: MARKER };
+  const ledgerFails = harness();
+  failSelect(ledgerFails, 'operations', () => true, error);
+  await expectEnvelope(await read(ledgerFails), { status: 500, code: 'internal_error' });
+  const inboxFails = harness();
+  failSelect(inboxFails, 'alerts', (columns) => columns === inbox.ALERT_ITEM_COLUMNS, error);
+  await expectEnvelope(await read(inboxFails), { status: 500, code: 'internal_error' });
+  const lines = logged.mock.calls.flatMap((call) => call.arguments.map((arg) => inspect(arg, { depth: 8 }))).join('\n');
+  assert.equal(logged.mock.callCount(), 2, 'one line per failed read');
+  assert.equal(lines.match(/XX000 the read failed/g)?.length, 2);
+  assert.equal(lines.includes(MARKER), false, lines);
+});
+
 test('GET: a contract read that fails for any reason but a missing migration is a 500, not a quietly degraded inbox', async (t) => {
   const logged = muteConsoleError(t);
   const inboxFails = harness();
@@ -936,7 +940,8 @@ test('every mapped target is one the client can route, and the mapping covers ex
 // The client's consumption logic over the real handlers
 //
 // `useProductionAlerts` (components/production/ProductionAlerts.tsx on
-// origin/codex/october15-review-refinement), transcribed: React state becomes
+// origin/codex/october15-review-refinement), transcribed in
+// test/helpers/frontendB04.mjs as productionAlerts: React state becomes
 // plain fields, `useProductionResource('alerts.read')` and its effect become
 // `reload()`, and `runtime.request` becomes the real route handlers plus
 // runtime.ts's status mapping (:144), its JSON check and its envelope unwrap
@@ -947,89 +952,6 @@ test('every mapped target is one the client can route, and the mapping covers ex
 // reconcile through `operations.read`. A body the validators accept but the
 // hook mishandles fails here.
 // ---------------------------------------------------------------------------
-
-const RUNTIME_MESSAGES = {
-  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
-  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
-  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
-  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
-  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
-};
-class FrontendServiceError extends Error { constructor(code) { super(RUNTIME_MESSAGES[code]); this.code = code; } }
-const serviceMessage = (error) => (error instanceof FrontendServiceError ? error.message : RUNTIME_MESSAGES.unavailable);
-
-function productionAlerts(h, as = 'alice') {
-  const sent = [];
-  async function request(operation, body, idempotencyKey) {
-    const mutation = operation === 'alerts.update';
-    sent.push(operation);
-    let response;
-    if (operation === 'alerts.read') response = await read(h, as);
-    else if (operation === 'operations.read') response = await h.call('/api/operations', 'GET', { as, url: `/api/operations?${new URLSearchParams(body)}` });
-    else response = await h.call(ROUTE, 'POST', { as, body, headers: { 'idempotency-key': idempotencyKey } });
-    const json = await response.json().catch(() => null);
-    if (!response.ok) {
-      const s = response.status;
-      throw new FrontendServiceError(s === 401 ? 'session' : s === 403 ? 'permission' : s === 409 || s === 412 ? 'conflict' : s === 400 || s === 422 ? 'validation' : s === 429 ? 'rate_limited' : s >= 500 && mutation ? 'unknown_outcome' : 'unavailable');
-    }
-    if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response');
-    if (Object.hasOwn(json, 'data')) return json.data;
-    return json;
-  }
-
-  const resource = { data: null, error: '', loading: false };
-  const state = { items: [], message: '', undo: null, pending: false, unknown: null };
-  let lock = false;
-
-  async function reload() {
-    resource.loading = true;
-    resource.error = '';
-    try { resource.data = await request('alerts.read', {}); } catch (error) { resource.data = null; resource.error = serviceMessage(error); } finally { resource.loading = false; }
-    if (resource.data) {
-      if (validAlertSnapshot(resource.data)) { state.items = resource.data.items; state.unknown = resource.data.unresolvedOperations[0] ?? null; } else state.message = 'Alerts could not be verified. Please retry.';
-    }
-  }
-  async function change(selected, patch) {
-    if (lock || state.unknown || resource.loading || resource.error || selected.length === 0) return false;
-    if (selected.some((item) => !state.items.some((current) => current.id === item.id && current.revision === item.revision))) { state.message = 'These alerts changed. Reload before trying again.'; return false; }
-    lock = true; state.pending = true; const operationId = crypto.randomUUID();
-    try {
-      const value = await request('alerts.update', { operationId, selection: selected.map(({ id, revision }) => ({ id, revision })), patch }, operationId);
-      if (value.operationId === operationId && ['failed', 'cancelled'].includes(value.status)) { state.message = 'The update was not applied.'; return false; }
-      if (value.operationId !== operationId || value.status !== 'succeeded' || !validAlertSnapshot(value) || !alertReceiptCovers(value, selected, patch)) { state.unknown = operationId; state.message = 'The update is not confirmed. Check its status.'; return false; }
-      state.items = value.items; state.unknown = value.unresolvedOperations[0] ?? null; state.message = ''; return value.items;
-    } catch (error) {
-      if (error instanceof FrontendServiceError && error.code === 'unknown_outcome') state.unknown = operationId;
-      state.message = serviceMessage(error); return false;
-    } finally { lock = false; state.pending = false; }
-  }
-  async function retry() {
-    if (!state.unknown) { state.message = ''; await reload(); return; }
-    if (lock) return;
-    lock = true; state.pending = true;
-    try {
-      const value = await request('operations.read', { operationId: state.unknown, domain: 'alerts' });
-      if (value.operationId === state.unknown && value.status === 'succeeded' && validAlertSnapshot(value)) { state.items = value.items; state.unknown = value.unresolvedOperations[0] ?? null; state.message = ''; }
-      else if (value.operationId === state.unknown && (value.status === 'failed' || value.status === 'cancelled')) { state.unknown = null; await reload(); state.message = 'The update was not applied.'; }
-      else state.message = 'The update is still being checked.';
-    } catch (error) { state.message = serviceMessage(error); } finally { lock = false; state.pending = false; }
-  }
-  return {
-    sent, reload, retry,
-    get items() { return state.items; },
-    get unread() { return state.items.filter((i) => !i.read && !i.dismissed).length; },
-    get message() { return state.message || resource.error || (state.unknown ? 'An alert update needs a status check.' : ''); },
-    get undo() { return state.undo; },
-    get unknown() { return state.unknown; },
-    /** Test only: the lock a load leaves when `id` was the oldest unsettled operation it listed. */
-    park: (id) => { state.unknown = id; },
-    item: (id) => state.items.find((i) => i.id === id),
-    read: (item) => change([item], { read: true }),
-    dismiss: async (item) => { const next = await change([item], { dismissed: true }); if (next) { state.undo = next.find((i) => i.id === item.id) ?? null; state.message = 'Alert dismissed.'; } },
-    restore: async () => { if (state.undo && await change([state.undo], { dismissed: false })) { state.undo = null; state.message = 'Alert restored.'; } },
-    all: () => change(state.items.filter((i) => !i.read && !i.dismissed), { read: true }),
-  };
-}
 
 const A_FIVE = 'a11ce000-2222-4000-8000-000000000005';
 const withFifth = (ids) => [...seedAlerts(ids), { id: A_FIVE, profile_id: ids.alice.id, type: 'weather_advisory', title: 'Heat advisory', message: 'm', dedupe_key: 'a-5', fired_at: '2026-10-10T13:00:00Z' }];

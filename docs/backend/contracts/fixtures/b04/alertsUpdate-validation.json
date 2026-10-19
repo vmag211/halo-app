@@ -1,0 +1,18 @@
+{
+  "operationId": "alertsUpdate",
+  "status": 400,
+  "body": {
+    "error": "Each alert can be selected only once.",
+    "code": "validation_failed",
+    "message": "Each alert can be selected only once.",
+    "field_errors": [
+      {
+        "field": "selection.1.id",
+        "code": "duplicate_id",
+        "message": "Each alert can be selected only once."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b04-contract-0001"
+  }
+}

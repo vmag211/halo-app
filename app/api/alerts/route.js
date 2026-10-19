@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { ERROR_CODES, apiError, requestIdFor, internalError, validationError } from '@/lib/apiErrors';
+import { ERROR_CODES, apiError, requestIdFor, internalError, loggableError, validationError } from '@/lib/apiErrors';
 import { readJsonBody } from '@/lib/validate';
 import { parseAlertAction } from '@/lib/alertWriteInput';
 import { ALERTS_ROW_LIMIT, isTruncated } from '@/lib/boundedRead';
@@ -130,7 +130,9 @@ export async function GET(request) {
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`Alerts failed (request ${requestId}):`, err);
+    // Code and message only (loggableError): contractInbox rethrows a database
+    // error as it came, and its details and hint can quote a stored row.
+    console.error(`Alerts failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }
@@ -177,7 +179,7 @@ export async function POST(request) {
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`Alerts update failed (request ${requestId}):`, err);
+    console.error(`Alerts update failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }
