@@ -65,13 +65,13 @@ Four registry operations drive the Settings privacy panel, `ProductionPrivacy` (
   | `push_subscriptions` | preferences | `deviceDelivery`: the count of registered devices only | `endpoint`, `p256dh`, `auth` (credentials, W: `privacy-and-retention.md:22`) | keep | delete |
   | `profile_preferences` | preferences | every value column, `revision`, `updated_at` | | keep | delete |
   | `explore_areas` | explore | `place_id`, `name`, `state`, `label`, `timezone`, `revision`, `updated_at` / none | | keep | delete |
-  | `household_actions` | tasks | `id`, `action_key`, `title`, `reason`, `origin`, `due_date`, `state`, `revision`, `created_at`, `updated_at`, `meta` without `note` and `history` / `meta.note`, `meta.history` | | keep | delete |
+  | `household_actions` | tasks | `id`, `action_key`, `title`, `reason`, `origin`, `due_date`, `state`, `revision`, `created_at`, `updated_at`, `meta` limited to its known non-private keys (`BASE_META_KEYS`: `paused`, `archived`, `completedOn`, `time`, `duration`, `estimateSet`, `zone`, `recurrence`, `reminder`) / every other `meta` key (`note`, `history` and any unknown key; an allowlist, per the Task 2 review, finding 2) | | keep | delete |
   | `household_action_preferences` | tasks | `food-interests`, `week:availability`, `week:season-dismissals`, `week:review-preferences` / `week:focus`, `outdoorPlan` (free text and a typed place) | | keep | delete |
   | `household_action_state` | excluded: an internal counter, never emitted (B06 H10) | | all | keep | delete |
   | `luna_conversations` | conversation | `created_at`, `updated_at`, `revision` (with private text only, as the client does, W: `lib/frontend/settings-preview.ts:56-57`) | | keep | delete (cascades turns and runs) |
   | `luna_turns` | conversation | none / `seq`, `role`, `body`, `sources`, `evidence`, `created_at` | | keep | delete |
   | `luna_runs` | conversation | none / `status`, `message`, `created_at`, `settled_at` | `client_message_id` | keep | delete |
-  | `operations` | excluded: ledger internals (D-P2; W: `privacy-and-retention.md:24`) | | all | keep | delete every settled row except this clear's own (P4) |
+  | `operations` | excluded: ledger internals (D-P2; W: `privacy-and-retention.md:24`) | | all | keep | settled rows only: delete every settled row except this clear's own (P4); a pending row refuses the clear (`HALO_BUSY`, P3) |
   | `recovery_challenges` | excluded: recovery proof material (D-P2; W: `privacy-and-retention.md:25`) | | all | keep | **keep**, as login material (P4, Open question 2) |
 
   `profile_id` is never exported (every row has the same owner, and UI-146 keeps household identifiers out of the file). Record `id`s are exported only where the person can recognise the record by them (tasks). The column names above are this plan's reading of the migrations; Task 2 pins each against PGlite's catalog and the implementer corrects any that differ, citing the migration line.
