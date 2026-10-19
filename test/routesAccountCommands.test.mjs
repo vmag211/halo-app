@@ -34,6 +34,7 @@ import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs
 import { haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
+import { overlapAtSettle } from './helpers/overlap.mjs';
 
 const ROUTE = '/api/account/commands';
 
@@ -1791,17 +1792,21 @@ for (const { name, setup, action, payload } of SUCCEEDING) {
   });
 }
 
-test('the stored receipt, its replay and GET /api/operations all leave the settled operation out', async () => {
+test('Ruling S14: the stored receipt, its replay and GET /api/operations carry no unresolved list; only the direct answer has the live one', async () => {
   const h = harness({ operations: runningElsewhere() });
   const body = { action: 'request-recovery', payload: { email: FRESH }, expectedRevision: 1, operationId: op(1) };
-  await succeed(h, 'alice', body);
+  const direct = await succeed(h, 'alice', body);
+  assert.deepEqual(direct.snapshot.unresolvedOperations, [ELSEWHERE], 'the answer to the command that ran');
 
+  // A stored receipt is the record of what the command did, not a lock: by the
+  // time anyone replays it, the list it was written with may name settled work.
   const stored = h.db.rows('operations').find((row) => row.operation_id === op(1));
   assert.equal(stored.status, 'succeeded');
-  assert.deepEqual(stored.result.snapshot.unresolvedOperations, [ELSEWHERE], 'the receipt the ledger keeps');
+  assert.deepEqual(stored.result.snapshot.unresolvedOperations, [], 'the receipt the ledger keeps');
+  assert.deepEqual({ ...stored.result, snapshot: { ...stored.result.snapshot, unresolvedOperations: [ELSEWHERE] } }, direct, 'and nothing else differs');
 
   const replay = await succeed(h, 'alice', body);
-  assert.deepEqual(replay.snapshot.unresolvedOperations, [ELSEWHERE], 'the replayed receipt');
+  assert.deepEqual(replay.snapshot.unresolvedOperations, [], 'the replayed receipt');
 
   const response = await h.call('/api/operations', 'GET', {
     as: 'alice',
@@ -1812,7 +1817,60 @@ test('the stored receipt, its replay and GET /api/operations all leave the settl
   const reconciled = await response.json();
   assertAccountReceipt(reconciled, op(1));
   assert.equal(reconciled.status, 'succeeded');
-  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [ELSEWHERE], 'the receipt the client reconciles with');
+  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [], 'the receipt the client reconciles with');
+});
+
+/**
+ * The account hook's receipt handling (useAccountService.ts on
+ * origin/codex/october15-review-refinement), transcribed: React state becomes
+ * plain fields and `runtime.request` becomes the real handlers. `accept`
+ * adopts a succeeded receipt's `unresolvedOperations` as the ids it waits on,
+ * and `reconcile` reads one of them through `operations.read`.
+ */
+function accountClient(h, who = 'alice') {
+  const state = { snapshot: null, unknown: [], message: '' };
+  function accept(value, id) {
+    if (!value || value.operationId !== id) { state.unknown = [...new Set([...state.unknown, id])]; state.message = 'The account change could not be confirmed. Check its status.'; return null; }
+    if (value.status === 'unknown' || value.status === 'pending') { state.unknown = [...new Set([...state.unknown, id])]; state.message = 'The account change is still being checked.'; return null; }
+    state.unknown = state.unknown.filter((item) => item !== id);
+    if (value.status === 'failed') { state.message = value.message || 'The change was not applied. Your input is kept.'; return null; }
+    state.snapshot = value.snapshot; state.unknown = value.snapshot.unresolvedOperations; state.message = value.message || 'Updated.';
+    return value.snapshot;
+  }
+  return {
+    state,
+    run: async (body) => {
+      const response = await command(h, who, body);
+      assert.equal(response.status, 200);
+      return accept(await response.json(), body.operationId);
+    },
+    reconcile: async (id) => {
+      const response = await h.call('/api/operations', 'GET', { as: who, url: `/api/operations?operationId=${id}&domain=account`, env: ON });
+      assert.equal(response.status, 200);
+      return accept(await response.json(), id);
+    },
+  };
+}
+
+test('Ruling S14: two overlapping commands no longer park each other for ever (review R1, reproduced)', { timeout: 10_000 }, async () => {
+  const h = pendingLink();
+  const tab1 = accountClient(h);
+  const tab2 = accountClient(h);
+  const check = (operationId, expectedRevision) => ({ action: 'check-recovery', payload: { challengeId: CHALLENGE }, expectedRevision, operationId });
+  // op(1) claims first (revision 0). op(2) is sent while op(1) is running, so its revision counts op(1)'s row.
+  const [first, second] = await overlapAtSettle(h.db, () => tab1.run(check(op(1), 0)), () => tab2.run(check(op(2), 1)));
+  assert.ok(first && second, 'both commands succeeded');
+  // Each one's read of the ledger saw the other pending, and each direct answer says so.
+  assert.deepEqual([tab1.state.unknown, tab2.state.unknown], [[op(2)], [op(1)]]);
+  // "Check status" settles it in one step. Before Ruling S14 op(2)'s stored
+  // receipt named op(1), whose named op(2), and so on for ever.
+  await tab1.reconcile(tab1.state.unknown[0]);
+  assert.deepEqual(tab1.state.unknown, [], 'tab 1 is unlocked by one check');
+  await tab2.reconcile(tab2.state.unknown[0]);
+  assert.deepEqual(tab2.state.unknown, [], 'tab 2 is unlocked by one check');
+  for (const id of [op(1), op(2)]) {
+    assert.deepEqual(h.db.rows('operations').find((row) => row.operation_id === id).result.snapshot.unresolvedOperations, [], `${id}'s stored receipt`);
+  }
 });
 
 test('GET /api/account still lists genuinely pending account work after a command succeeds', async () => {

@@ -170,6 +170,13 @@ async function requireAlertColumns(supabase, profileId) {
  * GET /api/operations would replay the same receipt and lock it again. Every
  * other unsettled operation stays, exactly as listUnresolvedOperations returns
  * it (Ruling S1).
+ *
+ * That list is for the direct answer only (Ruling S14). The receipt the ledger
+ * keeps carries `unresolvedOperations: []`: it is the record of this change,
+ * replayed unchanged by a POST with the same id and by GET /api/operations,
+ * and a list frozen into it would name operations long settled. Two
+ * overlapping changes would then store receipts naming each other, and every
+ * "check status" would park the other one, for ever.
  */
 async function readReceiptContext(supabase, { profileId, operationId }) {
   const page = await readAlertRows(supabase, profileId);
@@ -213,6 +220,7 @@ export async function POST(request) {
 
     await requireAlertColumns(supabaseAdmin, userId);
 
+    let live = null;
     const outcome = await runOperation(
       supabaseAdmin,
       {
@@ -229,8 +237,10 @@ export async function POST(request) {
         // Terminal, and recorded as what happened, so a replay answers the
         // same way. No inbox goes into a refusal: nothing changed.
         if (!result.ok) return { status: 'failed', reason: result.reason };
-        // Nothing fallible from here to the settle (readReceiptContext).
-        return receiptBody(context, result.rows);
+        // Nothing fallible from here to the settle (readReceiptContext). The
+        // ledger keeps the receipt with [] and the live list waits for the answer.
+        live = context.unresolvedOperations;
+        return receiptBody({ ...context, unresolvedOperations: [] }, result.rows);
       },
     );
 
@@ -241,6 +251,9 @@ export async function POST(request) {
     // A settled refusal or failure, in either stored shape, is a terminal 409.
     if (outcome.status === 'failed' || outcome.status === 'cancelled') return settledRefusal(outcome, requestId);
     if (!outcome.result) return NextResponse.json({ operationId, status: outcome.status }, { headers });
+    // The change this call made answers with the live list; a replay answers
+    // with the stored receipt, whose list is [] (Ruling S14).
+    if (!outcome.replayed && live) return NextResponse.json({ ...outcome.result, unresolvedOperations: live }, { headers });
     return NextResponse.json(outcome.result, { headers });
   } catch (err) {
     if (err?.message === OPERATION_INPUT_MISMATCH) return operationMismatch(requestId);

@@ -900,6 +900,13 @@ test('a success receipt leaves out its own id but keeps another pending settings
   const receipt = await (await patch(h, body, { revision: 4 })).json();
   assertReceipt(receipt, body.operationId);
   assert.deepEqual(receipt.snapshot.unresolvedOperations, [OTHER]);
+  // Ruling S14: that list is the direct answer's alone. The receipt the ledger
+  // keeps, which a replay and GET /api/operations serve, is history, not a lock.
+  const historical = { ...receipt, snapshot: { ...receipt.snapshot, unresolvedOperations: [] } };
+  assert.deepEqual(opRow(h, body.operationId).result, historical);
+  assert.deepEqual(await (await patch(h, body, { revision: 4 })).json(), historical, 'a replay is the stored receipt');
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${body.operationId}&domain=settings` })).json();
+  assert.deepEqual([reconciled.status, reconciled.snapshot], ['succeeded', historical.snapshot]);
 });
 
 // ---------------------------------------------------------------------------

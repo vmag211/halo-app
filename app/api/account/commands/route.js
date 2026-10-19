@@ -354,7 +354,8 @@ function parsePayload(action, raw) {
  * The receipt body for a change that was made. This runs inside the ledger's
  * claimed operation, whose own row is still 'pending' until the receipt is
  * stored, so that one id is left out of the snapshot's unresolved work: the
- * receipt is what settles it.
+ * receipt is what settles it. That list is the live one, for the direct
+ * answer; POST stores the receipt with [] (Ruling S14).
  */
 const applied = async (supabase, { userId, operationId }, message) => ({
   status: 'succeeded',
@@ -743,6 +744,15 @@ export async function POST(request) {
     const currentRevision = await recoveryRevision(supabaseAdmin, userId);
     await requireChallengeTable(supabaseAdmin, userId);
 
+    // Ruling S14: the receipt the ledger keeps is the record of what this
+    // command did, served unchanged by a replay and by GET /api/operations, so
+    // its snapshot carries `unresolvedOperations: []`. A list frozen into it
+    // would name operations long settled, and two overlapping commands would
+    // store receipts naming each other: the client adopts a receipt's list as
+    // the ids it waits on (useAccountService.ts), so each "check status" would
+    // park the other one, for ever. The live list, read inside the command
+    // without this operation, is kept here for the direct answer alone.
+    let live = null;
     const outcome = await runOperation(
       supabaseAdmin,
       {
@@ -752,8 +762,8 @@ export async function POST(request) {
         kind: `account.${action.value}`,
         input: { feature: feature.value, action: action.value, payload: payload.value, expectedRevision: expectedRevision.value },
       },
-      () =>
-        perform(supabaseAdmin, {
+      async () => {
+        const done = await perform(supabaseAdmin, {
           request,
           action: action.value,
           userId,
@@ -761,13 +771,20 @@ export async function POST(request) {
           payload: payload.value,
           expectedRevision: expectedRevision.value,
           currentRevision,
-        }),
+        });
+        if (!done?.snapshot) return done;
+        live = done.snapshot.unresolvedOperations;
+        return { ...done, snapshot: { ...done.snapshot, unresolvedOperations: [] } };
+      },
     );
 
     // A replayed operation that is still running, or that died before it
     // settled, has no receipt to replay: the client is told `pending` or
     // `unknown` and reconciles later, which is not a failure and not a success.
     const receipt = outcome.result ?? { operationId: operationId.value, status: outcome.status };
+    if (!outcome.replayed && live && receipt.snapshot) {
+      return NextResponse.json({ ...receipt, snapshot: { ...receipt.snapshot, unresolvedOperations: live } }, { headers });
+    }
     return NextResponse.json(receipt, { headers });
   } catch (err) {
     if (err instanceof StaleRevisionError) return revisionConflict(err.revision, requestId);

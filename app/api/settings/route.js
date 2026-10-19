@@ -64,7 +64,11 @@ import {
  * nothing else. The same operationId replays the first receipt without acting
  * again; a stale revision is decided inside the claimed operation, so a replay
  * of a lost success returns that success rather than a conflict; the same id
- * with a different body is a 409.
+ * with a different body is a 409. The receipt the ledger keeps carries
+ * `snapshot.unresolvedOperations: []` (Ruling S14): it is the record of what
+ * this save did, served unchanged by a replay and by GET /api/operations, and
+ * the list it was written with would be stale by then. Only the direct answer
+ * to the save that ran carries the live list, without this operation.
  *
  * Answers:
  *   200 { operationId, status: 'succeeded', snapshot }   the full snapshot, new revision
@@ -161,8 +165,16 @@ export async function GET(request) {
   }
 }
 
-/** The one save, inside the operation the ledger has claimed. */
-async function save(supabase, { userId, operationId, group, patch, expectedRevision }) {
+/**
+ * The one save, inside the operation the ledger has claimed. Returns the
+ * receipt the ledger keeps, whose `unresolvedOperations` is always [] (Ruling
+ * S14): a stored receipt is history, not a lock, and GET /api/operations and a
+ * replay serve it as stored, so a list frozen into it would name operations
+ * long settled, and two overlapping saves would each park the other for ever.
+ * The live list, read before the save and without this operation, goes in
+ * `live` for the direct answer alone.
+ */
+async function save(supabase, { userId, operationId, group, patch, expectedRevision, live }) {
   // The precondition is decided here, after the claim, so a replay of a lost
   // response returns the first outcome instead of a conflict.
   const state = await readSettingsState(supabase, userId);
@@ -189,7 +201,13 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
   }
   if (!saved.saved) throw new StaleRevisionError(saved.revision);
 
-  return { status: 'succeeded', snapshot: settingsSnapshot({ ...saved, unresolvedOperations }) };
+  live.unresolvedOperations = unresolvedOperations;
+  return { status: 'succeeded', snapshot: settingsSnapshot({ ...saved, unresolvedOperations: [] }) };
+}
+
+/** The direct answer to a save this call made: the stored receipt with the live list (Ruling S14). */
+function withLiveList(receipt, unresolvedOperations) {
+  return { ...receipt, snapshot: { ...receipt.snapshot, unresolvedOperations } };
 }
 
 export async function PATCH(request) {
@@ -230,6 +248,7 @@ export async function PATCH(request) {
       throw err;
     }
 
+    const live = { unresolvedOperations: null };
     const outcome = await runOperation(
       supabaseAdmin,
       {
@@ -239,7 +258,7 @@ export async function PATCH(request) {
         kind: 'settings.save',
         input: { group, patch, expectedRevision },
       },
-      () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision }),
+      () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision, live }),
     );
 
     // A replay of an operation that settled as failed is a terminal 409 with
@@ -258,9 +277,14 @@ export async function PATCH(request) {
     }
 
     // A replay of work still running, or that died before it settled, has no
-    // receipt to replay: the client parks the id and reconciles later.
+    // receipt to replay: the client parks the id and reconciles later. A
+    // replay of a success is the stored receipt as it is, whose list is [];
+    // only the save this call made answers with the live list (Ruling S14).
     const receipt = outcome.result ?? { operationId: operationId.value, status: outcome.status };
-    return NextResponse.json(receipt, { headers });
+    const answer = !outcome.replayed && receipt.snapshot && live.unresolvedOperations
+      ? withLiveList(receipt, live.unresolvedOperations)
+      : receipt;
+    return NextResponse.json(answer, { headers });
   } catch (err) {
     if (err instanceof StaleRevisionError) {
       return conflict(MESSAGES.conflict, { reason: 'stale_revision', ...(err.revision ? { revision: err.revision } : {}) }, requestId);
