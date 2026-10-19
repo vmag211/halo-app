@@ -133,8 +133,8 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
    account, no timed purge (small user base). Still open: journals, home and location history,
    environmental history, alerts, operation receipts, recovery challenges, abandoned anonymous accounts,
    backups and logs (`privacy-and-retention.md`).
-4. **Backup and restore coverage** (BE-307): free tier, no scheduled backups, no PITR.
-5. **Recovery objectives** (BE-360) and the **Turnstile keys** (BE-340, both of them).
+4. **Backup and restore coverage** (BE-307): free tier, no scheduled backups, no PITR. **Decided 2026-10-19: no backups, an accepted risk for the competition.**
+5. **Recovery objectives** (BE-360) and the **Turnstile keys** (BE-340, both of them). **Decided 2026-10-19: recovery completion waits until after the competition; it stays off.**
 6. **Two product numbers that look like configuration**: the app-wide 450-questions-a-day ceiling, which
    buys far fewer conversations than it bought one-shot questions, and Luna's 60-per-conversation limit,
    where the suite pins only relationships and every integer from 21 to 89 passes.
