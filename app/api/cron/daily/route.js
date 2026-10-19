@@ -14,6 +14,7 @@ import { fetchHistory, UNLINKED_HOME } from '@/lib/journalHistory';
 import { pushConfigured, sendAlertPushes } from '@/lib/push';
 import { buildAndStoreAll } from '@/lib/mapBuild';
 import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
+import { purgeAllPrivacyReceipts } from '@/lib/privacyStore';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -44,6 +45,9 @@ export const maxDuration = 60;
  *     home's (and those with no home recorded), from the same bulk read: an
  *     earlier home's reading is never compared with the new home's.
  *  5. Pushes new alerts to subscribed devices and removes expired subscriptions.
+ *  After the household pass (step 3 and 4), privacy receipts settled more than 24 hours ago are
+ *  deleted for every household (B07 Ruling P10, purge_privacy_receipts with no owner). Its failure
+ *  (migration 0024 not applied, a database error) is logged by its code and never fails the run.
  *
  * Every date is the household-local (America/New_York) calendar day.
  */
@@ -259,6 +263,13 @@ async function runDaily(request) {
       }
     });
 
+    // Privacy receipt retention for every household (P10), once per run, never fatal.
+    const privacyReceiptsPurged = await purgeAllPrivacyReceipts(supabaseAdmin).catch((err) => {
+      const code = typeof err?.code === 'string' && /^[A-Za-z0-9_]{1,16}$/.test(err.code) ? err.code : 'unexpected';
+      console.error('Daily job: the privacy receipt purge failed; the run goes on:', code);
+      return null;
+    });
+
     let inserted = [];
     if (newAlerts.length) {
       const { data, error } = await supabaseAdmin
@@ -301,6 +312,7 @@ async function runDaily(request) {
       push,
       water_geo: await geoSummary,
       map_layers: await mapBuild,
+      privacy_receipts_purged: privacyReceiptsPurged,
       ran_at: now.toISOString(),
     });
   } catch (err) {
