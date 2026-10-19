@@ -30,6 +30,7 @@ const ROUTE_COVERAGE = {
   'DELETE /api/account': 'flows: deletes the caller from every owned table (cascade), foreign ids and headers ignored, bob intact',
   'GET /api/alerts': 'isolation: read matrix, identity-from-token',
   'POST /api/alerts': 'isolation: foreign id for read, dismiss and undo looks like a missing id; all:true scoped',
+  'POST /api/alerts/state': 'routesAlertsState: every statement on alerts and every ledger read is scoped to the caller on the query itself, another household\'s alert id in a selection is the identical 409 to an id that never existed and changes nothing of theirs, alone or beside the caller\'s own rows, and a body naming another profile is refused',
   'GET /api/assistant': 'isolation: read matrix (suggestions only)',
   'POST /api/assistant': 'flows: the model prompt carries only the caller\'s context and no journal notes',
   'GET /api/cron/daily': 'flows: secret required; bands, dedupe, prefs, season summary and provider requests per household',
@@ -160,7 +161,11 @@ const READS = [
       assert.deepEqual(body.alerts.map((alert) => alert.id), [alertId(who, 1), alertId(who, 2)]); // the dismissed one is not listed
       assert.deepEqual([body.count, body.unread], [2, 1]);
       assert.ok(body.alerts.every((alert) => alert.profile_id === ctx.id(who)));
-      assert.ok(!JSON.stringify(body).includes(`${upper(who)}-DISMISSED-MARKER`));
+      assert.ok(!JSON.stringify(body.alerts).includes(`${upper(who)}-DISMISSED-MARKER`), 'the legacy list leaves the dismissed one out');
+      // The contract inbox (B04 Task 2b) keeps the caller's dismissed alert,
+      // because Undo re-selects it; it is the caller's own row, not a leak.
+      assert.deepEqual(body.items.map((item) => [item.id, item.dismissed]), [[alertId(who, 1), false], [alertId(who, 2), false], [alertId(who, 3), true]]);
+      assert.deepEqual(body.unresolvedOperations, [], 'the seeded operation is settled and in another domain');
     },
   },
   {
