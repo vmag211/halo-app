@@ -139,6 +139,10 @@ function fakeCounts(db, profileId, scope) {
     'push_subscriptions', 'profile_preferences', 'explore_areas', 'household_actions', 'household_action_preferences',
     'household_action_state', 'luna_conversations', 'luna_turns', 'luna_runs']) out[table] = own(table).length;
   out.operations = own('operations').filter((row) => row.status !== 'pending').length;
+  // 0025 where applied (0024's to_regclass check), else 0.
+  let maxima = [];
+  try { maxima = own('daily_maxima'); } catch { maxima = []; }
+  out.daily_maxima = maxima.length;
   return out;
 }
 
@@ -254,6 +258,44 @@ test('clear all: count = the sum of privacy_counts, and the preview adds up to i
   assert.equal(result.review.count, sum);
   assert.equal(Object.values(result.raw.preview.remove).reduce((a, b) => a + b, 0), sum);
   assert.deepEqual(result.raw.preview.limits, [EXPORT_COPY.limitDownloads, EXPORT_COPY.limitBackups]);
+});
+
+test('the privacy_counts stand-in names exactly the keys 0024 counts for clear all', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/0024_privacy_clear.sql', import.meta.url), 'utf8');
+  const countsAll = sql.slice(sql.indexOf('create or replace function public.privacy_counts'));
+  const fn = countsAll.slice(0, countsAll.indexOf('$$;'));
+  // The last object the function returns is clear all's (the first is Clear Journal's).
+  const body = fn.slice(fn.lastIndexOf('return jsonb_build_object('));
+  const named = [...body.matchAll(/^\s*'([a-z_]+)', (?:\(select count|[a-z_]+\s*$)/gm)].map((match) => match[1]);
+  const h = harness();
+  assert.deepEqual(Object.keys(fakeCounts(h.db, h.identities.alice.id, 'all')).sort(), named.sort());
+  assert.ok(named.includes('daily_maxima'));
+});
+
+test('daily_maxima (0025): clear all counts every one of the household\'s maxima under home, and a recorder write does not void the review (not fingerprinted, P6)', async () => {
+  const h = harness();
+  const alice = h.identities.alice;
+  const maxima = h.db.rows('daily_maxima').filter((row) => row.profile_id === alice.id).length;
+  assert.equal(maxima, 6);
+  const withMaxima = await opened(h, { scope: 'all', groups: [], privateText: false });
+  assert.equal(withMaxima.status, 200);
+  assert.ok(withMaxima.review);
+  // The same household without its maxima: the count and the home line are smaller by exactly them.
+  const without = harness({ adjust: (seeded, ids) => { seeded.daily_maxima = seeded.daily_maxima.filter((row) => row.profile_id !== ids.alice.id); } });
+  const withoutMaxima = await opened(without, { scope: 'all', groups: [], privateText: false });
+  assert.equal(withMaxima.review.count - withoutMaxima.review.count, maxima);
+  assert.equal(withMaxima.raw.preview.remove.home - withoutMaxima.raw.preview.remove.home, maxima);
+  assert.ok(!('other' in withMaxima.raw.preview.remove), 'daily_maxima fell under other');
+  // The recorder writes a maximum after the review: the clear-all token still verifies.
+  assert.ok(!fingerprintTables('all').includes('daily_maxima'));
+  const { reviewToken } = withMaxima.raw;
+  h.db.seed('daily_maxima', [{
+    profile_id: alice.id, home_context_id: contextId('alice', 1), local_date: '2026-01-01', factor: 'uv', value: 4, unit: 'UV index',
+    source_code: 'open_meteo_forecast', station_id: null, method_version: 'daily-max-v1', time_zone: 'America/New_York',
+    hours_expected: 24, hours_observed: 24, missing_code: null, retrieved_at: '2026-01-02T12:00:00Z',
+  }]);
+  const current = fakeFingerprint(h.db, alice.id, fingerprintTables('all'));
+  assert.deepEqual(verifyReviewToken(KEY, reviewToken, { profileId: alice.id, fingerprint: current }), { ok: true, scope: 'all', groups: [], privateText: false });
 });
 
 for (const scope of ['journal', 'all']) {
