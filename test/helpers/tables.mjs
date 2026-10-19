@@ -204,6 +204,18 @@ export const HALO_TABLES = {
     },
   },
 
+  // 0022: a household's saved discovery area, one row per household (Ruling
+  // D5). `revision` has no default on purpose: there is no row until the first
+  // save, which writes 2, because 1 is the never-saved state a missing row
+  // reads as (Ruling D6). The five place columns have no default either, since
+  // null together is a cleared area. The primary key is what makes two first
+  // saves collide, which the fake reproduces as a 23505.
+  explore_areas: {
+    primaryKey: 'profile_id',
+    ownerColumn: 'profile_id',
+    defaults: { updated_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },
