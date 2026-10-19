@@ -1,3 +1,133 @@
+# B06 checkpoint: My Week (tasks, their planning details, and the week strip)
+
+Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b06-home-actions-week.md`. Contract digest and rulings: `.superpowers/sdd/b06-home-actions-week/` (`contract-digest.md`, `progress.md`, the task reviews; gitignored scratch).
+
+The B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **My Week's tasks are not live anywhere.** The `tasks` capability is off in every environment and stays off until Vibhav approves a retention period for tasks. Migration 0023 is applied nowhere. `docs/backend/STATE.md` is not updated by this task; the controller regenerates it after the B04 and B06 contract tasks both merge.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **My Week still cannot load in production, by decision.** The routes are built and tested, but the `tasks` flag is off by default (Rulings H1, H17), and Vibhav confirmed on 2026-10-18 that it stays off until retention for tasks is approved. Until then the load is a non-retryable 503, and My Week shows exactly what it shows today with no route: "Your tasks could not load. Reconnect and try again." (open question 4).
+2. **The week strip will never show a change in this release.** `week.changes` always answers `{"changes":[],"unresolvedOperations":[...]}` (Ruling H4). No source of a change exists: organizer events, forecasts and the home record collections are unbuilt, and deriving a change from water alerts would invent a link no record makes (C4). `week.acknowledge` validates the body and then refuses, every time, through the ledger (Ruling H19). The strip renders nothing for that answer, which is its own designed empty state.
+3. **This is not the spec's P01 and P02 in full.** It is what the client contract needs today: three states, not the spec's seven (C5); recurrence driven by the client, with no occurrence table; no reminders or scheduler (HO-072); no evidence snapshots, parents or dispositions; and the `clear` command kind refused (Ruling H14). The tracker marks every broad row partial.
+4. **"B06" is the backend's numbering.** The spec's own B06 is "Food advisories and grower resources", and the spec calls this work "B03 Shared actions Plan and durable delivery". The registry's routes win over the spec's REST names (HO-096 permits renaming).
+5. **Tasks belong to the household, not a home** (Ruling H2). `X-Halo-Home-Context` is ignored on all four routes, so a move carries nothing (`portableTasks`). The unique key can widen later without moving data (open question 2).
+
+## Where B06 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0023, its read function and its atomic commit function | Merged (`b6746d3`, `9e71225`; merge `615f7d6`) |
+| 2. `lib/actionRules.js`, the client's rules and the command planner | Merged (`722201a`, `cbaaa4e`; merge `5354ccd`) |
+| 3. `GET /api/frontend/actions` (`actions.load`), the store library, the flag | Merged (`a2d296d`, `a9d1a22`; merge `0928320`) |
+| 4. `POST /api/frontend/actions/commands` (`actions.commit`) and the `actions` reconcile in `operations.read` | Merged (`f9700c4`, `d69e8bb`, `faaf33d`; merge `b5e978c`) |
+| 5. `GET /api/week/changes` and `POST /api/week/changes/acknowledge` | Merged (`a1825a0`, `631bc14`; merge `18a0829`) |
+| 6. Contracts, conformance, tracker, checkpoint | This section. Built on `b5e978c`; the contract commit and the docs commit that carries this section |
+
+Every task before 6 had an independent review, and each review is in `.superpowers/sdd/b06-home-actions-week/`. Task 6 itself has not been reviewed yet. Nothing is merged to main.
+
+## What was built
+
+- **Migration 0023** creates three tables: `household_actions` (one row per task, keyed by the household and the client's task key), `household_action_preferences` (the six My Week preferences) and `household_action_state` (one internal counter per household). It also creates one index, ten CHECK constraints, the read function `read_household_actions`, the atomic commit function `commit_household_actions`, and a guard trigger on 0017's `operations`. All of it is service-role only: RLS is on with no policy, and the browser roles have no privilege on the tables and no EXECUTE on the functions.
+- **`lib/actionRules.js`** is the client's own rules, transcribed with types stripped and nothing improved (Ruling H15): `validActionDate`, `actionDraftError`, `revisedActionBatch`, `eventInstant`, `actionMetadataError`, `validActionPreferences`, `validActionSnapshot` and `sameValue`. It also holds `parseActionCommand`, which settles every 400 that needs no stored state, and `planActionCommand`, which applies a command in the reference order and validates the whole resulting snapshot.
+- **`GET /api/frontend/actions`** reads the household's whole snapshot in one statement, so a household over 1,000 tasks is not cut short (F1). It reads the unresolved list before the snapshot, and returns a stored snapshot exactly as read even when the server's own validator refuses it, logging only ids and codes (Rulings H24, H31).
+- **`POST /api/frontend/actions/commands`** checks, in order: the session, the body (at most 4,000,000 bytes), the operation id and `Idempotency-Key`, the flag, `If-Match` (refused), and the whole command. It then reads the snapshot and the live list, claims the ledger row, and plans and commits through the one database function, retrying a lost race at most three times. Every refusal is the contract's own 200 `failed` receipt, or a terminal 409 on a replay (Ruling H11).
+- **`GET /api/operations`** answers a succeeded `actions` operation with the household's CURRENT snapshot and the live list minus the operation itself, at the top level and at `snapshot` (Rulings H18, S16). Every other status and domain is replayed as stored.
+- **`GET /api/week/changes`** and **`POST /api/week/changes/acknowledge`** need only 0017 and are not behind the flag (they collect no free text).
+- **`docs/backend/contracts/b06.openapi.json`** is version `b06-1`, with 59 fixtures under `fixtures/b06/`. Each fixture is the normalised answer of a real handler, and a test fails if one drifts. **`test/contractsB06.test.mjs`** (77 tests) runs the handlers against the contract and through the client's own consumption logic, transcribed once in `test/helpers/frontendB06.mjs`. Task 6 moved the week strip transcription there from `routesWeekChanges`, so the per-route suites and the contract share one copy. It covers every documented status, including:
+  - the flag-off 503;
+  - the empty household;
+  - the H11 400;
+  - the five 200 refusal reasons and the disabled receipt;
+  - the four 409 reasons;
+  - the in-flight 503;
+  - the stored refusal's `check`;
+  - the S14 and S16 list shapes.
+
+  It checks three cross-route agreements: a receipt's snapshot is the next load; a reconcile is the current snapshot plus the live list in both places; and the empty household is the same bytes on the load, a receipt and its reconcile. A drift test holds `lib/actionRules.js` to the independent transcription on a corpus of more than 800 comparisons. **No disagreement was found.** No B06 body has a top-level `data` key or a U+2014.
+
+## Rulings
+
+H1 to H7 were the controller's before planning, H8 to H24 were made in planning, and H25 to H33 were made during execution. All are in `progress.md` and the plan. The ones that most shape behaviour:
+
+- **H8: a task write exists if and only if its operation is `succeeded`.** The commit function settles the save's own ledger row, in the transaction that writes the tasks. So when a reaped save reconciles, the client's "No save was applied. Your draft is kept for review." is always true.
+- **H25 (amends T5): whole-snapshot validation refuses only failures the command adds.** A stored row that only the server's time zone data rejects (H24 drift) does not block unrelated saves, and a save that fixes or deletes the bad row still works. As first planned, one such row would have blocked every save while the client still showed My Week.
+- **H28: a guard trigger on `operations` freezes the status of a settled `actions` row.** Without it, `runOperation` would overwrite the function's in-transaction `succeeded` with `failed` when the response is lost, and the client would be told nothing was saved. It applies to domain `actions` only, and the reaper, which touches pending rows only, is unaffected.
+- **H29: the commit function locks its own pending ledger row first.** A row the reaper has already settled aborts the commit, so a reaped row never becomes `succeeded` without its write, and a committed task is never reaped.
+- **H32 (amends H16): a live success reads the unresolved list once, after the snapshot probe and before the claim**, in the same order as the load. Every operation already claimed when the list is read is then either listed, or in the snapshot the commit returns. The residual is under Known limits.
+- Also in force:
+  - **H3:** the ledger holds ids, revisions and reason codes only.
+  - **H9:** one read function builds every snapshot.
+  - **H10:** a household version serialises commits, because metadata moves no per-task revision.
+  - **H12:** signatures are parsed and deep-compared, all first.
+  - **H13:** echo exactly, and refuse only what cannot round-trip: U+0000, a lone surrogate, a non-finite number, year 0000.
+  - **H17:** the flag.
+  - **H21:** `Idempotency-Key` required and equal to the body's id, `If-Match` refused, `maxDuration = 60`.
+  - **H26:** nesting is capped at 32.
+  - **H27:** the body id is lowercased and never trimmed.
+  - **H30:** years 1 to 9999.
+  - **H31:** log codes, not text.
+  - **H33:** a stored `invalid_result` refusal may carry `check`, one of nine fixed codes, never typed text.
+  - **S14 and S16:** carried from B04. A stored receipt carries `unresolvedOperations: []`, and a reconcile carries the live list.
+
+## Migration 0023
+
+**Written, merged, and applied nowhere.** 0023 is the **fifth pending migration**, after 0019, 0020, 0021 and 0022. 0001 to 0018 are applied to production. Its apply steps, its six-column verification query (expect one row, all true, including `ten_checks`, meaning exactly 10 CHECK constraints), and its tested back-out block (`<!-- backout-0023 -->`) are in `YOUR_TODO.md` 2.12. The back-out is tested on PGlite only. Applying it takes a brief SHARE ROW EXCLUSIVE on `profiles` and on `operations` (the guard trigger). Applying it turns nothing on: the flag decides that.
+
+## Verification
+
+Gate at the Task 6 docs commit, on `b5e978c` plus Task 6:
+
+- `node --test test/*.test.mjs`: **3,304 passed, 0 failed, 0 skipped, 0 todo**. That is the 3,227 of the Task 4 merge plus the 77 contract tests. Moving the strip transcription changed no per-route count.
+- B06 suites: `actionsSchema` 24, `actionRules` 26, `actionsStore` 18, `routesActionsLoad` 26, `routesActionsCommit` 27, `routesActionsCommitDb` 12, `routesWeekChanges` 34, `contractsB06` 77, plus the B06 cases in `routesOperations`, `rlsIsolation`, `migrationBackout`, `haloTables` and `routeIsolation`.
+- `npm run typecheck`: clean.
+- `npm run lint`: **0 errors and the 5 pre-existing warnings**.
+- `git diff --check`: clean.
+
+Task 6's mutation checks, each restored afterwards:
+
+- Removing `not_applied` from the contract's 409 reason enum failed 6 tests: two fixtures, the coverage test, both mutation conformance tests, and the fixture-to-handler comparison.
+- Renaming `revisions` to `revision` in the commit route's refusal body failed 4: the commit and reconcile conformance, the fixture comparison, and the header test (a test that stops early stops sending the headers it would have).
+- Dropping the top-level live list from the `actions` reconcile in `app/api/operations/route.js` failed 3, including the cross-route agreement.
+
+The earlier tasks' mutations are in their reviews. Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped and blocked, and why
+
+- **Dropped:** the `clear` command kind. It has no production sender, and clearing belongs to `privacy.clear`. It is a 400. Also dropped: `reminderStates` (no scheduler), occurrence tables (recurrence is client-driven), and acknowledgement storage (nothing was ever emitted to acknowledge).
+- **Blocked:** turning the flag on, on retention (BE-320). `week.changes` with content, on a change source. `portableTasks` and carry-forward on a move, on open question 2. Export and deletion under `privacy.*`, on B12; until then deletion is the account cascade.
+
+## Open questions for Vibhav
+
+1. **Retention for tasks, their planning details and task preferences** (BE-320, BE-323). **This gates the flag** (Ruling H1, confirmed 2026-10-18). Until it is answered, My Week stays as it is today in production.
+2. **Tasks per household or per home** (Ruling H2). Per household now. Per home would make carry-forward (BE-206) and `portableTasks` meaningful. The key can widen later without moving data.
+3. **Weekly availability as a schedule** (Ruling H5). It is last-write-wins per key, which BE-264 does not accept for schedules. A conflict mechanism needs a precondition in the client contract from Yogi.
+4. **Whether a dead My Week is acceptable while the flag is off.** The client's sentence suggests a fix the person cannot make. The alternative is an availability field from Yogi (`YOUR_TODO.md` Part 4 item 18).
+5. **The week strip's change source.** Whether organizer events, forecasts or the home record collections are in v1 decides whether `week.changes` ever has content. Until one is, the strip is empty by design.
+6. **Whether tasks may reach Luna.** Tasks now exist to send. 0021's `luna_tasks` switch is the gate, and this joins STATE decision 2.
+7. **Unbounded task history** (BE-327, Ruling H23). `meta.history` grows on every change with no bound, and every save carries it, so a long-lived task eventually cannot be saved under the 4 MB cap. It needs a bound in the contract (Yogi) that you agree to.
+8. **Applying 0023**, the fifth pending migration (`YOUR_TODO.md` 2.12). It can go in one batch with 0019 to 0022.
+
+## Known limits and deferred minors
+
+- **The H32 residual.** An operation claimed after a save's list read, which then commits after that save, is in neither the save's list nor its snapshot. The load accepts the same residual. It cannot be told apart from a commit that lands just after the answer, which the client never polls for. Closing it would mean returning the list from inside the commit function's transaction, a 0023 change that is not recommended now.
+- **PGlite cannot show true concurrency.** It runs one connection. The H10 race test interleaves two commits from one base, and the H29 and reaper tests interleave conditional updates. Postgres's row locks and `where version = ...` under real parallel sessions are argued from the SQL, not observed.
+- **Time zone data can still disagree between Node and a browser** (digest 9.5). H24 and H25 keep such a row loadable and other saves working. The residual is recorded, not solved.
+- **The client does not reload after a refusal or a 409** (F4), and **a reconcile 404 locks My Week until a page reload** (F7). Both are client-side, and both are in `YOUR_TODO.md` Part 4 for Yogi.
+- **A reaped row with a late refused commit can replay as `not_applied` rather than `abandoned`** (Task 4 review O-a). Both are terminal 409s, and with `maxDuration = 60` under the 120-second window it is unreachable.
+- **A `cancelled` actions row with no receipt would answer the in-flight 503.** The actions domain never writes `cancelled` (Task 4 review O-b).
+- **`YOUR_TODO.md` 2.6's "which migrations are applied" query still stops at 0019.** 2.12 says to use 0023's own verification query instead.
+- **Fixtures are regenerated, not hand-edited.** After a deliberate contract change, run `node test/contractsB06.test.mjs --write-b06-fixtures` and review the diff.
+
+**Constraint for later packages: project, step and engagement ids must stay ASCII.** A task key is capped at 1,000 UTF-8 bytes (Task 1 review L1: a longer key fails in the unique index). Keys are composed from those ids, so 200 non-ASCII characters per id could exceed the cap, and the save would be refused.
+
+## Next
+
+1. Review Task 6, then merge it onto `vmag211/backend` with the B04 contracts task, and re-run the gate on the merge. The controller then regenerates `STATE.md` and re-measures the registry: four more operations answer.
+2. Answer open question 1. It alone unblocks the flag. Then apply 0019 to 0023 as one batch.
+3. Give Yogi `YOUR_TODO.md` Part 4 items 16 to 22 and the B06 contract.
+
+---
+
 # B05 checkpoint: discovery (the map routes, Explore your area, an honest comparison)
 
 Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b05-discovery-and-summaries.md`. Contract digest: `.superpowers/sdd/b05-discovery-and-summaries/contract-digest.md` (gitignored scratch).
