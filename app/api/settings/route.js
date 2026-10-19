@@ -237,7 +237,14 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
   // abandoned (review item 4 of the S14 follow-up); this call's own answer is
   // the failed receipt (PATCH below).
   if (saved.abandoned) return { status: 'failed', reason: 'abandoned' };
-  if (!saved.saved) throw new StaleRevisionError(saved.revision);
+  // A refused save names the stored revision, the one to send next. When
+  // save_settings found no preferences row at all (it was removed after the
+  // read above, which nothing in the app does), it has no revision to name, so
+  // the row is made again exactly as a first read makes it, and that revision
+  // is the answer: a stale_revision always carries one (task 3 review N3).
+  if (!saved.saved) {
+    throw new StaleRevisionError(saved.revision ?? (await ensurePreferences(supabase, userId)).revision);
+  }
 
   live.unresolvedOperations = unresolvedOperations;
   return { status: 'succeeded', snapshot: settingsSnapshot({ ...saved, unresolvedOperations: [] }) };

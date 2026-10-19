@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { requestIdFor, internalError, apiError, ERROR_CODES } from '@/lib/apiErrors';
+import { requestIdFor, internalError, apiError, loggableError, ERROR_CODES } from '@/lib/apiErrors';
 import { parseUuid, parseEnum } from '@/lib/validate';
 import {
   readOperation,
@@ -147,7 +147,9 @@ export async function GET(request) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`operations read failed (request ${requestId}):`, err);
+    // Code and message only (loggableError): a Postgres error's details and
+    // hint can hold a row, and the actions overlay reads task rows.
+    console.error(`operations read failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }

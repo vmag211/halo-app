@@ -4,9 +4,10 @@ One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
 Updated 2026-10-19 (B04 Task 3, the contracts task, committed on its worktree branch on top of
-`6a11adc`, awaiting review and merge). That tip is 133 commits ahead of `origin/main`, nothing merged to
-main. On it **3,252 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors
-and 5 pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score).
+`6a11adc`, awaiting review and merge). That tip, the Task 3 fix-round commit, is 135 commits ahead
+of `origin/main`, nothing merged to main. On it **3,255 tests pass**, 0 fail, 0 skipped;
+`npm run typecheck` clean; `npm run lint` 0 errors and 5 pre-existing warnings (district, backfill,
+assistantRag.test, uploadData, daily-score).
 `vmag211/backend` has meanwhile moved to `b5e978c` (B06 Task 4), so re-run the gate on the merge.
 
 ## What exists
@@ -28,7 +29,8 @@ are what show that. The 23, by the package that made them answer:
 | B02 | `operations.read`, `account.read`, `account.command`, `recovery.request`, `recovery.status` |
 | B03 | `luna.capabilities`, `luna.conversations`, `luna.clear`, `luna.message`, `luna.run`, `luna.cancel` |
 | B04 2a | `settings.read`, `settings.save` (`GET`/`PATCH /api/settings`) |
-| B04 2b | `alerts.update` (`POST /api/alerts/state`), and `GET /api/alerts` extended to the contract read || B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
+| B04 2b | `alerts.update` (`POST /api/alerts/state`), and `GET /api/alerts` extended to the contract read |
+| B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
 | B06 Task 5 | `week.changes`, `week.acknowledge` |
 
 B06 Task 3 (`actions.load`) is merged behind the `tasks` flag, which answers 503 while off, so it is not

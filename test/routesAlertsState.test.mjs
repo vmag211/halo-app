@@ -667,6 +667,22 @@ test('POST: a failure is logged as its code and message, never its details or hi
   assert.equal(lines.includes(MARKER), false, lines);
 });
 
+test('GET: a failed read is logged as its code and message, never its details or hint, for the ledger read and the inbox read alike (task 3 review B1)', async (t) => {
+  const logged = muteConsoleError(t);
+  const MARKER = 'MARKER-ALERTS-GET-LOG-5512';
+  const error = { code: 'XX000', message: 'the read failed', details: `Failing row contains (${MARKER})`, hint: MARKER };
+  const ledgerFails = harness();
+  failSelect(ledgerFails, 'operations', () => true, error);
+  await expectEnvelope(await read(ledgerFails), { status: 500, code: 'internal_error' });
+  const inboxFails = harness();
+  failSelect(inboxFails, 'alerts', (columns) => columns === inbox.ALERT_ITEM_COLUMNS, error);
+  await expectEnvelope(await read(inboxFails), { status: 500, code: 'internal_error' });
+  const lines = logged.mock.calls.flatMap((call) => call.arguments.map((arg) => inspect(arg, { depth: 8 }))).join('\n');
+  assert.equal(logged.mock.callCount(), 2, 'one line per failed read');
+  assert.equal(lines.match(/XX000 the read failed/g)?.length, 2);
+  assert.equal(lines.includes(MARKER), false, lines);
+});
+
 test('GET: a contract read that fails for any reason but a missing migration is a 500, not a quietly degraded inbox', async (t) => {
   const logged = muteConsoleError(t);
   const inboxFails = harness();

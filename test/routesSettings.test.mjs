@@ -853,6 +853,27 @@ test('a stale If-Match is a 409 with the current revision; nothing is written an
   assert.equal(opRow(h, body.operationId).status, 'failed');
 });
 
+test('task 3 review N3: a save that finds no preferences row is a stale_revision that still names a revision, the one a first read makes', async () => {
+  const h = harness();
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  const rpc = h.db.rpc;
+  h.db.rpc = async (name, args) => {
+    if (name === 'save_settings') {
+      h.db.rpc = rpc;
+      // The row goes after the route's read and before the save: save_settings finds nothing.
+      const { error } = await h.db.from('profile_preferences').delete().eq('profile_id', h.identities.alice.id);
+      assert.equal(error, null);
+    }
+    return rpc(name, args);
+  };
+  const envelope = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason', 'revision'] });
+  assert.deepEqual([envelope.reason, envelope.revision], ['stale_revision', 1], 'the contract requires the revision on every stale_revision');
+  assert.equal(prefsOf(h).revision, 1, 'the row is there again at the revision named, as a first read makes it');
+  assert.equal(prefsOf(h).luna_home, false, 'and the refused save wrote nothing into it');
+  assert.equal(opRow(h, body.operationId).status, 'failed');
+});
+
 test('two saves holding the same revision: exactly one wins, and the loser wrote nothing', async () => {
   const h = harness();
   const shown = await readBody(h);

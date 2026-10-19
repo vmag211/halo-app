@@ -721,6 +721,45 @@ test('B04 handler conformance: operations.read answers each settled, unsettled a
   await authOutage(harness(), 'operationsRead', { query: `?operationId=${uuid(60)}&domain=settings` });
 });
 
+test('every 500 the contract documents logs code and message only, never a database error\'s details or hint (BE-201, task 3 review B1)', async (t) => {
+  const logged = muteConsoleError(t);
+  const MARKER = 'MARKER-B04-LOG-7731';
+  const leaky = { code: 'XX000', message: 'the statement failed', details: `Failing row contains (${MARKER})`, hint: MARKER };
+  /** Every statement on `table` answers the leaky error, however it is chained. */
+  const leak = (h, table) => {
+    const from = h.db.from;
+    h.db.from = (name) => {
+      if (name !== table) return from(name);
+      const query = new Proxy({}, { get: (_, property) => (property === 'then' ? (ok, ko) => Promise.resolve({ data: null, count: null, error: leaky }).then(ok, ko) : () => query) });
+      return query;
+    };
+    return h;
+  };
+  await readSettings(leak(harness(), 'profile_preferences'), { expected: 500 });
+  await call(leak(harness(), 'operations'), 'alertsRead', { expected: 500 });
+  await call(leak(harness(), 'alerts'), 'alertsRead', { expected: 500 });
+  await reconcile(leak(harness(), 'operations'), uuid(70), 'settings', { expected: 500 });
+  const failing = harness();
+  const { body: shown } = await readSettings(failing);
+  const rpc = failing.db.rpc;
+  failing.db.rpc = async (name, args) => (name === 'save_settings' ? { data: null, error: leaky } : rpc(name, args));
+  await saveSettings(failing, shown, 'luna', { key: uuid(71), edit: toggleLuna, expected: 500 });
+  const broken = harness();
+  const fromAlerts = broken.db.from;
+  broken.db.from = (name) => {
+    const builder = fromAlerts(name);
+    if (name === 'alerts') builder.update = () => new Proxy({}, { get: (_, property) => (property === 'then' ? (ok) => ok({ data: null, error: leaky }) : function chain() { return this; }) });
+    return builder;
+  };
+  await updateAlerts(broken, [{ id: A1, revision: 1 }], { read: true }, { key: uuid(72), expected: 500 });
+  const lines = logged.mock.calls.flatMap((c) => c.arguments.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))).join('\n');
+  for (const prefix of ['Settings read failed', 'Alerts failed', 'operations read failed', 'Settings save failed', 'alerts state update failed']) {
+    assert.ok(lines.includes(prefix), `${prefix} was logged: ${lines}`);
+  }
+  assert.equal(lines.match(/Alerts failed/g)?.length, 2, 'both alerts reads were logged');
+  assert.equal(lines.includes(MARKER), false, lines);
+});
+
 // ---------------------------------------------------------------------------
 // Cross-route agreement
 // ---------------------------------------------------------------------------
