@@ -571,6 +571,97 @@ test('refusals: stale revisions name the current revisions; an unknown task or k
   assert.deepEqual(run(base, { kind: 'revise', changes: [], metadata: { k3: { note: 'partial' } } }), { ok: false, reason: 'invalid_result', message: 'The task schedule is invalid.' });
 });
 
+test('refusals: the answer to a revise does not depend on the order of its changes', () => {
+  const base = household();
+  const missing = { id: 'gone', revision: 1, patch: { title: 'x', date: '', state: 'saved' } };
+  const stale = { id: 'id-1', revision: 1, patch: { title: 'x', date: '', state: 'saved' } };
+  const fine = { id: 'id-3', revision: 3, patch: { title: 'x', date: '', state: 'saved' } };
+  // Any missing task wins: unknown_action, whichever comes first.
+  for (const changes of [[missing, stale], [stale, missing], [fine, stale, missing]]) {
+    assert.deepEqual(run(base, { kind: 'revise', changes }), { ok: false, reason: 'unknown_action', message: ACTION_REFUSAL_MESSAGES.unknown_action });
+  }
+  // Otherwise stale_revision, naming every task's current revision, in change order.
+  assert.deepEqual(run(base, { kind: 'revise', changes: [stale, fine] }).revisions, [{ id: 'id-1', revision: 2 }, { id: 'id-3', revision: 3 }]);
+  assert.deepEqual(run(base, { kind: 'revise', changes: [fine, stale] }).revisions, [{ id: 'id-3', revision: 3 }, { id: 'id-1', revision: 2 }]);
+});
+
+test('H25: a failure already in the stored snapshot blocks no unrelated save; one the command adds is refused', () => {
+  const gap = 'Choose a valid dated time outside clock-change gaps or ambiguous times.';
+  const drifted = 'Choose a valid timezone.';
+  // Task k3 holds a zone this Node's ICU rejects (H24 drift); the browser loaded it.
+  const base = household();
+  base.metas.k1 = meta({ time: '02:30' });
+  base.metas.k3 = meta({ zone: 'Mars/Olympus_Mons' });
+  assert.equal(validActionSnapshot(base), false);
+  assert.equal(actionMetadataError({ ...emptyWeekMeta, ...base.metas.k3 }, base.actions[2]), drifted);
+  const unrelated = {
+    'edit a different task': { kind: 'revise', changes: [{ id: 'id-2', revision: 1, patch: { title: 'Change the filter today', date: '2026-10-14', state: 'completed' } }] },
+    'a focus write with changes []': { kind: 'revise', changes: [], preferences: { 'week:focus': 'k2' } },
+    'a new task': { kind: 'add', seeds: [{ key: 'personal:new', title: 'New task', reason: 'Mine', origin: 'Personal' }], date: '2026-10-20', metadata: { 'personal:new': meta() } },
+    'delete the bad row': { kind: 'delete', id: 'id-3', revision: 3 },
+    'fix the bad row': { kind: 'revise', changes: [], metadata: { k3: meta({ zone: 'America/Chicago' }) }, expectedMetadata: { k3: JSON.stringify(base.metas.k3) } },
+  };
+  for (const [name, command] of Object.entries(unrelated)) {
+    const plan = run(base, command);
+    assert.equal(plan.ok, true, `${name}: ${JSON.stringify(plan)}`);
+    if (name !== 'delete the bad row' && name !== 'fix the bad row') {
+      // The stored row is carried, not hidden (H24), and the H25 path ran.
+      assert.ok(sameValue(plan.next.metas.k3, base.metas.k3), name);
+      assert.equal(validActionSnapshot(plan.next), false, name);
+    }
+    assert.ok(sameValue(applyWrites(base, plan.writes), plan.next), name);
+  }
+  assert.equal(validActionSnapshot(run(base, unrelated['fix the bad row']).next), true, 'fixing the one drifted row leaves a snapshot the server loads');
+  // A command that adds its own failure is refused with its own sentence, not the drifted row's.
+  assert.deepEqual(run(base, { kind: 'revise', changes: [{ id: 'id-1', revision: 2, patch: { title: 'Keep my water report', date: '2026-03-08', state: 'saved' } }] }),
+    { ok: false, reason: 'invalid_result', message: gap });
+  // Touching the drifted row and leaving it failing is the command's failure.
+  assert.deepEqual(run(base, { kind: 'revise', changes: [{ id: 'id-3', revision: 3, patch: { title: 'Renamed', date: '', state: 'saved' } }] }),
+    { ok: false, reason: 'invalid_result', message: drifted });
+});
+
+test('H25: a drifted stored preference blocks no unrelated save; a fix of it succeeds', () => {
+  const base = household();
+  base.metas.k1 = meta({ time: '02:30' });
+  const review = { enabled: true, weekday: 1, time: '17:00', zone: 'Mars/Olympus_Mons' };
+  base.preferences['week:review-preferences'] = review;
+  assert.equal(validActionSnapshot(base), false);
+  for (const command of [
+    { kind: 'revise', changes: [{ id: 'id-2', revision: 1, patch: { title: 'Filter', date: '2026-10-15', state: 'saved' } }] },
+    { kind: 'revise', changes: [], preferences: { 'week:focus': 'k3' } },
+    { kind: 'add', seeds: [{ key: 'n', title: 'New', reason: '', origin: '' }], date: '' },
+  ]) {
+    const plan = run(base, command);
+    assert.equal(plan.ok, true, JSON.stringify(plan));
+    assert.ok(sameValue(plan.next.preferences['week:review-preferences'], review));
+  }
+  const fixed = run(base, { kind: 'revise', changes: [], preferences: { 'week:review-preferences': { ...review, zone: 'America/New_York' } } });
+  assert.equal(fixed.ok, true);
+  assert.equal(validActionSnapshot(fixed.next), true);
+  assert.deepEqual(run(base, { kind: 'revise', changes: [{ id: 'id-1', revision: 2, patch: { title: 'Keep my water report', date: '2026-03-08', state: 'saved' } }] }),
+    { ok: false, reason: 'invalid_result', message: 'Choose a valid dated time outside clock-change gaps or ambiguous times.' });
+});
+
+test('H26: nesting deeper than 32 is a 400, never a stack overflow', () => {
+  const nest = (depth) => { let value = {}; for (let i = 1; i < depth; i++) value = { a: value }; return value; };
+  assert.equal(unstorableValue(nest(32)), null);
+  assert.equal(unstorableValue(nest(33)), 'unstorable_depth');
+  assert.equal(unstorableValue([[[]]]), null);
+  const base = household();
+  // A meta is one level, so an extra of depth 31 makes 32 and of depth 32 makes 33.
+  assert.equal(run(base, { kind: 'revise', changes: [], metadata: { k3: meta({ extra: nest(31) }) } }).ok, true);
+  assert.deepEqual(codes(run(base, { kind: 'revise', changes: [], metadata: { k3: meta({ extra: nest(32) }) } })), ['unstorable_depth']);
+  // 5,000 deep, as JSON text the route would parse, through parse and plan.
+  const deep = `${'{"a":'.repeat(5000)}1${'}'.repeat(5000)}`;
+  const body = JSON.parse(`{"operationId":"${OP}","kind":"revise","changes":[],"metadata":{"k3":{"note":"","paused":false,"archived":false,"completedOn":"","time":"","duration":60,"zone":"America/New_York","recurrence":"none","reminder":false,"history":[],"extra":${deep}}},"expectedMetadata":{"k1":${JSON.stringify(deep)}}}`);
+  const parsed = parseActionCommand(body);
+  assert.deepEqual(parsed.fieldErrors.map((error) => error.code), ['unstorable_depth', 'invalid_signature']);
+  // And a deep signature alone, which the planner would otherwise recurse into.
+  assert.deepEqual(codes(run(base, { kind: 'revise', changes: [], expectedMetadata: { k1: deep } })), ['invalid_signature']);
+  // Every value the client sends is at most 3 deep, so no caller is refused.
+  assert.equal(unstorableValue({ outdoorPlan: { key: 'k', place: 'p', period: 'am', watchRequested: true, forecastVersion: null, forecastIssuedAt: null, forecastExpiresAt: null } }), null);
+});
+
 test('writes: a meta-only change never moves a revision; a value-equal meta writes nothing; a delete takes its meta', () => {
   const base = household();
   const only = run(base, { kind: 'revise', changes: [], metadata: { k3: meta({ note: 'Bring gloves' }), k2: null } });
@@ -596,7 +687,9 @@ test('parse: fields, kinds and shapes decided without state', () => {
   assert.deepEqual(parseActionCommand([]).fieldErrors.map((error) => error.code), ['invalid_body']);
   assert.deepEqual(parseActionCommand(ok).fieldErrors.map((error) => error.field), ['operationId']);
   assert.deepEqual(parseActionCommand({ ...ok, operationId: 'not-a-uuid' }).fieldErrors.map((error) => error.code), ['invalid_operation_id']);
-  assert.equal(parseActionCommand({ ...ok, operationId: ` ${OP.toUpperCase()} ` }).command.operationId, OP);
+  // H27, the house rule (parseUuid): lowercased, never trimmed.
+  assert.equal(parseActionCommand({ ...ok, operationId: OP.toUpperCase() }).command.operationId, OP);
+  for (const padded of [` ${OP}`, `${OP} `, `${OP}\n`]) assert.deepEqual(parseActionCommand({ ...ok, operationId: padded }).fieldErrors.map((error) => error.code), ['invalid_operation_id']);
   assert.deepEqual(codes(run({}, { ...ok, ifMatch: 3, data: {} })), ['unknown_field', 'unknown_field']);
   assert.deepEqual(codes(run({}, { kind: 'revise', changes: [], seeds: [] })), ['unknown_field']);
   assert.deepEqual(codes(run({}, { kind: 'rename' })), ['invalid_kind']);
