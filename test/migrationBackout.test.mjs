@@ -3,6 +3,7 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0022   undoes 0022 (a household's saved discovery area)
  *   backout-0021   undoes 0021 (settings preferences, tenure, alerts columns)
  *   backout-0020   undoes 0020 (Luna conversations, turns and runs)
  *   backout-0019   undoes 0019 (which intent wrote a recovery challenge)
@@ -71,6 +72,7 @@ let audit18;
 let audit19;
 let audit20;
 let audit21;
+let audit22;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -114,7 +116,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -504,6 +506,50 @@ test('after the back-out, 0021 applies again and gives exactly the schema one pa
     [{ revision: 1 }],
     'the alert is back at revision 1, so a client holding revision 3 has to reload',
   );
+});
+
+// ---- 0022: one new table, keyed by the profile, which nothing else
+// references. Backing it out is a single drop table, and what is lost is every
+// household's chosen discovery area and its revision. These pick up where the
+// 0021 tests leave the database, at the 0021 schema with 0021 reapplied.
+
+test('0022 applies on top of 0021 and adds exactly the discovery-area table', async () => {
+  await db.applyMigration(migration(22));
+  audit22 = await runAudit(db);
+
+  assert.equal(await exists(`to_regclass('public.explore_areas') is not null`), true, 'the area table exists');
+  // Something to lose: alice has saved an area and changed it once since.
+  await db.exec(
+    `insert into public.explore_areas (profile_id, place_id, place, state, label, timezone, revision)
+       values ('${ALICE}', 'us-county:37159', 'Rowan County', 'NC', 'Rowan County, NC', 'America/New_York', 3);`,
+  );
+});
+
+test('backing out 0022 removes the table and leaves the 0001..0021 schema exactly, 0021 included', async () => {
+  await db.exec(docBlock('backout-0022'));
+
+  assert.equal(await exists(`to_regclass('public.explore_areas') is not null`), false, 'the area table is gone');
+  for (const name of ['explore_areas_revision_check', 'explore_areas_place_complete_check', 'explore_areas_place_length_check', 'explore_areas_place_control_check']) {
+    assert.equal(await exists(`exists (select 1 from pg_constraint where conname = '${name}')`), false, `${name} went with its table`);
+  }
+  // 0021 is untouched: its table and its six columns stay.
+  assert.equal(await exists(`to_regclass('public.profile_preferences') is not null`), true, '0021\'s table stays');
+  for (const added of ADDED_0021) assert.equal(await columnExists(added), true, `${added.join('.')} stays`);
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.deepEqual(await runAudit(db), audit21);
+});
+
+test('backing out 0022 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0022'));
+  assert.deepEqual(await runAudit(db), audit21);
+});
+
+test('after the back-out, 0022 applies again and gives exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(22));
+  assert.deepEqual(await runAudit(db), audit22);
+  // Reapplied empty: alice's area really was deleted, so she reads as never
+  // saved (revision 1) again, and a client still holding revision 3 has to reload.
+  assert.deepEqual((await db.query(`select count(*)::int as n from public.explore_areas`)).rows, [{ n: 0 }]);
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.
