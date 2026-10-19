@@ -1,6 +1,9 @@
 /**
- * GET and PATCH /api/settings (B04 plan, Task 2a), and the Ruling S5 and S7
- * obligations of PUT /api/notifications and PUT /api/household.
+ * GET and PATCH /api/settings (B04 plan, Task 2a), and what 0021 does in the
+ * database for every other writer of the same values (Rulings S11 to S13):
+ * save_settings, the revision triggers and the tenure reconcile, run here by
+ * their stand-ins in test/helpers/fakeSettingsDb.mjs and on the real schema in
+ * test/settingsSaveDb.test.mjs.
  *
  * The authority for the shape is the frontend, not this file:
  * `validSettingsSnapshot` in lib/frontend/production/preferences-service.ts on
@@ -25,6 +28,7 @@ import { auditOwnerScope, setup } from './helpers/isolationKit.mjs';
 import { SETTINGS, PROFILE } from './helpers/isolationSeed.mjs';
 import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
 import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
+import { installSettingsDb } from './helpers/fakeSettingsDb.mjs';
 
 const { BAND_KEYS } = await import('../lib/household.js');
 
@@ -73,10 +77,11 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
  * bob: one that has never opened settings: no preferences row, no notification
  * row, and nothing answered on the profile.
  */
-function harness({ tables = HALO_TABLES, alicePrefs = {}, aliceProfile = {}, operations = [] } = {}) {
+function harness({ tables = HALO_TABLES, alicePrefs = {}, aliceProfile = {}, operations = [], extra = {} } = {}) {
   // Seeding a table declares it, so a table left out of `tables` (a migration not applied) is not seeded either.
   const declared = (rows) => Object.fromEntries(Object.entries(rows).filter(([name]) => Object.hasOwn(tables, name)));
-  return createRouteHarness({
+  const h = createRouteHarness({
+    ...extra,
     tables,
     seed: ({ alice, bob }) => declared({
       profiles: [
@@ -93,6 +98,9 @@ function harness({ tables = HALO_TABLES, alicePrefs = {}, aliceProfile = {}, ope
       })),
     }),
   });
+  // 0021's save_settings and triggers, when its table is there (test/helpers/fakeSettingsDb.mjs).
+  installSettingsDb(h.db);
+  return h;
 }
 
 /**
@@ -154,6 +162,7 @@ const profileOf = (h, who = 'alice') => h.db.rows('profiles').find((row) => row.
 const notifOf = (h, who = 'alice') => h.db.rows('notification_prefs').find((row) => row.profile_id === h.identities[who].id);
 const bandsOf = (h, who = 'alice') => h.db.rows('household_bands').find((row) => row.profile_id === h.identities[who].id);
 const opRow = (h, id) => h.db.rows('operations').find((row) => row.operation_id === id);
+const saveCalls = (h) => h.db.rpcCalls.filter((call) => call.name === 'save_settings').map((call) => call.args);
 const OWNED = ['profiles', 'profile_preferences', 'notification_prefs', 'household_bands', 'operations'];
 const tablesSnapshot = (h) => JSON.stringify(Object.fromEntries(OWNED.filter((t) => { try { h.db.rows(t); return true; } catch { return false; } }).map((t) => [t, h.db.rows(t)])));
 
@@ -340,6 +349,16 @@ test('PATCH notifications: the five switches and quiet hours are saved, and only
   const upserts = h.db.queryLog.filter((q) => q.table === 'notification_prefs' && q.operation === 'upsert');
   assert.equal(upserts.length, 1);
   assert.deepEqual(Object.keys(upserts[0].rows[0]).sort(), ['profile_id', 'radon_season', 'updated_at']);
+  // The whole save is one save_settings call (Ruling S11), and it names only what changed.
+  assert.deepEqual(saveCalls(h), [{
+    p_profile_id: h.identities.alice.id,
+    p_expected_revision: 4,
+    p_preferences: { quiet_enabled: true, quiet_from: '23:00', quiet_to: '06:30', quiet_zone: 'America/Denver' },
+    p_profile: null,
+    p_home: null,
+    p_notifications: { radon_season: false },
+    p_bands: null,
+  }]);
 });
 
 test('PATCH notifications: equal quiet times are allowed while quiet hours are off, because they are only a remembered draft', async () => {
@@ -388,6 +407,7 @@ test('PATCH home: year, water, tenure and the household bands are saved, and GET
 test('PATCH home through the current home (0016): the answers are saved in the home context and the profile follows it', async () => {
   const ctx = setup();
   registerHomeContextRpcs(ctx.h.db);
+  installSettingsDb(ctx.h.db);
   const shown = await (await audited(ctx.h, 'alice', ROUTE, 'GET')).json();
   const body = saveBody(shown, 'home', { values: (v) => { v.home.year = '2001'; } });
   const res = await audited(ctx.h, 'alice', ROUTE, 'PATCH', { body, headers: { 'if-match': String(shown.revision), 'idempotency-key': body.operationId } });
@@ -411,6 +431,7 @@ test('PATCH home: a home that changed under the save is a 409 and the tenure and
   assert.equal(envelope.reason, 'home_changed');
   assert.equal(profileOf(h).tenure, 'owner');
   assert.equal(bandsOf(h).has_teen ?? false, false);
+  assert.equal(prefsOf(h).revision, 4, 'the whole save rolled back, the revision with it (Rulings S4 and S11)');
   assert.equal(opRow(h, body.operationId).status, 'failed');
 });
 
@@ -435,31 +456,50 @@ test('PATCH home: clearing the year stores null; unchanged bands are not rewritt
 });
 
 // ---------------------------------------------------------------------------
-// Ruling S7: tenure and renter_mode, both writers
+// Rulings S7 and S13: tenure and renter_mode, for every writer
 // ---------------------------------------------------------------------------
 
 for (const [tenure, renterMode] of [['renter', true], ['owner', false], ['other', false]]) {
-  test(`S7, PATCH: tenure ${tenure} writes renter_mode ${renterMode} in the same statement`, async () => {
+  test(`S7, PATCH: tenure ${tenure} is saved with renter_mode ${renterMode}, in the one save_settings call`, async () => {
     const h = harness({ aliceProfile: { tenure: tenure === 'owner' ? 'renter' : 'owner', renter_mode: tenure === 'owner' } });
     const shown = await readBody(h);
     const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = tenure; } });
     assertReceipt(await (await patch(h, body, { revision: 4 })).json(), body.operationId);
-    const writes = h.db.queryLog.filter((q) => q.table === 'profiles' && q.operation !== 'select');
-    assert.equal(writes.length, 1, 'one statement');
-    assert.deepEqual(writes[0].rows, [{ tenure, renter_mode: renterMode, id: h.identities.alice.id }]);
+    assert.deepEqual(saveCalls(h).map((args) => args.p_profile), [{ tenure, renter_mode: renterMode }]);
     assert.deepEqual([profileOf(h).tenure, profileOf(h).renter_mode], [tenure, renterMode]);
   });
 }
 
+test('S13: an unanswered tenure reads as renter while renter_mode is true, and as other (never owner) while it is false', async () => {
+  for (const [renterMode, expected] of [[true, 'renter'], [false, 'other']]) {
+    const h = harness({ aliceProfile: { tenure: null, renter_mode: renterMode } });
+    assert.equal((await readBody(h)).values.home.tenure, expected);
+  }
+});
+
+test('S13: a home save that leaves an unanswered renter\'s tenure as shown keeps it unanswered', async () => {
+  const h = harness({ aliceProfile: { tenure: null, renter_mode: true } });
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'home', { values: (v) => { v.home.year = '2002'; } });
+  const receipt = await (await patch(h, body, { revision: 4 })).json();
+  assertReceipt(receipt, body.operationId);
+  assert.equal(receipt.snapshot.values.home.tenure, 'renter');
+  assert.deepEqual([profileOf(h).tenure, profileOf(h).renter_mode], [null, true]);
+  assert.equal(saveCalls(h)[0].p_profile, null, 'the stand-in is not written back as an answer');
+});
+
 const householdPut = (h, body, who = 'alice') => h.call('/api/household', 'PUT', { as: who, body });
+const writesTenure = (q) =>
+  q.table === 'profiles' && q.operation !== 'select' && [...(q.rows ?? []), q.values ?? {}].some((row) => Object.hasOwn(row, 'tenure'));
 
 for (const rpc of [true, false]) {
   const label = rpc ? 'save_household' : 'the two-step write before 0015';
-  for (const [stored, renterMode, expected] of [
-    ['owner', true, null], ['other', true, null], ['renter', true, 'renter'],
-    ['renter', false, null], ['owner', false, 'owner'], ['other', false, 'other'], [null, true, null],
+  for (const [stored, renterMode, expected, reads] of [
+    ['owner', true, 'renter', 'renter'], ['other', true, 'renter', 'renter'], ['renter', true, 'renter', 'renter'],
+    ['renter', false, null, 'other'], ['owner', false, 'owner', 'owner'], ['other', false, 'other', 'other'],
+    [null, true, null, 'renter'], [null, false, null, 'other'],
   ]) {
-    test(`S7, PUT /api/household (${label}): renter_mode ${renterMode} over tenure ${stored} leaves tenure ${expected}, and the bands are saved`, async (t) => {
+    test(`S13, PUT /api/household (${label}): renter_mode ${renterMode} over tenure ${stored} stores ${expected}, reads as ${reads}, and the bands are saved`, async (t) => {
       t.mock.method(console, 'warn', () => {});
       const h = harness({ aliceProfile: { tenure: stored, renter_mode: stored === 'renter' } });
       if (rpc) registerSaveHousehold(h.db);
@@ -468,13 +508,37 @@ for (const rpc of [true, false]) {
       assert.deepEqual([profileOf(h).tenure, profileOf(h).renter_mode], [expected, renterMode]);
       assert.equal(bandsOf(h).has_senior, true);
       assert.equal(profileOf(h, 'bob').tenure, null);
-      const clears = h.db.queryLog.filter((q) => q.table === 'profiles' && q.operation === 'update' && q.values?.tenure === null);
-      assert.equal(clears.length, 1, 'one conditional update');
-      assert.ok(clears[0].filters.some((f) => f.op === 'eq' && f.column === 'id' && f.value === h.identities.alice.id), 'owner scoped');
-      assert.ok(clears[0].filters.some((f) => f.op === 'in' && f.column === 'tenure'), 'conditional on a contradicting tenure');
+      assert.equal((await readBody(h)).values.home.tenure, reads);
+      // The database reconciles inside the row write (0021's profiles_tenure_reconcile); the
+      // route runs no tenure statement of its own, so nothing can land between the two.
+      assert.equal(h.db.queryLog.some(writesTenure), false);
     });
   }
 }
+
+test('S13 and review F3: a settings save that lands while a household save is in flight keeps the tenure it wrote', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const h = harness();
+  registerSaveHousehold(h.db);
+  // Device B re-reads and saves tenure 'owner' after the household save's own write and
+  // before PUT /api/household answers: the point where a follow-up "clear tenure" used to run.
+  const rpc = h.db.rpc;
+  let interleaved = null;
+  h.db.rpc = async (name, args) => {
+    const result = await rpc(name, args);
+    if (name === 'save_household' && !interleaved) {
+      const shown = await readBody(h);
+      assert.equal(shown.values.home.tenure, 'renter', 'the household save made the owner a renter');
+      const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'owner'; } });
+      interleaved = await patch(h, body, { revision: shown.revision });
+    }
+    return result;
+  };
+  assert.equal((await householdPut(h, { has_child: true, renter_mode: true })).status, 200);
+  assert.equal(interleaved?.status, 200);
+  assert.deepEqual([profileOf(h).tenure, profileOf(h).renter_mode], ['owner', false], 'the later answer stands');
+  assert.equal((await readBody(h)).values.home.tenure, 'owner', 'and the next read agrees with the receipt device B was given');
+});
 
 test('S7, PUT /api/household: no renter_mode in the body leaves tenure alone', async (t) => {
   t.mock.method(console, 'warn', () => {});
@@ -499,44 +563,217 @@ for (const code of ['42703', 'PGRST204']) {
 }
 
 // ---------------------------------------------------------------------------
-// Ruling S5: the legacy writers advance the settings revision
+// Ruling S12: every writer of a snapshot value advances the revision
 // ---------------------------------------------------------------------------
 
-for (const [name, write] of [
+const HOME = '5e771265-cccc-4000-8000-0000000000aa';
+const PLACE = {
+  center: [-80.61, 35.41],
+  context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }],
+};
+
+/** The settings harness, plus what the other writers need: the 0015 and 0016 stand-ins and the network. */
+function writersHarness() {
+  const h = harness({
+    extra: {
+      env: { MAPBOX_TOKEN: 'pk.test-token' },
+      fetch: async (url) => {
+        const target = String(url);
+        if (target.startsWith('https://api.mapbox.com/')) return Response.json({ features: [PLACE] });
+        if (target.startsWith('https://services.arcgis.com/')) return Response.json({ features: [{ attributes: { PWSID: 'NC0250010' } }] });
+        return new Response('{}', { status: 503 });
+      },
+    },
+  });
+  registerHomeContextRpcs(h.db);
+  registerSaveHousehold(h.db);
+  return h;
+}
+/** alice with a current home describing the answers her profile holds. */
+const withHome = (h) => {
+  h.db.seed('home_contexts', [{
+    id: HOME, profile_id: h.identities.alice.id, sequence: 1, revision: 1, origin: 'onboard',
+    lat: 35.41, lng: -80.61, water_source: 'well', home_year: 1975, effective_to: null,
+  }]);
+  return h;
+};
+
+const WRITERS = [
   ['PUT /api/notifications', (h) => h.call('/api/notifications', 'PUT', { as: 'alice', body: { preferences: { radon_season: false } } })],
   ['PUT /api/household', (h) => householdPut(h, { has_child: true, renter_mode: false })],
-]) {
-  test(`S5: ${name} advances the settings revision, so a settings save holding the old one is a 409 and does not overwrite it`, async (t) => {
+  ['PATCH /api/profile', (h) => h.call('/api/profile', 'PATCH', { as: 'alice', body: { home_year: 1990 } })],
+  ['PATCH /api/profile through the current home', (h) => withHome(h).call('/api/profile', 'PATCH', { as: 'alice', body: { home_year: 1990 } })],
+  ['POST /api/onboard', (h) => h.call('/api/onboard', 'POST', { as: 'alice', body: { address: '2 Elm Court', home_year: 1990, water_source: 'utility' } })],
+  ['PATCH /api/home-contexts/[id]', (h) => withHome(h).call('/api/home-contexts/[id]', 'PATCH', {
+    as: 'alice', url: `/api/home-contexts/${HOME}`, params: { id: HOME }, body: { expected_revision: 1, home_year: 1990 },
+  })],
+];
+
+for (const [name, write] of WRITERS) {
+  test(`S12: ${name} advances the settings revision, so a settings save holding the old one is a 409 and does not revert it`, async (t) => {
     t.mock.method(console, 'warn', () => {});
-    const h = harness();
+    muteConsoleError(t); // onboarding's history backfill runs after the answer and finds no network here
+    const h = writersHarness();
     await readBody(h, 'bob');
     const shown = await readBody(h);
-    assert.equal((await write(h)).status, 200);
-    assert.equal(prefsOf(h).revision, shown.revision + 1);
+    const res = await write(h);
+    assert.equal(res.status, 200, `${name}: ${await res.clone().text()}`);
+    const revision = prefsOf(h).revision;
+    assert.ok(revision > shown.revision, `${name} advanced the revision (${shown.revision} to ${revision})`);
     assert.equal(prefsOf(h, 'bob').revision, 1, 'owner scoped: the other household\'s revision is not touched');
-    const stale = saveBody(shown, 'notifications', { values: (v) => { v.quiet.enabled = !v.quiet.enabled; } });
-    const envelope = await expectEnvelope(await patch(h, stale, { revision: shown.revision }), { status: 409, code: 'conflict', extraKeys: ['reason', 'revision'] });
-    assert.deepEqual([envelope.reason, envelope.revision], ['stale_revision', shown.revision + 1]);
-    assert.equal(prefsOf(h).quiet_enabled, SETTINGS.alice.quiet_enabled, 'the stale save wrote nothing');
+    // A device still showing the old snapshot edits one thing and saves: its stale values
+    // must not be written back over what the writer above changed.
     const fresh = await readBody(h);
-    assert.equal(fresh.revision, shown.revision + 1);
-    if (name.includes('notifications')) assert.equal(fresh.values.notifications.radon_season, false);
+    const stale = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'other'; } });
+    const envelope = await expectEnvelope(await patch(h, stale, { revision: shown.revision }), { status: 409, code: 'conflict', extraKeys: ['reason', 'revision'] });
+    assert.deepEqual([envelope.reason, envelope.revision], ['stale_revision', revision]);
+    assert.deepEqual(await readBody(h), fresh, 'the stale save wrote nothing');
   });
 }
 
-test('S5: a household that never read its settings has no row, and a legacy write creates none', async () => {
+for (const [name, write] of [
+  ['PUT /api/notifications', (h) => h.call('/api/notifications', 'PUT', { as: 'alice', body: { preferences: { air_quality_change: true } } })],
+  ['PATCH /api/profile', (h) => h.call('/api/profile', 'PATCH', { as: 'alice', body: { home_year: 1975 } })],
+  ['PUT /api/household', (h) => householdPut(h, { has_adult: true, renter_mode: false })],
+]) {
+  test(`S12: ${name} writing the values already stored does not advance the revision, so a save at it still applies`, async (t) => {
+    t.mock.method(console, 'warn', () => {});
+    const h = writersHarness();
+    const shown = await readBody(h);
+    assert.equal((await write(h)).status, 200);
+    assert.equal(prefsOf(h).revision, shown.revision);
+    const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+    assertReceipt(await (await patch(h, body, { revision: shown.revision })).json(), body.operationId);
+  });
+}
+
+test('S12: a household that never read its settings has no row, and a legacy write creates none', async () => {
   const h = harness();
   assert.equal((await h.call('/api/notifications', 'PUT', { as: 'bob', body: { preferences: { radon_season: false } } })).status, 200);
   assert.equal(prefsOf(h, 'bob'), undefined);
 });
 
-test('S5: before 0021 the legacy writers work exactly as before, without a log line', async (t) => {
+test('S12: before 0021 the legacy writers work exactly as before, without a log line', async (t) => {
   const errors = muteConsoleError(t);
   const h = harness({ tables: allBut('profile_preferences') });
   const res = await h.call('/api/notifications', 'PUT', { as: 'alice', body: { preferences: { radon_season: false } } });
   assert.equal(res.status, 200);
   assert.equal(notifOf(h).radon_season, false);
   assert.equal(errors.mock.callCount(), 0);
+});
+
+test('S12: a save advances the revision exactly once, however many of its writes the database counted', async () => {
+  const h = harness();
+  const shown = await readBody(h);
+  // Profile columns (year, water, tenure) and the bands: each write advances it inside the save.
+  const body = saveBody(shown, 'home', { values: (v) => { v.home = { year: '1990', water: 'spring', tenure: 'renter' }; }, household: { has_child: true } });
+  const receipt = await (await patch(h, body, { revision: 4 })).json();
+  assertReceipt(receipt, body.operationId);
+  assert.equal(receipt.snapshot.revision, 5);
+  assert.equal(prefsOf(h).revision, 5);
+});
+
+// ---------------------------------------------------------------------------
+// Ruling S11: a save is all or nothing, and its receipt is what it committed
+// ---------------------------------------------------------------------------
+
+const withoutOperations = (json) => JSON.stringify(JSON.parse(json), (key, value) => (key === 'operations' ? undefined : value));
+
+test('S11: a save that fails part way applies nothing: not the revision, not the group\'s columns, not the tenure', async (t) => {
+  const errors = muteConsoleError(t);
+  const h = harness();
+  const shown = await readBody(h);
+  const before = tablesSnapshot(h);
+  // The bands are the last table the save writes; that one statement fails.
+  const from = h.db.from;
+  h.db.from = (name) => {
+    const builder = from(name);
+    if (name === 'household_bands') {
+      builder.upsert = () => ({ then: (ok) => ok({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }) });
+    }
+    return builder;
+  };
+  const body = saveBody(shown, 'home', { values: (v) => { v.home = { year: '1990', water: 'spring', tenure: 'renter' }; }, household: { has_child: true } });
+  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 500, code: 'internal_error' });
+  h.db.from = from;
+  assert.equal(errors.mock.callCount(), 1, 'logged once');
+  assert.equal(opRow(h, body.operationId).status, 'failed', 'recorded as failed');
+  assert.equal(withoutOperations(tablesSnapshot(h)), withoutOperations(before), 'and "failed" is true: every settings table is exactly as it was');
+  assert.deepEqual(await readBody(h), shown);
+});
+
+test('S11: the receipt is built from what save_settings returned, with nothing read after it commits', async () => {
+  const h = harness();
+  const shown = await readBody(h);
+  const rpc = h.db.rpc;
+  let committedAt = null;
+  h.db.rpc = async (name, args) => {
+    const result = await rpc(name, args);
+    if (name === 'save_settings') committedAt = h.db.queryLog.length;
+    return result;
+  };
+  const body = saveBody(shown, 'display', { values: (v) => { v.language = 'es'; }, display: { appearance: 'dark' } });
+  const receipt = await (await patch(h, body, { revision: 4 })).json();
+  assertReceipt(receipt, body.operationId);
+  assert.ok(committedAt !== null);
+  assert.deepEqual(
+    h.db.queryLog.slice(committedAt).map((q) => [q.table, q.operation]),
+    [['operations', 'update']],
+    'between the commit and the answer only the ledger settles',
+  );
+  assert.deepEqual(await readBody(h), receipt.snapshot, 'and it is what the next read says');
+});
+
+test('S11: save_settings missing alone (0021 half applied) is the same 503, recorded as failed with nothing changed', async () => {
+  const h = harness();
+  h.db.registerRpc('save_settings', () => { throw rpcError('PGRST202', 'Could not find the function public.save_settings in the schema cache'); });
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 503, code: 'feature_unavailable', retryable: false });
+  assert.equal(prefsOf(h).revision, 4);
+  assert.equal(opRow(h, body.operationId).status, 'failed');
+});
+
+test('S11: an answer from save_settings that is not a saved state is a 500, not a made-up receipt', async (t) => {
+  muteConsoleError(t);
+  const h = harness();
+  h.db.registerRpc('save_settings', () => ({ saved: true, revision: 5 }));
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 500, code: 'internal_error' });
+});
+
+// ---------------------------------------------------------------------------
+// The read order (review F5, mutation R1)
+// ---------------------------------------------------------------------------
+
+test('a read pairs a revision only with values at least that new: the revision is read before the values it covers', async () => {
+  const h = harness();
+  // Another device changes the year, and the database advances the revision with it, right
+  // after the read's first statement on the snapshot's tables.
+  const from = h.db.from;
+  let interposed = false;
+  h.db.from = (name) => {
+    const builder = from(name);
+    if (interposed || !['profile_preferences', 'profiles', 'notification_prefs'].includes(name)) return builder;
+    const then = builder.then.bind(builder);
+    builder.then = (ok, ko) => then((result) => {
+      if (interposed) return result;
+      interposed = true;
+      return from('profiles').update({ home_year: 1990 }).eq('id', h.identities.alice.id).then(() => result);
+    }).then(ok, ko);
+    return builder;
+  };
+  const shown = await readBody(h);
+  h.db.from = from;
+  assert.equal(interposed, true);
+  assert.equal(prefsOf(h).revision, 5, 'the write advanced the revision');
+  // Revision first: the old revision with the new year, which a save then conflicts on. The
+  // other order answers revision 5 with the old year, and a save from that puts 1975 back.
+  assert.deepEqual([shown.revision, shown.values.home.year], [4, '1990']);
+  const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'other'; } });
+  await expectEnvelope(await patch(h, body, { revision: shown.revision }), { status: 409, code: 'conflict', extraKeys: ['reason', 'revision'] });
+  assert.equal(profileOf(h).home_year, 1990);
 });
 
 // ---------------------------------------------------------------------------
@@ -592,7 +829,8 @@ test('the compare-and-set is the lock: a save whose read saw the revision but wh
     return builder;
   };
   const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
-  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason'] });
+  const envelope = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason', 'revision'] });
+  assert.deepEqual([envelope.reason, envelope.revision], ['stale_revision', 5], 'save_settings reports the revision it found');
   assert.equal(prefsOf(h).revision, 5, 'only the other writer advanced it');
   assert.equal(prefsOf(h).luna_home, SETTINGS.alice.luna_home);
 });
@@ -691,6 +929,7 @@ test('a save of one group never writes another group\'s stale values back', asyn
 
 test('PATCH: every statement is scoped to the caller, a body naming another profile is refused, a query naming one is ignored, and bob is unchanged', async () => {
   const ctx = setup();
+  installSettingsDb(ctx.h.db);
   const bobRows = () => JSON.stringify(OWNED.map((t) => ctx.rowsOf(t, 'bob')));
   const before = bobRows();
   const shown = await (await audited(ctx.h, 'alice', ROUTE, 'GET')).json();
@@ -712,17 +951,19 @@ test('PATCH: every statement is scoped to the caller, a body naming another prof
   assert.equal(bobRows(), before, 'bob is byte for byte unchanged');
 });
 
-test('S5 and S7 statements in the legacy routes are owner scoped too', async (t) => {
+test('S12 and S13: the legacy writers stay owner scoped, and what the database does for them touches only the caller', async (t) => {
   t.mock.method(console, 'warn', () => {});
   const ctx = setup();
   registerSaveHousehold(ctx.h.db);
+  installSettingsDb(ctx.h.db);
   const queriesBefore = ctx.h.db.queryLog.length;
   assert.equal((await ctx.h.call('/api/household', 'PUT', { as: 'alice', body: { has_child: true, renter_mode: true, profile_id: ctx.id('bob') } })).status, 200);
   assert.equal((await ctx.h.call('/api/notifications', 'PUT', { as: 'alice', body: { preferences: { radon_season: false } } })).status, 200);
   auditOwnerScope(ctx.h.db.queryLog.slice(queriesBefore), ctx.id('alice'), 'legacy writers');
   assert.equal(ctx.rowsOf('profile_preferences', 'bob')[0].revision, SETTINGS.bob.revision);
-  assert.equal(ctx.rowsOf('profile_preferences', 'alice')[0].revision, SETTINGS.alice.revision + 2);
-  assert.equal(ctx.rowsOf('profiles', 'alice')[0].tenure, null, 'owner with renter_mode true: cleared');
+  // One advance per statement that changed a value: the bands, then renter_mode (with tenure), then a switch.
+  assert.equal(ctx.rowsOf('profile_preferences', 'alice')[0].revision, SETTINGS.alice.revision + 3);
+  assert.equal(ctx.rowsOf('profiles', 'alice')[0].tenure, 'renter', 'an owner who now rents reads as a renter (Ruling S13)');
   assert.equal(ctx.rowsOf('profiles', 'bob')[0].tenure, 'renter');
 });
 

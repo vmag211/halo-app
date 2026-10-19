@@ -59,6 +59,14 @@ export class FakeTable {
     this.ownerColumn = declaration.ownerColumn ?? null;
     this.defaults = declaration.defaults ?? {};
     this.rows = [];
+    /**
+     * Row triggers a test installs (fakeSupabase registerTrigger). `before(oldRows, newRows)`
+     * runs on the planned rows of an insert, upsert or update and may change those row objects
+     * in place, as a BEFORE ROW trigger changes NEW; `after(oldRows, newRows)` runs once the
+     * write is committed. Neither runs for a seed (test setup) or a delete.
+     */
+    this.triggers = { before: [], after: [] };
+    this.seeding = false;
   }
 
   /** Every declared key as { columns, constraint }. */
@@ -114,9 +122,18 @@ export class FakeTable {
   }
 
   #plan(work, affected) {
+    const fire = !this.seeding;
+    if (fire) for (const before of this.triggers.before) before(this.rows, work);
     const error = this.#nullKeyError(work) ?? this.#uniqueError(work);
     if (error) return { error };
-    return { rows: affected.map(wire), commit: () => { this.rows = work; } };
+    return {
+      rows: affected.map(wire),
+      commit: () => {
+        const previous = this.rows;
+        this.rows = work;
+        if (fire) for (const after of this.triggers.after) after(previous, work);
+      },
+    };
   }
 
   #copy() {
@@ -125,7 +142,13 @@ export class FakeTable {
 
   /** Test setup. Constraints apply, so a bad seed fails loudly. */
   seed(rows) {
-    const plan = this.insert(rows);
+    this.seeding = true;
+    let plan;
+    try {
+      plan = this.insert(rows);
+    } finally {
+      this.seeding = false;
+    }
     if (plan.error) throw new Error(`fakeSupabase seed for "${this.name}": ${plan.error.message}`);
     plan.commit();
   }

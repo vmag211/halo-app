@@ -108,6 +108,9 @@ const PUBLIC_FUNCTIONS = {
   save_household: 'service_role',         // 0015: PUT /api/household in one transaction
   transition_home_context: 'service_role',        // 0016: onboarding saves the home (first, same or a move)
   update_home_context_attributes: 'service_role', // 0016: revisioned answers about the current home
+  save_settings: 'service_role',                  // 0021: PATCH /api/settings, one transaction per save
+  advance_settings_revision: 'trigger',           // 0021: a snapshot value changed, so the settings revision advances
+  reconcile_profile_tenure: 'trigger',            // 0021: tenure kept in step with renter_mode
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';

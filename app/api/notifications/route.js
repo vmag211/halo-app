@@ -4,7 +4,6 @@ import { normalizePrefs } from '@/lib/alertInputs';
 import { apiError, requestIdFor, internalError, validationError } from '@/lib/apiErrors';
 import { readJsonBody } from '@/lib/validate';
 import { parseNotificationUpdate } from '@/lib/alertWriteInput';
-import { afterLegacySettingsWrite } from '@/lib/settings';
 
 /**
  * GET /api/notifications → { preferences: { air_quality_change, weather_advisory,
@@ -14,10 +13,10 @@ import { afterLegacySettingsWrite } from '@/lib/settings';
  * Every type defaults on. The daily job skips types turned off, for both the
  * inbox and device pushes. Needs migration 0010.
  *
- * The five are also the `notifications` group of the settings snapshot, so a
- * PUT advances the settings revision once its write is made (B04 Ruling S5),
- * and a settings save holding the old revision then conflicts. Before 0021
- * there is no revision and nothing more happens.
+ * The five are also the `notifications` group of the settings snapshot. Once
+ * migration 0021 is applied, the database advances the settings revision in
+ * the same transaction as a PUT that changes one (B04 Ruling S12), so a
+ * settings save holding the old revision then conflicts.
  */
 async function read(userId) {
   const { data, error } = await supabaseAdmin.from('notification_prefs').select('*').eq('profile_id', userId).maybeSingle();
@@ -56,9 +55,6 @@ export async function PUT(request) {
       .from('notification_prefs')
       .upsert({ ...input.value, updated_at: new Date().toISOString(), profile_id: userId }, { onConflict: 'profile_id' });
     if (error) throw new Error(error.message);
-    // These five switches are inside the settings snapshot, so the settings
-    // revision advances (Ruling S5). Never fails this request, whose write is made.
-    await afterLegacySettingsWrite(supabaseAdmin, userId, { requestId });
     return NextResponse.json(await read(userId), { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);

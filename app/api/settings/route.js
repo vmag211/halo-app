@@ -4,18 +4,20 @@ import { apiError, internalError, requestIdFor, ERROR_CODES } from '@/lib/apiErr
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { isSettingsAlertsUnavailable, settingsAlertsUnavailable } from '@/lib/settingsAlerts';
-import { saveHomeDetails } from '@/lib/homeDetails';
+import { haloRefusal, isConflictRefusal } from '@/lib/homeContextRpc';
 import {
-  advanceRevision,
   changedFields,
   ensurePreferences,
+  isSaveSettingsMissing,
   parseSettingsSave,
   preferenceColumns,
   readBands,
   readSettingsProfile,
   readSettingsSnapshot,
   readSettingsState,
+  saveSettings,
   settingsSnapshot,
+  unresolvedSettingsOperations,
 } from '@/lib/settings';
 
 /**
@@ -44,23 +46,19 @@ import {
  * client was shown, so an unanswered tenure or water source the snapshot
  * reports as 'other' stays unanswered unless the person picks something else.
  *
- * Concurrency (Ruling S4). `If-Match` is the revision the client was shown. The
- * save advances it with one compare-and-set statement (`revision = expected +
- * 1 where revision = expected`) that also writes the group's preference
- * columns, before any other table is touched, so of two saves holding the same
- * revision exactly one wins and the other is a 409 having written nothing. A
- * refused save (stale, invalid or unavailable) does not advance it.
- * PUT /api/notifications and PUT /api/household advance it too (Ruling S5), so
- * a change made through them makes a stale save here conflict instead of
- * overwriting it.
- *
- * Known limit, by construction: the groups whose values live outside
- * profile_preferences (home, notifications, display's language) are written
- * after the revision has advanced, in further statements, because PostgREST
- * offers no transaction across them. If one of those statements fails, the
- * operation is recorded as failed and the client is told the outcome is
- * unknown, but what was written before it stays written and the revision has
- * moved. The client then re-reads, so it sees the true state.
+ * Concurrency (Rulings S4, S11 and S12). `If-Match` is the revision the client
+ * was shown. The whole save is one call to public.save_settings (0021): the
+ * compare-and-set on the revision and every table the group writes, in one
+ * transaction, with the home details saved through the 0016 home functions
+ * inside it. So of two saves holding the same revision exactly one applies and
+ * the other is a 409 having written nothing, a save that fails anywhere
+ * applies nothing (a 500 recorded as failed is true), and the revision
+ * advances exactly once per applied save. Every other writer of a value in the
+ * snapshot advances the revision through 0021's triggers in the same
+ * transaction as its write, so a change made anywhere else makes a stale save
+ * here conflict instead of being reverted by it. The receipt is built from the
+ * rows save_settings returns; nothing is read between its commit and the
+ * ledger's settle.
  *
  * Idempotency is the ledger (migration 0017) with domain 'settings' and
  * nothing else. The same operationId replays the first receipt without acting
@@ -78,7 +76,9 @@ import {
  *       ledger's reaper. Terminal: the same id never succeeds.
  *   422 validation_failed with field_errors, before anything is read or written
  *   503 feature_unavailable until 0017 and 0021 are applied, decided before the
- *       operation id is claimed, so "nothing was changed" is true
+ *       operation id is claimed, so "nothing was changed" is true (and, should
+ *       save_settings alone be missing, after the claim, when nothing was
+ *       changed either)
  *
  * Identity comes only from the verified session token. No field of the body or
  * the query names a household, and every statement is scoped to the caller.
@@ -147,17 +147,6 @@ function parseIfMatch(header) {
   return Number.isSafeInteger(revision) && revision >= 1 ? revision : null;
 }
 
-let warnedNoHomeContexts = false;
-/** Before migration 0016 the home details go to the profile only, as PATCH /api/profile does. Said once per process. */
-function withoutHomeContexts(code) {
-  if (warnedNoHomeContexts) return;
-  warnedNoHomeContexts = true;
-  console.warn(
-    `Settings save: home contexts are not available (${code}), so migration 0016 is probably not applied yet. ` +
-      'Saving water_source and home_year to the profile only.',
-  );
-}
-
 export async function GET(request) {
   const requestId = requestIdFor(request);
   try {
@@ -173,7 +162,7 @@ export async function GET(request) {
 }
 
 /** The one save, inside the operation the ledger has claimed. */
-async function save(supabase, { userId, operationId, group, patch, expectedRevision, requestId }) {
+async function save(supabase, { userId, operationId, group, patch, expectedRevision }) {
   // The precondition is decided here, after the claim, so a replay of a lost
   // response returns the first outcome instead of a conflict.
   const state = await readSettingsState(supabase, userId);
@@ -181,40 +170,26 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
   if (shown.revision !== expectedRevision) throw new StaleRevisionError(shown.revision);
   const bands = group === 'home' && patch.household ? await readBands(supabase, userId) : null;
   const changes = changedFields(group, patch, shown, bands);
+  // Read before the save, so nothing that can fail is left between its commit
+  // and the ledger's settle.
+  const unresolvedOperations = await unresolvedSettingsOperations(supabase, userId, { excludeOperationId: operationId });
 
-  // The lock: this statement, and only this one, decides which of two saves
-  // holding the same revision wins. Nothing else is written before it.
-  const won = await advanceRevision(supabase, userId, expectedRevision, preferenceColumns(group, patch, state.preferences));
-  if (!won) throw new StaleRevisionError(null);
+  let saved;
+  try {
+    saved = await saveSettings(supabase, {
+      profileId: userId,
+      expectedRevision,
+      preferences: preferenceColumns(group, patch, state.preferences),
+      changes,
+    });
+  } catch (err) {
+    // The home changed under the save: the whole save was rolled back with it.
+    if (isConflictRefusal(haloRefusal(err))) throw new HomeChangedError();
+    throw err;
+  }
+  if (!saved.saved) throw new StaleRevisionError(saved.revision);
 
-  if (changes.homeDetails) {
-    const saved = await saveHomeDetails(supabase, userId, changes.homeDetails, { requestId, onUnavailable: withoutHomeContexts });
-    if (saved?.conflict) throw new HomeChangedError();
-    if (!saved) {
-      // The owner key comes last, so nothing in the validated input can override it.
-      const { error } = await supabase.from('profiles').upsert({ ...changes.homeDetails, id: userId }, { onConflict: 'id' });
-      if (error) throw error;
-    }
-  }
-  if (changes.profile) {
-    // Ruling S7: a tenure is written with renter_mode = (tenure = 'renter') in this one statement.
-    const { error } = await supabase.from('profiles').upsert({ ...changes.profile, id: userId }, { onConflict: 'id' });
-    if (error) throw error;
-  }
-  if (changes.notifications) {
-    const { error } = await supabase
-      .from('notification_prefs')
-      .upsert({ ...changes.notifications, updated_at: new Date().toISOString(), profile_id: userId }, { onConflict: 'profile_id' });
-    if (error) throw error;
-  }
-  if (changes.bands) {
-    const { error } = await supabase
-      .from('household_bands')
-      .upsert({ ...changes.bands, updated_at: new Date().toISOString(), profile_id: userId }, { onConflict: 'profile_id' });
-    if (error) throw error;
-  }
-
-  return { status: 'succeeded', snapshot: await readSettingsSnapshot(supabase, userId, { excludeOperationId: operationId }) };
+  return { status: 'succeeded', snapshot: settingsSnapshot({ ...saved, unresolvedOperations }) };
 }
 
 export async function PATCH(request) {
@@ -264,7 +239,7 @@ export async function PATCH(request) {
         kind: 'settings.save',
         input: { group, patch, expectedRevision },
       },
-      () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision, requestId }),
+      () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision }),
     );
 
     // A replay of an operation that settled as failed is a terminal 409 with
@@ -292,7 +267,9 @@ export async function PATCH(request) {
     }
     if (err instanceof HomeChangedError) return conflict(MESSAGES.homeChanged, { reason: 'home_changed' }, requestId);
     if (err?.message === OPERATION_INPUT_MISMATCH) return conflict(MESSAGES.mismatch, { reason: 'operation_mismatch' }, requestId);
-    if (isSettingsAlertsUnavailable(err) || isOperationsUnavailable(err)) return settingsAlertsUnavailable(requestId);
+    if (isSettingsAlertsUnavailable(err) || isSaveSettingsMissing(err) || isOperationsUnavailable(err)) {
+      return settingsAlertsUnavailable(requestId);
+    }
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
     // The detail goes to the log: a database message is not for the person.

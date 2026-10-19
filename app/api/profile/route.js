@@ -4,9 +4,15 @@ import { normalizeBands } from '@/lib/household';
 import { readJsonBody } from '@/lib/validate';
 import { requestIdFor, apiError, validationError, internalError } from '@/lib/apiErrors';
 import { parseProfilePatch } from '@/lib/profileInput';
+import { roundCoord } from '@/lib/geocode';
 import { contextSummary } from '@/lib/homeContext';
-import { homeContextConflict } from '@/lib/homeContextRpc';
-import { saveHomeDetails } from '@/lib/homeDetails';
+import {
+  homeContextConflict,
+  isConflictRefusal,
+  readCurrentHomeContext,
+  transitionHomeContext,
+  updateHomeContextAttributes,
+} from '@/lib/homeContextRpc';
 
 /**
  * GET   /api/profile — the household's stored location, home details and
@@ -138,6 +144,66 @@ function withoutHomeContexts(code) {
         'Saving water_source and home_year to the profile only, as before.',
     );
   }
+  return null;
+}
+
+/** A stored point transition_home_context takes as it is: both numbers, already rounded to 3 decimals. */
+const isStoredPoint = (profile) =>
+  !!profile && [profile.lat, profile.lng].every((value) => Number.isFinite(value) && roundCoord(value) === value);
+
+/** What a home context call came to: the saved row, a conflict for the client, or the profile write (null). */
+function settle(name, saved) {
+  if (saved.unavailable) return withoutHomeContexts(saved.code);
+  if (saved.refusal && isConflictRefusal(saved.refusal)) return { conflict: saved.refusal };
+  if (saved.refusal) throw new Error(`${name} refused the profile update: ${saved.refusal.code} (${saved.refusal.detail})`);
+  return { context: saved.context };
+}
+
+/**
+ * Saves the answers through the household's home context (see the comment at the top).
+ * Returns { context } when saved there, { conflict } for a 409, or null for the profile write.
+ */
+async function saveThroughHomeContext(userId, answers, requestId) {
+  const current = await readCurrentHomeContext(supabaseAdmin, userId);
+  if (current.unavailable) return withoutHomeContexts(current.code);
+  if (current.context) {
+    const saved = await updateHomeContextAttributes(supabaseAdmin, {
+      profileId: userId,
+      contextId: current.context.id,
+      expectedRevision: current.context.revision,
+      attributes: answers,
+    });
+    return settle('update_home_context_attributes', saved);
+  }
+
+  const { data: profile, error } = await supabaseAdmin
+    .from('profiles')
+    .select('lat, lng, county, state, pwsid, water_source, home_year')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read profile: ${error.message}`);
+  // Not located: there is no home to save the answers in yet.
+  if (!isStoredPoint(profile)) return null;
+
+  // The same point is not a move, so the legacy home is made from the profile and updated in
+  // place. Every answer is sent, so the one that is not changing is written as it was.
+  const saved = await transitionHomeContext(supabaseAdmin, {
+    profileId: userId,
+    location: { lat: profile.lat, lng: profile.lng, county: profile.county ?? null, state: profile.state ?? null },
+    attributes: {
+      pwsid: profile.pwsid ?? null,
+      water_source: Object.hasOwn(answers, 'water_source') ? answers.water_source : profile.water_source ?? null,
+      home_year: Object.hasOwn(answers, 'home_year') ? answers.home_year : profile.home_year ?? null,
+    },
+    requestId: null,
+  });
+  if (saved.moved) {
+    console.error(
+      `Profile update (request ${requestId}): the household's address changed while this request saved its home details, ` +
+        `so the save moved it back to the address the request had read (it closed home ${saved.previous_context_id}).`,
+    );
+  }
+  return settle('transition_home_context', saved);
 }
 
 export async function PATCH(request) {
@@ -151,8 +217,7 @@ export async function PATCH(request) {
     const input = parseProfilePatch(body.value);
     if (!input.ok) return validationError(input.fieldErrors, requestId);
 
-    // Through the household's current home (lib/homeDetails.js), or null for the profile write below.
-    const saved = await saveHomeDetails(supabaseAdmin, userId, input.value, { requestId, onUnavailable: withoutHomeContexts });
+    const saved = await saveThroughHomeContext(userId, input.value, requestId);
     if (saved?.conflict) return homeContextConflict(saved.conflict, requestId);
 
     if (!saved) {
