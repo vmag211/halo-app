@@ -148,6 +148,28 @@ test('a place is all five fields or none of them', async () => {
   assert.equal(error?.code, '23514', 'an update cannot leave a partial place behind');
 });
 
+test('a set place has no blank field, so the database refuses what validDiscoveryArea refuses (Ruling D6a)', async () => {
+  const blankId = await insertArea({ profile_id: BOB, ...ROWAN, place_id: '', revision: 2 });
+  assert.equal(blankId?.code, '23514', 'a blank place_id is refused');
+  assert.match(blankId.message, /explore_areas_place_complete_check/);
+  const spacedLabel = await insertArea({ profile_id: BOB, ...ROWAN, label: '   ', revision: 2 });
+  assert.equal(spacedLabel?.code, '23514', 'a whitespace-only label is refused');
+  assert.match(spacedLabel.message, /explore_areas_place_complete_check/);
+  for (const column of PLACE_COLUMNS) {
+    for (const blank of ['', ' ', '    ']) {
+      const error = await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: blank });
+      assert.equal(error?.code, '23514', `${column} = ${JSON.stringify(blank)} is refused`);
+    }
+  }
+  const { error } = await run(`update public.${TABLE} set place_id = ' ' where profile_id = $1`, [ALICE]);
+  assert.equal(error?.code, '23514', 'an update cannot blank a field of a stored place');
+  // Not tied to the county form: city and ZIP ids may follow (Open question 2).
+  for (const id of ['us-place:3712000', 'us-zcta:28208', 'x']) {
+    assert.equal(await insertArea({ profile_id: BOB, ...ROWAN, place_id: id, revision: 2 }), null, `${id} is storable`);
+  }
+  assert.equal(await insertArea({ profile_id: BOB, revision: 2 }), null, 'a cleared area (all null) is still storable');
+});
+
 test('each place field is at most 300 characters, the client\'s bound', async () => {
   for (const column of PLACE_COLUMNS) {
     assert.equal(await insertArea({ profile_id: BOB, ...ROWAN, revision: 2, [column]: 'x'.repeat(300) }), null, `${column} at 300`);

@@ -513,11 +513,41 @@ test('after the back-out, 0021 applies again and gives exactly the schema one pa
 // household's chosen discovery area and its revision. These pick up where the
 // 0021 tests leave the database, at the 0021 schema with 0021 reapplied.
 
+/**
+ * Ruling D6a: a set place may not have a blank field. Checked on the schema as
+ * first applied and again after the back-out and reapply, so a reapplied 0022
+ * cannot quietly come back without it. Each attempt is rolled back.
+ */
+async function assertBlankPlaceRefused(when) {
+  const attempt = (overrides) =>
+    db.pg.transaction(async (tx) => {
+      const row = { place_id: 'us-county:37159', place: 'Rowan County', state: 'NC', label: 'Rowan County, NC', timezone: 'America/New_York', ...overrides };
+      try {
+        await tx.query(
+          `insert into public.explore_areas (profile_id, place_id, place, state, label, timezone, revision)
+             values ($1, $2, $3, $4, $5, $6, 2)`,
+          [ALICE, row.place_id, row.place, row.state, row.label, row.timezone],
+        );
+        return null;
+      } catch (error) {
+        return error;
+      } finally {
+        if (!tx.closed) await tx.rollback();
+      }
+    });
+  for (const overrides of [{ place_id: '' }, { label: '   ' }]) {
+    const error = await attempt(overrides);
+    assert.equal(error?.code, '23514', `${when}: ${JSON.stringify(overrides)} is refused`);
+    assert.match(error.message, /explore_areas_place_complete_check/);
+  }
+}
+
 test('0022 applies on top of 0021 and adds exactly the discovery-area table', async () => {
   await db.applyMigration(migration(22));
   audit22 = await runAudit(db);
 
   assert.equal(await exists(`to_regclass('public.explore_areas') is not null`), true, 'the area table exists');
+  await assertBlankPlaceRefused('as first applied');
   // Something to lose: alice has saved an area and changed it once since.
   await db.exec(
     `insert into public.explore_areas (profile_id, place_id, place, state, label, timezone, revision)
@@ -547,6 +577,7 @@ test('backing out 0022 is safe to run twice', async () => {
 test('after the back-out, 0022 applies again and gives exactly the schema one pass gives', async () => {
   await db.applyMigration(migration(22));
   assert.deepEqual(await runAudit(db), audit22);
+  await assertBlankPlaceRefused('after the back-out and reapply');
   // Reapplied empty: alice's area really was deleted, so she reads as never
   // saved (revision 1) again, and a client still holding revision 3 has to reload.
   assert.deepEqual((await db.query(`select count(*)::int as n from public.explore_areas`)).rows, [{ n: 0 }]);

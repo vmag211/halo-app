@@ -43,7 +43,7 @@
 -- A cleared area is a row whose five place columns are all null, and clearing
 -- still advances the revision. The five columns are null together or set
 -- together, because a partial place is something the client's validator would
--- discard whole.
+-- discard whole, and when they are set none of them may be blank (Ruling D6a).
 --
 -- EVERY STORED VALUE IS ONE THE CLIENT CAN READ BACK. The bounds are the
 -- client's own `validPlaces` (lib/frontend/production/explore-service.ts:9 on
@@ -91,9 +91,21 @@ begin
   end if;
   -- A place is all five fields or none of them: null together means the
   -- household cleared its area, and anything in between the client discards.
+  -- When it is set, every field must be non-blank after trimming (Ruling
+  -- D6a), so the database refuses a place validDiscoveryArea would refuse,
+  -- whatever the writer does. place_id is deliberately not tied to the
+  -- `us-county:` form, because city and ZIP ids may follow (Open question 2).
+  -- btrim() trims spaces only, so this refuses an empty or all-space field;
+  -- a field of only tabs or newlines is left to the writer.
   if not exists (select 1 from pg_constraint where conname = 'explore_areas_place_complete_check') then
     alter table public.explore_areas add constraint explore_areas_place_complete_check
-      check (num_nonnulls(place_id, place, state, label, timezone) in (0, 5));
+      check (num_nonnulls(place_id, place, state, label, timezone) = 0
+          or (num_nonnulls(place_id, place, state, label, timezone) = 5
+              and btrim(place_id) <> ''
+              and btrim(place) <> ''
+              and btrim(state) <> ''
+              and btrim(label) <> ''
+              and btrim(timezone) <> ''));
   end if;
   -- `text(place[key], 300)` in validPlaces: at most 300 characters each.
   if not exists (select 1 from pg_constraint where conname = 'explore_areas_place_length_check') then
