@@ -12,6 +12,18 @@ import {
 } from '@/lib/operations';
 import { featureEnabled } from '@/lib/features';
 import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSnapshot } from '@/lib/actionsStore';
+import { PRIVACY_DOMAIN } from '@/lib/privacyStore';
+import { PRIVACY_EXPORT_KIND, privacyLimitKey, rebuildExportFile, withExportFile, withinRebuildWindow } from '@/lib/privacyExport';
+import { privacyReviewKey } from '@/lib/privacyToken';
+import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
+
+// A reader, but a privacy export reconcile rebuilds the household's whole
+// file (B07 P9), as the POST that first built it may (60 s); under the
+// ledger's 120 s staleness window like every privacy route (P17).
+export const maxDuration = 60;
+
+/** The 429 a rebuild past the household's privacy budget gets (P17); the panel says "Please wait". */
+const PRIVACY_LIMITED_MESSAGE = 'Too many privacy requests. Please try again later.';
 
 /**
  * Where each domain's succeeded receipt carries its `unresolvedOperations`
@@ -24,7 +36,9 @@ import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSn
  * (ProductionAlerts.tsx, ProductionPreferences.tsx, useAccountService.ts).
  * A domain not named here is replayed exactly as stored, except `actions`,
  * which has its own overlay in GET below (B06 Ruling H18): its stored receipt
- * has no snapshot to put a list into.
+ * has no snapshot to put a list into, and `privacy`, whose export receipt is
+ * given a rebuilt file (B07 Ruling P9). `privacy` is deliberately absent: no
+ * privacy receipt carries an `unresolvedOperations` list.
  */
 const LIVE_LIST_PATHS = Object.freeze({
   account: ['snapshot', 'unresolvedOperations'],
@@ -58,7 +72,9 @@ async function withLiveList(receipt, { path, operationId, profileId, domain }) {
  * three are settled and carry `result`, the canonical receipt the original
  * route returned, replayed as stored so the client can finish what it started,
  * except that a succeeded receipt in a domain of LIVE_LIST_PATHS carries the
- * household's live unresolved list rather than the stored `[]` (Ruling S16).
+ * household's live unresolved list rather than the stored `[]` (Ruling S16),
+ * and a succeeded privacy export recorded within the last ten minutes carries
+ * `file`, rebuilt from its stored selection (B07 Ruling P9).
  * `pending` means the work is genuinely still running. `unknown` means the
  * attempt was recorded but never settled and has outstripped its window: the
  * honest answer when a process died, and specifically NOT a failure, because
@@ -136,6 +152,7 @@ export async function GET(request) {
     // domain goes through LIVE_LIST_PATHS, and every other status is
     // replayed as stored.
     let result = operation.result && typeof operation.result === 'object' ? operation.result : {};
+    let file = null;
     if (operation.status === 'succeeded') {
       if (operation.domain === ACTIONS_DOMAIN) {
         if (!featureEnabled('tasks')) return actionsUnavailable(requestId);
@@ -146,28 +163,47 @@ export async function GET(request) {
           if (isActionsUnavailable(err)) return actionsUnavailable(requestId);
           throw err;
         }
+      } else if (operation.domain === PRIVACY_DOMAIN) {
+        // B07 Ruling P9: a succeeded export stored only its selection (two
+        // group names and a boolean, never the file, trap P-8). Within ten
+        // minutes of the export its file is rebuilt from that selection and
+        // the current rows; after that, or if it no longer fits, the receipt
+        // is answered as stored, without `file`, which the privacy panel
+        // reads as "The export is not ready to download. Check its status."
+        // Every other privacy receipt (a clear's) is answered as stored.
+        // The rebuild is a full read of the household, so inside the window
+        // it spends the privacy budget inspect and export share (P17,
+        // fail-open), and with no review key it is skipped: the key is the
+        // switch (P18), and it switches off this ten-minute tail too.
+        if (operation.kind === PRIVACY_EXPORT_KIND && privacyReviewKey() && withinRebuildWindow(operation.createdAt)) {
+          const allowed = await checkLimit(privacyLimiter, privacyLimitKey(userId), { fallback: true, label: 'privacy limiter' });
+          if (!allowed) return apiError({ status: 429, code: ERROR_CODES.RATE_LIMITED, message: PRIVACY_LIMITED_MESSAGE, requestId });
+          file = await rebuildExportFile(supabaseAdmin, { profileId: userId, selection: result.selection, createdAt: operation.createdAt });
+        }
       } else if (LIVE_LIST_PATHS[operation.domain]) {
         result = await withLiveList(result, { path: LIVE_LIST_PATHS[operation.domain], operationId: operation.operationId, profileId: userId, domain: operation.domain });
       }
     }
 
-    return NextResponse.json(
-      {
-        // The stored receipt first, so the client sees exactly the body the
-        // original route returned and its domain validators still pass, with
-        // the live unresolved list in place of the stored one (Ruling S16). The
-        // canonical fields are written after it: a receipt frozen at write time
-        // must never override the status computed now, which is the only place
-        // a stale 'pending' becomes 'unknown'.
-        ...result,
-        operationId: operation.operationId,
-        domain: operation.domain,
-        kind: operation.kind,
-        status: operation.status,
-        created_at: operation.createdAt,
-      },
-      { headers },
-    );
+    const body = {
+      // The stored receipt first, so the client sees exactly the body the
+      // original route returned and its domain validators still pass, with
+      // the live unresolved list in place of the stored one (Ruling S16). The
+      // canonical fields are written after it: a receipt frozen at write time
+      // must never override the status computed now, which is the only place
+      // a stale 'pending' becomes 'unknown'.
+      ...result,
+      operationId: operation.operationId,
+      domain: operation.domain,
+      kind: operation.kind,
+      status: operation.status,
+      created_at: operation.createdAt,
+    };
+    // A rebuilt export file is attached only when the whole body, as sent,
+    // fits the 4,000,000-byte cap (B07 P8); with no file the body is unchanged.
+    const answer = withExportFile(body, file);
+    // A body carrying the household's export is never cached anywhere.
+    return NextResponse.json(answer, { headers: answer === body ? headers : { ...headers, 'Cache-Control': 'no-store' } });
   } catch (err) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
