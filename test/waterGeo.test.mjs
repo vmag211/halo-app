@@ -245,3 +245,53 @@ for (const [label, body] of [
     assert.deepEqual([next.source, next.complete], ['arcgis', true], 'not held in memory either, so the next request retries');
   });
 }
+
+// --- cacheOnly: the anonymous map read (B05 Task 6, binding note N3) --------
+
+test('cacheOnly: a miss never reaches ArcGIS and is complete:false with an empty Map, and caches nothing', async () => {
+  _resetWaterGeoCache();
+  const store = fakeStore();
+  let calls = 0;
+  const fetchImpl = async (...a) => { calls += 1; return oneFeature(...a); };
+  for (const opts of [{ cacheOnly: true }, { cacheOnly: true, force: true }]) {
+    const miss = await getWaterGeo(['NC0113010'], { ...opts, fetchImpl, store });
+    assert.deepEqual(
+      [miss.complete, miss.geo.size, miss.source, miss.cached, miss.failedBatches, miss.requested, miss.found],
+      [false, 0, 'none', false, 0, 1, 0],
+      `${JSON.stringify(opts)}: a lookup that never ran is never complete`,
+    );
+  }
+  assert.equal(calls, 0, 'no ArcGIS call, even with force');
+  assert.equal(store.sets, 0, 'nothing is written to the shared store');
+  // And the miss pinned nothing in memory: a normal lookup still goes to ArcGIS.
+  const real = await getWaterGeo(['NC0113010'], { fetchImpl, store: null });
+  assert.deepEqual([real.source, calls], ['arcgis', 1]);
+});
+
+test('cacheOnly: a warm memory or shared cache answers complete, exactly as a normal hit does', async () => {
+  _resetWaterGeoCache();
+  const store = fakeStore();
+  const noFetch = () => assert.fail('a cache-only lookup must not fetch');
+  await getWaterGeo(['NC0113010'], { fetchImpl: oneFeature, store });
+  const fromMemory = await getWaterGeo(['NC0113010'], { cacheOnly: true, fetchImpl: noFetch, store });
+  assert.deepEqual([fromMemory.complete, fromMemory.source, fromMemory.cached], [true, 'memory', true]);
+
+  _resetWaterGeoCache();
+  const fromShared = await getWaterGeo(['NC0113010'], { cacheOnly: true, fetchImpl: noFetch, store });
+  assert.deepEqual([fromShared.complete, fromShared.source, fromShared.cached], [true, 'shared', true]);
+  assert.deepEqual(fromShared.geo.get('NC0113010'), { lat: 35.38, lng: -80.6, population: 7 });
+
+  // A warm cache for a different set of systems is a miss, not a partial answer.
+  const other = await getWaterGeo(['NC0113010', 'NC0222020'], { cacheOnly: true, fetchImpl: noFetch, store });
+  assert.deepEqual([other.complete, other.source, other.geo.size], [false, 'none', 0]);
+});
+
+test('cacheOnly: a miss assembled into a water layer can never pass as complete (N3)', async () => {
+  _resetWaterGeoCache();
+  const { waterPayload } = await import('../lib/mapBuild.js');
+  const utilities = [{ pwsid: 'NC0113010', pws_name: 'Example', status: 'Final', contaminants: { PFOA: [{ date: '8/20/2024', value_ppt: 7.7 }] } }];
+  const miss = await getWaterGeo(['NC0113010'], { cacheOnly: true, store: null });
+  const layer = waterPayload(utilities, miss.geo, { geographyComplete: miss.complete });
+  assert.equal(layer.geography_complete, false);
+  assert.deepEqual(layer.meta, { availability: 'partial' });
+});

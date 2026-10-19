@@ -111,10 +111,12 @@ for (const fixture of fixtures) {
 // ---------------------------------------------------------------------------
 
 const CONFLICT_REASONS = ['stale_revision', 'revision_exhausted', 'operation_mismatch', 'abandoned', 'attempt_failed'];
+/** The public, cache-only reads (B05 Task 6, lib/publicAccess.js). */
+const MAP_OPERATIONS = ['mapComparison', 'mapDistrict', 'mapLayer'];
 
 test('B05 contract covers the six built operations, every documented status has a fixture, and the dropped and blocked ones are absent', () => {
   assert.equal(contract.openapi, '3.1.0');
-  assert.equal(contract.info.version, 'b05-1');
+  assert.equal(contract.info.version, 'b05-2');
   assert.deepEqual([...operations.keys()].sort(), [
     'exploreAreaRead', 'exploreAreaSave', 'locationsSearch', 'mapComparison', 'mapDistrict', 'mapLayer',
   ]);
@@ -134,8 +136,25 @@ test('B05 contract covers the six built operations, every documented status has 
       fixtures.some((item) => item.operationId === id && item.status === 503 && item.body.code === 'auth_unavailable' && item.body.retryable === true),
       `${id} is missing the retryable auth-outage fixture`,
     );
-    assert.ok(op.responses['401'] && op.responses['503'], `${id}: sign-in is required (Ruling D1), so 401 and the auth outage are documented`);
+    assert.ok(op.responses['401'] && op.responses['503'], `${id}: an Authorization header is checked, so 401 and the auth outage are documented`);
+    // B05 Task 6: the three map operations are the public read; the other three are not.
+    const isPublic = MAP_OPERATIONS.includes(id);
+    assert.equal(Boolean(op.responses['429']), isPublic, `${id}: the visitor limiter's 429 is documented exactly on the public reads`);
+    for (const [status, response] of Object.entries(op.responses)) {
+      for (const name of ['Cache-Control', 'Vary']) {
+        assert.equal(Boolean(response.headers?.[name]), isPublic, `${id} ${status}: ${name} is documented exactly on the public reads`);
+      }
+    }
+    if (isPublic) {
+      assert.ok(op.responses['429'].headers['Retry-After'], `${id}: the 429 documents Retry-After`);
+      assert.match(op.responses['200'].headers['Cache-Control'].description, /^public, max-age=0, s-maxage=600 on an anonymous answer/);
+      assert.match(op.responses['401'].description, /no Authorization header at all is the anonymous read/);
+    }
   }
+  for (const name of ['mapDistrict-anonymous.json', 'mapLayer-anonymous-not-stored.json', 'mapDistrict-anonymous-not-stored.json']) {
+    assert.ok(fixtures.some((item) => item.name === name), `the anonymous answer ${name} is fixtured`);
+  }
+  assert.equal('household_county' in fixtures.find((item) => item.name === 'mapDistrict-anonymous.json').body, false);
   for (const id of ['exploreAreaRead', 'exploreAreaSave']) {
     assert.ok(
       fixtures.some((item) => item.operationId === id && item.status === 503 && item.body.code === 'feature_unavailable' && item.body.retryable === false),
@@ -198,6 +217,16 @@ test('B05 schemas reject the drift that would cost somebody their answer, or tel
   const view = fixtures.find((item) => item.name === 'mapDistrict-success.json').body;
   assert.equal(district(view), true);
   assert.equal(district({ ...view, county_rankings: [] }), false, 'the statewide ranking stays server side');
+  const { household_county: own, ...shared } = view;
+  assert.ok(own, 'the signed-in fixture carries the household county');
+  assert.equal(district(shared), false, 'a signed-in answer always carries household_county');
+  const visitor = compiled('#/components/schemas/MapDistrictPublic');
+  const answer = compiled('#/components/schemas/MapDistrictAnswer');
+  assert.equal(visitor(shared), true);
+  assert.equal(visitor(view), false, 'an anonymous answer never carries household_county (Task 6)');
+  assert.equal(visitor({ ...shared, household_county: null }), false, 'not even as null, which would say "not ranked"');
+  assert.equal(visitor({ ...shared, county_rankings: [] }), false);
+  assert.deepEqual([answer(view), answer(shared), answer({ ...shared, county_rankings: [] })], [true, true, false]);
   const pfos = { ...view.by_contaminant.PFOS };
   delete pfos.over_population_unknown;
   assert.equal(district({ ...view, by_contaminant: { ...view.by_contaminant, PFOS: pfos } }), false, 'the 9.9 branch is not a valid view');
@@ -344,10 +373,11 @@ async function storedLayers(utilities) {
   ];
 }
 
-function harness({ tables = TABLES, layers = [], utilities = utilitiesFor('NC05000'), operations: ledger = [], fetch } = {}) {
+function harness({ tables = TABLES, layers = [], utilities = utilitiesFor('NC05000'), operations: ledger = [], fetch, rateLimit } = {}) {
   return createRouteHarness({
     tables,
     ...(fetch ? { fetch } : {}),
+    ...(rateLimit ? { rateLimit } : {}),
     seed: ({ alice, bob }) => Object.fromEntries(Object.entries({
       profiles: [{ id: alice.id, county: 'Union County' }, { id: bob.id, county: 'Wake County' }],
       map_layers: layers,
@@ -358,7 +388,7 @@ function harness({ tables = TABLES, layers = [], utilities = utilitiesFor('NC050
 }
 
 // Response headers: both directions, for the pairs exercised below (as B03).
-const CHECKED_HEADERS = ['x-request-id', 'retry-after'];
+const CHECKED_HEADERS = ['x-request-id', 'retry-after', 'cache-control', 'vary'];
 const seenHeaders = new Map();
 const documentedHeaders = (id, status) =>
   new Set(Object.keys(operations.get(id).responses[String(status)].headers ?? {}).map((name) => name.toLowerCase()));
@@ -397,6 +427,13 @@ async function call(h, id, { expected = 200, query = '', body, rawBody, as = 'al
   const res = await h.call(op.path, op.method, { as, url: `${op.path}${query}`, body, rawBody, headers: sent });
   assert.equal(res.status, expected, `${id}${query}: expected ${expected}, got ${res.status}`);
   assert.equal(res.headers.get('x-request-id'), REQUEST_ID, `${id}: the request id is echoed`);
+  if (MAP_OPERATIONS.includes(id)) {
+    // Task 6: only a successful answer to a request with no Authorization header may be shared.
+    const anonymous = as === null && !Object.keys(headers).some((name) => name.toLowerCase() === 'authorization');
+    const expectedCache = anonymous && res.status === 200 ? 'public, max-age=0, s-maxage=600' : 'private, no-store';
+    assert.equal(res.headers.get('cache-control'), expectedCache, `${id} ${res.status}: Cache-Control`);
+    assert.equal(res.headers.get('vary'), 'Authorization', `${id} ${res.status}: Vary`);
+  }
   recordHeaders(id, res);
   const json = await res.json();
   validate(id, res.status, json);
@@ -480,7 +517,19 @@ test('B05 handler conformance: map.layer answers all four layers, quarter=latest
   await call(h, 'mapLayer', { query: '?layer=district', expected: 400 });
   await call(h, 'mapLayer', { query: '?layer=air&quarter=2024Q3', expected: 400 });
   await call(h, 'mapLayer', { query: '?layer=water&quarter=LATEST', expected: 400 });
-  await call(h, 'mapLayer', { query: '?layer=water', as: null, expected: 401 });
+  // Task 6: no Authorization header is the public read, the signed-in body;
+  // any other header that is not a session is still the 401.
+  for (const layer of ['water', 'radon', 'facilities', 'air']) {
+    const { body: visitor } = await call(h, 'mapLayer', { query: `?layer=${layer}`, as: null });
+    const { body: owner } = await call(h, 'mapLayer', { query: `?layer=${layer}` });
+    assert.deepEqual(visitor, owner, `${layer}: the anonymous body is the signed-in body`);
+  }
+  await call(h, 'mapLayer', { query: '?layer=water', as: null, headers: { authorization: 'Bearer' }, expected: 401 });
+  const { body: notStored } = await call(harness(), 'mapLayer', { query: '?layer=radon', as: null, expected: 503 });
+  assert.deepEqual([notStored.code, notStored.layer], ['upstream_unavailable', 'radon']);
+  await call(harness({ utilities: utilitiesFor('NC05103') }), 'mapLayer', { query: '?layer=water&quarter=2024Q3', as: null, expected: 503 });
+  const { res: limited } = await call(harness({ rateLimit: () => false }), 'mapLayer', { query: '?layer=water', as: null, expected: 429 });
+  assert.equal(limited.headers.get('retry-after'), '60');
   const { body: unavailable } = await call(harness(), 'mapLayer', { query: '?layer=facilities', expected: 503 });
   assert.deepEqual([unavailable.code, unavailable.layer], ['upstream_unavailable', 'facilities']);
   const broken = harness({ tables: haloTables('profiles', 'map_layers') });
@@ -504,7 +553,17 @@ test('B05 handler conformance: map.district answers a view the client parses, or
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(down.db.rows('map_layers'), [], 'nothing stored');
 
-  await call(h, 'mapDistrict', { as: null, expected: 401 });
+  const { body: visitor } = await call(h, 'mapDistrict', { as: null });
+  const { household_county: own, ...shared } = body;
+  assert.ok(own);
+  assert.deepEqual(visitor, shared, 'Task 6: the anonymous view is the shared view, with no household_county key');
+  await call(h, 'mapDistrict', { as: null, headers: { authorization: 'Basic abc' }, expected: 401 });
+  const fresh = harness({ utilities: utilitiesFor('NC05202') });
+  const { body: notStored } = await call(fresh, 'mapDistrict', { as: null, expected: 503 });
+  assert.equal(notStored.code, 'upstream_unavailable');
+  assert.deepEqual([fresh.blockedFetches, fresh.db.queryLog.map((q) => q.table)], [[], ['map_layers']], 'no lookup and no profile');
+  const { res: limited } = await call(harness({ rateLimit: () => false }), 'mapDistrict', { as: null, expected: 429 });
+  assert.equal(limited.headers.get('retry-after'), '60');
   await call(harness({ tables: haloTables('map_layers', 'ucmr5_utilities'), layers: await storedLayers(utilities) }), 'mapDistrict', { expected: 500 });
   await authOutage(harness(), 'mapDistrict');
 });
@@ -630,7 +689,12 @@ test('B05 handler conformance: map.comparison answers records the client parses,
   await call(h, 'mapComparison', { query: `?layer=water&quarter=latest${ids([])}`, expected: 400 });
   await call(h, 'mapComparison', { query: `?layer=air&quarter=2024Q3${ids(['370000001'])}`, expected: 400 });
   await call(h, 'mapComparison', { query: `?quarter=latest${ids(['370000001'])}`, expected: 400 });
-  await call(h, 'mapComparison', { query: `?layer=water${ids(['NC0530001'])}`, as: null, expected: 401 });
+  const { body: visitor } = await call(h, 'mapComparison', { query: `?layer=water&quarter=latest${ids(utilities.map((u) => u.pwsid))}`, as: null });
+  assert.deepEqual(visitor.records, water, 'Task 6: the anonymous records are the signed-in records');
+  await call(h, 'mapComparison', { query: `?layer=water${ids(['NC0530001'])}`, as: null, headers: { authorization: 'Bearer test-token:nobody' }, expected: 401 });
+  await call(harness(), 'mapComparison', { query: `?layer=air&quarter=latest${ids(['370000001'])}`, as: null, expected: 503 });
+  const { res: limited } = await call(harness({ rateLimit: () => false }), 'mapComparison', { query: `?layer=water${ids(['NC0530001'])}`, as: null, expected: 429 });
+  assert.equal(limited.headers.get('retry-after'), '60');
   const { body: noAir } = await call(harness(), 'mapComparison', { query: `?layer=air&quarter=latest${ids(['370000001'])}`, expected: 503 });
   assert.equal(noAir.code, 'upstream_unavailable');
   await authOutage(harness(), 'mapComparison', { query: `?layer=water${ids(['NC0530001'])}` });

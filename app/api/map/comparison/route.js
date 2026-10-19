@@ -5,7 +5,8 @@ import { assembleWaterFeatures, contaminantsInQuarter } from '@/lib/mapData';
 import { parseEnum } from '@/lib/validate';
 import { parseMapQuarter } from '@/lib/mapQuarter';
 import { comparisonRecords, parseComparisonIds } from '@/lib/mapComparison';
-import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } from '@/lib/apiErrors';
+import { ERROR_CODES, apiError, validationError, internalError } from '@/lib/apiErrors';
+import { publicMapRead } from '@/lib/publicAccess';
 
 /**
  * GET /api/map/comparison?layer=water&quarter=latest&ids=["NC0101010",...]
@@ -16,8 +17,12 @@ import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } f
  * version, every value `unknown`, coverage `partial`, so every pair renders
  * "Not comparable" with its reasons and nothing can render "Aligned evidence".
  *
- * Same sign-in rule as /api/map (B05 ruling D1), so a later public-read
- * decision changes both together. `layer` is one of the four map layers,
+ * Same access rule as /api/map (B05 ruling D1, then Task 6): without an
+ * Authorization header the read is public, limited and shared-cacheable
+ * (lib/publicAccess.js), and any Authorization header is checked exactly as
+ * before. Every source below is already cache-only (a stored layer or the
+ * UCMR 5 table, never a fetch), so the anonymous body is the signed-in body;
+ * only the cache headers differ. `layer` is one of the four map layers,
  * `quarter` goes through the same parser as /api/map (ruling D2: `latest` is no
  * quarter), and `ids` is one JSON array of 1 to 2,000 record ids (finding F4).
  * Anything else is a 400 with a field error, before anything is read.
@@ -55,11 +60,10 @@ async function waterFromUtilities(quarter) {
   return assembleWaterFeatures(source);
 }
 
-export async function GET(request) {
-  const requestId = requestIdFor(request);
+const read = publicMapRead(async (request, { anonymous, requestId }) => {
   const headers = { 'X-Request-Id': requestId };
   try {
-    await requireUser(request);
+    if (!anonymous) await requireUser(request);
     const { searchParams } = new URL(request.url);
     const parsedLayer = parseEnum(searchParams.get('layer'), LAYERS);
     if (!parsedLayer.ok) {
@@ -109,4 +113,9 @@ export async function GET(request) {
     console.error(`Map comparison failed (request ${requestId}):`, err);
     return internalError(requestId);
   }
+});
+
+/** Next.js calls GET; the policy lives in `read` (lib/publicAccess.js). */
+export async function GET(request) {
+  return read(request);
 }

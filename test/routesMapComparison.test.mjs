@@ -330,10 +330,20 @@ for (const [name, params, field, code] of INVALID) {
 
 // ------------------------------------------------------- auth and isolation
 
-test('a missing session is a 401 (the same rule as /api/map until a public-read decision, D1)', async () => {
+// Before B05 Task 6 this was "a missing session is a 401". No Authorization
+// header is now the public read (test/routesMapPublic.test.mjs), the same
+// rule as /api/map; any Authorization header that is not a session is the 401.
+test('an Authorization header that is not a valid session is a 401 and reads nothing; no header at all is the public read with the same records', async () => {
   const h = harness({ layers: [waterLayer()] });
-  await expectEnvelope(await compare(h, { layer: 'water', quarter: 'latest', ids: WATER_IDS }, null), { status: 401, code: 'auth_required' });
+  const params = { layer: 'water', quarter: 'latest', ids: WATER_IDS };
+  for (const authorization of ['', 'Basic abc', 'Bearer', 'Bearer test-token:nobody']) {
+    await expectEnvelope(await h.call('/api/map/comparison', 'GET', { url: urlFor(params), headers: { authorization } }), { status: 401, code: 'auth_required' });
+  }
   assert.deepEqual(h.db.queryLog, []);
+  const anonymous = await compare(h, params, null);
+  assert.equal(anonymous.status, 200);
+  assert.deepEqual(await anonymous.json(), await (await compare(h, params)).json());
+  noFetches(h);
 });
 
 test('reads no household table: two households get the identical answer, from public tables only', async () => {
