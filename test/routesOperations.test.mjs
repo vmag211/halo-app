@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
-import { expectEnvelope } from './helpers/envelope.mjs';
+import { expectEnvelope, loggedText } from './helpers/envelope.mjs';
 
 const ROUTE = '/api/operations';
 const OP = '33333333-3333-4333-8333-333333333333';
@@ -324,6 +324,17 @@ test('H18: another household\'s actions operation is the identical 404, and noth
   const never = await expectEnvelope(await read(h, 'alice', `operationId=${DEAD.replace(/5/g, '9')}&domain=actions`), { status: 404, code: 'not_found' });
   assert.equal(theirs.message, never.message);
   assert.deepEqual(h.db.rpcCalls, []);
+});
+
+test('a failing snapshot read is a 500 that logs only the error\'s code and message, never details or hint (review N3)', async (t) => {
+  const logged = muteConsoleError(t);
+  const h = actionsHarness({ withFunction: false });
+  const { rpcError } = await import('./helpers/routeHarness.mjs');
+  h.db.registerRpc('read_household_actions', () => { throw rpcError('XX000', 'read failed', 'PRIVATE-DETAILS-MARKER Failing row contains (Test the tap)', 'PRIVATE-HINT-MARKER'); }, { args: ['p_profile_id'] });
+  await expectEnvelope(await read(h, 'alice', `operationId=${ACTIONS_OK}&domain=actions`), { status: 500, code: 'internal_error' });
+  const line = loggedText(logged);
+  assert.match(line, /operations read failed \(request [^)]+\): XX000 read failed/);
+  assert.ok(!line.includes('PRIVATE') && !line.includes('Failing row'), line);
 });
 
 test('H17, H18: with tasks off a succeeded actions operation is the non-retryable 503 and nothing is read; before 0023 likewise', async () => {

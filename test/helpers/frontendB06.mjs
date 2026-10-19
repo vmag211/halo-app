@@ -40,6 +40,17 @@
  * - `mutate`'s second guard (:83, the workspace `scenario`, `fail` and
  *   `navigator.onLine`) is not modelled: the scenario starts `ready` and is
  *   not a settings dependency (digest 6.2).
+ * - `mutate` drops `if (!alive.current || version !== generation.current)
+ *   return false` (:90), and `reconcile` its `alive` checks: there is one
+ *   mounted screen and no reload in flight here.
+ * - `commitSnapshot` drops `workspaceRef.current.applyCanonical(...)` (:67);
+ *   the drafts it would apply are kept in `drafts`, as :64-66 builds them.
+ * - `applyWeekPlan` drops the planner's first guard (`blocked ||
+ *   workspace.pending || state.pending || !navigator.onLine`) and, after a
+ *   save, `setDecisions(captureReview(state.getSnapshot()...))` and
+ *   `setConfirm(false)`, which only reset the component's own form
+ *   (WeekReviewPlanner.tsx:17). It returns the feedback line instead of
+ *   setting it.
  * - `changeState` takes `today` instead of `lunaCalendarAnchor(new Date(), zone)`.
  * - `Intl` is this module's binding, so a test can stand in for a browser
  *   whose ICU knows a zone this Node does not (digest 9.5, Ruling H24): see

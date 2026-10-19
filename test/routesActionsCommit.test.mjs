@@ -170,6 +170,22 @@ test('a body over 4,000,000 bytes is a 413 and records nothing (H21)', async () 
   assert.deepEqual(w.h.db.rpcCalls, []);
 });
 
+test('a body just under 4,000,000 bytes is accepted, so the cap is the one H21 sizes for the weekly planner (review N2)', async () => {
+  const w = await world();
+  // Padding in a seed's extra key, which the planner ignores and never stores.
+  const command = body({ kind: 'add', date: '', seeds: [seed('personal:1', 'Big week', { pad: '' })] });
+  const bare = Buffer.byteLength(JSON.stringify(command));
+  command.seeds[0].pad = 'y'.repeat(3_999_000 - bare);
+  const raw = JSON.stringify(command);
+  assert.ok(Buffer.byteLength(raw) <= 4_000_000 && Buffer.byteLength(raw) > 3_990_000, String(Buffer.byteLength(raw)));
+  const response = await w.commit(null, { raw, key: command.operationId });
+  assert.equal(response.status, 200);
+  const receipt = await response.json();
+  assert.equal(receipt.status, 'succeeded');
+  assert.deepEqual((await w.tasks()).map((row) => row.title), ['Big week']);
+  assert.ok(!JSON.stringify(await w.tasks()).includes('yyyy'), 'the padding is never stored');
+});
+
 test('a deeply nested body is a 400, never a 500, and records nothing (H26; the 0023 review obligation)', async (t) => {
   const logged = muteConsoleError(t);
   const w = await world();
@@ -259,13 +275,13 @@ test('an add answers succeeded with the snapshot the commit read, which the clie
   await assertNoContentInLedger(w);
 });
 
-test('T2: the receipt never lists its own operation, even while its row still reads pending; a genuinely pending one is listed', async () => {
+test('T2, H32: the list is read once, before the claim, lists a genuinely pending operation and never this one, whatever its own row says afterwards', async () => {
   const w = await world();
   const other = body({ kind: 'revise', changes: [] });
   w.h.db.seed('operations', [claimed(w, other)]);
   const command = body({ kind: 'add', date: '', seeds: [seed('personal:1')] });
-  // Keep this operation's fake row pending whatever runOperation settles,
-  // so the list is read while the own row is still `pending`.
+  // Keep this operation's fake row pending whatever runOperation settles: the
+  // answer must not depend on it.
   w.h.db.registerTrigger('operations', {
     before: (_old, rows) => { for (const row of rows) if (row.operation_id === command.operationId && row.status !== 'pending') { row.status = 'pending'; row.result = null; } },
   });
@@ -273,6 +289,11 @@ test('T2: the receipt never lists its own operation, even while its row still re
   assert.equal(ledgerRows(w).find((row) => row.operation_id === command.operationId).status, 'pending', 'the precondition: its row still reads pending');
   assert.deepEqual(receipt.snapshot.unresolvedOperations, [other.operationId]);
   await assertCovers(receipt, command, { actions: [], metas: {} });
+  // The order (H32): the one list read comes before the claim, and none after.
+  const ledger = w.h.db.queryLog.filter((entry) => entry.table === 'operations').map((entry) => entry.operation);
+  const claim = ledger.indexOf('upsert');
+  assert.ok(claim > 0 && ledger.slice(0, claim).includes('select'), `listed before the claim: ${ledger.join(', ')}`);
+  assert.ok(!ledger.slice(claim).includes('select'), `and not again after it: ${ledger.join(', ')}`);
 });
 
 test('T2: two sequential adds both succeed and neither lists itself; a settled operation is not listed (H16)', async () => {

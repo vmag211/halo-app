@@ -75,10 +75,16 @@ import {
  * title, a note or a preference, and never the unresolved list (Ruling S14: a
  * stored receipt carries `unresolvedOperations: []`; it is a historical record,
  * not a lock). The snapshot the commit function returned is kept in this
- * request, and the live list is read only after runOperation has returned, when
- * this operation's row is settled, and this operation's own id is filtered out
- * as well (trap T2, Ruling H16; the account bug, digest C1, was listing inside
- * `execute`).
+ * request. The live list is read once, BEFORE the claim and outside `execute`,
+ * with this operation's own id filtered out (trap T2; the account bug, digest
+ * C1, was listing inside `execute`). Ruling H32 (amends H16): the same order as
+ * GET /api/frontend/actions. A commit writes and settles in one transaction
+ * (H8), so every operation already claimed when the list is read is either
+ * listed or, if it settled before this commit, in the snapshot this commit
+ * returns. Read after the commit instead, an operation settling between this
+ * commit and the list read would be in neither, and the client would edit
+ * against stale rows with no lock. Listed but already in the snapshot is the
+ * benign case: one reconcile, answered `succeeded` with a current snapshot.
  *
  * THE ANSWERS (Ruling H11):
  *   - succeeded: the snapshot the commit returned (read in its transaction), or
@@ -246,6 +252,8 @@ export async function POST(request) {
     // Proves 0023 (and with it 0017) before the claim, and is the first
     // attempt's base. A version that moves before the commit is caught there.
     let state = await readActionsState(supabaseAdmin, userId);
+    // The live list for a live success, read before the claim (Ruling H32).
+    const unresolvedOperations = await unresolvedActionOperations(supabaseAdmin, userId, { exclude: [operationId.value] });
     let committedSnapshot = null;
 
     const outcome = await runOperation(
@@ -285,14 +293,11 @@ export async function POST(request) {
       return inFlight(requestId);
     }
     if (result.status === 'succeeded') {
-      // Listed only now, with this operation's row settled, and its own id
-      // left out whatever the row says (trap T2).
+      // A live success: the list read before the claim (H32). A replay: the
+      // current snapshot with a list read now, list first (H18).
       const snapshot = outcome.replayed
         ? await liveActionsSnapshot(supabaseAdmin, userId, operationId.value)
-        : {
-          ...committedSnapshot,
-          unresolvedOperations: await unresolvedActionOperations(supabaseAdmin, userId, { exclude: [operationId.value] }),
-        };
+        : { ...committedSnapshot, unresolvedOperations };
       return NextResponse.json({ operationId: operationId.value, status: 'succeeded', snapshot }, { headers });
     }
     if (result.status === 'failed' && REFUSAL_REASONS.has(result.reason)) {

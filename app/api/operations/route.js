@@ -128,7 +128,9 @@ export async function GET(request) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`operations read failed (request ${requestId}):`, err);
+    // Code and message only: a Postgres error's details and hint can hold a
+    // row, and the actions hook reads task rows (0023 review L2).
+    console.error(`operations read failed (request ${requestId}):`, err?.code ?? '', err?.message ?? String(err));
     return internalError(requestId);
   }
 }

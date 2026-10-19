@@ -370,6 +370,57 @@ test('H10: two concurrent commits from one base never store a pair that fails th
   assert.ok(validActionSnapshot(load), 'what is stored still passes the client\'s load check');
 });
 
+test('H32: an operation claimed before this save and settling between its commit and its answer is listed, and one reconcile brings it in', async () => {
+  // The reviewer's interleaving (Task 4 review, N1). D2's save B is claimed
+  // and held at its commit. D1's save A then commits; before A's answer goes
+  // out, B is released, re-plans on the fresh version and settles. B is not in
+  // A's snapshot (it committed after A). Read after A's commit, the list would
+  // miss it too, and D1 would edit B's task with no lock. Read before the
+  // claim (H32), B is listed.
+  let releaseB;
+  const gateB = new Promise((resolve) => { releaseB = resolve; });
+  let reachedB;
+  const atB = new Promise((resolve) => { reachedB = resolve; });
+  let bId = null;
+  let aId = null;
+  let bDone = null;
+  const w = await createWorld(db, {
+    onCommit: async (args, call) => {
+      if (args.p_operation_id === bId) { bId = null; reachedB(); await gateB; return call(); }
+      if (args.p_operation_id === aId) {
+        aId = null;
+        const result = await call();
+        releaseB();
+        await bDone;
+        return result;
+      }
+      return call();
+    },
+  });
+  const d1 = w.week();
+  await d1.load();
+  assert.equal(await d1.addActions([seed('personal:x', 'Filter')], '2026-10-20'), true);
+  const [x] = d1.actions;
+
+  const b = body({ kind: 'revise', changes: [{ id: x.id, revision: 1, patch: { title: 'Filter, changed on D2', date: '2026-10-20', state: 'saved' } }] });
+  bId = b.operationId;
+  bDone = w.commit(b, { as: 'alice' }).then((response) => response.json());
+  await atB;
+
+  const realMutate = d1.mutate;
+  d1.mutate = (command) => { const pending = realMutate(command); aId = d1.operationIds.at(-1); return pending; };
+  assert.equal(await d1.addActions([seed('personal:a', 'Water the beds')], ''), true, 'A saves');
+  assert.equal((await bDone).status, 'succeeded', 'B settled before A answered');
+  assert.equal(d1.actions.find((action) => action.id === x.id).revision, 1, 'B is not in A\'s snapshot');
+  assert.deepEqual(state(d1), { error: 'An earlier save needs checking before changing tasks.', locked: b.operationId, canMutate: false }, 'B is listed, so D1 locks');
+
+  assert.equal(await d1.reconcile(), true);
+  assert.deepEqual(state(d1), UNLOCKED(RECOVERED));
+  const current = d1.actions.find((action) => action.id === x.id);
+  assert.deepEqual([current.title, current.revision], ['Filter, changed on D2', 2], 'and the reconcile brings B in');
+  assert.equal(await d1.reviseAction(x.id, 2, { title: 'Filter, again', date: '2026-10-20', state: 'saved' }), true, 'so the next edit is not stale');
+});
+
 // ---------------------------------------------------------------------------
 // The receipt the client is given, everywhere it is given
 // ---------------------------------------------------------------------------
