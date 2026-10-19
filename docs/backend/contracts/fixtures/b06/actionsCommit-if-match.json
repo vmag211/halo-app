@@ -1,0 +1,18 @@
+{
+  "operationId": "actionsCommit",
+  "status": 400,
+  "body": {
+    "error": "This request does not take an If-Match header.",
+    "code": "validation_failed",
+    "message": "This request does not take an If-Match header.",
+    "field_errors": [
+      {
+        "field": "If-Match",
+        "code": "precondition_unsupported",
+        "message": "This request does not take an If-Match header."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

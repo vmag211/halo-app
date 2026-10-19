@@ -1,0 +1,18 @@
+{
+  "operationId": "actionsCommit",
+  "status": 400,
+  "body": {
+    "error": "Send an Idempotency-Key header carrying this request's own id.",
+    "code": "validation_failed",
+    "message": "Send an Idempotency-Key header carrying this request's own id.",
+    "field_errors": [
+      {
+        "field": "Idempotency-Key",
+        "code": "invalid_uuid",
+        "message": "Send an Idempotency-Key header carrying this request's own id."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

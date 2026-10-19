@@ -1,0 +1,2040 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B06 My Week backend contract",
+    "version": "b06-1",
+    "description": "The four operations B06 built for My Week and its strip, and the B06 half of operations.read: actions.load (GET /api/frontend/actions), actions.commit (POST /api/frontend/actions/commands), week.changes (GET /api/week/changes), week.acknowledge (POST /api/week/changes/acknowledge), and the actions and week-updates domains of GET /api/operations. Response schemas mirror the frontend's own validators on origin/codex/october15-review-refinement (action-service.ts, adapters.ts, WeekUpdates.tsx, week-planning.ts), which refuse a whole payload on one wrong field; where a rule is not JSON Schema the conformance test transcribes the validator instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key. Dropped, and absent here: the clear command kind (a 400, Ruling H14) and reminderStates (no scheduler). Nothing here is a deployment or approval claim: the tasks capability is off by default and stays off until a retention period for tasks is approved (Ruling H1), and migration 0023 is applied nowhere."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/frontend/actions": {
+      "get": {
+        "operationId": "actionsLoad",
+        "x-halo-operation": "actions.load",
+        "summary": "The household's tasks in My Week",
+        "description": "One snapshot of the household's tasks, their planning details and the six preferences, plus the unsettled actions operations (Rulings H9, H16). The list is read BEFORE the snapshot, so an operation missing from the list is already in the snapshot (Ruling H8 makes a write and its settle one transaction). Never a 404 for any household state (trap T7). The stored snapshot is returned exactly as read, never with a row left out, even when the server's own copy of the client's validator refuses it; one content-free line is logged instead (Rulings H24, H31). Behind the tasks flag, off by default (Rulings H1, H17): while it is off, nothing is read. The query string and X-Halo-Home-Context are ignored (Ruling H2).",
+        "parameters": [
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: tasks belong to the household, not a home (Ruling H2, open question 2). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The snapshot. A new household gets exactly {\"actions\":[],\"metas\":{},\"preferences\":{},\"unresolvedOperations\":[]}, which loads My Week ready, empty and writable.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. Only the error code and message are logged, with the request id, never a database detail or hint (which can hold a task's own text), and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: the tasks capability is off (the default; nothing is read), or migration 0023 or 0017 is not applied. Or the retryable auth outage (auth_unavailable, with Retry-After). The client shows \"Your tasks could not load. Reconnect and try again.\" for either (ExpandedPreviewState.tsx:77, open question 4).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/frontend/actions/commands": {
+      "post": {
+        "operationId": "actionsCommit",
+        "x-halo-operation": "actions.commit",
+        "summary": "Save a change to My Week",
+        "description": "A new task, an edit, a completion, a move, a delete, the weekly review, or a preference written with changes: []. ORDER: session; body (at most 4,000,000 bytes); operation id and Idempotency-Key; the tasks flag; If-Match; the whole command (parseActionCommand); a read of the snapshot (which proves 0023 and 0017) and of the live unresolved list (Ruling H32); then the ledger claim (domain actions, kind actions.commit). Everything before the claim records nothing. Inside the claim the command is planned with the client's own rules, the WHOLE resulting snapshot is validated (trap T5, Ruling H25), and one database function advances the household version, applies every write and settles this operation's own ledger row in one transaction (Rulings H6, H8, H10), so a task write exists if and only if its operation is succeeded. A lost race is replanned from a fresh read, at most three attempts. The ledger stores ids, revisions and reason codes only, never a title, note or preference (Ruling H3), and unresolvedOperations: [] (Ruling S14). maxDuration is 60 seconds, under the ledger's 120 second staleness window.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "The client's own operation id (runtime.ts:134), a UUID, the same id as the body's operationId. It is trimmed and lowercased; the body's is lowercased and never trimmed (Ruling H27). Missing, not a UUID, or a different id is a 400 with no ledger row (Ruling H21). The ledger is the only idempotency mechanism.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "Refused: a 400 precondition_unsupported naming If-Match, decided before the ledger claim (Ruling H21). There is no snapshot revision to match, and the client never sends one (adapters.ts:10). Documented only so the refusal is.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: tasks belong to the household, not a home (Ruling H2, open question 2). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionsCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A receipt: succeeded with the snapshot; failed with a reason, refused against stored state (H11); or failed with the disabled reason and no reason field, while the tasks capability is off (H17).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionsReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unreadable body (bad_request) or a field that failed a rule (validation_failed): the operation id, the Idempotency-Key (missing, not a UUID, or a different id), If-Match (precondition_unsupported), an unknown key, clear, a bad seed, change or date, a duplicate seed key or change id, an unparseable signature, a preference the client refuses, or an unstorable value (U+0000, a lone surrogate, a non-finite number, year 0000, nesting deeper than 32). Decided before the ledger claim: nothing is recorded (Ruling H11).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A terminal refusal of a replay, with reason operation_mismatch, abandoned, not_applied or unrecognized_receipt (see ConflictEnvelope). The client shows its conflict sentence with no lock and does not reload (finding F4).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 4,000,000 bytes (payload_too_large), sized for the weekly planner's whole map under the platform's 4.5 MB request limit (Ruling H21). The client maps it to failed, not a lock.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. Only the error code and message are logged, with the request id, never a database detail or hint (which can hold a task's own text), and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "upstream_unavailable, retryable: a replay met this operation still pending, its outcome not known yet. feature_unavailable, not retryable: migration 0023 or 0017 is not applied, decided before the claim. auth_unavailable, retryable, with Retry-After. The client reads every 5xx on this mutation as unknown_outcome and checks the operation through operations.read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/week/changes": {
+      "get": {
+        "operationId": "weekChanges",
+        "x-halo-operation": "week.changes",
+        "summary": "Changes for the My Week strip",
+        "description": "Always {\"changes\":[],\"unresolvedOperations\":[...]} (Rulings H4, H20): no change source is invented. Reads nothing but the ledger, so it needs only migration 0017 and is not behind the tasks flag (it collects no free text). The query string and X-Halo-Home-Context are ignored.",
+        "parameters": [
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: tasks belong to the household, not a home (Ruling H2, open question 2). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The empty strip, with the household's unsettled week-updates operations.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeekChanges"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. Only the error code and message are logged, with the request id, never a database detail or hint (which can hold a task's own text), and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: migration 0017 is not applied. Or the retryable auth outage (auth_unavailable, with Retry-After). The client shows \"Plan updates are unavailable.\" with Try again.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/week/changes/acknowledge": {
+      "post": {
+        "operationId": "weekAcknowledge",
+        "x-halo-operation": "week.acknowledge",
+        "summary": "Mark a strip change reviewed",
+        "description": "Validates, then refuses, every time (Ruling H19), through the ledger (domain week-updates, kind week.acknowledge) so a lost response reconciles to failed instead of a 404. The stored receipt is {status: failed, reason: unknown_change} and the operation id: nothing from the request (Ruling H3). Not behind the tasks flag; works with migration 0023 absent. Body cap 2,048 bytes.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "The client's own operation id (runtime.ts:134), a UUID, the same id as the body's operationId. It is trimmed and lowercased; the body's is lowercased and never trimmed (Ruling H27). Missing, not a UUID, or a different id is a 400 with no ledger row (Ruling H21). ",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "Refused: a 400 precondition_unsupported naming If-Match, decided before the ledger claim (Ruling H21). There is no snapshot revision to match, and the client never sends one (adapters.ts:10). Documented only so the refusal is.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: tasks belong to the household, not a home (Ruling H2, open question 2). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeekAcknowledge"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The refusal, for every valid body, live or replayed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeekAcknowledgeRefused"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unreadable body (bad_request) or a field that failed a rule (validation_failed): an unknown key, id or version empty or too long, actionId or operationId not a UUID, If-Match (precondition_unsupported), or the Idempotency-Key missing, not a UUID or a different id. Nothing is recorded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A terminal refusal of a replay, with reason operation_mismatch, abandoned, not_applied or unrecognized_receipt (see ConflictEnvelope). The client clears its lock and shows its conflict sentence.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 2,048 bytes (payload_too_large).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. Only the error code and message are logged, with the request id, never a database detail or hint (which can hold a task's own text), and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "upstream_unavailable, retryable: a replay met this operation still pending. feature_unavailable, not retryable: migration 0017 is not applied. auth_unavailable, retryable, with Retry-After. The client locks the strip on any 5xx and checks the operation.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations": {
+      "get": {
+        "operationId": "operationsRead",
+        "x-halo-operation": "operations.read",
+        "summary": "What happened to a My Week save or a strip acknowledgement",
+        "description": "The B06 half of GET /api/operations: domain actions (the reconcile of a save, adapters.ts:11, with the Ruling H18 hydration) and domain week-updates (WeekUpdates.tsx:23). Other domains are documented by their own packages and replay exactly as stored. The stored receipt is spread first, then the canonical fields (operationId, domain, kind, status, created_at), so a frozen receipt can never override the status computed now. Only a succeeded actions operation is hydrated, and only while the tasks flag is on. Another household's operation id is a 404, with nothing said about whose it is.",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "query",
+            "required": true,
+            "description": "The operation to read, a UUID.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "description": "actions or week-updates for the operations documented here. Any other ledger domain is accepted by the route and documented elsewhere; recovery is refused (it has no owner).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The operation, in one of four shapes (see OperationRead).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationRead"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "operationId not a UUID, or a domain that is not readable here (validation_failed).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "This household has no such operation in this domain (not_found). Not the same as failed. A save whose request never reached the server is a 404, which the client keeps as a lock until a reload (finding F7, a client-side fix for Yogi).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. Only the error code and message are logged, with the request id, never a database detail or hint (which can hold a task's own text), and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: a succeeded actions operation while the tasks capability is off, migration 0023 missing for that hydration, or migration 0017 missing. Or the retryable auth outage (auth_unavailable, with Retry-After).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence. Strict here, because a field that leaked a database message or another household's id would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "UnavailableEnvelope": {
+        "description": "A 503 from a B06 route. feature_unavailable is not retryable: the tasks capability is off (Ruling H17), or migration 0023 or 0017 is not applied. auth_unavailable is the retryable auth outage. upstream_unavailable is the retryable in-flight answer of a mutation: a replay met a ledger row still pending (or unknown), so its outcome is not known yet (Ruling H11). The client maps every 5xx on a mutation to unknown_outcome and checks the operation (runtime.ts:144), and every 5xx on a read to unavailable.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "feature_unavailable",
+              "auth_unavailable",
+              "upstream_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "code": {
+              "const": "feature_unavailable"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "retryable": {
+              "const": false
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "retryable": {
+              "const": true
+            }
+          }
+        }
+      },
+      "ReadUnavailableEnvelope": {
+        "description": "A 503 from a B06 read: feature_unavailable (not retryable) or the auth outage (retryable). A read never claims an operation, so it is never in flight.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnavailableEnvelope"
+          },
+          {
+            "properties": {
+              "code": {
+                "enum": [
+                  "feature_unavailable",
+                  "auth_unavailable"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ConflictEnvelope": {
+        "description": "A terminal 409 from a B06 mutation (Ruling H11). code is always conflict and retryable false; the client maps it to conflict and clears without a lock (runtime.ts:144). reason: operation_mismatch (this operation id was already used with a different body, or by another household); on a replay of an earlier attempt, abandoned (the ledger reaped it, {status: failed, reason: abandoned}) or not_applied (it settled failed with no receipt, an in-process throw); unrecognized_receipt (its stored receipt is one this route never writes; logged without content and never replayed). No B06 409 carries a revision.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "const": "conflict"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "operation_mismatch",
+              "abandoned",
+              "not_applied",
+              "unrecognized_receipt"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "OperationIds": {
+        "description": "The household's genuinely unsettled operations in one domain, oldest first, at most 100, never the operation the body answers (traps T1, T2, T8; Rulings H16, H32). The client locks on the first (ExpandedPreviewState.tsx:63, WeekUpdates.tsx:17) and refuses more than 100 or a duplicate (action-service.ts:90).",
+        "type": "array",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PreviewAction": {
+        "description": "One task, exactly these eight keys (Ruling H9), so the add-of-an-existing-key check sameValue(action, old) (action-service.ts:109) compares identical key sets. id is server-assigned. date is YYYY-MM-DD or the empty string for none; years 1 to 9999 only (Ruling H30). title is stored trimmed (Ruling H13); the client measures its 1 to 160 in UTF-16 units, JSON Schema in code points, so maxLength here is never tighter than the client. reason, origin and key have no contract bound (Ruling H23).",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "reason": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$"
+          },
+          "state": {
+            "enum": [
+              "saved",
+              "waiting",
+              "completed"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "reason",
+          "origin",
+          "date",
+          "state",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "WeekMeta": {
+        "description": "A task's planning details, stored and echoed exactly as the client sent them (Ruling H13), unknown keys included, because coverage compares key counts (action-service.ts:102,112). The client merges each with emptyWeekMeta before checking it (action-service.ts:96), so no key is required here; the listed ones are typed as the client checks them. history is unbounded (Ruling H23, open question 5). Rules JSON Schema cannot express (a time that exists on its date in its zone, a repeating task needing an all-day date) are the client's actionMetadataError, transcribed in the conformance test.",
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "completedOn": {
+            "type": "string",
+            "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$"
+          },
+          "time": {
+            "type": "string",
+            "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$"
+          },
+          "duration": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 1440
+          },
+          "zone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recurrence": {
+            "enum": [
+              "none",
+              "weekly",
+              "after-completion"
+            ]
+          },
+          "reminder": {
+            "type": "boolean",
+            "description": "Stored as sent. No scheduler exists, so it claims nothing (C7)."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimateSet": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ActionPreferences": {
+        "description": "The six My Week preferences, each optional, last write wins per key (Ruling H5, open question 3). Exactly the client's validActionPreferences (action-service.ts:41-53); a key cannot be deleted, and a JSON null is refused. Lengths are UTF-16 units on the client.",
+        "type": "object",
+        "properties": {
+          "week:focus": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "food-interests": {
+            "type": "array",
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "fish",
+                "gardens",
+                "evidence",
+                "growers",
+                "water"
+              ]
+            }
+          },
+          "week:availability": {
+            "type": "object",
+            "maxProperties": 1000,
+            "propertyNames": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10080
+            }
+          },
+          "week:season-dismissals": {
+            "type": "array",
+            "maxItems": 1000,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "week:review-preferences": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "weekday": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+              },
+              "zone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "enabled",
+              "weekday",
+              "time",
+              "zone"
+            ],
+            "additionalProperties": false
+          },
+          "outdoorPlan": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "place": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "period": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "watchRequested": {
+                "type": "boolean"
+              },
+              "forecastVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              },
+              "forecastIssuedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "forecastExpiresAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "place",
+              "period",
+              "watchRequested",
+              "forecastVersion",
+              "forecastIssuedAt",
+              "forecastExpiresAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "ActionSnapshot": {
+        "description": "The household's tasks in My Week, as one snapshot read in one statement (Ruling H9), with the live unresolved list. The load body, every succeeded receipt's snapshot and an actions reconcile's snapshot all have exactly this shape, built by one function (emittedSnapshot, lib/actionsStore.js). The client accepts it only when validActionSnapshot passes AND unresolvedOperations is an array (adapters.ts:7,9), so the list is always present (trap T1, C8). A new household is exactly {\"actions\":[],\"metas\":{},\"preferences\":{},\"unresolvedOperations\":[]}. metas has a key only for a task that has one. No reminderStates (no scheduler exists, C7), no internal version (Ruling H10), no top-level data key.",
+        "type": "object",
+        "properties": {
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewAction"
+            }
+          },
+          "metas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WeekMeta"
+            }
+          },
+          "preferences": {
+            "$ref": "#/components/schemas/ActionPreferences"
+          },
+          "unresolvedOperations": {
+            "$ref": "#/components/schemas/OperationIds"
+          }
+        },
+        "required": [
+          "actions",
+          "metas",
+          "preferences",
+          "unresolvedOperations"
+        ],
+        "additionalProperties": false
+      },
+      "ActionSeed": {
+        "description": "One task to add. Only key, title, reason and origin are read and stored; any other field (seeds are spread from caller objects, ExpandedPreviewState.tsx:143) is ignored and never stored, and seed.date loses to the command's date (Ruling H13, C6). key is at most 1,000 UTF-8 bytes.",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "reason",
+          "origin"
+        ]
+      },
+      "ActionChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The revision the client holds; a different stored one refuses the whole command with stale_revision."
+          },
+          "patch": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "date": {
+                "type": "string",
+                "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$"
+              },
+              "state": {
+                "enum": [
+                  "saved",
+                  "waiting",
+                  "completed"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "date",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "patch"
+        ],
+        "additionalProperties": false
+      },
+      "ActionsCommand": {
+        "description": "A save from My Week (adapters.ts:10): the client's ActionCommand plus its operationId. add, revise and delete only; clear is a 400 (Ruling H14). Any key not listed is a 400 unknown_field. revise with changes: [] is valid and is the preferences write (trap T3). initialStates is accepted on every kind and applied only on add (finding F6). metadata values are a WeekMeta or null (clear the task's meta); expectedMetadata values are the JSON text of the meta the client holds, or \"null\", parsed and deep-compared before anything else (Ruling H12). Server-only refusals (400): U+0000 or a lone surrogate anywhere in a stored value, a non-finite number, year 0000, nesting deeper than 32, a duplicate seed key or change id (Rulings H13, H26).",
+        "oneOf": [
+          {
+            "title": "add",
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "kind": {
+                "const": "add"
+              },
+              "seeds": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/components/schemas/ActionSeed"
+                }
+              },
+              "date": {
+                "type": "string",
+                "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$"
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/ActionsCommandMetadata"
+              },
+              "expectedMetadata": {
+                "$ref": "#/components/schemas/ActionsCommandSignatures"
+              },
+              "preferences": {
+                "$ref": "#/components/schemas/ActionPreferences"
+              },
+              "initialStates": {
+                "$ref": "#/components/schemas/ActionsCommandStates"
+              }
+            },
+            "required": [
+              "operationId",
+              "kind",
+              "seeds",
+              "date"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "revise",
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "kind": {
+                "const": "revise"
+              },
+              "changes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ActionChange"
+                }
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/ActionsCommandMetadata"
+              },
+              "expectedMetadata": {
+                "$ref": "#/components/schemas/ActionsCommandSignatures"
+              },
+              "preferences": {
+                "$ref": "#/components/schemas/ActionPreferences"
+              },
+              "initialStates": {
+                "$ref": "#/components/schemas/ActionsCommandStates"
+              }
+            },
+            "required": [
+              "operationId",
+              "kind",
+              "changes"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "delete",
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "kind": {
+                "const": "delete"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/ActionsCommandMetadata"
+              },
+              "expectedMetadata": {
+                "$ref": "#/components/schemas/ActionsCommandSignatures"
+              },
+              "preferences": {
+                "$ref": "#/components/schemas/ActionPreferences"
+              },
+              "initialStates": {
+                "$ref": "#/components/schemas/ActionsCommandStates"
+              }
+            },
+            "required": [
+              "operationId",
+              "kind",
+              "id",
+              "revision"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "ActionsCommandMetadata": {
+        "type": "object",
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/WeekMeta"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "ActionsCommandSignatures": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "ActionsCommandStates": {
+        "type": "object",
+        "additionalProperties": {
+          "enum": [
+            "saved",
+            "waiting",
+            "completed"
+          ]
+        }
+      },
+      "ActionsReceiptSucceeded": {
+        "description": "The save applied (or changed nothing: an add of a key already saved, changes: [] with nothing else, a delete of an id this household has no row for, Ruling H14). snapshot is the one the commit function read in its own transaction, with the live list read before the claim (Ruling H32); for a replay, the current snapshot (Ruling H18). The client also requires that it shows the command took effect (actionReceiptCoversCommand, action-service.ts:103-115), which the conformance test checks.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "const": "succeeded"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/ActionSnapshot"
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "snapshot"
+        ],
+        "additionalProperties": false
+      },
+      "ActionsReceiptRefused": {
+        "description": "Refused against stored state, nothing saved (Ruling H11): metadata_changed (a signature no longer matches, Ruling H12), stale_revision (with the current revisions of the named tasks), unknown_action, invalid_result (the result would fail the client's own load check; message is the client's own sentence for the failing task, Rulings H25, H33), busy (three lost races, Ruling H10). The client shows message verbatim and keeps the draft, with no lock (ExpandedPreviewState.tsx:93). A replay answers the same body, rebuilt from the stored reason. A refusal does not reload My Week (finding F4), so each message says to.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "reason": {
+            "enum": [
+              "metadata_changed",
+              "stale_revision",
+              "unknown_action",
+              "invalid_result",
+              "busy"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "revision"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "reason",
+          "message"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "stale_revision"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "revisions"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "revisions"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "metadata_changed"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "message": {
+                  "const": "This task's details changed since you opened them. Nothing was saved. Reload My Week to see the latest version."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "stale_revision"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "message": {
+                  "const": "This task changed since you opened it. Nothing was saved. Reload My Week to see the latest version."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "unknown_action"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "message": {
+                  "const": "This task is no longer in My Week. Nothing was saved. Reload My Week to see your current tasks."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "busy"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "message": {
+                  "const": "My Week is busy with another save. Nothing was saved. Try again in a moment."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "invalid_result"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "message": {
+                  "enum": [
+                    "Enter a title between 1 and 160 characters.",
+                    "Choose a valid calendar date.",
+                    "The task schedule is invalid.",
+                    "The task details are invalid.",
+                    "Choose a duration between 15 and 1440 minutes.",
+                    "Choose a valid timezone.",
+                    "Choose a valid dated time outside clock-change gaps or ambiguous times.",
+                    "Repeating tasks need an all-day date.",
+                    "The completion date is invalid.",
+                    "This change would leave My Week unable to load. Nothing was saved."
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ActionsReceiptDisabled": {
+        "description": "The tasks capability is off (Rulings H1, H17), the default everywhere. Decided after the operation id is read and before anything is read or claimed, so no ledger row exists. A 200 receipt, not a 5xx, because a 5xx on a mutation would lock My Week (runtime.ts:144). No reason is sent.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "message": {
+            "const": "Saving tasks in My Week is not available yet. Nothing was saved."
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ActionsReceipt": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ActionsReceiptSucceeded"
+          },
+          {
+            "$ref": "#/components/schemas/ActionsReceiptRefused"
+          },
+          {
+            "$ref": "#/components/schemas/ActionsReceiptDisabled"
+          }
+        ]
+      },
+      "WeekChanges": {
+        "description": "The My Week strip (Rulings H4, H20). changes is ALWAYS empty: no source of a change exists (open question 7), and the client renders nothing at all for an empty list with no unknown operation and no error (WeekUpdates.tsx:30). unresolvedOperations is the household's unsettled week-updates operations.",
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "unresolvedOperations": {
+            "$ref": "#/components/schemas/OperationIds"
+          }
+        },
+        "required": [
+          "changes",
+          "unresolvedOperations"
+        ],
+        "additionalProperties": false
+      },
+      "WeekAcknowledge": {
+        "description": "Exactly what the client sends (WeekUpdates.tsx:23), checked against its own bounds (week-planning.ts:30, UTF-16 units): id 1 to 240, version 1 to 100, actionId a UUID. Any other key is a 400. No task table is read, so a real task id and another household's answer identically.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "actionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "operationId",
+          "id",
+          "version",
+          "actionId"
+        ],
+        "additionalProperties": false
+      },
+      "WeekAcknowledgeRefused": {
+        "description": "Always this (Ruling H19): no change was ever issued, so every (id, version) is unknown. Never succeeded, so a receipt without acknowledged can never arise (trap T11). The client shows its own \"The update was not applied. You can try again.\" and clears its lock (WeekUpdates.tsx:23). Recorded in the ledger (domain week-updates) so a lost response reconciles to failed rather than a 404.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "reason": {
+            "const": "unknown_change"
+          },
+          "message": {
+            "const": "That update is not available to review, so nothing was changed."
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "reason",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ActionsOperationSucceeded": {
+        "description": "A succeeded actions operation (Ruling H18, S16). The stored receipt holds ids and revisions only (Ruling H3) and unresolvedOperations: [] (Ruling S14); this route adds the household's CURRENT snapshot, rebuilt from the task tables, and replaces the stored [] with the live list minus the operation itself, at the top level and at snapshot.unresolvedOperations (where the adapter reads it, adapters.ts:7,11). The two lists are always equal. A current snapshot, not a frozen one, so it cannot roll back a later change (A8). Behind the tasks flag: a 503 while it is off.",
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          },
+          "affected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "revision"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "unresolvedOperations": {
+            "$ref": "#/components/schemas/OperationIds"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/ActionSnapshot"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "actions"
+          },
+          "kind": {
+            "const": "actions.commit"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "affected",
+          "removed",
+          "unresolvedOperations",
+          "snapshot",
+          "operationId",
+          "domain",
+          "kind",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ActionsOperationFailed": {
+        "description": "A failed actions operation, replayed as stored (the client then says \"No save was applied. Your draft is kept for review.\" and reloads, ExpandedPreviewState.tsx:114, which Ruling H8 makes true). Three shapes: a refusal the route recorded (reason one of the five, unresolvedOperations: [] per Ruling S14, revisions with stale_revision, and with invalid_result check, one of nine fixed codes for the client's sentence, never text a person typed, Ruling H33); a claim the ledger reaped (reason abandoned); a claim that settled with no receipt (no reason).",
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "failed"
+          },
+          "reason": {
+            "enum": [
+              "metadata_changed",
+              "stale_revision",
+              "unknown_action",
+              "invalid_result",
+              "busy",
+              "abandoned"
+            ]
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "revision"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "check": {
+            "enum": [
+              "title",
+              "date",
+              "schedule",
+              "details",
+              "duration",
+              "zone",
+              "time",
+              "recurrence",
+              "completion"
+            ]
+          },
+          "unresolvedOperations": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "actions"
+          },
+          "kind": {
+            "const": "actions.commit"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "operationId",
+          "domain",
+          "kind",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "metadata_changed",
+                    "stale_revision",
+                    "unknown_action",
+                    "invalid_result",
+                    "busy"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "unresolvedOperations"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "unresolvedOperations"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "const": "stale_revision"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "revisions"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "revisions"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "not": {
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "const": "invalid_result"
+                  }
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "check"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "WeekUpdatesOperationFailed": {
+        "description": "A settled week-updates operation: the acknowledgement's own refusal (reason unknown_change), a reaped claim (abandoned) or one that settled with no receipt (no reason). Every one clears the strip's lock with \"The update was not applied. You can try again.\" (WeekUpdates.tsx:23).",
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "failed"
+          },
+          "reason": {
+            "enum": [
+              "unknown_change",
+              "abandoned"
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "week-updates"
+          },
+          "kind": {
+            "const": "week.acknowledge"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "operationId",
+          "domain",
+          "kind",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "OperationOpen": {
+        "description": "Not settled: pending (still running) or unknown (past its window and not reaped). Honestly not confirmed; the client keeps its lock and says so (\"The outcome is still unconfirmed. No new save was sent.\", ExpandedPreviewState.tsx:115; the strip, WeekUpdates.tsx:23). No receipt is carried.",
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "unknown"
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "enum": [
+              "actions",
+              "week-updates"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "actions.commit",
+              "week.acknowledge"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "operationId",
+          "domain",
+          "kind",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "OperationRead": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ActionsOperationSucceeded"
+          },
+          {
+            "$ref": "#/components/schemas/ActionsOperationFailed"
+          },
+          {
+            "$ref": "#/components/schemas/WeekUpdatesOperationFailed"
+          },
+          {
+            "$ref": "#/components/schemas/OperationOpen"
+          }
+        ]
+      }
+    }
+  }
+}

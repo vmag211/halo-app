@@ -1,0 +1,13 @@
+{
+  "operationId": "weekAcknowledge",
+  "status": 409,
+  "body": {
+    "error": "That earlier review did not finish, so nothing was changed. Please try again.",
+    "code": "conflict",
+    "message": "That earlier review did not finish, so nothing was changed. Please try again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b06-contract-0001",
+    "reason": "not_applied"
+  }
+}

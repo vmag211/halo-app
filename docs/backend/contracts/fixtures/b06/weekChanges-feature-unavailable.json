@@ -1,0 +1,12 @@
+{
+  "operationId": "weekChanges",
+  "status": 503,
+  "body": {
+    "error": "Saving is not available yet. Nothing was changed. Please try again later.",
+    "code": "feature_unavailable",
+    "message": "Saving is not available yet. Nothing was changed. Please try again later.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

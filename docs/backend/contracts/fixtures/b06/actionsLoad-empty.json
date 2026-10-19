@@ -1,0 +1,10 @@
+{
+  "operationId": "actionsLoad",
+  "status": 200,
+  "body": {
+    "actions": [],
+    "metas": {},
+    "preferences": {},
+    "unresolvedOperations": []
+  }
+}

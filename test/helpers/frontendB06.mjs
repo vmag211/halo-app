@@ -28,7 +28,15 @@
  *   command builders (:136-140), `save` (:141-145) and `changeState`
  *   (:146-152);
  * - `components/expanded/WeekReviewPlanner.tsx:17` (`apply`, the weekly
- *   review's save), as `applyWeekPlan`.
+ *   review's save), as `applyWeekPlan`;
+ * - the week strip (B06 Task 5, moved here from routesWeekChanges by Task 6
+ *   so the per-route suite and the contract suite share one copy):
+ *   `runtime.ts:31-32` (its two registry entries) and `:98`
+ *   (`serviceMessage`), `useProductionResource`'s settle
+ *   (`components/production/ProductionContext.tsx:14`), `useWeekChanges` and
+ *   `WeekUpdateList` (`components/expanded/WeekUpdates.tsx:14-30`), as
+ *   `weekStrip`, and `changeEvidenceKey` and `usableWeekChanges`
+ *   (`lib/frontend/week-planning.ts:29-30`).
  *
  * Declared seams, none of which changes an outcome a route can cause:
  * - React state becomes plain fields; `setLoadVersion` (a reload) becomes a
@@ -57,6 +65,11 @@
  *   `setBrowserZones`. By default it is Node's own.
  * - `validReminderStates` is not transcribed: the server never sends
  *   `reminderStates`, so a body carrying it fails here loudly.
+ * - `request` also honours `options.lose` (the week strip's acknowledgement
+ *   passes it per call), with the same effect as `lose(operation)`.
+ * - `weekStrip`: `queueMicrotask` in the restore effect (:17) is synchronous,
+ *   `live.retry()` is a counter (`retries`), and the workspace scenario of
+ *   :19 is `sourceReady`, which production starts `ready` (digest 6.2).
  *
  * A transcription that accepted everything would prove nothing, so the suites
  * that use this also show it refusing what the client refuses.
@@ -92,11 +105,13 @@ export class FrontendServiceError extends Error {
   }
 }
 
-/** runtime.ts:28-30, the registry entries this surface uses. */
+/** runtime.ts:28-32, the registry entries My Week and its week strip use. */
 export const productionOperations = {
   'operations.read': { path: '/api/operations' },
   'actions.load': { path: '/api/frontend/actions' },
   'actions.commit': { path: '/api/frontend/actions/commands', method: 'POST' },
+  'week.changes': { path: '/api/week/changes' },
+  'week.acknowledge': { path: '/api/week/changes/acknowledge', method: 'POST' },
 };
 
 /** runtime.ts:91-97 */
@@ -134,7 +149,7 @@ export function clientRuntime(h, who, { homeContextId = null, env, lose = () => 
         if (mutation) headers['Content-Type'] = 'application/json';
         sent = true;
         const response = await h.call(endpoint.path, method, { as: who, url: path, headers, env, rawBody: mutation ? JSON.stringify(body ?? {}) : undefined });
-        if (lose(operation)) throw new DOMException('Request ended', 'AbortError');
+        if (lose(operation) || options.lose) throw new DOMException('Request ended', 'AbortError');
         const json = await response.json().catch(() => null);
         if (!response.ok) {
           const code = response.status === 401 ? 'session' : response.status === 403 ? 'permission' : response.status === 409 || response.status === 412 ? 'conflict' : response.status === 400 || response.status === 422 ? 'validation' : response.status === 429 ? 'rate_limited' : response.status >= 500 && mutation ? 'unknown_outcome' : 'unavailable';
@@ -155,6 +170,9 @@ export function clientRuntime(h, who, { homeContextId = null, env, lose = () => 
     },
   };
 }
+
+/** runtime.ts:98 */
+export function serviceMessage(error) { return error instanceof FrontendServiceError ? error.message : messages.unavailable; }
 
 // ------------------------------------------------------ expanded-preview.ts
 
@@ -391,4 +409,86 @@ export async function applyWeekPlan(week, { decisions, chosenFocus, capacity, st
   const capacityInvalid = capacity !== null && (!Number.isInteger(capacity) || capacity < 0 || capacity > 10080);
   const result=prepareReview(decisions,state.actions,metas,today);if(result.error||capacityInvalid){return result.error||'Enter available minutes between 0 and 10080.';}if(chosenFocus&&!state.actions.some(a=>a.key===chosenFocus&&a.state!=='completed'&&!metas[a.key]?.archived)){return 'Your chosen focus is no longer available. Choose it again.';}const nextActions=result.changes.length?revisedActionBatch(state.actions,result.changes):state.actions;const nextAvailability={...availability};if(capacity===null)delete nextAvailability[start];else nextAvailability[start]=capacity;const expectedMetadata=Object.fromEntries(state.actions.map(action=>[action.key,JSON.stringify(metas[action.key]??null)]));if(!nextActions||!await state.reviseActions(result.changes,{metadata:result.metas,expectedMetadata,preferences:{'week:focus':chosenFocus,'week:availability':nextAvailability}})){return 'This plan could not be confirmed. Your choices remain here. Check its save status or reload current tasks.';}
   return 'Week plan saved.';
+}
+
+// ------------------------------------------------------------- the week strip
+
+/**
+ * U+2014, built from its code point so this file carries no em dash of its
+ * own (AGENTS.md). The client's regular expression matches every U+2014 (its
+ * unicode escape, global flag); `EM_DASH_ALL` matches the same thing.
+ */
+const EM_DASH_ALL = new RegExp(String.fromCharCode(0x2014), 'g');
+
+/** week-planning.ts:29 */
+export const changeEvidenceKey = (change) => `${change.id}:${change.version}`;
+/** week-planning.ts:30 */
+export function usableWeekChanges(changes, actions, acknowledged) { return changes.filter((change, index) => Boolean(change.id && change.id.length <= 240 && change.version && change.version.length <= 100 && change.sourceVersion) && ['date-changed', 'cancelled', 'report', 'routine', 'conditions', 'missing-origin'].includes(change.kind) && changes.findIndex(c => changeEvidenceKey(c) === changeEvidenceKey(change)) === index && actions.some(a => a.id === change.actionId && a.key === change.actionKey && a.state !== 'completed') && !acknowledged.includes(changeEvidenceKey(change))).map(change => ({ ...change, title: change.title.replace(EM_DASH_ALL, ',').slice(0, 160), summary: change.summary.replace(EM_DASH_ALL, ',').slice(0, 600), sourceLabel: change.sourceLabel.replace(EM_DASH_ALL, ',').slice(0, 100), date: change.date && validActionDate(change.date) ? change.date : '', sourceUrl: change.sourceUrl && /^https:\/\//i.test(change.sourceUrl) ? change.sourceUrl : undefined })); }
+
+/**
+ * `useWeekChanges` in production (WeekUpdates.tsx:14-25) and `WeekUpdateList`'s
+ * render decision (:30), as a plain object. `sourceReady` is the workspace
+ * scenario check of :19; production starts it `ready` (digest 6.2).
+ */
+export function weekStrip(runtime, { actions = [], metas = {}, sourceReady = true } = {}) {
+  const strip = {
+    acknowledged: [], unknown: null, feedback: '', pending: false,
+    live: { data: null, loading: true, error: null },
+    retries: 0,
+
+    /** ProductionContext.tsx:14, the read `useProductionResource('week.changes',{})` makes. */
+    async load() {
+      await runtime.request('week.changes', JSON.parse(JSON.stringify({}))).then(
+        (data) => { strip.live = { data, loading: false, error: null }; },
+        (error) => { strip.live = { data: null, loading: false, error: serviceMessage(error) }; },
+      );
+      // :17, the restore effect.
+      const restored = strip.live.data?.unresolvedOperations?.[0];
+      if (typeof restored === 'string' && !strip.unknown) strip.unknown = restored;
+    },
+
+    /** :18 */
+    liveChanges() {
+      const live = strip.live;
+      return Array.isArray(live.data?.changes) ? live.data.changes.filter(change => change && change.sample === false && typeof change.id === 'string' && typeof change.version === 'string' && typeof change.title === 'string' && typeof change.summary === 'string' && typeof change.sourceLabel === 'string' && typeof change.sourceVersion === 'string' && actions.some(action => action.id === change.actionId && action.key === change.actionKey) && (!change.sourceUrl || /^https:\/\//.test(change.sourceUrl))) : [];
+    },
+
+    /** :21 (the `runtime` branch) and :25 */
+    changes() {
+      const changes = usableWeekChanges(strip.liveChanges(), actions, strip.acknowledged).filter(change => !metas[change.actionKey]?.archived);
+      return sourceReady ? changes : [];
+    },
+
+    /** :25 `statusMessage` */
+    statusMessage() { return strip.live.error; },
+
+    /** :23, the runtime branch, verbatim apart from React state. */
+    async acknowledge(change, { lose = false } = {}) {
+      if (strip.pending || !change && !strip.unknown) return;
+      strip.pending = true; const operationId = strip.unknown ?? crypto.randomUUID();
+      try {
+        const receipt = await runtime.request(strip.unknown ? 'operations.read' : 'week.acknowledge', strip.unknown ? { operationId, domain: 'week-updates' } : { operationId, id: change.id, version: change.version, actionId: change.actionId }, { idempotencyKey: operationId, lose });
+        if (receipt.operationId === operationId && ['failed', 'cancelled'].includes(receipt.status)) { strip.unknown = null; strip.feedback = 'The update was not applied. You can try again.'; return; }
+        if (receipt.operationId !== operationId || receipt.status !== 'succeeded' || !Array.isArray(receipt.acknowledged) || !receipt.acknowledged.every(key => typeof key === 'string')) { strip.unknown = operationId; strip.feedback = 'The update is not confirmed. Select Reviewed again to check its status.'; return; }
+        strip.acknowledged = receipt.acknowledged; strip.unknown = null; strip.feedback = 'Update reviewed. Your task is unchanged.'; strip.retries += 1;
+      } catch (e) { if (e instanceof FrontendServiceError && e.code === 'unknown_outcome') strip.unknown = operationId; strip.feedback = serviceMessage(e); }
+      finally { strip.pending = false; }
+    },
+
+    /** :25 `checkStatus` */
+    checkStatus() { return strip.acknowledge(); },
+
+    /**
+     * :30, what `WeekUpdateList` renders: 'nothing' (null), 'status-check'
+     * ("An update needs a status check." or the feedback, with "Check update
+     * status"), 'unavailable' ("Plan updates are unavailable." with Try
+     * again), or 'list' ("A change to review").
+     */
+    render() {
+      const changes = strip.changes();
+      if (!changes.length) return strip.unknown ? { kind: 'status-check', text: strip.feedback || 'An update needs a status check.' } : strip.statusMessage() ? { kind: 'unavailable', text: 'Plan updates are unavailable.' } : null;
+      return { kind: 'list', count: changes.length };
+    },
+  };
+  return strip;
 }

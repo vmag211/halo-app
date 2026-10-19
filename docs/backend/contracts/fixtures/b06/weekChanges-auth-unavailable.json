@@ -1,0 +1,12 @@
+{
+  "operationId": "weekChanges",
+  "status": 503,
+  "body": {
+    "error": "Could not verify your session right now. Please try again.",
+    "code": "auth_unavailable",
+    "message": "Could not verify your session right now. Please try again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b06-contract-0001"
+  }
+}
