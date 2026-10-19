@@ -1,3 +1,98 @@
+# B05 checkpoint: discovery (the map routes, Explore your area, an honest comparison)
+
+Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b05-discovery-and-summaries.md`. Contract digest: `.superpowers/sdd/b05-discovery-and-summaries/contract-digest.md` (gitignored scratch).
+
+The B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **The Explore area is not live anywhere:** it needs migration 0022, and 0022 is applied nowhere.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **"Summaries" in the package name built nothing.** The registry names ten operations for this wave. B05 built four (`locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`) and fixed the two shipped map routes the frontend already calls (`map.layer`, `map.district`). It **dropped** `community.read` and `map.brief`: neither has a consumer, a validator or a type on the frontend ref, and the brief is already built client side from district data. It **blocked** `organizations.search`: there is no participation content, the cause vocabulary is disjoint from the frontend's, and nothing says what `complete` means. It also **blocked** `summary.prepare`, `summary.list` and `summary.read`, because no migration creates the record collections a snapshot freezes. The plan lists what unblocks each one.
+2. **The default `/map` still shows no live data.** The registry marks the map operations public, and `/map` runs without credentials unless `?access=owned`. Every map route requires a session (Ruling D1), and BE-047 says a truly unauthenticated route needs a separately reviewed cache, abuse and quota policy. Task 6 is that policy, designed and **not built**, because it waits for Vibhav's answer to open question 1.
+3. **`map.comparison` can never say "Aligned".** Every record has no method, no source version, every qualifier `unknown` and coverage `partial` (Ruling D3). So the client's own `compareEvidence` answers "Not comparable", with the method, source and qualifier reasons, for every pair, including two systems with identical readings on the same day. That is the truth about the data HALO holds, not a defect, and the contract schema pins it. The only way to alignment is acquiring UCMR 5 method, release and non-detect qualifiers (HO-074, open question 3). Without the route, the UI would say "Load this layer before comparing its records." about a loaded layer, which is false.
+4. **Explore your area is counties, not cities or ZIP codes.** `locations.search` reads the repo's public-domain Census county set and calls no geocoder (DS-016 and HO-074 gate Mapbox storage rights, and the one Mapbox window belongs to onboarding). "Charlotte" and "28208" answer no candidates, while the chooser's own copy asks for a city or a ZIP (F3). Open question 2.
+5. **`origin/main` carries the geography defect that B05 fixed.** On main, the daily cron hands `buildAndStoreAll` a bare Map (`app/api/cron/daily/route.js:162`), and `vercel.json` runs it every day at 11:00 UTC. A failed ArcGIS lookup resolves rather than rejects, so a run during an outage overwrites good water and district rows with "0 people, complete". This predates B05, and a Task 1 reviewer found it. `vmag211/backend` fixes it. If production deploys main, the defect is live today (STATE, Known live risks).
+
+## Where B05 stands
+
+| Task | State |
+| --- | --- |
+| 1. Map wiring fixes, first conformance test of `/api/map` and `/api/district` | Merged (`a6d04ef`, `244f4c9`, `d9f2e1c`; merge `9ad9989`) |
+| 2. County gazetteer and `GET /api/locations/search` | Merged (`9c91b08`, `530bcf7`; merges `94146d6`, `6c46ade`) |
+| 3. Migration 0022 and `lib/exploreArea.js` | Merged (`8d67f9f`, `53008ec`, `3f14de5`; merge `0cf2287`) |
+| Geography outage fix (found in review, predates B05) | Merged (`389e897`, `86ba259`; merges `3e91fd3`, `48e4b11`) |
+| 4. `GET` and `PATCH /api/explore/area` | Merged (`18ad7e2`; merge `192f40e`) |
+| 5. `GET /api/map/comparison` | Merged (`4bc7d63`, `fad5cf6`; merges `31c5f17`, `48e4b11`) |
+| 6. Public read for the map routes | **Not run**: gated on open question 1 |
+| 7. Contracts, conformance, tracker, checkpoint | This section. Built on `48e4b11`; commits `58f2d33`, `fd3aa39` and the docs commit that carries this section |
+
+Every task before 7 had an independent review, and each review is in `.superpowers/sdd/b05-discovery-and-summaries/`. Task 7 itself has not been reviewed yet. Nothing is merged to main.
+
+## What exists
+
+- **`GET /api/map`** treats `quarter=latest` as no quarter on every layer, checked before applicability. It uses one parser, `lib/mapQuarter.js`, which the comparison shares (D2). A live water build whose service-area lookup did not complete is answered with `geography_complete: false`, `meta.availability: 'partial'` and a note naming the failed lookup, and it is stored nowhere. The daily pre-build keeps the stored rows.
+- **`GET /api/district`** answers a 503 rather than totals the lookup could not support. Its boundary source lines no longer carry U+2014. Contradiction 9.9 (the no-population branch the client rejects) is unreachable through every producer and is pinned by test.
+- **`GET /api/locations/search`** answers up to 20 NC counties as the client's `DiscoveryPlace`, bare, with no table read and no outbound call (D4).
+- **Migration 0022** (`explore_areas`) and **`GET`/`PATCH /api/explore/area`** are built. A never-saved household reads `{place: null, revision: 1}` (D6), and the read never carries `pendingOperation` (D7). The server stores the gazetteer's own copy of the place (D8). Idempotency is the operation ledger, with `Idempotency-Key` required and `If-Match` equal to the body (D9). Every refusal is a terminal 409 with a reason: `stale_revision`, `revision_exhausted`, `operation_mismatch`, `abandoned` or `attempt_failed`. A pending attempt inside its window is the retryable 503.
+- **`GET /api/map/comparison`** reads the stored layer or the UCMR 5 table, never a live upstream build. It makes no outbound call, reads no household table and sends no `sourceName` (D3).
+- **`docs/backend/contracts/b05.openapi.json`** is version `b05-1`, with 52 synthetic fixtures, each produced by the real handler. **`test/contractsB05.test.mjs`** (67 tests) runs the handlers against it and against the frontend's own `validPlaces`, `validDiscoveryArea`, `parseMapLayer`, `parseMapDistrict`, `parseMapComparisons` and `compareEvidence`. Those six are transcribed once in `test/helpers/frontendB05.mjs`, now shared by the five per-route suites, which used to carry their own copies (`validPlaces` three times). Its cross-route checks: a `locations.search` candidate saved through `PATCH` and read through `GET` is the same object on all three surfaces, each revision is accepted as the next `If-Match`, and every id `map.layer` gives the client finds its record in `map.comparison`. **No disagreement was found.** No B05 body has a top-level `data` key or a U+2014 (D10). Request and response headers are checked both ways.
+
+## Migrations
+
+**0022 is written and applied nowhere**, and **0019, 0020 and 0021 are still pending** too. 0001 to 0018 are applied to production. All four pending migrations are additive. 0022's apply steps and its tested back-out block (`<!-- backout-0022 -->`) are `YOUR_TODO.md` 2.11. The back-out is tested on PGlite only. Until 0022 is applied, both Explore area verbs answer a non-retryable 503 `feature_unavailable`, and no operation id is claimed. Production enablement of the save also needs the reaper, which is merged: a stale pending attempt is settled to `failed` on the replay path.
+
+## Verification
+
+Gate at the Task 7 docs commit, on `48e4b11` plus Task 7: `node --test test/*.test.mjs` **2,848 passed, 0 failed, 0 skipped, 0 todo**. That is the 2,781 of the follow-ups merge plus the 67 contract tests; the transcription move changed no per-route count. `npm run typecheck` clean. `npm run lint` **0 errors and the 5 pre-existing warnings**. `git diff --check` clean. `vmag211/backend` has since moved to `3d54cdc` (B04 2b), which touches none of Task 7's files. Re-run the gate on the merge.
+
+Task 7's mutation checks, each restored afterwards:
+
+- Renaming `revision_exhausted` in the schema's 409 reason enum failed 3 tests: the coverage test, that fixture, and the save conformance.
+- Making the comparison's coverage `complete` in `lib/mapComparison.js` failed 2: the honesty conformance and the layer-to-comparison agreement.
+- Wrapping the save's answer with a `data` key in `app/api/explore/area/route.js` failed 2: the save conformance and the three-surface agreement.
+- Uppercasing the gazetteer's `place` failed 2.
+
+The earlier tasks' mutations are in their reviews. Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped and blocked, and why
+
+- **Dropped:** `community.read` and `map.brief`. They have no consumer, validator or type, and the frontend calls them "reserved contracts". Unblocked by the frontend publishing a validator and a consumer.
+- **Blocked:** `organizations.search`. The blockers are human-written participation content and its verification, a migration, an availability field in the contract (9.3), and a meaning for `complete`. The empty-string loophole is refused on purpose (MP-271).
+- **Blocked:** the summaries trio. The blockers are the record collections (HO-076, HO-104), themselves gated on the sensitive-input decisions; the per-version or per-report `id` ruling; the home-context precedence (9.7); and a retention period.
+- **Not run:** Task 6. It waits for open question 1. Its forward note from the geography review: a cache-only `getWaterGeo` miss must report `complete: false`, or the route must answer 503.
+
+## Open questions for Vibhav
+
+1. **Public map access (D1).** (a) Approve Task 6's cache-only public read and set its numbers; (b) have Yogi reuse the anonymous bootstrap on `/map`, which needs no backend change but creates an auth user per visitor; or (c) keep `/map` owned only and drop the public default. Recommended: (a).
+2. **City and ZIP search (D4).** Census place-to-county and ZCTA relationship files (public domain, no budget, one reviewed download; recommended), or Mapbox, which needs the storage-rights answer (DS-016, HO-074) and a budget separate from onboarding's 500 a day. Either way the privacy row for `explore_areas` must be revised, because a ZIP is finer than a county.
+3. **The comparison that never aligns (D3).** Confirm shipping it (recommended over the false "Load this layer" message), and decide whether to acquire the UCMR 5 method, release and non-detect qualifiers (HO-074) so alignment is ever possible.
+4. **Retention for `explore_areas` rows.** It is undecided, like every other period. The row holds a county, not the home address, and is deleted with the account.
+5. **Applying migration 0022**, the fourth pending migration after 0019, 0020 and 0021 (`YOUR_TODO.md` 2.11).
+
+Later, when summaries are planned: per-version or per-report `summary.read` id (digest 4.1), home-context precedence (9.7), and the order of the record-collections work. Separately, who writes and verifies the organizations content, and which set: the 13 NC-08 county-tagged rows in `volunteer_orgs`, or the Charlotte organizations in the frontend fixture. They do not overlap.
+
+## Known limits and deferred minors
+
+- **Air can still show the blocked comparison copy.** While the stored air layer is stale, `/api/map` answers a live air build and the comparison answers 503, until the asynchronous store lands (Task 5 N5).
+- **2,000 comparison ids pass the server cap but exceed common URL limits** at about 780 NC ids, which then fail with a 431. Today's layer is about 290 systems (Task 5 N3, F4).
+- **An empty `ids` array is a 400.** A deep link can send one before the layer loads. It is harmless: the effect re-requests when the ids change (Task 5 N4).
+- **Comparison period labels are raw ISO strings** (Task 5 N6). This is formatting, not honesty.
+- **The gazetteer's 20-candidate cap and exact-first ordering cannot be observed on today's data.** They are argued, not killed by a test. Factor the matcher out when the gazetteer grows (Task 2 N2).
+- **The 9.9 call-site scan is a tripwire, not a guard.** An aliased import evades it. The behaviour tests are the guard (Task 1 N3). The district parser self-check also misses three shapes that share covered paths (Task 1 N4).
+- **Source-provided names (ECHO `FacName`, AirNow `SiteName`) pass through unstripped.** An upstream U+2014 would reach a body. The client's `safeText` strips it at display, but AGENTS.md covers source copy at the API too. Not fixed in B05.
+- **A stale pending save whose reap fails to write stays the retryable 503.** That is the honest "not confirmed" answer (Task 4 observation).
+- **`YOUR_TODO.md` 2.6's "which migrations are applied" query still stops at 0019** (Task 3 nit 7, pre-existing).
+- **`resolveDefaultStore` in `lib/waterGeo.js` memoises per process.** A future route test that calls the geography outside a harness call, with `UPSTASH_*` exported, could pin a real client. Today's convention of always passing `store` avoids this (follow-ups O3).
+- **The Task 4 review's nit N2 also applies to the contract digest** (line 822, "persisted draft"). The drafts are in-memory session state that survives a remount, not a reload. The digest is gitignored scratch and was not edited. The test comments are corrected.
+
+## Next
+
+1. Review Task 7, then merge it onto `vmag211/backend` and re-run the gate on the merge.
+2. Answer open questions 1 to 5. Question 1 alone unblocks Task 6.
+3. Apply 0019 to 0022 as one batch when ready, and deploy the geography fix before relying on the daily pre-build.
+4. Give Yogi `YOUR_TODO.md` Part 4 items 8 to 15 and the B05 contract.
+
+---
+
 # B03 checkpoint: Luna, the conversational MVP
 
 Date: 2026-10-18. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b03-luna-conversational-mvp.md`.

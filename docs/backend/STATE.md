@@ -3,16 +3,35 @@
 One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for how to work, then the
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
-Updated 2026-10-18. Branch `vmag211/backend`, 43 commits ahead of origin, nothing merged to main.
-**2,498 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
-pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score).
+Updated 2026-10-19 (B05 Task 7). Branch `vmag211/backend`, at `3d54cdc` 112 commits ahead of
+`origin/main`, nothing merged to main. B05 Task 7 was built on `48e4b11` (the B05 follow-ups merge), where
+**2,848 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
+pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score). Merging it onto
+`3d54cdc` adds B04 2b's tests; re-run the gate on the merge and record that count here.
 
 ## What exists
 
-34 route files under `app/api`. The frontend registry declares **72 operations**, each with a path and a
-method (`lib/frontend/production/runtime.ts` on `origin/codex/october15-review-refinement`). **14 have a
-backend route; 58 do not.** Measured on 2026-10-18 by diffing registry paths against `app/api/**/route.js`,
-not quoted: the 68 in the frontend closeout note is four short. Re-measure rather than trust this line.
+40 route files under `app/api` on `vmag211/backend` at `3d54cdc`, exporting 52 method handlers. The
+frontend registry declares **72 operations**, each with a path and a method
+(`lib/frontend/production/runtime.ts` on `origin/codex/october15-review-refinement`). **21 have a backend
+route at the declared path and method; 51 do not.** Re-measured 2026-10-19, not quoted. Method: every
+`'<op>': {path, method}` entry of `productionOperations` (the method defaults to GET), matched as an exact
+method-and-path pair against every `export ... GET|POST|PUT|PATCH|DELETE` in `app/api/**/route.js`, read
+with `git grep` on the `vmag211/backend` tip. A match means only that a route exists at that path and
+method. It does not mean the body passes the operation's validator: the per-package conformance suites
+are what show that. The 21, by the package that made them answer:
+
+| Package | Operations |
+| --- | --- |
+| Before the packages | `map.layer`, `map.district`, `alerts.read` (the legacy inbox route) |
+| B02 | `operations.read`, `account.read`, `account.command`, `recovery.request`, `recovery.status` |
+| B03 | `luna.capabilities`, `luna.conversations`, `luna.clear`, `luna.message`, `luna.run`, `luna.cancel` |
+| B04 2b | `alerts.update` (`POST /api/alerts/state`), and `GET /api/alerts` extended to the contract read |
+| B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
+| B06 Task 5 | `week.changes`, `week.acknowledge` |
+
+B04 2a (`settings.read`, `settings.save`) is still in review on its own branch and is not counted. The
+previous line said 14 of 72, and the frontend closeout note's 68 operations is four short.
 
 **The remaining work is backend, not wiring.** The frontend half is already written. Components call
 `runtime.request('<operation>')`, the registry resolves the path, and a validator checks the response, so
@@ -31,8 +50,9 @@ design-breaking mismatches before implementation. They are not a substitute for 
 | B01 baseline, identity, home context | Complete |
 | B02 identity linking and recovery | Complete except two tasks dropped on purpose, see below |
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
-| B04 settings and alerts | In progress. Migration 0021 merged (reviewed, Rulings S7 to S10); routes 2a and 2b next |
-| B05 discovery and summaries | Planned (`plans/b05-discovery-and-summaries.md`), Tasks 1 and 2 in progress |
+| B04 settings and alerts | In progress. Migration 0021 merged (reviewed, Rulings S7 to S10); 2b (alerts) merged; 2a (settings) in review |
+| B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-1` |
+| B06 | In progress. Task 5 (`week.changes`, `week.acknowledge`) merged |
 
 ## Migrations
 
@@ -40,8 +60,9 @@ design-breaking mismatches before implementation. They are not a substitute for 
 validated; 0017 and 0018 the same day; the `TRUNCATE` privilege remedy in `YOUR_TODO.md` 2.7 also
 applied). Use the state query in `YOUR_TODO.md` 2.6 rather than trusting any document, including this one.
 
-**0019, 0020 and 0021 are written and applied nowhere** (0021 merged 2026-10-18; it no longer carries a tenure/renter_mode cross-check, Ruling S7). All three are additive and none rewrites data.
-Apply them as one batch when ready; each has apply steps and a tested back-out block in `YOUR_TODO.md`.
+**0019, 0020, 0021 and 0022 are written and applied nowhere** (0021 merged 2026-10-18; it no longer carries a tenure/renter_mode cross-check, Ruling S7; 0022, `explore_areas`, merged 2026-10-18 for B05). All four are additive and none rewrites data.
+Apply them as one batch when ready; each has apply steps and a tested back-out block in `YOUR_TODO.md`
+(0022 is 2.11). Until 0022 is applied both Explore area verbs answer a non-retryable 503.
 
 ## What is deliberately not built, and why
 
@@ -66,6 +87,14 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
 - **`GET /api/evidence` is dropped** until Vibhav resolves a provenance conflict: its validator accepts
   only a `daily maximum` comparison basis while `daily_scores` holds app-time observations, so a truthful
   response cannot validate and a validating one is a false claim about how the number was derived.
+- **B05 dropped `community.read` and `map.brief`** (no consumer, validator or type on the frontend ref),
+  and **blocked `organizations.search`** (no participation content, a disjoint cause vocabulary, no
+  stated meaning for `complete`) and **the summaries trio** (no record collections to freeze). The plan
+  lists what unblocks each. **Task 6, a public read for the map routes, did not run**: it waits on
+  Vibhav's open question 1, so the default `/map` renders no live data and only `?access=owned` works.
+- **`map.comparison` can never say "Aligned".** Every pair is "Not comparable", with reasons. That is the
+  truth about the data HALO holds (no method, release or non-detect qualifier), not a defect. Only data
+  acquisition under HO-074 changes it.
 
 ## Decisions only Vibhav can make
 
@@ -82,8 +111,20 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
    where the suite pins only relationships and every integer from 21 to 89 passes.
 7. **Whether Luna and Explore generation are in v1.** They are the largest remaining surfaces and the
    denominator moves more by cutting them than by any implementation speed.
+8. **B05's five open questions** (detail in `checkpoint.md`): public map access (Q1, gates Task 6),
+   city and ZIP search (Q2), shipping a comparison that never aligns and whether to acquire the UCMR
+   qualifiers (Q3), retention for `explore_areas` rows (Q4), and applying 0022 (Q5).
 
 ## Known live risks
+
+- **`origin/main` carries the old geography defect in the daily cron.** On main, `app/api/cron/daily/route.js`
+  passes a bare Map to `buildAndStoreAll`, and `vercel.json` runs it daily at 11:00 UTC. A failed or
+  truncated ArcGIS lookup resolves rather than rejects, so a run during an outage overwrites yesterday's
+  good water and district rows with "0 people, complete", served until a later run succeeds.
+  `vmag211/backend` fixes it (`389e897`, `86ba259`): the pre-build keeps the stored rows, a live water
+  build is marked partial and not stored, and a live district build is a 503. If production deploys
+  main, the defect is live today. Deploy the fix, then trigger one cron run while ArcGIS is healthy, or
+  check that the stored water row has `located > 0`.
 
 - **RESOLVED 2026-10-18: one abandoned operation no longer locks a surface forever.** A reaper in
   `lib/operations.js` settles stale owned pending rows to `failed` (`reason: 'abandoned'`) on list, replay
