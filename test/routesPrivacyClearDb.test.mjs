@@ -41,7 +41,7 @@ import { MESSAGES, privacyPanel } from './helpers/privacyClearClient.mjs';
 import { OWN_OPERATION, clearActionFor, fingerprintTables } from '../lib/privacyInventory.js';
 import { mintReviewToken } from '../lib/privacyToken.js';
 
-const { listUnresolvedOperations, requestHash } = await import('../lib/operations.js');
+const { requestHash } = await import('../lib/operations.js');
 
 const KEY = 'privacy-review-key-for-tests-only-0123456789';
 const ENV = Object.freeze({ HALO_PRIVACY_REVIEW_KEY: KEY, HALO_FEATURE_TASKS: 'on', HALO_FEATURE_LUNA: 'on' });
@@ -216,6 +216,8 @@ async function createWorld({ onClear } = {}) {
     args: ['p_profile_id', 'p_operation_id', 'p_scope', 'p_fingerprint'],
   });
   h.db.registerRpc('read_household_actions', (args) => callByName('read_household_actions', args), { args: ['p_profile_id'] });
+  // privacy.status purges the household's own settled receipts first (P10).
+  h.db.registerRpc('purge_privacy_receipts', (args) => callByName('purge_privacy_receipts', args), { args: ['p_profile_id'] });
 
   const ids = { alice, bob };
   const world = {
@@ -300,6 +302,17 @@ async function assertCleared(w, scope, operationId, beforeAlice, beforeBob) {
   assert.deepEqual(await w.picture('bob'), beforeBob, 'bob is untouched, byte for byte');
 }
 
+/**
+ * GET /api/privacy/status (Task 3) answers exactly {"unresolvedOperations":[]}
+ * with 200, which the panel's `verified` (ProductionPrivacy.tsx:18) accepts
+ * with no lock, and the clear's own receipt is still there to reconcile.
+ */
+async function assertStatusEmpty(w, who = 'alice') {
+  const response = await w.get('/api/privacy/status', who);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), '{"unresolvedOperations":[]}');
+}
+
 /** Alice's picture equals `before`, the clear's own failed ledger row aside: nothing was deleted. */
 async function assertUnchanged(w, before, operationId) {
   const now = await w.picture('alice');
@@ -338,8 +351,8 @@ test('clear all: succeeded, "Your records were cleared.", the inventory\'s end s
   const settings = await w.get('/api/settings');
   assert.equal(settings.status, 200);
   assert.equal(validSettingsSnapshot(await settings.json()), true, 'validSettingsSnapshot accepts the reset household');
-  // privacy.status (Task 3) lists from this: nothing unresolved, the clear's receipt is settled.
-  assert.deepEqual(await listUnresolvedOperations(w.h.db, { profileId: w.alice, domains: ['privacy'] }), []);
+  // privacy.status: nothing unresolved, the clear's receipt is settled, and the panel is verified.
+  await assertStatusEmpty(w);
   // Alerts, My Week and Luna each answer their empty state.
   const alerts = await (await w.get('/api/alerts')).json();
   assert.equal(validAlertSnapshot(alerts), true);
@@ -382,6 +395,7 @@ test('clear journal: "Journal cleared.", symptom logs and season summaries gone,
     assert.deepEqual(now[table], beforeAlice[table], `${table} unchanged`);
   }
   assert.equal((await (await w.get('/api/profile')).json()).onboarded, true, 'still onboarded');
+  await assertStatusEmpty(w);
 });
 
 test('trap P-3: a review opened with groups [] clears all, and the token\'s groups play no part', async () => {
