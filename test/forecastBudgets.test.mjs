@@ -196,8 +196,8 @@ test('during an Upstash outage the globals refuse and the household is allowed',
     console.error = saved;
   }
   assert.equal(lines.length, 5);
-  assert.match(lines[0], /^Forecast Open-Meteo daily budget unavailable \(Upstash unreachable\); skipping the call\.$/);
-  assert.match(lines[4], /^Forecast household budget unavailable \(Upstash unreachable\); allowing the call\.$/);
+  assert.match(lines[0], /^Forecast Open-Meteo daily budget unavailable \(Error: Upstash unreachable\); skipping the call\.$/);
+  assert.match(lines[4], /^Forecast household budget unavailable \(Error: Upstash unreachable\); allowing the call\.$/);
 });
 
 test('a slow Upstash (the library answers success with reason timeout) is an outage, not an allow', async () => {

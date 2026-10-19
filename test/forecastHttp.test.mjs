@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getJson, DEFAULT_MAX_BYTES } from '../lib/forecast/http.js';
+import { getJson, DEFAULT_MAX_BYTES, MAX_TIMEOUT_MS } from '../lib/forecast/http.js';
 import { withSandbox } from './helpers/sandbox.mjs';
 
 const SECRET = 'SECRET-KEY-123';
@@ -49,8 +49,31 @@ test('a 2xx JSON body is ok with its status, and the request carries the signal,
   assert.equal(seen[0].init.method, 'GET');
   assert.ok(seen[0].init.signal instanceof AbortSignal, 'every call is given an abort signal');
   assert.equal(seen[0].init.signal.aborted, false);
-  assert.equal(seen[0].init.headers['User-Agent'], 'HALO/1.0');
-  assert.equal(seen[0].init.headers.accept, 'application/geo+json', 'the caller may override accept');
+  assert.deepEqual(seen[0].init.headers, { 'user-agent': 'HALO/1.0', accept: 'application/geo+json' }, 'the caller may override accept');
+});
+
+test('a capitalised Accept replaces the default instead of joining it, and a Headers object works too', async () => {
+  const sent = [];
+  const fetchImpl = async (_u, init) => (sent.push(init.headers), new Response('{}'));
+  await getJson('https://api.weather.gov/alerts/active?point=35.23,-80.84', {
+    fetchImpl,
+    timeoutMs: 1000,
+    headers: { 'User-Agent': '(HALO, contact)', Accept: 'application/geo+json' },
+  });
+  await getJson('https://x.example.test/', { fetchImpl, timeoutMs: 1000, headers: new Headers({ ACCEPT: 'text/plain' }) });
+  assert.deepEqual(sent, [
+    { accept: 'application/geo+json', 'user-agent': '(HALO, contact)' },
+    { accept: 'text/plain' },
+  ]);
+});
+
+test('headers fetch would refuse make no request', async () => {
+  let called = 0;
+  const fetchImpl = async () => ((called += 1), new Response('{}'));
+  for (const headers of [{ 'bad name': 'x' }, { 'X-Ok': 'line\nbreak' }]) {
+    assert.deepEqual(await getJson(URL_WITH_KEY, { fetchImpl, timeoutMs: 1000, headers }), { ok: false, reason: 'bad_headers' }, JSON.stringify(headers));
+  }
+  assert.equal(called, 0);
 });
 
 test('accept defaults to application/json', async () => {
@@ -71,6 +94,18 @@ test('no timeout means no request: a provider call without a timeout cannot exis
     assert.equal(called, 0, `no fetch for timeoutMs ${String(timeoutMs)}`);
   }
   assert.deepEqual(await getJson(URL_WITH_KEY), { ok: false, reason: 'no_timeout' });
+});
+
+test('a timeout too large for Node\'s timers is refused, never thrown and never fired early', async () => {
+  assert.equal(MAX_TIMEOUT_MS, 2 ** 31 - 1);
+  let called = 0;
+  const fetchImpl = async () => ((called += 1), new Response('{"a":1}'));
+  // 2^31 would overflow to a 1 ms timer; 2^32 makes AbortSignal.timeout throw a RangeError.
+  for (const timeoutMs of [2 ** 31, 2 ** 32, 2 ** 32 + 1, Number.MAX_SAFE_INTEGER, Number.MAX_VALUE]) {
+    assert.deepEqual(await getJson(URL_WITH_KEY, { fetchImpl, timeoutMs }), { ok: false, reason: 'no_timeout' }, String(timeoutMs));
+  }
+  assert.equal(called, 0);
+  assert.deepEqual(await getJson(URL_WITH_KEY, { fetchImpl, timeoutMs: MAX_TIMEOUT_MS }), { ok: true, json: { a: 1 }, status: 200 }, 'the largest safe timeout is accepted');
 });
 
 test('a stub that never resolves, and ignores the signal, is abandoned at the timeout', async () => {

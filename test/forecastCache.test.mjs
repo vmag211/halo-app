@@ -196,8 +196,45 @@ test('a store get that throws is a miss; a set that throws is swallowed; one log
   assert.equal(produce.calls, 3);
   assert.equal(lines.length, 2, `one line per instance per minute, got ${JSON.stringify(lines)}`);
   for (const line of lines) {
-    assert.match(line, /^Forecast cache store unavailable, treated as a miss: ECONNRESET Upstash unreachable$/);
+    assert.match(line, /^Forecast cache store unavailable, treated as a miss: Error ECONNRESET: Upstash unreachable$/);
     assert.ok(!line.includes('35.23') && !line.includes('halo:forecast'), 'the key (a rounded home point) is never logged');
+  }
+});
+
+test('a real Upstash error, which quotes the command, never puts the key or the value in the log', async () => {
+  // A real @upstash/redis client, its HTTP answered by a stub (no network):
+  // Upstash builds the error as `${body.error}, command was: ${JSON.stringify(command)}`.
+  const { Redis } = await import('@upstash/redis');
+  const point = { lat: 12.34, lng: -56.78 }; // the marker: a "home" that must never be logged
+  const key = hourKey('open-meteo', point, T0);
+  const VALUE_MARKER = 'VALUE-MARKER-7f3a';
+  const commands = [];
+  const fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    const pipelined = Array.isArray(body[0]); // the client batches commands into /pipeline
+    const op = pipelined ? body[0][0] : body[0];
+    commands.push(op);
+    if (op === 'get' && commands.filter((c) => c === 'get').length > 1) {
+      return new Response(pipelined || String(url).endsWith('/pipeline') ? '[{"result":null}]' : '{"result":null}');
+    }
+    return new Response('{"error":"ERR max daily request limit exceeded"}', { status: 400 });
+  };
+  const { value, lines } = await captureErrors(() =>
+    withSandbox({ fetch }, async () => {
+      const store = new Redis({ url: 'https://fake-upstash.example.test', token: 'test-token', retry: false, enableTelemetry: false });
+      const options = { ttlSeconds: 7200, memoryMax: 0, now: () => T0, store };
+      const first = await cached(key, options, counter({ ...GOOD, marker: VALUE_MARKER })); // get fails, set fails
+      _resetForecastCache(); // a new instance: the log throttle starts again
+      const second = await cached(key, options, counter({ ...GOOD, marker: VALUE_MARKER })); // get misses, set fails with the value in its command
+      return [first, second];
+    }),
+  );
+  assert.deepEqual(value.map((r) => r.source), ['provider', 'provider']);
+  assert.deepEqual(commands, ['get', 'set', 'get', 'set'], 'both a failed get and a failed set were logged');
+  assert.equal(lines.length, 2);
+  for (const line of lines) {
+    assert.equal(line, 'Forecast cache store unavailable, treated as a miss: UpstashError: ERR max daily request limit exceeded');
+    for (const marker of ['12.34', '-56.78', 'halo:forecast', VALUE_MARKER, 'command was']) assert.ok(!line.includes(marker), `${marker} reached the log: ${line}`);
   }
 });
 
