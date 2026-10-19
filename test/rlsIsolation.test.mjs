@@ -43,6 +43,9 @@ const OWNED_TABLES = {
   luna_runs: 'profile_id',          // 0020
   profile_preferences: 'profile_id', // 0021
   explore_areas: 'profile_id',      // 0022
+  household_actions: 'profile_id',  // 0023
+  household_action_preferences: 'profile_id', // 0023
+  household_action_state: 'profile_id', // 0023
 };
 
 /**
@@ -70,6 +73,9 @@ const OWNER_DIRECT_ACCESS = {
   luna_runs: [],                  // 0020: no policy at all. A run's status is reported by GET /api/luna/runs/status, never read from the browser.
   profile_preferences: [],        // 0021: no policy at all. The display, quiet-hours, calendar and Luna-context values come back through GET /api/settings, which reads them with the service role.
   explore_areas: [],              // 0022: no policy at all. The saved discovery area comes back through GET /api/explore/area, which reads it with the service role.
+  household_actions: [],          // 0023: no policy at all. A task is free text a person typed; My Week reads it through read_household_actions with the service role, and writes it only through commit_household_actions.
+  household_action_preferences: [], // 0023: no policy at all. Read and written only inside the two 0023 functions, called by the service role.
+  household_action_state: [],     // 0023: no policy at all. The commit version is internal and never leaves the server.
 };
 
 /**
@@ -89,6 +95,9 @@ const SERVICE_ONLY_OWNED = new Set([
   'luna_runs', // 0020: the answer is collected through GET /api/luna/runs/status, never from the table
   'profile_preferences', // 0021: served only by GET/PATCH /api/settings, which read and write it with the service role after verifying the token
   'explore_areas', // 0022: served only by GET/PATCH /api/explore/area, which read and write it with the service role after verifying the token
+  'household_actions', // 0023: free text a person typed; read and written only through the two 0023 functions, which only the service role may execute
+  'household_action_preferences', // 0023: the same two functions only
+  'household_action_state', // 0023: the internal commit version, never emitted
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -108,6 +117,9 @@ const PUBLIC_FUNCTIONS = {
   save_household: 'service_role',         // 0015: PUT /api/household in one transaction
   transition_home_context: 'service_role',        // 0016: onboarding saves the home (first, same or a move)
   update_home_context_attributes: 'service_role', // 0016: revisioned answers about the current home
+  read_household_actions: 'service_role',         // 0023: My Week's one snapshot
+  commit_household_actions: 'service_role',       // 0023: a task command and its ledger settle in one transaction
+  guard_settled_action_operation: 'trigger',      // 0023: a settled 'actions' operation keeps its status
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -186,6 +198,11 @@ const OWNED_ROW = {
     timezone: 'America/New_York',
     revision: 2,
   }),
+  // 0023: a task key is unique per household, so `n` varies it; a preference
+  // key is one of six, so `n` picks another; the version starts at 1.
+  household_actions: (owner, n) => ({ profile_id: owner, action_key: `test-task-${n}`, title: 'Test task', reason: 'Test', origin: 'test', state: 'saved' }),
+  household_action_preferences: (owner, n) => ({ profile_id: owner, pref_key: n === 0 ? 'week:focus' : 'food-interests', value: n === 0 ? '"Test focus"' : '["fish"]' }),
+  household_action_state: (owner) => ({ profile_id: owner, version: 1 }),
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,
@@ -227,6 +244,9 @@ const PROBE_COLUMN = {
   luna_runs: 'message',
   profile_preferences: 'display_appearance',
   explore_areas: 'label',
+  household_actions: 'title',
+  household_action_preferences: 'value',
+  household_action_state: 'version',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

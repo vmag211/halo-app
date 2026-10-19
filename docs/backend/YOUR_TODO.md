@@ -594,6 +594,48 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every household's chosen discovery area is deleted for good, and its revision with it, because the whole table goes. Revisions restart at 1 (never saved) when 0022 is reapplied, so once a household has saved back up to the number a stale browser still holds, that browser's revision would match again: after a back-out and reapply, have every open browser reload. Nothing cascades: no other table references this one, and 0021's table and columns are untouched.
 
+### 2.12 Apply 0023 (a household's tasks for My Week)
+
+**Not applied yet.** Needs 0022 first (only because the migrations are applied in order; 0023 touches nothing 0022 created).
+
+Quiet, like 2.11, with one difference. It creates three new tables, one index and two functions, none of which anything is waiting on, and the foreign keys to `profiles` take a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment. It also adds one trigger to `public.operations` (0017's ledger), which takes the same brief lock on that table: any save that is claiming or settling its ledger row at that moment waits for it. Nothing existing is read or rewritten.
+
+What it is for: My Week (`/app`, `/plan`) shows "Your tasks could not load" today because nothing on the server can hold a task. 0023 adds:
+
+- `public.household_actions`: one row per task, keyed by the household (not the home: tasks do not move when the household moves). It holds the title, reason, origin, date, state (`saved`, `waiting` or `completed`), a per-task revision, and the task's planning details as one `meta` value exactly as the app sent it (time, duration, time zone, recurrence, completion date, a private note of up to 3,000 characters and a history of changes). **The title and the note are free text somebody typed.**
+- `public.household_action_preferences`: the six My Week preferences (the week's focus sentence, food topics, weekly availability, dismissed season prompts, the weekly review time and an outdoor plan with a place name).
+- `public.household_action_state`: one counter per household that a save is checked against, so two saves at once cannot each pass a check the other then breaks. It is never shown to anyone.
+- `read_household_actions` (the one snapshot every My Week read uses) and `commit_household_actions` (one save: every task, detail and preference change and the save's own ledger receipt commit together or not at all, so a save that "did not apply" really did not).
+- A guard on `public.operations`: once a My Week save's ledger row says `succeeded` or `failed`, its status can no longer change, so a save whose response is lost on the way back can never be recorded as failed after its task was written. Every other kind of operation is unaffected.
+
+**Applying this does not turn My Week's tasks on.** The routes that use it are not built yet, and when they are, they stay behind a server flag that is off by default (`HALO_FEATURE_TASKS`), because no retention period for a task has been approved (you confirmed on 2026-10-18 that it stays off until you approve one; see Part 3 item 4 and the three `household_action*` rows in `docs/backend/privacy-and-retention.md`).
+
+1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0023_household_actions.sql` and run it. Safe to re-run. If an earlier copy of 0023 was ever run anywhere, run the back-out first (the block below, then `notify pgrst, 'reload schema';`), because a re-run keeps a check it already has under the same name rather than replacing it.
+2. Run the verification query in the comment at the end of that file. Expect one row, all six columns true. `no_client_access` false is the one that matters: a task is free text somebody typed, so if it comes back false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`. Until it reloads, the My Week routes (once built) answer 503 `feature_unavailable` and nothing is written.
+
+Until this is applied, the My Week task routes report the feature as unavailable. Nothing else reads these tables, so the existing app is unaffected either way.
+
+#### If you need to back out 0023
+
+The My Week task routes go back to answering a non-retryable 503 `feature_unavailable`, exactly as before it was applied, so this disables tasks rather than breaking the existing app. The guard and the functions are dropped first, then the three tables. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0023 -->
+
+```sql
+drop trigger if exists operations_actions_settled_guard on public.operations;
+drop function if exists public.guard_settled_action_operation();
+drop function if exists public.commit_household_actions(uuid, uuid, bigint, jsonb);
+drop function if exists public.read_household_actions(uuid);
+drop table if exists public.household_action_state;
+drop table if exists public.household_action_preferences;
+drop table if exists public.household_actions;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every household's tasks, their notes and histories, and their My Week preferences are deleted for good, and the save counter with them. The ledger rows for My Week saves stay in `public.operations`; they hold only ids, revisions and statuses, no task content, and with the guard gone they are ordinary ledger rows again. After a back-out and reapply, every open browser should reload: a stale tab's next save is refused rather than applied. Nothing cascades: no other table references these three, and 0022's table is untouched.
+
 
 ---
 

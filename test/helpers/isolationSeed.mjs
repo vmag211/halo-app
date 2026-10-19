@@ -25,6 +25,7 @@ export const challengeId = (who, n) => `${PREFIX[who]}-4444-4000-8000-${hex12(n)
 export const lunaConversationId = (who) => `${PREFIX[who]}-5555-4000-8000-${hex12(1)}`;
 export const lunaTurnId = (who, n) => `${PREFIX[who]}-6666-4000-8000-${hex12(n)}`;
 export const lunaRunId = (who, n) => `${PREFIX[who]}-7777-4000-8000-${hex12(n)}`;
+export const actionId = (who, n) => `${PREFIX[who]}-8888-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
 // On the Web Push hosts the subscribe route accepts (lib/pushInput.js), so a test can re-register them.
@@ -108,6 +109,35 @@ const EXPLORE_AREA = {
   },
 };
 
+/**
+ * Each household's My Week (migration 0023): one task with planning details,
+ * one task preference and the commit version, so no cascade or isolation
+ * check on any of the three tables can pass vacuously. A task's title and its
+ * meta's note are free text a person typed, so both carry readable markers and
+ * are added to `markersOf`; the preference's focus sentence does too. The two
+ * households differ in every value, the version included.
+ */
+const TASK = {
+  alice: {
+    action_key: 'alice-week:radon-test', title: 'ALICE-TASK-TITLE-MARKER', reason: 'Radon season starts soon',
+    origin: 'week', due_date: '2026-11-02', state: 'saved', revision: 2,
+    meta: {
+      note: 'ALICE-TASK-NOTE-MARKER', paused: false, archived: false, completedOn: '', time: '09:30', duration: 45,
+      zone: 'America/New_York', recurrence: 'none', reminder: true, history: ['Added', 'Moved to Monday'],
+    },
+  },
+  bob: {
+    action_key: 'bob-week:filter-change', title: 'BOB-TASK-TITLE-MARKER', reason: 'The filter is due',
+    origin: 'explore', due_date: null, state: 'waiting', revision: 1,
+    meta: {
+      note: 'BOB-TASK-NOTE-MARKER', paused: true, archived: false, completedOn: '', time: '', duration: 120,
+      zone: 'America/Chicago', recurrence: 'none', reminder: false, history: ['Added'],
+    },
+  },
+};
+const TASK_FOCUS = { alice: 'ALICE-WEEK-FOCUS-MARKER', bob: 'BOB-WEEK-FOCUS-MARKER' };
+const TASK_VERSION = { alice: 3, bob: 8 };
+
 const UTILITY = {
   alice: { pwsid: 'NC9990001', pws_name: 'ALICE WATER SYSTEM MARKER', ppt: 2.1, date: '3/15/2024' },
   bob: { pwsid: 'NC9990002', pws_name: 'BOB WATER SYSTEM MARKER', ppt: 7.7, date: '6/1/2024' },
@@ -135,6 +165,7 @@ export function markersOf(who, identity) {
     UTILITY[who].pws_name, ENDPOINT[who], `${upper}-P256DH-MARKER`, `${upper}-AUTH-MARKER`,
     `${upper}-HOME-RISK-MARKER`, `${upper}-POLLUTANT-MARKER`, entryId(who, 1), alertId(who, 1), contextId(who, 1),
     `${upper}-LUNA-QUESTION-MARKER`, `${upper}-LUNA-ANSWER-MARKER`, lunaConversationId(who), lunaTurnId(who, 1), lunaRunId(who, 1),
+    TASK[who].title, TASK[who].meta.note, TASK_FOCUS[who], actionId(who, 1),
   ];
 }
 
@@ -148,7 +179,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -167,6 +198,14 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
     // Migration 0022: the discovery area each household has already saved
     // (and changed) at least once, so its revision is past the first save's 2.
     rows.explore_areas.push({ profile_id: id, ...EXPLORE_AREA[who], updated_at: `${day(2)}T12:00:00Z` });
+    // Migration 0023: one task with its planning details, the week's focus
+    // and the version a commit is checked against, past its first commit.
+    rows.household_actions.push({
+      id: actionId(who, 1), profile_id: id, ...TASK[who],
+      created_at: `${day(3)}T12:00:00Z`, updated_at: `${day(1)}T12:00:00Z`,
+    });
+    rows.household_action_preferences.push({ profile_id: id, pref_key: 'week:focus', value: TASK_FOCUS[who], updated_at: `${day(1)}T12:00:00Z` });
+    rows.household_action_state.push({ profile_id: id, version: TASK_VERSION[who], updated_at: `${day(1)}T12:00:00Z` });
     rows.home_risks.push({ profile_id: id, summary: `${upper}-HOME-RISK-MARKER` });
     // The current home (migration 0016), matching the profile.
     const { lat, lng, county, state, pwsid, water_source, home_year, onboard_request_id } = PROFILE[who];
@@ -310,4 +349,4 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
   return rows;
 }
 
-export { PROFILE, BANDS, PREFS, SETTINGS, EXPLORE_AREA, UTILITY };
+export { PROFILE, BANDS, PREFS, SETTINGS, EXPLORE_AREA, TASK, TASK_FOCUS, TASK_VERSION, UTILITY };
