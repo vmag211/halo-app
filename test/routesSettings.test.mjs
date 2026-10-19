@@ -214,7 +214,8 @@ test('GET: unresolvedOperations is a lock, so it lists only this household\'s pe
   const h = harness({
     operations: [
       { operation_id: PENDING },
-      // Past the ledger's window it reads as unknown, which is still unresolved (lib/operations.js).
+      // Past the ledger's window: the reaper in lib/operations.js settles it as failed
+      // (abandoned) when the inventory is read, so it is no longer a lock.
       { operation_id: STALE, created_at: ago(10 * 60 * 1000) },
       { operation_id: '5e771265-aaaa-4000-8000-000000000003', status: 'succeeded', result: { status: 'succeeded' } },
       { operation_id: '5e771265-aaaa-4000-8000-000000000004', status: 'failed' },
@@ -223,7 +224,8 @@ test('GET: unresolvedOperations is a lock, so it lists only this household\'s pe
     ],
   });
   const body = await readBody(h);
-  assert.deepEqual(body.unresolvedOperations.sort(), [PENDING, STALE].sort());
+  assert.deepEqual(body.unresolvedOperations, [PENDING]);
+  assert.deepEqual([opRow(h, STALE).status, opRow(h, STALE).result?.reason], ['failed', 'abandoned']);
   assert.deepEqual((await readBody(h, 'bob')).unresolvedOperations, ['5e771265-aaaa-4000-8000-000000000006']);
 });
 
