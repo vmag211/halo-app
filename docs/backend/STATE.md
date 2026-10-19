@@ -9,8 +9,22 @@ pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-
 
 ## What exists
 
-34 route files under `app/api`. Against the frontend's 68-operation registry, **14 are built**; the
-remainder are listed in `tmp/frontend-wiring-closeout/operations.md` on the frontend branch.
+34 route files under `app/api`. The frontend registry declares **72 operations**, each with a path and a
+method (`lib/frontend/production/runtime.ts` on `origin/codex/october15-review-refinement`). **14 have a
+backend route; 58 do not.** Measured on 2026-10-18 by diffing registry paths against `app/api/**/route.js`,
+not quoted: the 68 in the frontend closeout note is four short. Re-measure rather than trust this line.
+
+**The remaining work is backend, not wiring.** The frontend half is already written. Components call
+`runtime.request('<operation>')`, the registry resolves the path, and a validator checks the response, so
+a route landing at the declared path and method with a body the validator accepts makes an operation live
+with no frontend edit. That file says so itself: "These are explicit frontend contracts, not claims that
+the backend implements them." Two exceptions need frontend work: recovery needs the client to send a
+Turnstile token field, and `evidence.read` waits on the provenance decision below.
+
+What is NOT covered by that: the two halves have never been in one tree or run together, so nothing has
+been driven end to end through a browser. The per-package conformance tests, which run the real handlers
+against validators transcribed verbatim from the frontend, are the stand-in and have caught three
+design-breaking mismatches before implementation. They are not a substitute for one integration pass.
 
 | Package | State |
 | --- | --- |
