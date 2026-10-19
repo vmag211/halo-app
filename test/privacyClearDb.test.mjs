@@ -25,9 +25,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createDb, listMigrations, runAudit } from './db/pgliteHarness.mjs';
 import { OWNED_TABLES } from './helpers/tables.mjs';
 import { OWNED_ROW } from './db/ownedRows.mjs';
+import { writeBackfillState } from '../lib/homeContextRpc.js';
+import { OWN_OPERATION, clearActionFor } from '../lib/privacyInventory.js';
 
 const MIGRATION = listMigrations().find((migration) => migration.number === 24);
 
@@ -935,6 +939,179 @@ test('purge: settled privacy rows older than 24 hours go; younger, pending and o
     assert.deepEqual(await present(), ['alice old pending', 'alice old settings', 'alice young']);
     assert.deepEqual((await tx.query(`select public.purge_privacy_receipts() as n`)).rows, [{ n: 0 }]);
   }, { seed: false });
+});
+
+test('purge: rows a clear in progress holds are skipped, never waited on, and the clear removes them itself (Task 1 review, finding 1)', async () => {
+  // What this shows: with a clear all parked just before its commit (a
+  // prepared transaction, holding the delete locks on alice's settled
+  // receipts), the purge returns at once, deletes only the rows nobody holds,
+  // and leaves the held ones; the clear's commit then removes them. A second
+  // holder that rolls back leaves its rows for the next purge. What it cannot
+  // show: two live sessions interleaving their scans, which is the deadlock
+  // itself. That is argued in the migration's lock graph: a purge that never
+  // waits on a row can never be one side of a cycle. A purge without SKIP
+  // LOCKED waits forever here (PGlite cannot time a lock out), so the
+  // scenario runs in a child process with a deadline.
+  const script = fileURLToPath(new URL('./db/privacyPurgeHeldLock.mjs', import.meta.url));
+  const stdout = await new Promise((resolve, reject) => {
+    execFile(process.execPath, [script], { timeout: 60_000 }, (error, out, err) => {
+      if (error?.killed) reject(new Error('the purge waited on a row another transaction holds: it is not FOR UPDATE SKIP LOCKED'));
+      else if (error) reject(new Error(`${error.message}\n${err}`));
+      else resolve(out);
+    });
+  });
+  const seen = JSON.parse(stdout.trim().split('\n').pop());
+  assert.equal(seen.purgedWhileClearHeld, 1, 'only bob\'s receipt, which nobody held');
+  assert.equal(seen.aliceWhileClearHeld, 2, 'the held receipts were left for the clear');
+  assert.equal(seen.bobWhileClearHeld, 0);
+  assert.deepEqual(seen.aliceAfterClear, [CLEAR_OP], 'the clear removed them itself and kept only its own receipt');
+  assert.deepEqual(seen.bobAfterClear, []);
+  assert.equal(seen.purgedWhileHeld, 0, 'a held row is skipped');
+  assert.equal(seen.purgedAfterRelease, 2, 'and purged on the next run once released');
+  assert.equal(seen.heldLeft, 0);
+});
+
+test('purge: the stored function selects its rows FOR UPDATE SKIP LOCKED in a subselect', async () => {
+  const { rows: [{ src }] } = await db.query(
+    `select prosrc as src from pg_proc where oid = 'public.purge_privacy_receipts(uuid)'::regprocedure`,
+  );
+  const code = src.replace(/--[^\n]*/g, '');
+  assert.match(code, /delete from public\.operations o\s+where o\.operation_id in \(\s*select x\.operation_id from public\.operations x[\s\S]*for update skip locked\)/);
+});
+
+test('lock graph: on this schema an insert into luna_turns, luna_runs or daily_scores checks its profiles key first (Task 1 review, finding 3)', async () => {
+  // The header's no-cycle argument for the Luna and cron inserts rests on
+  // this: Postgres fires a table's RI check triggers in name order, so the
+  // insert waits on the profile before it holds a key share on anything the
+  // clear deletes.
+  for (const [table, others] of [
+    ['luna_turns', ['luna_conversations']],
+    ['luna_runs', ['luna_conversations', 'luna_turns']],
+    ['daily_scores', ['home_contexts']],
+  ]) {
+    const { rows } = await db.query(
+      `select t.tgname::text as name, parent.relname::text as parent
+         from pg_trigger t
+         join pg_constraint c on c.oid = t.tgconstraint
+         join pg_class parent on parent.oid = c.confrelid
+        where t.tgrelid = $1::regclass and t.tgfoid = 'pg_catalog."RI_FKey_check_ins"'::regproc
+        order by t.tgname::text collate "C"`,
+      [`public.${table}`],
+    );
+    const parents = rows.map((row) => row.parent);
+    assert.equal(parents[0], 'profiles', `${table}: the first RI check is on ${parents[0]}`);
+    for (const other of others) assert.ok(parents.indexOf(other) > 0, `${table}: no RI check on ${other}`);
+  }
+});
+
+/** A client that records each write writeBackfillState sends, and answers success. */
+function recordingClient() {
+  const writes = [];
+  return {
+    writes,
+    from(table) {
+      const write = { table, payload: null, filters: {} };
+      writes.push(write);
+      const chain = {
+        update(payload) { write.payload = payload; return chain; },
+        eq(column, value) { write.filters[column] = value; return chain; },
+        then(resolve) { resolve({ error: null }); },
+      };
+      return chain;
+    },
+  };
+}
+
+test('fingerprint: home_contexts is hashed on every column but the four backfill_* columns', async () => {
+  const { rows: [{ src }] } = await db.query(
+    `select prosrc as src from pg_proc where oid = 'public.privacy_fingerprint(uuid, text[])'::regprocedure`,
+  );
+  const projection = src.match(/select (c\.id[\s\S]*?)\s+from public\.home_contexts c/)?.[1];
+  assert.ok(projection, 'privacy_fingerprint has no explicit home_contexts projection');
+  const hashed = projection.split(',').map((item) => item.trim().replace(/^c\./, ''));
+  const { rows } = await db.query(
+    `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'home_contexts' order by ordinal_position`,
+  );
+  const backfill = ['backfill_state', 'backfill_from', 'backfill_to', 'backfill_updated_at'];
+  assert.deepEqual(hashed, rows.map((row) => row.column_name).filter((column) => !backfill.includes(column)),
+    'home_contexts gained or lost a column: add it to privacy_fingerprint\'s home_contexts projection (0024 section 3)');
+  assert.ok(hashed.includes('revision') && hashed.includes('updated_at'));
+});
+
+test('fingerprint: the history backfill between review and confirm does not void a clear all; a real home edit still does (Task 1 review, finding 2)', async () => {
+  await scenario(async (tx) => {
+    await claim(tx);
+    const reviewed = await fingerprint(tx, ALICE, FINGERPRINT_TABLES);
+    // What onboarding's after() does: running, then a terminal state, through the real writer.
+    const client = recordingClient();
+    for (const state of ['running', 'complete']) {
+      const saved = await writeBackfillState(client, {
+        profileId: ALICE, contextId: contextId(ALICE, 0), state, from: '2026-01-01', to: '2026-10-18', at: new Date('2026-10-19T12:00:00Z'),
+      });
+      assert.deepEqual(saved, { saved: true });
+    }
+    for (const { table, payload, filters } of client.writes) {
+      assert.equal(table, 'home_contexts');
+      const columns = Object.keys(payload);
+      await tx.query(
+        `update public.home_contexts set ${columns.map((column, at) => `${ident(column)} = $${at + 3}`).join(', ')}
+          where profile_id = $1 and id = $2`,
+        [filters.profile_id, filters.id, ...Object.values(payload)],
+      );
+    }
+    const { rows: [row] } = await tx.query(`select backfill_state, backfill_to::text as backfill_to from public.home_contexts where id = $1`, [contextId(ALICE, 0)]);
+    assert.deepEqual(row, { backfill_state: 'complete', backfill_to: '2026-10-18' }, 'the backfill write did not land');
+    assert.equal(await fingerprint(tx, ALICE, FINGERPRINT_TABLES), reviewed, 'the backfill moved the fingerprint');
+    assert.equal((await clear(tx, { print: reviewed })).receipt.status, 'succeeded');
+  });
+  await scenario(async (tx) => {
+    await claim(tx);
+    const reviewed = await fingerprint(tx, ALICE, FINGERPRINT_TABLES);
+    await tx.query(`update public.home_contexts set water_source = 'well' where id = $1`, [contextId(ALICE, 0)]);
+    const error = await refusal(tx, CLEAR_SQL, [ALICE, CLEAR_OP, 'all', reviewed]);
+    assert.equal(error.message, 'HALO_REVIEW_CHANGED');
+  });
+});
+
+/** Whether a stored row matches an inventory filter (one or several that must all hold). */
+function rowMatches(where, row, ownOperationId) {
+  const value = (raw) => (raw === OWN_OPERATION ? ownOperationId : raw);
+  return [where].flat().every((filter) => {
+    if (Object.hasOwn(filter, 'equals')) return row[filter.column] === value(filter.equals);
+    if (Object.hasOwn(filter, 'notEquals')) return row[filter.column] !== value(filter.notEquals);
+    return filter.in.map(value).includes(row[filter.column]);
+  });
+}
+
+test('the inventory\'s ledger placement is what 0024 does: settled only, refuse on pending (Task 1 review, finding 5)', async () => {
+  const placement = clearActionFor('operations', 'all');
+  assert.equal(placement.action, 'delete-filtered');
+  assert.equal(CLEAR_ALL.operations, 'own-receipt');
+  // privacy_counts reads before any claim, so its count is the inventory filter over every ledger row.
+  await scenario(async (tx) => {
+    await claim(tx, { operationId: crypto.randomUUID(), domain: 'settings', kind: 'settings.update' }); // pending, another domain
+    const { rows: ledger } = await tx.query(`select operation_id, status from public.operations where profile_id = $1`, [ALICE]);
+    assert.ok(ledger.some((row) => row.status === 'pending') && ledger.some((row) => row.status !== 'pending'));
+    const counted = Number((await tx.query(`select public.privacy_counts($1, 'all') as c`, [ALICE])).rows[0].c.operations);
+    assert.equal(counted, ledger.filter((row) => rowMatches(placement.where, row, CLEAR_OP)).length);
+    // The pending row matches refuseWhen, and the clear refuses with exactly that code.
+    await claim(tx);
+    const { rows: withOwn } = await tx.query(`select operation_id, status from public.operations where profile_id = $1`, [ALICE]);
+    assert.equal(withOwn.filter((row) => rowMatches(placement.refuseWhen.where, row, CLEAR_OP)).length, 1);
+    const error = await refusal(tx, CLEAR_SQL, [ALICE, CLEAR_OP, 'all', await fingerprint(tx, ALICE, FINGERPRINT_TABLES)]);
+    assert.equal(error.message, placement.refuseWhen.refusal);
+  });
+  // With nothing pending, the rows the clear deletes are exactly those the inventory's filter selects.
+  await scenario(async (tx) => {
+    await claim(tx);
+    const { rows: before } = await tx.query(`select operation_id, status from public.operations where profile_id = $1`, [ALICE]);
+    const selected = before.filter((row) => rowMatches(placement.where, row, CLEAR_OP)).map((row) => row.operation_id).sort();
+    await clear(tx);
+    const { rows: after } = await tx.query(`select operation_id from public.operations where profile_id = $1`, [ALICE]);
+    const gone = before.map((row) => row.operation_id).filter((id) => !after.some((row) => row.operation_id === id)).sort();
+    assert.deepEqual(gone, selected);
+    assert.ok(selected.length >= 3);
+  });
 });
 
 // ---------------------------------------------------------------------------

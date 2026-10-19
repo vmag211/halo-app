@@ -46,8 +46,9 @@ begin;
 --   public.privacy_fingerprint(p_profile_id uuid, p_tables text[]) returns text
 --     Stable. 64 lowercase hex characters: SHA-256 over, for each listed table
 --     in the fixed order below, the sorted md5 of each of the household's
---     rows as JSON (profiles: the reset columns only). p_tables must be a
---     subset of, with no repeats:
+--     rows as JSON (profiles: the reset columns only; home_contexts: every
+--     column but backfill_state, backfill_from, backfill_to and
+--     backfill_updated_at). p_tables must be a subset of, with no repeats:
 --       profiles, home_contexts, household_bands, symptom_logs,
 --       notification_prefs, push_subscriptions, profile_preferences,
 --       explore_areas, household_actions, household_action_preferences,
@@ -56,7 +57,15 @@ begin;
 --     else is HALO_INVALID_INPUT. An empty array gives one fixed constant.
 --     Server-written tables (daily_scores, alerts, home_risks, luna_runs,
 --     household_action_state, operations) are deliberately not fingerprinted
---     (P6), so a background refresh does not void a review.
+--     (P6), so a background refresh does not void a review. For the same
+--     reason home_contexts is hashed without its four backfill_* columns,
+--     which the history backfill writes in the background.
+--     Luna's answer turns are server-written too, and so are the revision and
+--     updated_at of the conversation they advance, but luna_turns and
+--     luna_conversations ARE fingerprinted, on purpose: a turn is written
+--     only because the person asked a question, and the transcript is what
+--     the person reviewed, so a question answered between review and confirm
+--     voids the review (the person asks again).
 --     The tables clear_household_records checks for each scope:
 --       journal  {symptom_logs}
 --       all      every table in the list above
@@ -94,7 +103,9 @@ begin;
 --     Deletes settled 'privacy' ledger rows whose updated_at is more than 24
 --     hours ago: only this owner's when p_profile_id is given, every
 --     household's when it is null (the daily cron). Pending rows are never
---     touched (the reaper owns them). Returns how many it deleted.
+--     touched (the reaper owns them). A row another transaction has locked
+--     (a clear in progress) is skipped, not waited for, and goes on a later
+--     run. Returns how many it deleted.
 --
 --   public.guard_settled_privacy_operation() returns trigger
 --     The trigger function of operations_privacy_settled_guard (P16). Not
@@ -203,7 +214,8 @@ begin;
 --   runOperation claim        inserts O_new, then FOR KEY SHARE on P.
 --   runOperation settle       one O row by id, nothing else.
 --   reaper                    pending O rows only, nothing else.
---   purge_privacy_receipts    settled privacy O' rows only, nothing else.
+--   purge_privacy_receipts    settled privacy O' rows only, nothing else, and
+--                             FOR UPDATE SKIP LOCKED: it never waits on a row.
 --   PUT /api/notifications    N -> R (trigger); an insert also KEY SHARE on P.
 --   Luna statements           single statements: a turn or run insert takes
 --                             KEY SHARE on C, on its turn and on P.
@@ -232,15 +244,37 @@ begin;
 --     pending and refuses. Neither wants anything the clear holds.
 --   * PUT /api/notifications takes N then R, and the clear deletes N before R,
 --     the same order, so they wait rather than deadlock.
--- Residual, accepted (each aborts one side with 40P01, which rolls the clear
--- back whole, so its 'failed' is still honest):
---   * a Luna insert holding KEY SHARE on C while waiting on P, against the
---     clear holding P and deleting C. Step 4 refuses while a run is live, so
---     this needs a new question sent in the same instant as the clear.
---   * the daily cron's reading insert holding KEY SHARE on H while waiting on
---     P, against the clear deleting H (plan finding F2's window).
---   * purge_privacy_receipts and the clear deleting the same settled privacy
---     rows in different orders.
+--   * purge_privacy_receipts selects its rows FOR UPDATE SKIP LOCKED, so it
+--     skips every settled row the clear has deleted and not yet committed
+--     (the clear removes them itself) and never waits on the clear. Without
+--     SKIP LOCKED the two would delete the same household's settled privacy
+--     rows each in its own scan order, and two such rows locked in opposite
+--     orders would be a cycle.
+--   * Luna and cron inserts (a turn or run insert: P and C; a reading insert:
+--     P and H). An insert checks each of its foreign keys with an RI trigger,
+--     and Postgres fires a table's triggers in name order. The RI triggers
+--     are named RI_ConstraintTrigger_c_<trigger oid>, and on this schema the
+--     profiles key's trigger sorts first on luna_turns, luna_runs and
+--     daily_scores (it was created first, so its number is lower; the
+--     ordering is pinned by test/privacyClearDb.test.mjs). So the insert
+--     asks for KEY SHARE on P first, while it holds nothing but its own
+--     uncommitted tuple, which the clear's deletes cannot see. It waits on P;
+--     when the clear commits, the P check passes and the C or H check fails
+--     with 23503 (the row is gone). The insert is refused, the clear is
+--     whole, and no cycle forms.
+-- Residual, accepted: the same Luna and cron inserts deadlock with the clear
+-- only where the profiles key's trigger would sort AFTER the C or H key's.
+-- That needs a production database whose trigger names sort differently from
+-- PGlite's: the constraint oids straddling a change in digit count (for
+-- example c_99999 before c_100000 compares as text the other way round), or
+-- a constraint dropped and re-created after the other so its oid is higher.
+-- Then the insert would hold KEY SHARE on C or H and wait on P while the clear
+-- held P and waited on C or H; one side dies with 40P01. That is still
+-- honest: a 40P01 on the clear rolls it back whole and leaves its row pending
+-- (so 'failed' is true), and an aborted insert loses only its own write. No
+-- cheap reordering helps: locking C and H before P would invert against the
+-- P-first 0016 functions, and weakening the P lock to FOR NO KEY UPDATE would
+-- let an insert land behind the deletes and survive a 'succeeded' clear.
 --
 -- ---------------------------------------------------------------------------
 -- RETENTION AND PRIVACY
@@ -363,6 +397,20 @@ begin
                              p.water_source, p.home_year, p.renter_mode, p.locale, p.state,
                              p.onboard_request_id, p.tenure
                         from public.profiles p where p.id = p_profile_id) r) s;
+    elsif tbl = 'home_contexts' then
+      -- Every column but the four backfill_* columns, which the server's
+      -- history backfill writes after onboarding or a move
+      -- (lib/homeContextRpc.js writeBackfillState). They change neither what
+      -- a clear removes nor what the person reviewed, so a backfill between
+      -- review and confirm does not void the review. revision and updated_at
+      -- stay: they move only on the person's own answers.
+      select coalesce(string_agg(s.h, ',' order by s.h collate "C"), '') into part
+        from (select md5(row_to_json(r)::text) as h
+                from (select c.id, c.profile_id, c.sequence, c.revision, c.origin, c.lat, c.lng,
+                             c.county, c.state, c.pwsid, c.service_area_status, c.water_source,
+                             c.home_year, c.match_method, c.onboard_request_id, c.effective_from,
+                             c.effective_to, c.closed_reason, c.created_at, c.updated_at
+                        from public.home_contexts c where c.profile_id = p_profile_id) r) s;
     else
       -- tbl is one of the constants above, never caller text.
       execute format(
@@ -622,10 +670,19 @@ as $$
 declare
   purged int;
 begin
+  -- SKIP LOCKED: a row another transaction holds is left for the next run.
+  -- The one such holder that matters is a clear 'all' deleting the same
+  -- household's settled rows (step 5), which removes them itself when it
+  -- commits. Without it, the clear and the purge could lock two of those rows
+  -- in opposite orders and one of them would die with 40P01; with it, the
+  -- purge never waits on a row, so no cycle can form through it.
   delete from public.operations o
-   where o.domain = 'privacy' and o.status <> 'pending'
-     and o.updated_at < now() - interval '24 hours'
-     and (p_profile_id is null or o.profile_id = p_profile_id);
+   where o.operation_id in (
+     select x.operation_id from public.operations x
+      where x.domain = 'privacy' and x.status <> 'pending'
+        and x.updated_at < now() - interval '24 hours'
+        and (p_profile_id is null or x.profile_id = p_profile_id)
+        for update skip locked);
   get diagnostics purged = row_count;
   return purged;
 end;
