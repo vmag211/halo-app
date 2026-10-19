@@ -15,8 +15,9 @@ const {
   MAX_AMBIGUOUS_LABELS,
   UNMATCHED_REASONS,
   STATES,
+  NOT_STATES,
 } = await import('../lib/forecast/place.js');
-const { allPlaces, placePoint } = await import('../lib/places.js');
+const { allPlaces, placePoint, words } = await import('../lib/places.js');
 
 const resolve = resolveForecastPlace;
 const CHARLOTTE = 'us-place:3712000';
@@ -77,6 +78,8 @@ test('specificity: Columbus is the town, Columbus County the county; a place out
   assert.equal(resolve('Charlotte, Mecklenburg County').id, CHARLOTTE);
   // A ZCTA outranks both, wherever it appears.
   assert.equal(resolve('Mecklenburg County, Charlotte, 28202').id, 'us-zcta:28202');
+  // A ZCTA found in the name step (a spaced ZIP is no standalone run) still outranks a place (review N1).
+  assert.equal(resolve('Charlotte, 282 02').id, 'us-zcta:28202');
 });
 
 test('ambiguous: two places of one name, two named places, two ZIP codes; a disambiguated name is matched', () => {
@@ -146,6 +149,43 @@ test('"Co" after an exact NC county segment is the county word, never Colorado',
   assert.deepEqual(resolve('Freedom Park, CO'), { kind: 'outside' });
   // Only straight after the county segment.
   assert.deepEqual(resolve('Yadkin, Charlotte, CO'), { kind: 'outside' });
+  // "County" is folded the same way (review N3): the county, not the town of its name.
+  for (const text of ['Columbus, County', 'Columbus; county', 'Columbus, County, NC']) assert.equal(resolve(text).id, 'us-county:37047', text);
+  assert.equal(resolve('Yadkin, County').id, 'us-county:37197');
+  assert.equal(resolve('Charlotte, County').id, CHARLOTTE, 'no county before it: the word names nothing');
+});
+
+test('DC and the US territories after a place are outside, never an NC place of the same name (review F1)', () => {
+  for (const text of ['Washington, DC', 'Washington, D.C.', 'Washington, District of Columbia', 'Raleigh, DC', 'Charlotte, PR',
+    'Jacksonville, Guam', 'Charlotte, Puerto Rico', 'Charlotte, US Virgin Islands', 'Charlotte, U.S. Virgin Islands', 'Charlotte, VI',
+    'Charlotte, American Samoa', 'Charlotte, AS', 'Charlotte, Northern Mariana Islands', 'Charlotte, MP', 'Charlotte, GU']) {
+    assert.deepEqual(resolve(text), { kind: 'outside' }, text);
+  }
+  assert.equal(resolve('Washington').label, 'Washington, NC');
+  assert.equal(resolve('Washington, NC').label, 'Washington, NC');
+  // The table: six frozen entries, apart from the 50.
+  assert.equal(NOT_STATES.length, 6);
+  assert.ok(Object.isFrozen(NOT_STATES) && NOT_STATES.every(Object.isFrozen));
+  const codes = new Set(STATES.map(([code]) => code));
+  assert.ok(NOT_STATES.every(([code]) => /^[A-Z]{2}$/.test(code) && !codes.has(code)));
+  assert.deepEqual(NOT_STATES.map(([code]) => code), ['DC', 'PR', 'GU', 'VI', 'AS', 'MP']);
+});
+
+test('drift: every state lib/places.js treats as non-NC is outside here; the only extras are CO and the territories', () => {
+  // Transcribed from lib/places.js's own OTHER_STATES source, so a change there is seen here.
+  const source = readFileSync(new URL('../lib/places.js', import.meta.url), 'utf8');
+  const block = source.match(/const OTHER_STATES = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(block, 'OTHER_STATES found in lib/places.js');
+  const split = block[1].match(/\.\.\.'([a-z ]+)'\.split\(' '\)/);
+  assert.ok(split);
+  const named = [...block[1].replace(split[0], '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  const theirs = new Set([...split[1].split(' '), ...named]);
+  assert.ok(theirs.size > 90 && theirs.has('dc') && !theirs.has('nc'), `${theirs.size} keys`);
+  for (const key of theirs) assert.deepEqual(resolve(`Charlotte, ${key}`), { kind: 'outside' }, key);
+  const ours = new Set([...STATES, ...NOT_STATES].filter(([code]) => code !== 'NC').flatMap(([code, name]) => [code.toLowerCase(), words(name).join('')]));
+  assert.deepEqual([...theirs].filter((key) => !ours.has(key)), [], 'nothing places.js reads as another state is missed');
+  assert.deepEqual([...ours].filter((key) => !theirs.has(key)).sort(),
+    ['americansamoa', 'as', 'co', 'districtofcolumbia', 'gu', 'guam', 'mp', 'northernmarianaislands', 'pr', 'puertorico', 'usvirginislands', 'vi']);
 });
 
 test('the state table is the 50 states, codes and names distinct', () => {
@@ -260,6 +300,8 @@ test('roundForProvider: 2 decimals, never more precision than the input', () => 
   assert.deepEqual(roundForProvider({ lat: 35.2, lng: -80 }), { lat: 35.2, lng: -80 });
   assert.deepEqual(roundForProvider({ lat: 35, lng: -80.8 }), { lat: 35, lng: -80.8 });
   assert.deepEqual(roundForProvider({ lat: -0.001, lng: 0.004 }), { lat: 0, lng: 0 });
+  // Values whose String() is exponential ("1e-7") are 0, never NaN (review N2).
+  assert.deepEqual(roundForProvider({ lat: 1e-7, lng: -1e-9 }), { lat: 0, lng: 0 });
   assert.ok(Object.is(roundForProvider({ lat: -0.001, lng: 0 }).lat, 0), 'never -0');
   assert.deepEqual(roundForProvider({ lat: 90, lng: -180 }), { lat: 90, lng: -180 });
   for (const point of [null, undefined, {}, { lat: 35 }, { lat: '35.2', lng: -80 }, { lat: NaN, lng: 0 }, { lat: 0, lng: Infinity },
