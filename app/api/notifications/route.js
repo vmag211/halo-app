@@ -12,6 +12,11 @@ import { parseNotificationUpdate } from '@/lib/alertWriteInput';
  *
  * Every type defaults on. The daily job skips types turned off, for both the
  * inbox and device pushes. Needs migration 0010.
+ *
+ * The five are also the `notifications` group of the settings snapshot. Once
+ * migration 0021 is applied, the database advances the settings revision in
+ * the same transaction as a PUT that changes one (B04 Ruling S12), so a
+ * settings save holding the old revision then conflicts.
  */
 async function read(userId) {
   const { data, error } = await supabaseAdmin.from('notification_prefs').select('*').eq('profile_id', userId).maybeSingle();

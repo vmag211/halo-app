@@ -31,9 +31,11 @@
  *     answered does not hand Luna the household by accident, and both zones
  *     default to the client's America/New_York (Ruling S9).
  *  6. `profiles.tenure` has the three states the contract needs and is left
- *     null for a household that was never asked (Ruling S3). Nothing ties it
- *     to `renter_mode` in the schema, so a legacy household save that writes
- *     only `renter_mode` still succeeds once tenure is set (Ruling S7).
+ *     null for a household that was never asked (Ruling S3). No check ties it
+ *     to `renter_mode`, so a legacy household save that writes only
+ *     `renter_mode` still succeeds once tenure is set (Ruling S7); a trigger
+ *     reconciles the two in that same row write instead (Ruling S13, covered
+ *     in full by test/settingsSaveDb.test.mjs).
  *  7. An alert's `revision` is not null, defaults to 1 and is at least 1,
  *     because the client rejects a snapshot containing any row whose revision
  *     is not a positive integer. That a row which existed before 0021 gets 1
@@ -405,8 +407,9 @@ test('a legacy household save that changes renter_mode still succeeds once tenur
   // touching tenure, and renter_mode is part of the published B01 contract. A
   // schema rule tying the two columns together would turn that valid request
   // into a 500 and lose the band change with it. 0021 therefore holds no such
-  // rule: the two may disagree for a moment, and Task 2a reconciles them on
-  // write (Ruling S7).
+  // rule (Ruling S7). Its BEFORE trigger reconciles the pair inside the same
+  // row write instead (Ruling S13), so the save still succeeds and the two
+  // never disagree.
   await db.exec(`insert into auth.users (id, is_anonymous) values ('${DAVE}', true)`);
   assert.equal(
     await write(`update public.profiles set tenure = 'owner', renter_mode = false where id = $1`, [DAVE], { commit: true }),
@@ -431,11 +434,11 @@ test('a legacy household save that changes renter_mode still succeeds once tenur
         where p.id = $1`,
       [DAVE],
     )).rows,
-    [{ tenure: 'owner', renter_mode: true, has_adult: true, has_child: true }],
-    'the band change persists, and tenure is left exactly as it was for Task 2a to reconcile',
+    [{ tenure: 'renter', renter_mode: true, has_adult: true, has_child: true }],
+    'the band change persists, and the owner who now rents reads as a renter (Ruling S13)',
   );
 
-  // The pre-0015 two-step path writes the profile on its own; it may disagree too.
+  // The pre-0015 two-step path writes the profile on its own; that is not refused either.
   assert.equal(
     await write(`update public.profiles set renter_mode = false where id = $1`, [DAVE]),
     null,
@@ -608,7 +611,7 @@ test('the verification query in the migration\'s trailing comment really answers
   const lines = MIGRATION.sql.split('\n');
   const at = lines.findIndex((line) => line.startsWith('-- Verification (read only)'));
   assert.ok(at > 0, 'the migration carries a verification comment');
-  assert.match(lines[at], /all six columns true/, 'the comment says how many columns to expect');
+  assert.match(lines[at], /all seven columns true/, 'the comment says how many columns to expect');
   const rule = /^--\s*-{10,}\s*$/;
   const body = [];
   for (let index = at + 2; index < lines.length && !rule.test(lines[index]); index += 1) {
@@ -623,7 +626,7 @@ test('the verification query in the migration\'s trailing comment really answers
   assert.equal(code.split(';').filter((part) => part.trim()).length, 1, 'one statement, because the SQL editor shows only the last result');
   const { rows } = await db.query(query);
   assert.equal(rows.length, 1, 'one row');
-  assert.equal(Object.keys(rows[0]).length, 6, 'six columns, as the comment says');
+  assert.equal(Object.keys(rows[0]).length, 7, 'seven columns, as the comment says');
   assert.deepEqual(
     Object.entries(rows[0]).filter(([, value]) => value !== true),
     [],
@@ -646,9 +649,21 @@ test('running 0021 again changes nothing', async () => {
       `select indexname from pg_indexes where schemaname = 'public' and tablename = any($1) order by indexname`,
       [[PREFERENCES, 'alerts', 'profiles']],
     );
-    return { columns, constraints, indexes };
+    // Ruling S11 to S13: the save function and the seven triggers, created once whatever the runs.
+    const { rows: triggers } = await db.query(
+      `select tgrelid::regclass::text as on_table, tgname, pg_get_triggerdef(oid) as definition from pg_trigger
+        where not tgisinternal and tgrelid = any($1::regclass[]) order by tgname`,
+      [[`public.${PREFERENCES}`, 'public.profiles', 'public.notification_prefs', 'public.household_bands']],
+    );
+    const { rows: functions } = await db.query(
+      `select p.oid::regprocedure::text as signature from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname in ('save_settings', 'advance_settings_revision', 'reconcile_profile_tenure') order by 1`,
+    );
+    return { columns, constraints, indexes, triggers, functions };
   };
   const first = await shape();
+  assert.equal(first.triggers.length, 7, 'seven triggers');
+  assert.equal(first.functions.length, 3, 'three functions');
   await db.exec(MIGRATION.sql);
   assert.deepEqual(await shape(), first, 're-running the migration is a no-op');
 });

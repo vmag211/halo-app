@@ -117,6 +117,9 @@ const PUBLIC_FUNCTIONS = {
   save_household: 'service_role',         // 0015: PUT /api/household in one transaction
   transition_home_context: 'service_role',        // 0016: onboarding saves the home (first, same or a move)
   update_home_context_attributes: 'service_role', // 0016: revisioned answers about the current home
+  save_settings: 'service_role',                  // 0021: PATCH /api/settings, one transaction per save
+  advance_settings_revision: 'trigger',           // 0021: a snapshot value changed, so the settings revision advances
+  reconcile_profile_tenure: 'trigger',            // 0021: tenure kept in step with renter_mode
   read_household_actions: 'service_role',         // 0023: My Week's one snapshot
   commit_household_actions: 'service_role',       // 0023: a task command and its ledger settle in one transaction
   guard_settled_action_operation: 'trigger',      // 0023: a settled 'actions' operation keeps its status
