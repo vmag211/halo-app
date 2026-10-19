@@ -120,7 +120,8 @@ test('state "", NC, N.C. and North Carolina (any case) mean North Carolina; any 
   for (const state of ['', 'NC', 'nc', 'N.C.', 'n.c.', 'North Carolina', 'NORTH CAROLINA', 'north carolina', ' NC ']) {
     assert.deepEqual(searchPlaces({ query: 'Wake', state }), wake, JSON.stringify(state));
   }
-  for (const state of ['SC', 'South Carolina', 'Virginia', 'N', 'Carolina', 'North', 'NC USA', 'US']) {
+  // A state with no letters or digits is not blank: emptiness is decided before punctuation is stripped.
+  for (const state of ['SC', 'South Carolina', 'Virginia', 'N', 'Carolina', 'North', 'NC USA', 'US', '?', '-', '...', 'é', '北']) {
     assert.deepEqual(searchPlaces({ query: 'Wake', state }), [], state);
   }
   assert.deepEqual(searchPlaces({ query: 'Wake' }), wake, 'no state given is the same as empty');
