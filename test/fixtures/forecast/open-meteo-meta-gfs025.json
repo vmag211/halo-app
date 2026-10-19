@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "provider": "Open-Meteo model metadata API (GFS 0.25 degree, ncep_gfs025)",
+    "recorded": "https://api.open-meteo.com/data/ncep_gfs025/static/meta.json",
+    "retrieved": "2026-10-19",
+    "capturedAt": "2026-10-19T20:07Z",
+    "docs": [
+      "https://open-meteo.com/en/docs/model-updates"
+    ],
+    "edits": "none; recorded response as received, immediately before and after the forecast fixture, identical both times"
+  },
+  "response": {
+    "chunk_time_length": 481,
+    "crs_wkt": "GEOGCRS[\"WGS 84\",\n    DATUM[\"World Geodetic System 1984\",\n        ELLIPSOID[\"WGS 84\",6378137,298.257223563]],\n    CS[ellipsoidal,2],\n        AXIS[\"latitude\",north],\n        AXIS[\"longitude\",east],\n        ANGLEUNIT[\"degree\",0.0174532925199433]\n    USAGE[\n        SCOPE[\"grid\"],\n        BBOX[-90.0,-180.0,90.0,179.75]]]",
+    "data_end_time": 1793797200,
+    "last_run_availability_time": 1792434544,
+    "last_run_initialisation_time": 1792411200,
+    "last_run_modification_time": 1792434111,
+    "temporal_resolution_seconds": 3600,
+    "update_interval_seconds": 21600
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "_fixture": {
+    "provider": "Open-Meteo model metadata API (GFS 0.25 degree, ncep_gfs025)",
+    "recorded": "https://api.open-meteo.com/data/ncep_gfs025/static/meta.json",
+    "retrieved": "2026-10-19",
+    "capturedAt": "2026-10-19T19:34Z",
+    "docs": [
+      "https://open-meteo.com/en/docs/model-updates"
+    ],
+    "note": "Recorded in the lag window: the 0.11 degree grid already held the 12Z run while the 0.25 degree grid still held 06Z.",
+    "edits": "none; recorded response as received"
+  },
+  "response": {
+    "chunk_time_length": 481,
+    "crs_wkt": "GEOGCRS[\"WGS 84\",\n    DATUM[\"World Geodetic System 1984\",\n        ELLIPSOID[\"WGS 84\",6378137,298.257223563]],\n    CS[ellipsoidal,2],\n        AXIS[\"latitude\",north],\n        AXIS[\"longitude\",east],\n        ANGLEUNIT[\"degree\",0.0174532925199433]\n    USAGE[\n        SCOPE[\"grid\"],\n        BBOX[-90.0,-180.0,90.0,179.75]]]",
+    "data_end_time": 1793775600,
+    "last_run_availability_time": 1792414483,
+    "last_run_initialisation_time": 1792389600,
+    "last_run_modification_time": 1792410943,
+    "temporal_resolution_seconds": 3600,
+    "update_interval_seconds": 21600
+  }
+}
