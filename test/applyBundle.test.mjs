@@ -156,7 +156,7 @@ test('the 0024 bundle over a schema without 0023 refuses and leaves nothing appl
 // 0001 to 0024, and with 0024 applied after it.
 
 const MAXIMA = BUNDLES.find((bundle) => bundle.bundleFile === 'apply-0025.sql');
-const MAXIMA_CHECKS = { all_migrations_ok: true, checks_run: 8, failing: 'none' };
+const MAXIMA_CHECKS = { all_migrations_ok: true, checks_run: 9, failing: 'none' };
 const asNumbers = (row) => ({ ...row, checks_run: Number(row.checks_run) });
 
 test('the 0025 bundle and check are committed, current, and hold exactly 0025', () => {

@@ -42,7 +42,11 @@ with checks as (
           as both_links_cascade,
         (select count(*) from pg_constraint
           where conrelid = 'public.daily_maxima'::regclass and contype = 'c') = 14
-          as fourteen_checks
+          as fourteen_checks,
+        exists (select 1 from pg_constraint
+          where conrelid = 'public.daily_maxima'::regclass and conname = 'daily_maxima_station_check'
+            and pg_get_constraintdef(oid) ~ '^CHECK \(\s*CASE')
+          as station_check_closed
   ) q, jsonb_each_text(to_jsonb(q)) j
 )
 select bool_and(ok) as all_migrations_ok,

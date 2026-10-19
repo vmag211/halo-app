@@ -800,15 +800,16 @@ What it is for: the Patterns and Season screens compare check-ins with the envir
 Deleting a home deletes its maxima, and so does deleting the account (both links cascade, unlike `daily_scores`). 0024's clear all deletes them and counts them in the review, whichever of the two is applied first; Clear Journal keeps them.
 
 1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0025_daily_maxima.sql` and run it, or paste `docs/backend/apply/apply-0025.sql`, which is the same file inside one transaction (run `rollback;` if the editor says the transaction is aborted, then send the error). Either is safe to re-run.
-2. Run the verification query: the comment at the end of the migration file, or `docs/backend/apply/verify-0025.sql`. The file's query returns **one row with all eight columns true**; the bundle's returns `all_migrations_ok = true`, `checks_run = 8`, `failing = none`:
+2. Run the verification query: the comment at the end of the migration file, or `docs/backend/apply/verify-0025.sql`. The file's query returns **one row with all nine columns true**; the bundle's returns `all_migrations_ok = true`, `checks_run = 9`, `failing = none`:
    - `rls_on`, `no_policies`, `no_client_access`: both tables are closed to the browser roles;
    - `functions_service_role_only`: neither browser role can execute any of the five functions, and `service_role` can execute the four that are called;
    - `functions_invoker_pinned`: all five run with the caller's rights and a fixed search path;
    - `final_guard_on`: the trigger is on `public.daily_maxima`;
    - `both_links_cascade`: the links to `profiles` and `home_contexts` both delete with their parent;
-   - `fourteen_checks`: exactly 14 CHECK constraints on `public.daily_maxima`.
+   - `fourteen_checks`: exactly 14 CHECK constraints on `public.daily_maxima`;
+   - `station_check_closed`: the station rule is the current one, which refuses a station code on a row with no source.
 
-   `no_client_access` false is the one that matters: the rows reveal where a household lives and when, so stop and send Claude the row. `fourteen_checks` false means an older copy of 0025 was run before: run the back-out block, then apply again.
+   `no_client_access` false is the one that matters: the rows reveal where a household lives and when, so stop and send Claude the row. `fourteen_checks` or `station_check_closed` false means an older copy of 0025 was run before: run the back-out block, then apply again.
 3. Run `notify pgrst, 'reload schema';`.
 
 Until this is applied, the recorder and `GET /api/evidence`, once deployed, report the feature as unavailable. Nothing else reads these tables, so the existing app is unaffected either way.

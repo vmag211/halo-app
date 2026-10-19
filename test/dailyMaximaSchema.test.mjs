@@ -229,7 +229,7 @@ test('the verification query in the migration returns one row, every column true
   assert.equal(rows.length, 1);
   assert.deepEqual(Object.keys(rows[0]), [
     'rls_on', 'no_policies', 'no_client_access', 'functions_service_role_only', 'functions_invoker_pinned',
-    'final_guard_on', 'both_links_cascade', 'fourteen_checks',
+    'final_guard_on', 'both_links_cascade', 'fourteen_checks', 'station_check_closed',
   ]);
   for (const [column, value] of Object.entries(rows[0])) assert.equal(value, true, column);
 
@@ -242,6 +242,11 @@ test('the verification query in the migration returns one row, every column true
     final_guard_on: 'drop trigger daily_maxima_final_guard on public.daily_maxima',
     both_links_cascade: `alter table public.daily_maxima drop constraint daily_maxima_home_context_fkey`,
     fourteen_checks: 'alter table public.daily_maxima drop constraint daily_maxima_time_zone_check',
+    // The reviewed copy's form, which passed a station code with no source.
+    station_check_closed: `alter table public.daily_maxima drop constraint daily_maxima_station_check;
+      alter table public.daily_maxima add constraint daily_maxima_station_check
+        check ((source_code = 'airnow_station' and station_id is not null and station_id ~ '^[0-9A-Za-z-]{1,32}$')
+            or (source_code is distinct from 'airnow_station' and station_id is null))`,
   };
   for (const [column, statement] of Object.entries(breaks)) {
     const broken = await db.pg.transaction(async (tx) => {
@@ -279,6 +284,9 @@ const REFUSED = [
   ['a value with no source', row({ source_code: null }), 'daily_maxima_value_source_check'],
   ['an AirNow row without a station', measured({ station_id: null }), 'daily_maxima_station_check'],
   ['a modeled row with a station', row({ station_id: '370250004' }), 'daily_maxima_station_check'],
+  ['a row with no source but a station', pending({ source_code: null, station_id: '370250004' }), 'daily_maxima_station_check'],
+  ['a final unavailable row with no source but a station', uv({ value: null, source_code: null, missing_code: 'unavailable', hours_observed: 0, station_id: '370250004' }), 'daily_maxima_station_check'],
+  ['a measured pending row without a station', pending({ source_code: 'airnow_station' }), 'daily_maxima_station_check'],
   ['a station site name instead of a code', measured({ station_id: 'Rockwell Station' }), 'daily_maxima_station_check'],
   ['a 33-character station code', measured({ station_id: '1'.repeat(33) }), 'daily_maxima_station_check'],
   ['22 expected hours', pending({ hours_expected: 22 }), 'daily_maxima_hours_expected_check'],
@@ -322,6 +330,8 @@ const ACCEPTED = [
     ['a source gap at a measured home', measured({ home_context_id: BOB_HOME, profile_id: BOB, local_date: '2026-10-22', value: null, missing_code: 'source_gap', hours_observed: 10 })],
     ['unavailable with no source', uv({ local_date: '2026-10-23', value: null, source_code: null, missing_code: 'unavailable', hours_observed: 0 })],
     ['every hour observed', uv({ local_date: '2026-10-24', hours_observed: 24 })],
+    ['a measured pending row with its station', measured({ home_context_id: BOB_HOME, profile_id: BOB, local_date: '2026-10-25', value: null, missing_code: 'pending', hours_observed: 5 })],
+    ['a sourceless pending row with no station', pending({ local_date: '2026-10-25', source_code: null, station_id: null, hours_observed: 3 })],
     ['a 32-character station code', measured({ home_context_id: BOB_HOME, profile_id: BOB, local_date: '2026-10-24', station_id: 'A-'.repeat(16) })],
     ['a 64-character method version', row({ local_date: '2026-10-24', method_version: 'v'.repeat(64) })],
 ];
@@ -593,6 +603,27 @@ test('one rule name per CHECK on the table, each in record_daily_maxima and in t
     assert.ok(src.includes(`then '${rule}'`), `record_daily_maxima does not test ${rule}`);
     assert.match(MIGRATION.sql, new RegExp(`^--\\s+${rule}\\s+${constraint}$`, 'm'), `the header does not pair ${rule} with ${constraint}`);
   }
+});
+
+test('the station rule over every source and station: the CHECK and the recorder agree, and a station needs a measured source', async () => {
+  const sources = [null, 'airnow_station', 'open_meteo_cams', 'open_meteo_forecast'];
+  const stations = [null, '370250004', 'Rockwell Station'];
+  await scenario(async (tx) => {
+    let day = 0;
+    for (const source of sources) {
+      for (const station of stations) {
+        day += 1;
+        const factor = source === 'open_meteo_forecast' ? { factor: 'uv', unit: 'UV index' } : {};
+        const candidate = pending({ ...factor, local_date: `2026-12-${String(day).padStart(2, '0')}`, source_code: source, station_id: station, method_version: `v-${day}` });
+        const expected = source === 'airnow_station' ? station === '370250004' : station === null;
+        const direct = await insertDirect(tx, candidate);
+        assert.equal(direct.ok, expected, `the CHECK, source ${source}, station ${station}: ${direct.error?.message}`);
+        if (direct.ok) await tx.query(`delete from public.daily_maxima where local_date = $1`, [candidate.local_date]);
+        const out = await recordContained(tx, [candidate]);
+        assert.deepEqual(out, expected ? tally({ inserted: 1 }) : tally({ refused: 1, refusedRules: { station_code: 1 } }), `the recorder, source ${source}, station ${station}`);
+      }
+    }
+  });
 });
 
 test('a row breaking several CHECKs counts once, under the first rule in the table\'s order', async () => {

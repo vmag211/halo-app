@@ -324,11 +324,14 @@ begin
       check (value is null or source_code is not null);
   end if;
   -- A station code exactly for a measured row (E8), and only a short code,
-  -- never a site name.
+  -- never a site name. Written as a CASE so it is never null, and a CHECK
+  -- passes a null: a null source_code takes the ELSE branch, so a row with
+  -- no source but a station code is refused (B08 Task 1 fix round 1).
   if not exists (select 1 from pg_constraint where conname = 'daily_maxima_station_check') then
     alter table public.daily_maxima add constraint daily_maxima_station_check
-      check ((source_code = 'airnow_station' and station_id is not null and station_id ~ '^[0-9A-Za-z-]{1,32}$')
-          or (source_code is distinct from 'airnow_station' and station_id is null));
+      check (case when source_code = 'airnow_station'
+                  then station_id is not null and station_id ~ '^[0-9A-Za-z-]{1,32}$'
+                  else station_id is null end);
   end if;
   if not exists (select 1 from pg_constraint where conname = 'daily_maxima_hours_expected_check') then
     alter table public.daily_maxima add constraint daily_maxima_hours_expected_check
@@ -534,9 +537,9 @@ begin
           or (r.factor = 'air' and r.source_code in ('airnow_station', 'open_meteo_cams'))
           or (r.factor = 'uv' and r.source_code = 'open_meteo_forecast'), true) then 'source_pairs_factor'
       when not coalesce(r.value is null or r.source_code is not null, true) then 'value_needs_source'
-      when not coalesce((r.source_code = 'airnow_station' and r.station_id is not null
-                         and r.station_id ~ '^[0-9A-Za-z-]{1,32}$')
-          or (r.source_code is distinct from 'airnow_station' and r.station_id is null), true) then 'station_code'
+      when not coalesce(case when r.source_code = 'airnow_station'
+                             then r.station_id is not null and r.station_id ~ '^[0-9A-Za-z-]{1,32}$'
+                             else r.station_id is null end, true) then 'station_code'
       when not coalesce(r.hours_expected between 23 and 25, true) then 'hours_expected'
       when not coalesce(r.hours_observed between 0 and r.hours_expected, true) then 'hours_observed'
       when not coalesce(r.value is null or r.hours_observed >= ceil(0.75 * r.hours_expected), true)
@@ -709,7 +712,7 @@ create or replace trigger daily_maxima_final_guard
   execute function public.guard_final_daily_maximum();
 
 -- ---------------------------------------------------------------------------
--- Verification (read only). Expect one row, all eight columns true.
+-- Verification (read only). Expect one row, all nine columns true.
 -- ---------------------------------------------------------------------------
 --   select
 --     (select bool_and(relrowsecurity) from pg_class
@@ -748,7 +751,11 @@ create or replace trigger daily_maxima_final_guard
 --       as both_links_cascade,
 --     (select count(*) from pg_constraint
 --       where conrelid = 'public.daily_maxima'::regclass and contype = 'c') = 14
---       as fourteen_checks;
+--       as fourteen_checks,
+--     exists (select 1 from pg_constraint
+--       where conrelid = 'public.daily_maxima'::regclass and conname = 'daily_maxima_station_check'
+--         and pg_get_constraintdef(oid) ~ '^CHECK \(\s*CASE')
+--       as station_check_closed;
 --
 -- ---------------------------------------------------------------------------
 -- If you need to back out 0025
