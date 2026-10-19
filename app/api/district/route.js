@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { readLayer, buildLayer, storeLayer } from '@/lib/mapBuild';
+import { readLayer, buildLayer, storeLayer, GeographyIncompleteError } from '@/lib/mapBuild';
 import { householdCounty } from '@/lib/districtView';
-import { requestIdFor, internalError } from '@/lib/apiErrors';
+import { ERROR_CODES, apiError, requestIdFor, internalError } from '@/lib/apiErrors';
 
 // Falls back to a live build (~20s ArcGIS geography) when not pre-built.
 export const maxDuration = 60;
@@ -20,6 +20,11 @@ export const maxDuration = 60;
  *
  * A failed read of the household's profile is a 500, never a view with no
  * household county: that would look like "your county is not ranked".
+ *
+ * With no stored view and a service-area lookup that did not complete, the
+ * answer is a 503 and nothing is stored. The view's counts are all required
+ * integers, so a partial placement would read as "0 systems" with a complete
+ * population; no district totals are better than false ones.
  */
 export async function GET(request) {
   const requestId = requestIdFor(request);
@@ -39,7 +44,18 @@ export async function GET(request) {
     let prebuilt = true;
     if (!view) {
       prebuilt = false;
-      view = await buildLayer(supabaseAdmin, 'district');
+      try {
+        view = await buildLayer(supabaseAdmin, 'district');
+      } catch (err) {
+        if (!(err instanceof GeographyIncompleteError)) throw err;
+        console.error(`District was not built: the geography lookup was incomplete (request ${requestId}).`);
+        return apiError({
+          status: 503,
+          code: ERROR_CODES.UPSTREAM_UNAVAILABLE,
+          message: 'The district view needs the water service areas, which could not be looked up right now. Try again shortly.',
+          requestId,
+        });
+      }
       storeLayer(supabaseAdmin, 'district', view).catch((e) => console.error(`Storing district failed (request ${requestId}):`, e.message));
     }
 
