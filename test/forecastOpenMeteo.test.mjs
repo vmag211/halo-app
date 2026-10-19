@@ -137,6 +137,17 @@ test('a null value stays null, never 0, and its neighbours are untouched', () =>
   assert.equal(parseForecast(rainless).hours[5].precipIn, null);
 });
 
+test('a non-zero modelled rain amount comes back unchanged, in its own hour', () => {
+  const source = response('open-meteo-forecast-rain.json');
+  assert.equal(source.hourly.precipitation[15], 0.12);
+  const parsed = parseForecast(source);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.hours[15].precipIn, 0.12);
+  assert.equal(parsed.hours[15].t, source.hourly.time[15] * 1000);
+  assert.equal(parsed.hours[14].precipIn, source.hourly.precipitation[14]);
+  assert.equal(parsed.hours[15].precipPct, null, 'an amount is never turned into a chance');
+});
+
 test('malformed forecasts are invalid: each hand-edited fixture, the error body, and non-JSON', () => {
   for (const name of [
     'open-meteo-forecast-unequal-lengths.json',
@@ -190,9 +201,15 @@ test('each missing or mistyped field is invalid on its own', () => {
 });
 
 test('parseMeta reads the run fields and refuses anything incomplete or implausible', () => {
-  assert.deepEqual(parseMeta(META013), { initialisation: INIT, availability: META013.last_run_availability_time });
-  assert.deepEqual(parseMeta(META025), { initialisation: INIT, availability: META025.last_run_availability_time });
+  assert.deepEqual(parseMeta(META013), { initialisation: INIT, availability: META013.last_run_availability_time, modification: META013.last_run_modification_time });
+  assert.deepEqual(parseMeta(META025), { initialisation: INIT, availability: META025.last_run_availability_time, modification: META025.last_run_modification_time });
+  const bare = { ...META013 };
+  delete bare.last_run_modification_time;
+  assert.deepEqual(parseMeta(bare), { initialisation: INIT, availability: META013.last_run_availability_time, modification: null }, 'an absent modification time is null');
   for (const [what, body] of Object.entries({
+    'a string modification time': { ...META013, last_run_modification_time: String(META013.last_run_modification_time) },
+    'a modification time of 0': { ...META013, last_run_modification_time: 0 },
+    'a null modification time': { ...META013, last_run_modification_time: null },
     'no initialisation time': { ...META013, last_run_initialisation_time: undefined },
     'no availability time': { ...META013, last_run_availability_time: undefined },
     'a string time': { ...META013, last_run_initialisation_time: String(INIT) },
@@ -214,7 +231,7 @@ test('parseMeta reads the run fields and refuses anything incomplete or implausi
 test('parseMeta refuses an availability later than the moment it is read', () => {
   const availableMs = META013.last_run_availability_time * 1000;
   assert.equal(parseMeta(META013, { now: availableMs - 1000 }), null);
-  assert.deepEqual(parseMeta(META013, { now: availableMs }), { initialisation: INIT, availability: META013.last_run_availability_time });
+  assert.equal(parseMeta(META013, { now: availableMs }).availability, META013.last_run_availability_time);
 });
 
 test('fetchOpenMeteo: both grids, forecast, both grids; issuedAt is the shared run, never the retrieval time', async () => {
@@ -270,19 +287,82 @@ test('the recorded lag window (0.11 degree on 12Z, 0.25 degree on 06Z) is run_un
   assert.equal(RUN_UNKNOWN_RETRY_MS, 60_000);
 });
 
-test('metadata that changes during the forecast call, on either grid, means the run is unknown', async () => {
+test('a file that reports another run after the call, on either grid, means the run is unknown', async () => {
   const now = () => minutesAfterAvailability(60);
-  const nextRun = (meta) => ({ ...meta, last_run_initialisation_time: INIT + 21600, last_run_availability_time: meta.last_run_availability_time + 21600 });
-  const republished = (meta) => ({ ...meta, last_run_availability_time: meta.last_run_availability_time + 60 });
+  // The next (18Z) run, already available well before "now", so only the run comparison can refuse it.
+  const nextRun = (meta) => ({
+    ...meta,
+    last_run_initialisation_time: INIT + 21600,
+    last_run_availability_time: INIT + 21600 + 60,
+    last_run_modification_time: meta.last_run_modification_time + 21600,
+  });
+  const reworked = (meta) => ({ ...meta, last_run_modification_time: meta.last_run_modification_time + 60 });
+  // A new run from a server that sends no modification time: only the initialisation can tell.
+  const nextRunBare = (meta) => {
+    const copy = nextRun(meta);
+    delete copy.last_run_modification_time;
+    return copy;
+  };
+  assert.ok((INIT + 21600 + 60) * 1000 < now() && (INIT + 21600 + 60) * 1000 < LATER_AVAILABLE_MS);
   for (const [what, after013, after025] of [
     ['0.11 degree moves to a new run', nextRun(META013), META025],
     ['0.25 degree moves to a new run', META013, nextRun(META025)],
-    ['0.11 degree re-published', republished(META013), META025],
-    ['0.25 degree re-published', META013, republished(META025)],
+    ['0.11 degree moves to a new run, no modification time', nextRunBare(META013), META025],
+    ['0.25 degree moves to a new run, no modification time', META013, nextRunBare(META025)],
+    ['0.11 degree re-written (new modification time)', reworked(META013), META025],
+    ['0.25 degree re-written (new modification time)', META013, reworked(META025)],
   ]) {
     const { getJson, calls } = stubGetJson({ meta013: [ok(META013), ok(after013)], meta025: [ok(META025), ok(after025)], forecast: [ok(RECORDED)] });
     assert.deepEqual(await fetchOpenMeteo(CHARLOTTE, { getJson, now }), { ok: false, reason: 'run_unknown', retryAfterMs: RUN_UNKNOWN_RETRY_MS }, what);
     assert.deepEqual(calls.map((c) => c.kind), FULL_SEQUENCE, what);
+  }
+});
+
+test('the recorded pair (one run, one modification time, two availability times) confirms once the later one is 10 minutes old', async () => {
+  // Recorded 2026-10-19: the same 0.11 degree run file, read at 19:34Z and 20:07Z from different servers.
+  assert.equal(LAG013.last_run_initialisation_time, META013.last_run_initialisation_time);
+  assert.equal(LAG013.last_run_modification_time, META013.last_run_modification_time);
+  assert.notEqual(LAG013.last_run_availability_time, META013.last_run_availability_time);
+  const latestMs = Math.max(LAG013.last_run_availability_time, META013.last_run_availability_time, META025.last_run_availability_time) * 1000;
+  for (const [what, before013, after013] of [['older server first', META013, LAG013], ['newer server first', LAG013, META013]]) {
+    const { getJson, calls } = stubGetJson({ meta013: [ok(before013), ok(after013)], meta025: [ok(META025), ok(META025)], forecast: [ok(RECORDED)] });
+    const result = await fetchOpenMeteo(CHARLOTTE, { getJson, now: latestMs + 10 * 60 * 1000 });
+    assert.equal(result.ok, true, what);
+    assert.equal(result.runInitialisedAt, new Date(INIT * 1000).toISOString(), what);
+    assert.equal(result.runAvailableAt, new Date(latestMs).toISOString(), what);
+    assert.deepEqual(calls.map((c) => c.kind), FULL_SEQUENCE, what);
+  }
+});
+
+test('the wait runs from the latest availability in all four reads, including those after the call', async () => {
+  // The after-read of the 0.25 degree file comes from a server that reports the same run 30 minutes later.
+  const laterServer = { ...META025, last_run_availability_time: META025.last_run_availability_time + 30 * 60 };
+  // The call starts 11 minutes after the first reads' latest availability; the after-reads happen 24 minutes later.
+  const clockReads = [minutesAfterAvailability(11), minutesAfterAvailability(35)];
+  const now = () => clockReads.shift();
+  const { getJson, calls } = stubGetJson({ meta013: [ok(META013), ok(META013)], meta025: [ok(META025), ok(laterServer)], forecast: [ok(RECORDED)] });
+  // Allowed by the first reads, so the forecast is fetched; refused by the later availability the after-read reveals.
+  const refused = await fetchOpenMeteo(CHARLOTTE, { getJson, now });
+  assert.deepEqual(refused, { ok: false, reason: 'run_unknown', retryAfterMs: 5 * 60 * 1000 });
+  assert.deepEqual(calls.map((c) => c.kind), FULL_SEQUENCE);
+
+  const confirmed = stubGetJson({ meta013: [ok(META013), ok(META013)], meta025: [ok(META025), ok(laterServer)], forecast: [ok(RECORDED)] });
+  const later = LATER_AVAILABLE_MS + 40 * 60 * 1000;
+  const result = await fetchOpenMeteo(CHARLOTTE, { getJson: confirmed.getJson, now: later });
+  assert.equal(result.ok, true);
+  assert.equal(result.runAvailableAt, new Date(LATER_AVAILABLE_MS + 30 * 60 * 1000).toISOString());
+});
+
+test('a file without a modification time is compared on its initialisation alone', async () => {
+  const bare = (meta) => {
+    const copy = { ...meta };
+    delete copy.last_run_modification_time;
+    return copy;
+  };
+  const now = minutesAfterAvailability(60);
+  for (const [what, before013, after013] of [['absent after', META013, bare(META013)], ['absent before', bare(META013), META013], ['absent both times', bare(META013), bare(META013)]]) {
+    const { getJson } = stubGetJson({ meta013: [ok(before013), ok(after013)], meta025: [ok(META025), ok(META025)], forecast: [ok(RECORDED)] });
+    assert.equal((await fetchOpenMeteo(CHARLOTTE, { getJson, now })).ok, true, what);
   }
 });
 
