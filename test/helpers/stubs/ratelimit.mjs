@@ -43,6 +43,7 @@ export const recoveryRequestLimiter = allowAll();
 export const recoveryAddressLimiter = allowAll();
 export const lunaConversationLimiter = allowAll();
 export const publicMapLimiter = allowAll();
+export const privacyLimiter = allowAll();
 
 export async function checkLimit(_limiter, key, opts = {}) {
   const { fallback = false, label = 'rate limiter' } = opts;
