@@ -34,3 +34,15 @@ test('fails CLOSED on a limiter outage when fallback:false (optional paid call)'
 test('default fallback is closed', async () => {
   assert.equal(await checkLimit(broken, 'k'), false);
 });
+
+test('a limiter that timed out (Upstash answers success with reason timeout) gets the fallback, not an allow', async () => {
+  const slow = { limit: async () => ({ success: true, reason: 'timeout' }) };
+  const saved = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(await checkLimit(slow, 'k', { fallback: false }), false);
+    assert.equal(await checkLimit(slow, 'k', { fallback: true }), true);
+  } finally {
+    console.error = saved;
+  }
+});

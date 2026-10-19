@@ -44,6 +44,11 @@ export const recoveryAddressLimiter = allowAll();
 export const lunaConversationLimiter = allowAll();
 export const publicMapLimiter = allowAll();
 export const privacyLimiter = allowAll();
+export const forecastOpenMeteoDailyLimiter = allowAll();
+export const forecastOpenMeteoMinuteLimiter = allowAll();
+export const forecastAirNowLimiter = allowAll();
+export const forecastNwsLimiter = allowAll();
+export const forecastHouseholdLimiter = allowAll();
 
 export async function checkLimit(_limiter, key, opts = {}) {
   const { fallback = false, label = 'rate limiter' } = opts;
