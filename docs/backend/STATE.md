@@ -3,10 +3,13 @@
 One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for how to work, then the
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
-Updated 2026-10-19: B04, B05 and B06 complete and merged (B06 Task 6 merged as `3e7b2b8`).
-`vmag211/backend` is 145 commits ahead of `origin/main`, nothing merged to main. On the merged head
-**3,384 tests pass**, 0 fail, 0 skipped; `npm run typecheck` clean; `npm run lint` 0 errors and 5
-pre-existing warnings (district, backfill, assistantRag.test, uploadData, daily-score).
+Updated 2026-10-19: B04, B05 and B06 complete, and **the frontend merged in** (`1253025`, the frontend
+ref at `5ac06f6`). `vmag211/backend` is not merged to main. On the merged tree **3,739 tests pass**
+(3,384 backend, 709 frontend, 354 shared), 0 fail, 0 skipped; `npm run typecheck` clean;
+`npm run lint` 0 errors and 7 warnings (the backend's five: district, backfill, assistantRag.test,
+uploadData, daily-score; and two of the frontend's own); `next build` passes with placeholder Supabase
+variables. Run any build in a scratch worktree: `next build` auto-loads `.env.local`, which the
+boundary forbids reading.
 
 ## What exists
 
@@ -43,10 +46,17 @@ with no frontend edit. That file says so itself: "These are explicit frontend co
 the backend implements them." Two exceptions need frontend work: recovery needs the client to send a
 Turnstile token field, and `evidence.read` waits on the provenance decision below.
 
-What is NOT covered by that: the two halves have never been in one tree or run together, so nothing has
-been driven end to end through a browser. The per-package conformance tests, which run the real handlers
-against validators transcribed verbatim from the frontend, are the stand-in and have caught three
-design-breaking mismatches before implementation. They are not a substitute for one integration pass.
+The two halves are now in one tree (`1253025`), but **nothing has yet been driven end to end through a
+browser**. The per-package conformance tests run the real handlers against validators transcribed
+verbatim from the frontend, and the client's own consumption logic; they caught every design-breaking
+mismatch so far, including two that shipped (Luna's empty conversation, the account receipt that locked
+itself). They are not a substitute for one browser pass. The next integration steps, in order: point
+`scripts/stage-test-server.mjs` at a localhost Supabase placeholder and run `test:stage` /
+`test:production` (they hardcode a `halo-test.supabase.co` URL today); decide who owns
+`X-Halo-Home-Context`; replace transcribed validators with imports of the real
+`lib/frontend/production/*-service.ts` where Node's type stripping allows; and make the Supabase clients
+lazy so `next build` needs no secrets. About 31 Playwright UI tests already fail on the frontend ref alone
+(partly a Sunday week-start hydration bug), so a UI run must be compared against that baseline.
 
 | Package | State |
 | --- | --- |
