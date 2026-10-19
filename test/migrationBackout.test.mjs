@@ -3,6 +3,7 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0023   undoes 0023 (a household's tasks, the read and commit functions, the ledger guard)
  *   backout-0022   undoes 0022 (a household's saved discovery area)
  *   backout-0021   undoes 0021 (settings preferences, tenure, alerts columns)
  *   backout-0020   undoes 0020 (Luna conversations, turns and runs)
@@ -73,6 +74,7 @@ let audit19;
 let audit20;
 let audit21;
 let audit22;
+let audit23;
 
 before(async () => {
   db = await createDb({ upTo: 14 });
@@ -116,7 +118,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -583,6 +585,83 @@ test('after the back-out, 0022 applies again and gives exactly the schema one pa
   // Reapplied empty: alice's area really was deleted, so she reads as never
   // saved (revision 1) again, and a client still holding revision 3 has to reload.
   assert.deepEqual((await db.query(`select count(*)::int as n from public.explore_areas`)).rows, [{ n: 0 }]);
+});
+
+// ---- 0023: three new tables keyed by the profile, two functions and one
+// trigger on public.operations. Backing it out drops all of them; what is lost
+// is every household's tasks, planning details and task preferences. The
+// ledger rows in domain 'actions' stay, and they hold no task content. These
+// pick up where the 0022 tests leave the database, at 0022 reapplied.
+
+const OBJECTS_0023 = {
+  tables: ['household_actions', 'household_action_preferences', 'household_action_state'],
+  functions: ['read_household_actions(uuid)', 'commit_household_actions(uuid, uuid, bigint, jsonb)', 'guard_settled_action_operation()'],
+};
+const ACTION_OP = '00000000-0000-4000-8000-00000000a023';
+
+async function objects0023() {
+  const present = {};
+  for (const table of OBJECTS_0023.tables) present[table] = await exists(`to_regclass('public.${table}') is not null`);
+  for (const fn of OBJECTS_0023.functions) present[fn] = await exists(`to_regprocedure('public.${fn}') is not null`);
+  present.trigger = await exists(`exists (select 1 from pg_trigger where tgname = 'operations_actions_settled_guard')`);
+  // The note backstop (Ruling H23) goes with its table and must come back with it.
+  present.noteCheck = await exists(`exists (select 1 from pg_constraint where conname = 'household_actions_note_check')`);
+  return present;
+}
+
+test('0023 applies on top of 0022 and adds exactly its three tables, two functions and the ledger guard', async () => {
+  await db.applyMigration(migration(23));
+  audit23 = await runAudit(db);
+  const present = await objects0023();
+  assert.deepEqual(present, Object.fromEntries(Object.keys(present).map((name) => [name, true])));
+  // Something to lose: alice has committed one task with a meta and a preference.
+  await db.exec(`insert into public.operations (operation_id, profile_id, domain, kind) values ('${ACTION_OP}', '${ALICE}', 'actions', 'actions.commit')`);
+  const { rows } = await db.query(
+    `select public.commit_household_actions($1, $2, 0, $3::jsonb) as out`,
+    [ALICE, ACTION_OP, JSON.stringify({
+      inserts: [{ id: '00000000-0000-4000-8000-0000000a0001', key: 'radon', title: 'Test for radon', reason: 'Season', origin: 'week', date: '2026-11-02', state: 'saved', revision: 1, meta: { note: 'In the basement' } }],
+      preferences: { 'week:focus': 'Rest more' },
+    })],
+  );
+  assert.equal(rows[0].out.receipt.status, 'succeeded');
+});
+
+test('backing out 0023 removes everything it added and leaves the 0001..0022 schema exactly, 0022 included', async () => {
+  await db.exec(docBlock('backout-0023'));
+
+  const present = await objects0023();
+  assert.deepEqual(present, Object.fromEntries(Object.keys(present).map((name) => [name, false])));
+  assert.equal(await exists(`to_regclass('public.explore_areas') is not null`), true, 'the 0022 table stays');
+  // The ledger row stays, holding ids and revisions only, and is an ordinary
+  // row again: with the guard gone its status can be settled like any other.
+  const { rows: [op] } = await db.query(`select status, result from public.operations where operation_id = $1`, [ACTION_OP]);
+  assert.equal(op.status, 'succeeded');
+  assert.equal(JSON.stringify(op.result).includes('Test for radon'), false, 'no task content was ever in the ledger');
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.deepEqual(await runAudit(db), audit22);
+});
+
+test('backing out 0023 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0023'));
+  assert.deepEqual(await runAudit(db), audit22);
+});
+
+test('after the back-out, 0023 applies again and gives exactly the schema one pass gives', async () => {
+  await db.applyMigration(migration(23));
+  assert.deepEqual(await runAudit(db), audit23);
+  // Reapplied empty: alice's task and preference really were deleted, and her
+  // version restarts, so a stale tab's next commit refuses as a stale base.
+  for (const table of OBJECTS_0023.tables) {
+    assert.deepEqual((await db.query(`select count(*)::int as n from public.${table}`)).rows, [{ n: 0 }], table);
+  }
+  // The note backstop is back: a 3,001 character note is refused again.
+  await assert.rejects(
+    db.query(`insert into public.household_actions (profile_id, action_key, title, reason, origin, state, meta)
+                values ($1, 'long-note', 'Long note', '', '', 'saved', $2::jsonb)`, [ALICE, JSON.stringify({ note: 'n'.repeat(3001) })]),
+    /household_actions_note_check/,
+  );
+  // The guard is back on the surviving ledger row too.
+  await assert.rejects(db.query(`update public.operations set status = 'failed' where operation_id = $1`, [ACTION_OP]), /HALO_OPERATION_SETTLED/);
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.
