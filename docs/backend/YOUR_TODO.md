@@ -848,6 +848,7 @@ From B06 (My Week and its strip). File and line references are to `origin/codex/
 20. **The `clear` command kind is a 400.** It has no production sender, and clearing tasks belongs to `privacy.clear`. If a sender is added, it needs a backend ruling first.
 21. **Year 0000 is refused by the server.** `validActionDate` accepts `0000-01-01` (`lib/frontend/expanded-preview.ts:30-35`), but a Postgres date cannot hold it, so the server answers a 400 (Ruling H13). Refusing it in the client too would show a field error instead of the generic validation message.
 22. **`X-Halo-Home-Context` is ignored for tasks.** Tasks belong to the household, not a home (Ruling H2), so `portableTasks` (`lib/frontend/production/account-service.ts:6`) has nothing to carry on a move yet. Whether tasks should be per home is Vibhav's decision (open question 2 in the B06 plan).
+23. **Luna needs a third-party notice (Vibhav, 2026-10-19).** Every Luna question is sent to a free third-party model service (OpenRouter, served by NVIDIA) whose terms let it keep and train on what it is sent. Vibhav chose to keep that free tier for ordinary questions, so the Luna panel must say so plainly before the first question, for example: "Questions you ask Luna are sent to a third-party AI service that may keep and use them. Do not include personal or health details." Household context stays off (the Luna context switches in Settings stay off and report off).
 
 ## Part 5. Small follow-ups that are NOT scheduled (decide if you want them)
 

@@ -126,8 +126,12 @@ Apply them as one batch when ready; each has apply steps and a tested back-out b
 
 1. **Evidence basis**: record daily maxima in the pipeline, or add a contract word for app-time
    observations. Blocks `GET /api/evidence`.
-2. **Household data to a free-tier model**: whether readings and symptom names may reach it. Blocks Luna
-   answering from the household's own records. The assistant's own default is fail-safe off.
+2. **Household data to a free-tier model. Decided 2026-10-19: no.** Luna's configured free tier
+   (OpenRouter's NVIDIA endpoints) trains on, logs and keeps inputs, and NVIDIA's trial terms forbid
+   health and personal data and production use (`plans/b09-luna-context.md`). Household context stays
+   off and B09 is not built. Ordinary Luna questions stay on that free tier by Vibhav's choice, with a
+   notice in the Luna panel that questions go to a third-party model service that may use them (a Yogi
+   item).
 3. **Retention periods. Partly decided 2026-10-19:** tasks and their details, Luna conversations and
    turns, settings preferences and saved Explore areas are kept until the person deletes them or the
    account, no timed purge (small user base). Still open: journals, home and location history,
