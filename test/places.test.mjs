@@ -212,10 +212,85 @@ test('a ZIP code: five digits are one exact ZCTA, three or four digits a prefix,
   assert.deepEqual(searchPlaces({ query: '27048', state: '' }).map((c) => c.label), ['ZIP 27048, NC']);
 });
 
+// Before the B05 follow-up round (Task 8 review N2) 'Mecklenburg County NC' and 'Charlotte NC'
+// were in this list. A trailing state is now the query's state, in the next test.
 test('anything that is not an NC county, place or ZCTA gives no candidates', () => {
-  for (const query of ['Mecklenburg County NC', 'Charlotte NC', 'County', '...', 'Wake Countyy', 'Atlantis', 'Columbia SC']) {
+  for (const query of ['County', '...', 'Wake Countyy', 'Atlantis', 'Columbia SC', 'NC', 'North Carolina', 'N.C.']) {
     assert.deepEqual(searchPlaces({ query, state: '' }), [], query);
   }
+});
+
+test('a trailing state in the query is its state: North Carolina searches the words before it, any other state gives nothing', () => {
+  const one = (query, state = '') => searchPlaces({ query, state });
+  const charlotte = one('Charlotte');
+  assert.deepEqual(charlotte.map((c) => c.id), ['us-place:3712000']);
+  for (const query of ['Charlotte, NC', 'Charlotte NC', 'charlotte nc', 'Charlotte N.C.', 'Charlotte, n.c.', 'Charlotte, North Carolina', 'CHARLOTTE NORTH CAROLINA']) {
+    assert.deepEqual(one(query), charlotte, query);
+    assert.deepEqual(one(query, 'NC'), charlotte, `${query} in NC`);
+    assert.deepEqual(one(query, 'SC'), [], `${query} in SC: the state box still decides first`);
+  }
+  assert.deepEqual(one('Raleigh, North Carolina').map((c) => c.id), ['us-place:3755000']);
+  assert.deepEqual(one('Mecklenburg County NC').map((c) => c.label), ['Mecklenburg County, NC']);
+  assert.deepEqual(one('Wake Co, N.C.').map((c) => c.label), ['Wake County, NC']);
+  assert.deepEqual(one('Wake, NC'), one('Wake'), 'the prefix matches of the words before the state are kept');
+  assert.deepEqual(one('28208, NC'), one('28208'));
+  assert.deepEqual(one('ZIP 28208 N.C.'), one('28208'));
+  // Any other state set off by a comma, as a code, a dotted code or a name, is a different state,
+  // even where the words before it, or the whole query, would find an NC place.
+  for (const query of ['Raleigh, VA', 'Charlotte, SC', 'Charlotte, S.C.', 'Charlotte, South Carolina', 'Charlotte, Hawaii', 'Columbia, SC', 'Charlotte, DC',
+    '28208, SC', 'Washington, PA', 'Spencer, MO', 'Scotland, NE', 'Chapel, HI', 'Helena, MT', 'Charlotte, West Virginia']) {
+    assert.deepEqual(one(query), [], query);
+  }
+  // Without a comma another state's code is still part of the name, so a word being typed keeps
+  // its prefix matches (live search never drops results mid-word).
+  assert.deepEqual(one('Chapel Hi').map((c) => c.label), ['Chapel Hill, NC']);
+  assert.deepEqual(one('Chapel Hil').map((c) => c.label), ['Chapel Hill, NC']);
+  assert.deepEqual(one('Washington Pa').map((c) => c.label), ['Washington Park, NC']);
+  assert.deepEqual(one('Scotland Ne').map((c) => c.label), ['Scotland Neck, NC']);
+  assert.deepEqual(one('Spencer Mo').map((c) => c.label), ['Spencer Mountain, NC']);
+  for (const query of ['Charlotte SC', 'Charlotte S.C.', 'Charlotte South Carolina', '28208 SC']) {
+    assert.deepEqual(one(query), [], `${query}: no NC name starts this way`);
+  }
+  // A name that is a state's is still the name when nothing comes before it, and it can carry the state.
+  assert.deepEqual(one('Washington').map((c) => c.label), ['Washington County, NC', 'Washington, NC', 'Washington Park, NC']);
+  assert.deepEqual(one('Washington, NC'), one('Washington'));
+  // "Co" is the county word, never Colorado, with or without a comma.
+  assert.deepEqual(one('Yadkin Co').map((c) => c.label), ['Yadkin County, NC']);
+  assert.deepEqual(one('Yadkin, Co').map((c) => c.label), ['Yadkin County, NC']);
+  assert.deepEqual(one('Meck Co').map((c) => c.label), ['Mecklenburg County, NC'], 'a county prefix with Co. is not a query in Colorado');
+  assert.deepEqual(one('Rocky Mt').map((c) => c.label), ['Rocky Mount, NC']);
+  assert.deepEqual(one('Rocky Mt, NC').map((c) => c.label), ['Rocky Mount, NC']);
+  // A disambiguated display name with its county, then the state.
+  assert.deepEqual(one('Fairview, Union County, NC').map((c) => c.label), ['Fairview (Union County), NC']);
+});
+
+test('aliases: Mt and Mount, St and Saint, Ft and Fort are one word, each needed by an NC name', () => {
+  const labels = (query) => searchPlaces({ query, state: '' }).map((c) => c.label);
+  for (const query of ['Mt Airy', 'Mt. Airy', 'mt airy', 'Mount Airy', 'Mt Airy, NC']) assert.deepEqual(labels(query), ['Mount Airy, NC'], query);
+  for (const query of ['Saint Pauls', 'St Pauls', 'St. Pauls', 'saint pauls nc']) assert.deepEqual(labels(query), ['St. Pauls, NC'], query);
+  for (const query of ['Old Ft', 'Old Ft.', 'Old Fort']) assert.deepEqual(labels(query), ['Old Fort, NC'], query);
+  assert.deepEqual(labels('Rocky Mt'), ['Rocky Mount, NC']);
+  assert.deepEqual(labels('Saint Helena'), ['St. Helena, NC']);
+  assert.deepEqual(labels('Mt Gilead'), ['Mount Gilead, NC']);
+  // Every name an alias serves, found by the other spelling (the data's own list, so none is invented).
+  const served = { mount: [], st: [], fort: [] };
+  for (const { name } of gazetteer.places) {
+    for (const word of name.split(/[^A-Za-z]+/)) {
+      if (word === 'Mount') served.mount.push(name);
+      if (word === 'St') served.st.push(name);
+      if (word === 'Fort') served.fort.push(name);
+    }
+  }
+  assert.deepEqual(served, {
+    mount: ['Mount Airy', 'Mount Gilead', 'Mount Holly', 'Mount Olive', 'Mount Pleasant', 'Rocky Mount'],
+    st: ['St. Helena', 'St. James', 'St. Pauls', 'St. Stephens'],
+    fort: ['Old Fort'],
+  });
+  for (const name of served.mount) assert.ok(labels(name.replace('Mount', 'Mt')).includes(`${name}, NC`), name);
+  for (const name of served.st) assert.ok(labels(name.replace('St.', 'Saint')).includes(`${name}, NC`), name);
+  for (const name of served.fort) assert.ok(labels(name.replace('Fort', 'Ft')).includes(`${name}, NC`), name);
+  // No NC name spells Mt, Saint or Ft, so the aliases never change what a Census spelling finds.
+  assert.equal(gazetteer.places.some(({ name }) => /\b(Mt|Saint|Ft)\b/.test(name)), false);
 });
 
 test('state "", NC, N.C. and North Carolina (any case) mean North Carolina; any other state gives no candidates', () => {

@@ -117,6 +117,8 @@ const MAP_OPERATIONS = ['mapComparison', 'mapDistrict', 'mapLayer'];
 test('B05 contract covers the six built operations, every documented status has a fixture, and the dropped and blocked ones are absent', () => {
   assert.equal(contract.openapi, '3.1.0');
   assert.equal(contract.info.version, 'b05-2');
+  // One version for both unshipped changes (Task 6 review finding 3, Task 8 review N1).
+  assert.match(contract.info.description, /Version b05-2 covers two changes.*public \(B05 Task 6\).*us-place and us-zcta \(B05 Task 8\)/);
   assert.deepEqual([...operations.keys()].sort(), [
     'exploreAreaRead', 'exploreAreaSave', 'locationsSearch', 'mapComparison', 'mapDistrict', 'mapLayer',
   ]);
@@ -145,8 +147,12 @@ test('B05 contract covers the six built operations, every documented status has 
         assert.equal(Boolean(response.headers?.[name]), isPublic, `${id} ${status}: ${name} is documented exactly on the public reads`);
       }
     }
+    // Task 6 review, finding 1: the global bearer requirement is overridden exactly on the public
+    // reads, where the empty requirement says no credential is needed and a bearer is still accepted.
+    assert.deepEqual(op.security ?? contract.security, isPublic ? [{}, { bearerAuth: [] }] : [{ bearerAuth: [] }], `${id}: security`);
     if (isPublic) {
       assert.ok(op.responses['429'].headers['Retry-After'], `${id}: the 429 documents Retry-After`);
+      assert.match(op.responses['200'].headers['X-Request-Id'].description, /never the caller's x-request-id/, `${id}: the shared answer's request id is documented`);
       assert.match(op.responses['200'].headers['Cache-Control'].description, /^public, max-age=0, s-maxage=600 on an anonymous answer/);
       assert.match(op.responses['401'].description, /no Authorization header at all is the anonymous read/);
     }
@@ -426,10 +432,15 @@ async function call(h, id, { expected = 200, query = '', body, rawBody, as = 'al
   recordRequestHeaders(id, sent);
   const res = await h.call(op.path, op.method, { as, url: `${op.path}${query}`, body, rawBody, headers: sent });
   assert.equal(res.status, expected, `${id}${query}: expected ${expected}, got ${res.status}`);
-  assert.equal(res.headers.get('x-request-id'), REQUEST_ID, `${id}: the request id is echoed`);
+  const anonymous = as === null && !Object.keys(headers).some((name) => name.toLowerCase() === 'authorization');
+  if (MAP_OPERATIONS.includes(id) && anonymous && res.status === 200) {
+    // A shareable answer carries an id the server chose, never the caller's (Task 6 review, finding 4).
+    assert.match(res.headers.get('x-request-id'), /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, `${id}: a fresh id on a shared answer`);
+  } else {
+    assert.equal(res.headers.get('x-request-id'), REQUEST_ID, `${id}: the request id is echoed`);
+  }
   if (MAP_OPERATIONS.includes(id)) {
     // Task 6: only a successful answer to a request with no Authorization header may be shared.
-    const anonymous = as === null && !Object.keys(headers).some((name) => name.toLowerCase() === 'authorization');
     const expectedCache = anonymous && res.status === 200 ? 'public, max-age=0, s-maxage=600' : 'private, no-store';
     assert.equal(res.headers.get('cache-control'), expectedCache, `${id} ${res.status}: Cache-Control`);
     assert.equal(res.headers.get('vary'), 'Authorization', `${id} ${res.status}: Vary`);

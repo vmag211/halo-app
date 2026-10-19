@@ -121,13 +121,23 @@ curl -s -D - -o /dev/null "https://STAGING/api/map?layer=radon"
 
    Expected: status 200 both times, `vary: Authorization`, and the CDN's cache header saying the second one was served from its cache (on Vercel, `x-vercel-cache: HIT`). The `cache-control` the route sends is `public, max-age=0, s-maxage=600`; a CDN may rewrite it on the way out, which is fine.
 
-2. A signed-in answer is never cached. Take a session token for a test household on staging (from the browser's developer tools on the staging site, never a production one), then run this twice:
+2. A warm anonymous answer is never served to a household, and a household's answer is never cached. Take a session token for a test household on staging (from the browser's developer tools on the staging site, never a production one).
+
+   1. Warm the anonymous entry first. Run this until it shows `x-vercel-cache: HIT` (usually the second time):
 
 ```sh
-curl -s -D - -o /dev/null -H "Authorization: Bearer TOKEN" "https://STAGING/api/district"
+curl -s -D - -o /dev/null "https://STAGING/api/district"
 ```
 
-   Expected: `cache-control: private, no-store` and never a cache hit. Then run `curl -s "https://STAGING/api/district"` with no token: the body must have **no** `household_county` key. If it has one, the CDN served a signed-in answer to a visitor. Stop and tell Claude.
+   2. Then, while that entry is warm, send the signed-in request:
+
+```sh
+curl -s -D - -H "Authorization: Bearer TOKEN" "https://STAGING/api/district"
+```
+
+   Expected: **not** a cache hit, `cache-control: private, no-store`, and a body that **has** a `household_county` key. If it is a HIT or has no `household_county`, the CDN served the shared visitor answer to a signed-in household (nothing leaks, but the household loses its own county for up to 10 minutes). Run the anonymous request once more afterwards: its body must have **no** `household_county` key, or the CDN served a signed-in answer to a visitor. In either case, stop and tell Claude.
+
+   A cached anonymous answer carries the `x-request-id` of the request that filled the cache, which the server chose, so several visitors can see the same id. That is expected.
 
 3. A refusal is never cached. Ask for something with nothing stored, for example `curl -s -D - -o /dev/null "https://STAGING/api/map?layer=water&quarter=1999Q1"` right after a deploy (an anonymous water quarter needs the geography cache warm, so it may be a 503). Whatever the status, a 503 or 429 must show `cache-control: private, no-store` and never a cache hit.
 
@@ -622,7 +632,7 @@ What this does NOT restore or undo: every household's display, quiet-hours, cale
 
 Quiet, like 2.3, 2.4 and 2.9: it creates one new table and does not read or write any existing table, so nothing else is blocked while it runs. Creating the foreign key to `profiles` takes a brief SHARE ROW EXCLUSIVE on that table, so a new anonymous sign-up could wait a moment.
 
-What it is for: the Explore screen lets a household choose the area it wants to discover things in, and that choice has to be kept by the server so every device sees the same one. It goes in the new `public.explore_areas`, one row per household, keyed by the profile (not by the home: the area does not move when the household moves). What is stored is the county-level place the household picked from the location search (its id, name, state, label and time zone), not the home address. A household that has never saved one has no row at all and reads as "no area, revision 1"; the first save writes revision 2, which is why a check refuses anything lower. Clearing the area keeps the row with an empty place and a higher revision.
+What it is for: the Explore screen lets a household choose the area it wants to discover things in, and that choice has to be kept by the server so every device sees the same one. It goes in the new `public.explore_areas`, one row per household, keyed by the profile (not by the home: the area does not move when the household moves). What is stored is the North Carolina county, city or town, or ZIP code the household picked from the location search (its id, name, state, label and time zone), not the home address. A household that has never saved one has no row at all and reads as "no area, revision 1"; the first save writes revision 2, which is why a check refuses anything lower. Clearing the area keeps the row with an empty place and a higher revision.
 
 1. SQL Editor, **New query**, paste the whole of `supabase/migrations/0022_explore_areas.sql` and run it. Safe to re-run. If an earlier copy of 0022 was ever run anywhere, run the back-out first (the block below, then `notify pgrst, 'reload schema';`), because a re-run keeps a check it already has under the same name rather than replacing it.
 2. Run the verification query in the comment at the end of that file. Expect one row, all five columns true. `no_client_access` false is the one that matters: it means the browser roles can still reach the table, and you should send Claude the row rather than leaving it.
@@ -835,7 +845,7 @@ From B05 (discovery). File and line references are to `origin/codex/october15-re
 10. **(9.4) Treat a `cancelled` summary operation as terminal.** The operation ledger allows `cancelled`, but `validSummaryReceipt` rejects it, so `useProductionSummary` re-parks the operation for ever. The backend will never settle a `summary` operation as `cancelled`, and the reaper settles to `failed`. The client should still not lock on the word.
 11. **(9.7) `X-Halo-Home-Context` is sent, and B05 ignores it.** The saved discovery area belongs to the household, not to a home context, so a foreign or unknown value changes nothing. Which home context a summary uses is Vibhav's decision when summaries are planned.
 12. **(F2) Key the comparison's compound selector on a code, not on copy.** `MapComparison.tsx:36` decides water with `first?.scope === c.scopeWater`. The backend sends the literal `'Public water system'` to match, but any rewording of that copy would silently break the selector.
-13. **(F3) The Explore area chooser promises city and ZIP.** Its copy says "For example, Charlotte or 28208" and "Try a nearby city or a ZIP code" (`ExploreDiscovery.tsx:59,62`). *(Mostly resolved by B05 Task 8, 2026-10-19.)* The backend now serves North Carolina counties, Census places and ZIP codes, so "Charlotte" and "28208" each answer one candidate and the copy is true for North Carolina. What remains: outside North Carolina every search is empty, and `validPlaces` still has no way to say "unsupported geography" (AC-115), so a person in another state sees only "No matching area was found". The copy could say the chooser covers North Carolina.
+13. **(F3) The Explore area chooser promises city and ZIP.** Its copy says "For example, Charlotte or 28208" and "Try a nearby city or a ZIP code" (`ExploreDiscovery.tsx:59,62`). *(Mostly resolved by B05 Task 8, 2026-10-19.)* The backend now serves North Carolina counties, Census places and ZIP codes, so "Charlotte" and "28208" each answer one candidate and the copy is true for North Carolina. What remains: outside North Carolina every search is empty, and `validPlaces` still has no way to say "unsupported geography" (AC-115), so a person in another state sees only "No matching area was found". The copy could say the chooser covers North Carolina. A ZIP search is a ZIP Code Tabulation Area search, so PO-box and unique ZIPs such as 27699 have no ZCTA and find nothing. "Charlotte, NC", "Charlotte N.C." and "Raleigh, North Carolina" now find the city, "Charlotte, SC" finds nothing, and "Mt Airy" and "Saint Pauls" find Mount Airy and St. Pauls (follow-up round, 2026-10-19).
 14. **(F4) Send only the compared pair to `map.comparison`.** `MapPreview.tsx:316` sends every visible id in one GET parameter. The server accepts up to 2,000, but about 780 NC ids already exceed common URL limits (about 18 bytes each once encoded), and a 431 reads as "blocked". Today's layer of about 290 systems fits.
 15. **(Account, frontend N1) Drop a receipt's own id from the ids the account surface waits on.** `components/production/useAccountService.ts:21` copies `receipt.snapshot.unresolvedOperations` into `unknown` as it is. The backend now never lists a receipt's own operation there (pinned in `test/routesAccountCommands.test.mjs`, "A receipt never lists its own operation as unresolved"). As defense in depth, filter out the receipt's own `id` at `:21` and at the matching hydrate sites that set `unknown` from a snapshot, so that a self-listing receipt can never lock the surface with no way out but a reload.
 
