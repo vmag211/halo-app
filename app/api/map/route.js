@@ -30,6 +30,10 @@ export const maxDuration = 60;
  * omitted one (lib/mapQuarter.js, B05 ruling D2). A well formed quarter with no readings is a true empty answer (0
  * features, and `quarters` names the ones that exist). A layer that cannot be
  * built live is a 503; a layer is never answered with an empty stand-in.
+ *
+ * A live water build whose service-area lookup did not complete is answered,
+ * marked `geography_complete: false` and `meta.availability: 'partial'` with a
+ * note that says so, and is not stored, so the next request tries again.
  */
 const PUBLIC_LAYERS = LAYERS.filter((layer) => layer !== 'district');
 
@@ -67,7 +71,7 @@ export async function GET(request) {
     if (quarter) {
       const utilities = await loadUtilities(supabaseAdmin);
       const g = await getWaterGeo(utilities.map((u) => u.pwsid));
-      return NextResponse.json(waterPayload(utilities, g.geo, { quarter }), { headers });
+      return NextResponse.json(waterPayload(utilities, g.geo, { quarter, geographyComplete: g.complete }), { headers });
     }
 
     const stored = await readLayer(supabaseAdmin, layer);
@@ -80,7 +84,11 @@ export async function GET(request) {
       console.error(`Map layer ${layer} build failed (request ${requestId}):`, err);
       return layerUnavailable(layer, requestId);
     }
-    storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error(`Storing map layer failed (request ${requestId}):`, e.message));
+    if (payload.geography_complete === false) {
+      console.error(`Map layer ${layer} was built from an incomplete geography lookup and not stored (request ${requestId}).`);
+    } else {
+      storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error(`Storing map layer failed (request ${requestId}):`, e.message));
+    }
     return NextResponse.json({ ...payload, prebuilt: false }, { headers });
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);

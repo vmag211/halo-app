@@ -35,7 +35,8 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRouteHarness } from './helpers/routeHarness.mjs';
+import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
+import { expectEnvelope, loggedText } from './helpers/envelope.mjs';
 import { createFakeSupabase } from './helpers/fakeSupabase.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { waterPayload, districtPayload, facilitiesPayload, airPayload, buildAndStoreAll } from '../lib/mapBuild.js';
@@ -182,7 +183,7 @@ function arcgisStub(answer) {
       throw new TypeError('fetch failed: unexpected host in a map conformance test');
     }
     calls.push(href);
-    return answer();
+    return answer(href);
   };
   return { fetch, calls, unexpected };
 }
@@ -442,6 +443,11 @@ test('district, live build with an empty geography Map: parses, every system unl
 // rejects is unreachable through /api/district, and lib/district.js is left
 // unchanged. If one of them fails, 9.9 has become reachable and the plan's
 // fix (truthful counters in that branch) is due.
+//
+// The four outcomes in LOOKUP_FAILS are a geography outage. Since the outage
+// fix, a live district build then answers 503 instead of a district body (see
+// "geography outage" below), so for those the 9.9 question is moot: no body at
+// all reaches the client parser.
 
 const GEO_OUTCOMES = {
   'ArcGIS answers with service areas': (utilities) => () => json(arcgisBody(utilities)),
@@ -451,28 +457,46 @@ const GEO_OUTCOMES = {
   'ArcGIS answers malformed JSON': () => () => new Response('<html>', { status: 200 }),
   'the network fails': () => () => { throw new TypeError('fetch failed'); },
 };
+const LOOKUP_FAILS = ['ArcGIS answers 503', 'ArcGIS answers an error body', 'ArcGIS answers malformed JSON', 'the network fails'];
 
 let outcomeIndex = 0;
 for (const [outcome, answerFor] of Object.entries(GEO_OUTCOMES)) {
   outcomeIndex += 1;
   // A fresh set of systems per outcome, so the geography memory cache never answers for the stub.
   const prefix = `NC97${String(outcomeIndex).padStart(2, '0')}`;
-  test(`9.9 reachability: a live district build when ${outcome} still carries every population counter and parses`, async () => {
-    const utilities = utilitiesFor(prefix);
-    const stub = arcgisStub(answerFor(utilities));
-    const h = harness({ utilities, fetch: stub.fetch });
-    const body = await get(h, '/api/district');
-    assert.ok(stub.calls.length > 0, 'the outcome was really exercised');
-    assert.deepEqual(stub.unexpected, []);
-    assertDistrictCounters(body);
-    assert.doesNotMatch(body.note, /could not be joined/, 'never the no-population note');
-    parseMapDistrict(body);
-  });
+  const fails = LOOKUP_FAILS.includes(outcome);
+  if (!fails) {
+    test(`9.9 reachability: a live district build when ${outcome} still carries every population counter and parses`, async () => {
+      const utilities = utilitiesFor(prefix);
+      const stub = arcgisStub(answerFor(utilities));
+      const h = harness({ utilities, fetch: stub.fetch });
+      const body = await get(h, '/api/district');
+      assert.ok(stub.calls.length > 0, 'the outcome was really exercised');
+      assert.deepEqual(stub.unexpected, []);
+      assertDistrictCounters(body);
+      assert.doesNotMatch(body.note, /could not be joined/, 'never the no-population note');
+      parseMapDistrict(body);
+    });
+  } else {
+    test(`9.9 reachability: a live district build when ${outcome} is a 503 envelope, never a district body`, async (t) => {
+      muteConsoleError(t);
+      const utilities = utilitiesFor(prefix);
+      const stub = arcgisStub(answerFor(utilities));
+      const h = harness({ utilities, fetch: stub.fetch });
+      const res = await h.call('/api/district', 'GET', { as: 'alice' });
+      assert.ok(stub.calls.length > 0, 'the outcome was really exercised');
+      assert.deepEqual(stub.unexpected, []);
+      const body = await expectEnvelope(res, { status: 503, code: 'upstream_unavailable', retryable: true });
+      assertBare(body);
+      assert.equal(Object.hasOwn(body, 'scope'), false, 'no district fields beside the envelope');
+    });
+  }
 
   test(`9.9 reachability: getWaterGeo hands the builders a Map when ${outcome}`, async () => {
     const utilities = utilitiesFor(prefix.replace('NC97', 'NC96'));
     const result = await getWaterGeo(utilities.map((u) => u.pwsid), { force: true, store: null, fetchImpl: async (...args) => answerFor(utilities)(...args) });
     assert.ok(result.geo instanceof Map);
+    assert.equal(result.complete, !fails, 'and says whether the lookup finished');
   });
 }
 
@@ -491,7 +515,10 @@ test('9.9 reachability: getWaterGeo answers from its shared store with a Map, an
   assert.ok((await getWaterGeo([], { force: true, store: null, fetchImpl: async () => { throw new Error('no ids, no call'); } })).geo instanceof Map);
 });
 
-test('9.9 reachability: the daily pre-build stores a district with every counter, and stores none when the geography fails', async () => {
+// Named for what it drives: a geography promise that REJECTS. A real ArcGIS
+// outage does not take this path (getWaterGeo resolves with an incomplete Map);
+// that case is "geography outage: the daily pre-build keeps ..." below.
+test('9.9 reachability: the daily pre-build stores a district with every counter, and stores none when the geography promise rejects', async () => {
   const utilities = utilitiesFor('NC9791');
   const db = () => createFakeSupabase({ tables: haloTables('map_layers', 'ucmr5_utilities'), seed: { ucmr5_utilities: utilities } });
   const offline = { fetchImpl: async () => { throw new TypeError('fetch failed'); }, apiKey: 'test-key' };
@@ -536,11 +563,195 @@ test('9.9 reachability: the only producers of a district view are the ones exerc
     'lib/districtView.js:const district = computeDistrict(districtUtils, geo);',
     'lib/districtView.js:const state = computeDistrict(utilities, geo);',
     "lib/mapBuild.js:await store('district', districtPayload(utilities, geoMap));",
-    "lib/mapBuild.js:return layer === 'water' ? waterPayload(utilities, g.geo) : districtPayload(utilities, g.geo);",
+    'lib/mapBuild.js:return districtPayload(utilities, g.geo);',
     'lib/mapBuild.js:return { ...buildDistrictView({ utilities, geo: geoMap, radonZones: ncRadonZones }), assembled_at: new Date().toISOString() };',
   ].sort());
-  // buildAndStoreAll's geography comes from getWaterGeo in the daily job.
+  // buildAndStoreAll's geography comes from getWaterGeo in the daily job: the
+  // whole result, so the pre-build can see whether the lookup finished.
   const cron = await readFile(path.join(root, 'app/api/cron/daily/route.js'), 'utf8');
-  assert.match(cron, /buildAndStoreAll\(supabaseAdmin, geoRefresh\.then\(\(g\) => g\.geo\)\)/);
+  assert.match(cron, /buildAndStoreAll\(supabaseAdmin, geoRefresh\)/);
   assert.match(cron, /const geoRefresh = getWaterGeo\(/);
+});
+
+// ------------------------------------------------------- geography outage
+//
+// In an ArcGIS outage getWaterGeo RESOLVES: an empty (or, when only some
+// batches fail, a partial) Map, with failedBatches > 0 and complete false.
+// An unfinished lookup is not "these systems have no mapped service area", so:
+// the daily pre-build keeps the stored water layer and district view, a live
+// build is answered but never stored, the water layer says it is incomplete
+// (the client's `availability: 'partial'`, F: map-service.ts:31) and why, and
+// the district view, which has no field that can say "incomplete"
+// (parseMapDistrict reads only integer counts), is a 503 rather than totals the
+// lookup could not support.
+
+/** 100 filler systems (Wake County, no readings) so a live build, in batches of 100, needs a second ArcGIS batch. */
+const fillers = (prefix) => Array.from({ length: 100 }, (_, i) => ({ pwsid: `${prefix}${String(i).padStart(4, '0')}`, pws_name: `Filler ${i}`, status: 'Final', contaminants: {} }));
+const NAMED = ['Monroe Test Water', 'Albemarle Test Water', 'Raleigh Test Water'];
+const pointFor = (u) => POINTS[NAMED.indexOf(u.pws_name)] ?? POINTS[2];
+/** The ids one ArcGIS request asked for (its where clause). */
+const askedIds = (href) => [...new URL(href).searchParams.get('where').matchAll(/'([A-Z0-9]+)'/g)].map((m) => m[1]);
+/** The ArcGIS answer for just the systems a batch asked for, as the real service gives. */
+function asked(utilities, href) {
+  const ids = askedIds(href);
+  return json({
+    features: utilities
+      .filter((u) => ids.includes(u.pwsid))
+      .map((u) => {
+        const p = pointFor(u);
+        return { attributes: { PWSID: u.pwsid, ...(p.population === null ? {} : { Population_Served_Count: p.population }) }, centroid: { x: p.lng, y: p.lat } };
+      }),
+  });
+}
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+/** ECHO and AirNow, answered, so the other layers can store during a geography outage. */
+async function sources(url) {
+  const href = String(url);
+  if (href.startsWith('https://echodata.epa.gov/echo/echo_rest_services.')) {
+    const facilities = [{ RegistryID: '110000000001', FacName: 'Monroe Test Plant', FacLat: '34.985', FacLong: '-80.549', FacCounty: 'UNION', FacComplianceStatus: 'No Violation Identified', NPDESFlag: 'Y' }];
+    const body = href.includes('.get_facilities?') ? { Results: { QueryID: 'q1', QueryRows: '1' } } : { Results: { Facilities: facilities } };
+    return { ok: true, json: async () => body };
+  }
+  if (href.startsWith('https://www.airnowapi.org/aq/data/?')) {
+    return { ok: true, json: async () => [{ FullAQSCode: '371790003', SiteName: 'Monroe', Latitude: 34.97, Longitude: -80.54, UTC: '2026-10-18T14:00', Parameter: 'PM2.5', AQI: 61, AgencyName: 'North Carolina DAQ' }] };
+  }
+  throw new TypeError('unexpected host');
+}
+const SOURCES = { fetchImpl: sources, apiKey: 'test-key', now: new Date('2026-10-18T15:00:00Z') };
+
+/** Each outage answers a batch itself, or null to let ArcGIS answer it normally. */
+const CRON_OUTAGES = {
+  'every batch fails': { batchSize: 100, fetchImpl: async () => json({}, 503) },
+  'one batch of three fails': {
+    batchSize: 1,
+    fetchImpl: async (url) => (askedIds(String(url)).some((id) => id.endsWith('0003')) ? json({}, 503) : null),
+  },
+};
+
+for (const [label, outage] of Object.entries(CRON_OUTAGES)) {
+  test(`geography outage: the daily pre-build keeps yesterday's water and district rows byte for byte when ${label}, and still stores the other layers`, async (t) => {
+    const utilities = utilitiesFor(label === 'every batch fails' ? 'NC9300' : 'NC9301');
+    const ids = utilities.map((u) => u.pwsid);
+    const db = createFakeSupabase({ tables: haloTables('map_layers', 'ucmr5_utilities'), seed: { ucmr5_utilities: utilities } });
+    const rowOf = (layer) => db.rows('map_layers').find((row) => row.layer === layer);
+
+    // Day 1: a good lookup, passed exactly as the daily job passes it.
+    const day1 = await buildAndStoreAll(db, getWaterGeo(ids, { force: true, store: null, fetchImpl: async (url) => asked(utilities, String(url)) }), SOURCES);
+    assert.deepEqual(Object.values(day1).map((r) => r.ok), [true, true, true, true, true]);
+    const district1 = rowOf('district');
+    assert.deepEqual([district1.payload.total_systems, district1.payload.systems_over_limit, district1.payload.affected_population], [2, 2, 34000]);
+    const kept = { water: JSON.stringify(rowOf('water')), district: JSON.stringify(district1) };
+    const before = Object.fromEntries(['radon', 'facilities', 'air'].map((layer) => [layer, rowOf(layer).assembled_at]));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    // Day 2: ArcGIS is down. The lookup resolves, it does not reject.
+    const logged = muteConsoleError(t);
+    const lookup = getWaterGeo(ids, {
+      force: true,
+      store: null,
+      batchSize: outage.batchSize,
+      fetchImpl: async (url) => (await outage.fetchImpl(url)) ?? asked(utilities, String(url)),
+    });
+    const geo = await lookup;
+    assert.ok(geo.geo instanceof Map && geo.failedBatches > 0 && geo.complete === false, 'the real outage shape');
+    assert.equal(geo.found, label === 'every batch fails' ? 0 : 2);
+    const day2 = await buildAndStoreAll(db, lookup, SOURCES);
+
+    assert.equal(JSON.stringify(rowOf('water')), kept.water, 'the stored water layer is untouched');
+    assert.equal(JSON.stringify(rowOf('district')), kept.district, 'the stored district view is untouched');
+    assert.equal(day2.water.ok, false);
+    assert.equal(day2.district.ok, false);
+    for (const layer of ['radon', 'facilities', 'air']) {
+      assert.equal(day2[layer].ok, true, `${layer} still stores`);
+      assert.ok(rowOf(layer).assembled_at > before[layer], `${layer} is today's copy`);
+    }
+    assert.equal(logged.mock.callCount(), 1, 'one log line');
+    const line = loggedText(logged);
+    assert.match(line, /geography lookup was incomplete/);
+    assert.ok(ids.every((id) => !line.includes(id)), 'no system ids in the log line');
+    assertBare(day2);
+  });
+}
+
+test('geography outage: the daily pre-build with nothing stored yet stores no water or district at all', async (t) => {
+  muteConsoleError(t);
+  const utilities = utilitiesFor('NC9302');
+  const db = createFakeSupabase({ tables: haloTables('map_layers', 'ucmr5_utilities'), seed: { ucmr5_utilities: utilities } });
+  const lookup = getWaterGeo(utilities.map((u) => u.pwsid), { force: true, store: null, fetchImpl: async () => { throw new TypeError('fetch failed'); } });
+  const report = await buildAndStoreAll(db, lookup, SOURCES);
+  assert.deepEqual([report.water.ok, report.district.ok, report.radon.ok], [false, false, true]);
+  assert.deepEqual(db.rows('map_layers').map((row) => row.layer).sort(), ['air', 'facilities', 'radon']);
+});
+
+/** Live outages: every failed outcome above, and a partial one (the second of two batches fails). */
+const LIVE_OUTAGES = {
+  ...Object.fromEntries(LOOKUP_FAILS.map((outcome) => [outcome, { utilities: (p) => utilitiesFor(p), answer: (u) => GEO_OUTCOMES[outcome](u) }])),
+  // The ids sort fillers first: batch one (100 fillers) is answered and placed,
+  // batch two (the three named systems) fails.
+  'the second of two batches fails': {
+    utilities: (p) => [...fillers(`${p}0`), ...utilitiesFor(`${p}9`)],
+    answer: (u) => (href) => (askedIds(href).includes(u.at(-1).pwsid) ? json({}, 503) : asked(u, href)),
+  },
+};
+
+let liveIndex = 0;
+for (const [outcome, live] of Object.entries(LIVE_OUTAGES)) {
+  liveIndex += 1;
+  const prefix = `NC94${String(liveIndex).padStart(2, '0')}`;
+
+  test(`geography outage, live: when ${outcome}, the water layer parses as incomplete, says why, and is stored nowhere`, async (t) => {
+    muteConsoleError(t);
+    const utilities = live.utilities(prefix);
+    const stub = arcgisStub(live.answer(utilities));
+    const h = harness({ utilities, fetch: stub.fetch });
+    for (const url of ['/api/map?layer=water', '/api/map?layer=water&quarter=2024Q3']) {
+      const body = await get(h, url);
+      const parsed = parseMapLayer(body, 'water');
+      assert.equal(parsed.water.length, body.features.length, 'every feature still parses');
+      assert.equal(parsed.partial, true, `${url}: the client is told the layer is incomplete`);
+      assert.equal(body.geography_complete, false);
+      assert.ok(body.located < body.count, 'some systems really are missing their location');
+      assert.doesNotMatch(body.note, /no mapped service area/, 'never the false cause');
+      assert.match(body.note, /service-area lookup did not complete/);
+    }
+    assert.equal(stub.calls.length > 0, true);
+    assert.deepEqual(stub.unexpected, []);
+    await settle();
+    assert.deepEqual(h.db.rows('map_layers'), [], 'an incomplete live build is never stored');
+  });
+
+  test(`geography outage, live: when ${outcome}, the district is a 503 envelope and nothing is stored`, async (t) => {
+    const logged = muteConsoleError(t);
+    const utilities = live.utilities(prefix.replace('NC94', 'NC95'));
+    const stub = arcgisStub(live.answer(utilities));
+    const h = harness({ utilities, fetch: stub.fetch });
+    const res = await h.call('/api/district', 'GET', { as: 'alice' });
+    const body = await expectEnvelope(res, { status: 503, code: 'upstream_unavailable', retryable: true });
+    assertBare(body);
+    assert.equal(body.error, 'The district view needs the water service areas, which could not be looked up right now. Try again shortly.');
+    assert.ok(loggedText(logged).includes(body.request_id));
+    assert.deepEqual(stub.unexpected, []);
+    await settle();
+    assert.deepEqual(h.db.rows('map_layers'), [], 'nothing stored');
+  });
+}
+
+test('geography healthy, live: a finished lookup is stored as before, including one that finds no service areas', async () => {
+  for (const [prefix, answer, note] of [
+    ['NC9310', (u) => () => json(arcgisBody(u)), /^Every system has a service-area centroid/],
+    ['NC9311', () => () => json({ features: [] }), /3 of 3 systems have no mapped service area/],
+  ]) {
+    const utilities = utilitiesFor(prefix);
+    const h = harness({ utilities, fetch: arcgisStub(answer(utilities)).fetch });
+    const water = await get(h, '/api/map?layer=water');
+    assertWaterParses(water);
+    assert.match(water.note, note);
+    assert.equal(Object.hasOwn(water, 'geography_complete'), false, 'a healthy body is unchanged');
+    assert.equal(Object.hasOwn(water, 'meta'), false);
+    const district = await get(h, '/api/district');
+    parseMapDistrict(district);
+    await settle();
+    assert.deepEqual(h.db.rows('map_layers').map((row) => row.layer).sort(), ['district', 'water'], 'both are stored');
+  }
 });
