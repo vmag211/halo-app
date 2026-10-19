@@ -72,7 +72,8 @@ import {
  * the route answers 500, which the client treats as an unknown outcome, and
  * its "check status" reads the success the save was. If the ledger's reaper
  * settled the row first, save_settings refuses with nothing written, and the
- * route records and answers it as abandoned (a terminal 409).
+ * route records it as abandoned and answers 200 { operationId, status:
+ * 'failed' }, so the client keeps the draft; a replay of it is a terminal 409.
  *
  * Idempotency is the ledger (migration 0017) with domain 'settings' and
  * nothing else. The same operationId replays the first receipt without acting
@@ -87,12 +88,14 @@ import {
  * Answers:
  *   200 { operationId, status: 'succeeded', snapshot }   the full snapshot, new revision
  *   200 { operationId, status: 'pending' | 'unknown' }   a replay of work not yet settled
+ *   200 { operationId, status: 'failed' }   this call's save found its ledger
+ *       row already settled as abandoned by the reaper, so nothing was
+ *       written; the client keeps the draft ("The save was not applied")
  *   409 conflict, reason 'stale_revision' (with the current `revision`),
  *       'home_changed' or 'operation_mismatch'
  *   409 conflict, reason 'operation_failed' or 'operation_abandoned': a
  *       replay of an id whose save failed, or was settled as abandoned by the
- *       ledger's reaper (also on the first call, when the reaper got there
- *       before save_settings). Terminal: the same id never succeeds.
+ *       ledger's reaper. Terminal: the same id never succeeds.
  *   404 not_found for a household with no profile row (review N1): there are no
  *       settings to read or save, and nothing was changed. Decided before the
  *       operation id is claimed, which the ledger's own foreign key would refuse
@@ -230,8 +233,9 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
     throw err;
   }
   // The reaper settled this operation first, so save_settings wrote nothing.
-  // Recorded with the reaper's own reason, so the answer, a replay and a
-  // reconcile all say abandoned (review item 4 of the S14 follow-up).
+  // Recorded with the reaper's own reason, so a replay and a reconcile say
+  // abandoned (review item 4 of the S14 follow-up); this call's own answer is
+  // the failed receipt (PATCH below).
   if (saved.abandoned) return { status: 'failed', reason: 'abandoned' };
   if (!saved.saved) throw new StaleRevisionError(saved.revision);
 
@@ -297,14 +301,23 @@ export async function PATCH(request) {
       () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision, live }),
     );
 
-    // An operation that settled as failed is a terminal 409 with the reason it
-    // failed, in either stored shape: the reaper's
-    // { status: 'failed', reason: 'abandoned' } for a save that never finished
-    // (on a replay, or on this call when save_settings found the row already
-    // reaped), or no result at all for one that threw in process (a stale
-    // revision, a home that changed, a database error). Neither is "not found"
-    // and neither can ever succeed on retry, and the client answers a 409 by
-    // re-reading.
+    // This call's own save found its ledger row already reaped, so
+    // save_settings wrote nothing (the only failed outcome a first call
+    // returns rather than throws). The answer is the failed receipt the client
+    // type allows, { operationId, status: 'failed' }: the client then says "The
+    // save was not applied. Your draft is still here." and keeps the person's
+    // edits. A 409 here would make it re-read, overwrite the draft and say the
+    // settings changed, which they did not (S16 re-review, nit 1).
+    if (outcome.status === 'failed' && !outcome.replayed) {
+      return NextResponse.json({ operationId: operationId.value, status: 'failed' }, { headers });
+    }
+
+    // A replay of an operation that settled as failed is a terminal 409 with
+    // the reason it failed, in either stored shape: the reaper's
+    // { status: 'failed', reason: 'abandoned' } for a save that never finished,
+    // or no result at all for one that threw in process (a stale revision, a
+    // home that changed, a database error). Neither is "not found" and neither
+    // can ever succeed on retry, and the client answers a 409 by re-reading.
     if (outcome.status === 'failed') {
       const abandoned = outcome.result?.reason === 'abandoned';
       return conflict(

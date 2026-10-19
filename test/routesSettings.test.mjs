@@ -7,9 +7,10 @@
  *
  * The authority for the shape is the frontend, not this file:
  * `validSettingsSnapshot` in lib/frontend/production/preferences-service.ts on
- * origin/codex/october15-review-refinement, transcribed verbatim below (types
- * removed, nothing else changed). ProductionPreferences throws away any read or
- * receipt that fails it, so every 200 here is run through it whole.
+ * origin/codex/october15-review-refinement, transcribed verbatim in
+ * test/helpers/frontendB04.mjs (types removed, nothing else changed).
+ * ProductionPreferences throws away any read or receipt that fails it, so
+ * every 200 here is run through it whole.
  *
  * What the client does with a receipt, also from the frontend
  * (ProductionPreferences.tsx:15, :18): a receipt is applied only when its
@@ -30,22 +31,17 @@ import { SETTINGS, PROFILE } from './helpers/isolationSeed.mjs';
 import { registerSaveHousehold } from './helpers/fakeSaveHousehold.mjs';
 import { registerHomeContextRpcs } from './helpers/fakeHomeContext.mjs';
 import { installSettingsDb } from './helpers/fakeSettingsDb.mjs';
+import {
+  RUNTIME_MESSAGES, colorPalette, notificationKinds, productionPreferences, validSettingsSnapshot,
+} from './helpers/frontendB04.mjs';
 
 const { BAND_KEYS } = await import('../lib/household.js');
 
 // ---------------------------------------------------------------------------
-// The frontend validator, verbatim (preferences-service.ts:4-11, settings-preview.ts:2)
+// The frontend validator and the client's own save and reconcile logic
+// (ProductionPreferences.tsx and SettingsWorkspace.tsx), transcribed once in
+// test/helpers/frontendB04.mjs and shared with test/contractsB04.test.mjs
 // ---------------------------------------------------------------------------
-
-const notificationKinds = ['air_quality_change','weather_advisory','new_water_results','radon_season','season_summary'];
-function zone(value){if(typeof value!=='string')return false;try{new Intl.DateTimeFormat('en',{timeZone:value});return true;}catch{return false;}}
-const bool=(value)=>typeof value==='boolean';
-function validSettingsSnapshot(value){
- const v=value;if(!v||!Number.isSafeInteger(v.revision)||v.revision<1||!Array.isArray(v.unresolvedOperations)||v.unresolvedOperations.some(id=>typeof id!=='string'||!id)||!v.values?.home||!v.values.quiet||!v.values.notifications||!v.values.luna||!v.display||!v.calendar)return false;
- if(v.display.palette!==undefined&&!['ocean','forest','iris'].includes(v.display.palette))return false;
- const {home,quiet,notifications,luna,language}=v.values;
- return typeof home.year==='string'&&(!home.year||/^\d{4}$/.test(home.year))&&['utility','well','spring','other'].includes(home.water)&&['owner','renter','other'].includes(home.tenure)&&notificationKinds.every(key=>bool(notifications[key]))&&bool(quiet.enabled)&&/^([01]\d|2[0-3]):[0-5]\d$/.test(quiet.from)&&/^([01]\d|2[0-3]):[0-5]\d$/.test(quiet.to)&&zone(quiet.zone)&&['tasks','home','projects'].every(key=>bool(luna[key]))&&['en','es'].includes(language)&&['system','light','dark'].includes(v.display.appearance)&&['100','115','130','150'].includes(v.display.scale)&&['system','full','reduce'].includes(v.display.motion)&&bool(v.display.contrast)&&bool(v.display.ambient)&&zone(v.calendar.zone)&&bool(v.calendar.streak)&&bool(v.calendar.linked);
-}
 
 /** The whole contract for a read, plus the traps the validator cannot see. */
 function assertSnapshot(body) {
@@ -179,147 +175,6 @@ const ensuresRow = (q) => q.operation === 'upsert' && q.rows?.length === 1 && Ob
 const valueWrites = (h, tables) => h.db.queryLog.filter((q) => tables.includes(q.table) && q.operation !== 'select' && !ensuresRow(q));
 const OWNED = ['profiles', 'profile_preferences', 'notification_prefs', 'household_bands', 'operations'];
 const tablesSnapshot = (h) => JSON.stringify(Object.fromEntries(OWNED.filter((t) => { try { h.db.rows(t); return true; } catch { return false; } }).map((t) => [t, h.db.rows(t)])));
-
-// ---------------------------------------------------------------------------
-// The client: ProductionPreferences.tsx and SettingsWorkspace.tsx, transcribed
-// ---------------------------------------------------------------------------
-//
-// From origin/codex/october15-review-refinement, branch for branch. React state
-// becomes plain fields, `useProductionResource('settings.read')` becomes
-// `reload()`, and `runtime.request` becomes the real route handlers plus
-// runtime.ts's status mapping, JSON check and envelope unwrap. What the
-// workspace keeps in drafts (the values, the display block, the calendar
-// block) is what `hydrate` puts there. `saveGroup` builds the body exactly as
-// SettingsWorkspace.save does in production, `display` included: the current
-// display block with its palette run through `colorPalette`, so 'ocean' when
-// none is stored, plus the appearance and ambient drafts.
-
-const RUNTIME_MESSAGES = {
-  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
-  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
-  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
-  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
-  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
-};
-class FrontendServiceError extends Error { constructor(code, message = RUNTIME_MESSAGES[code]) { super(message); this.code = code; } }
-const serviceMessage = (error) => (error instanceof FrontendServiceError ? error.message : RUNTIME_MESSAGES.unavailable);
-/** settings-preview.ts:8 */
-const colorPalette = (value) => (value === 'forest' || value === 'iris' ? value : 'ocean');
-/** settings-preview.ts:6 */
-const appearancePreference = (value) => (value === 'light' || value === 'dark' ? value : 'system');
-
-function productionPreferences(h, who = 'alice') {
-  const sent = [];
-  async function request(operation, body, options = {}) {
-    const mutation = operation === 'settings.save';
-    sent.push(operation);
-    let response;
-    if (operation === 'settings.read') response = await h.call(ROUTE, 'GET', { as: who });
-    else if (operation === 'operations.read') response = await h.call('/api/operations', 'GET', { as: who, url: `/api/operations?${new URLSearchParams(body)}` });
-    else {
-      const headers = { 'idempotency-key': options.idempotencyKey };
-      if (options.expectedRevision !== undefined) headers['if-match'] = String(options.expectedRevision);
-      response = await h.call(ROUTE, 'PATCH', { as: who, body, headers });
-    }
-    const json = await response.json().catch(() => null);
-    if (!response.ok) {
-      const s = response.status;
-      throw new FrontendServiceError(s === 401 ? 'session' : s === 403 ? 'permission' : s === 409 || s === 412 ? 'conflict' : s === 400 || s === 422 ? 'validation' : s === 429 ? 'rate_limited' : s >= 500 && mutation ? 'unknown_outcome' : 'unavailable');
-    }
-    if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response');
-    if (Object.hasOwn(json, 'data')) return json.data;
-    return json;
-  }
-
-  const read = { data: null, error: null, loading: false };
-  const state = { snapshot: null, error: null, pending: false, unknown: null, conflict: false };
-  // The workspace drafts hydrate writes (ProductionPreferences.tsx hydrate).
-  const drafts = { values: null, appearance: 'system', ambient: false, display: null, zone: 'America/New_York', streak: false, linked: true };
-  let lock = false;
-  const hydrate = (value) => {
-    state.snapshot = value;
-    state.unknown = value.unresolvedOperations[0] ?? null;
-    drafts.values = value.values;
-    drafts.appearance = value.display.appearance;
-    drafts.ambient = value.display.ambient;
-    drafts.display = value.display;
-    drafts.zone = value.calendar.zone;
-    drafts.streak = value.calendar.streak;
-    drafts.linked = value.calendar.linked;
-  };
-  async function reload() {
-    read.loading = true;
-    read.error = null;
-    try { read.data = await request('settings.read', {}); } catch (error) { read.data = null; read.error = serviceMessage(error); } finally { read.loading = false; }
-    if (read.data) {
-      if (validSettingsSnapshot(read.data)) hydrate(read.data);
-      else state.error = 'Settings could not be verified. Please retry.';
-    }
-  }
-  async function save(input) {
-    if (lock || state.unknown || !state.snapshot) return null;
-    lock = true; state.pending = true; state.error = null; state.conflict = false;
-    const id = crypto.randomUUID();
-    try {
-      const receipt = await request('settings.save', { ...input, operationId: id }, { idempotencyKey: id, expectedRevision: state.snapshot.revision });
-      if (receipt.operationId === id && ['failed', 'cancelled'].includes(receipt.status)) { state.error = 'The save was not applied. Your draft is still here.'; return null; }
-      const value = receipt.snapshot;
-      if (receipt.operationId !== id || receipt.status !== 'succeeded' || !validSettingsSnapshot(value)) {
-        state.unknown = id;
-        throw new FrontendServiceError('unknown_outcome', 'The save is not confirmed. Check its status before trying again.');
-      }
-      hydrate(value);
-      return value;
-    } catch (error) {
-      state.conflict = error instanceof FrontendServiceError && error.code === 'conflict';
-      if (error instanceof FrontendServiceError && error.code === 'conflict') await reload();
-      if (error instanceof FrontendServiceError && error.code === 'unknown_outcome') state.unknown = id;
-      state.error = serviceMessage(error);
-      return null;
-    } finally { lock = false; state.pending = false; }
-  }
-  async function reconcile() {
-    if (!state.unknown || lock) return;
-    lock = true; state.pending = true;
-    try {
-      const value = await request('operations.read', { operationId: state.unknown, domain: 'settings' });
-      if (value.operationId === state.unknown && value.status === 'succeeded' && validSettingsSnapshot(value.snapshot)) { hydrate(value.snapshot); state.error = null; }
-      else if (value.operationId === state.unknown && (value.status === 'failed' || value.status === 'cancelled')) { state.unknown = null; await reload(); state.error = 'The save was not applied. Your draft is still here.'; }
-      else state.error = 'The save is still being checked.';
-    } catch (error) { state.error = serviceMessage(error); } finally { lock = false; state.pending = false; }
-  }
-  /**
-   * SettingsWorkspace.save in production: the panel's edit over the hydrated
-   * values, plus `household` for home and the display and calendar drafts for
-   * display. `edit` changes the panel's draft the way a control would.
-   */
-  function saveGroup(panel, { values: editValues, household, display, calendar, appearance, ambient } = {}) {
-    const values = drafts.values;
-    const current = structuredClone(values);
-    if (editValues) editValues(current);
-    const submitted = panel === 'home' ? { ...values, home: current.home }
-      : panel === 'notifications' ? { ...values, notifications: current.notifications, quiet: current.quiet }
-        : panel === 'luna' ? { ...values, luna: current.luna }
-          : panel === 'display' ? { ...values, language: current.language } : values;
-    const currentDisplay = { scale: drafts.display.scale, motion: drafts.display.motion, contrast: drafts.display.contrast, palette: colorPalette(drafts.display.palette) };
-    const displayDraft = { ...currentDisplay, ...display };
-    const calendarDraft = { zone: drafts.zone, streak: drafts.streak, linked: drafts.linked, ...calendar };
-    const appearanceDraft = appearance ?? appearancePreference(drafts.appearance);
-    const ambientDraft = ambient ?? drafts.ambient;
-    return save({
-      group: panel,
-      values: submitted,
-      ...(panel === 'home' ? { household: household ?? Object.fromEntries(BAND_KEYS.map((key) => [key, false])) } : {}),
-      ...(panel === 'display' ? { display: { ...displayDraft, appearance: appearanceDraft, ambient: ambientDraft }, calendar: calendarDraft } : {}),
-    });
-  }
-  return {
-    sent, reload, reconcile, saveGroup, state,
-    get snapshot() { return state.snapshot; },
-    get unknown() { return state.unknown; },
-    get error() { return state.error ?? read.error ?? (state.unknown ? 'A settings save needs a status check.' : null); },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // GET
@@ -1314,30 +1169,43 @@ test('S15: a save whose answer is lost after it committed stays succeeded; the r
   assertReceipt(await replay.json(), body.operationId);
 });
 
-test('S15: a save whose ledger row the reaper settled first is refused by save_settings with nothing written, a terminal 409 operation_abandoned', async (t) => {
-  const errors = muteConsoleError(t);
-  const h = harness();
-  const shown = await readBody(h);
-  const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'renter'; }, household: { has_teen: true } });
-  const before = withoutOperations(tablesSnapshot(h));
+/**
+ * The reaper settles this save's ledger row between the claim and
+ * save_settings, with its own statement (lib/operations.js
+ * reapAbandonedOperations), once. save_settings then refuses with nothing
+ * written. Practically unreachable (maxDuration 60 s against the 120 s window),
+ * but the answer must still be true and keep the person's draft.
+ */
+function reapBeforeSave(h) {
   const rpc = h.db.rpc;
   h.db.rpc = async (name, args) => {
     if (name === 'save_settings') {
       h.db.rpc = rpc;
-      // The reaper's own statement, for this row (lib/operations.js reapAbandonedOperations).
       const { error } = await h.db.from('operations').update({ status: 'failed', result: { status: 'failed', reason: 'abandoned' } })
         .eq('operation_id', args.p_operation_id).eq('status', 'pending');
       assert.equal(error, null);
     }
     return rpc(name, args);
   };
-  const first = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
-  assert.equal(first.reason, 'operation_abandoned', 'a terminal answer at once, not a 500 to check');
+}
+
+test('S15 and nit 1: a save whose ledger row the reaper settled first writes nothing and answers 200 failed on the first call only; a replay is a terminal 409 operation_abandoned', async (t) => {
+  const errors = muteConsoleError(t);
+  const h = harness();
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'renter'; }, household: { has_teen: true } });
+  const before = withoutOperations(tablesSnapshot(h));
+  reapBeforeSave(h);
+  const first = await patch(h, body, { revision: 4 });
+  assert.equal(first.status, 200, 'the failed receipt the client type allows, not a 409 the client reads as "these settings changed"');
+  assert.deepEqual(await first.json(), { operationId: body.operationId, status: 'failed' });
   assert.equal(withoutOperations(tablesSnapshot(h)), before, 'no setting, no revision, no tenure, no band');
-  // The ledger keeps the reaper's reason, so a replay and a reconcile say the same.
+  // The ledger keeps the reaper's reason, so a replay and a reconcile say abandoned.
   assert.deepEqual([opRow(h, body.operationId).status, opRow(h, body.operationId).result?.reason], ['failed', 'abandoned']);
-  const replay = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason'] });
-  assert.equal(replay.reason, 'operation_abandoned');
+  const replay = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+  assert.equal(replay.reason, 'operation_abandoned', 'a replay keeps the terminal 409 of the reaper rulings');
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${body.operationId}&domain=settings` })).json();
+  assert.deepEqual([reconciled.operationId, reconciled.status, reconciled.reason], [body.operationId, 'failed', 'abandoned']);
   assert.equal(errors.mock.callCount(), 0, 'nothing went wrong that needs a log line');
 });
 
@@ -1516,4 +1384,36 @@ test('client flow, Ruling S14: two overlapping saves from two tabs no longer par
   assert.deepEqual([tab2.unknown, tab2.error], [null, null], 'tab 2 is unlocked by one check');
   assert.deepEqual([opRow(h, x).result.snapshot.unresolvedOperations, opRow(h, y).result.snapshot.unresolvedOperations], [[], []]);
   assert.equal(prefsOf(h).luna_home, !SETTINGS.alice.luna_home);
+});
+
+test('client flow, nit 1: a save the reaper settled first says "not applied" and keeps the draft, without a re-read or a lock; a replay of that id is a conflict', async (t) => {
+  const h = harness();
+  const tab = productionPreferences(h);
+  await tab.reload();
+  const shown = tab.snapshot;
+  const drafts = { ...tab.drafts };
+  const REAPED = '5e771265-dddd-4000-8000-000000000001';
+  // The client's own operation id, fixed so the second attempt below is a true replay of it.
+  const uuid = t.mock.method(globalThis.crypto, 'randomUUID', () => REAPED);
+  const edit = { values: (v) => { v.luna.projects = !v.luna.projects; } };
+  reapBeforeSave(h);
+  assert.equal(await tab.saveGroup('luna', edit), null);
+  assert.deepEqual([tab.error, tab.unknown, tab.state.conflict], ['The save was not applied. Your draft is still here.', null, false]);
+  assert.deepEqual(tab.sent, ['settings.read', 'settings.save'], 'no re-read, so hydrate never replaced the draft');
+  assert.equal(tab.snapshot, shown, 'the snapshot the draft was made against is still the one shown');
+  assert.deepEqual({ ...tab.drafts }, drafts, 'every workspace draft is as it was');
+  assert.equal(prefsOf(h).luna_projects, SETTINGS.alice.luna_projects, 'and nothing was saved');
+
+  // The same id and input again is a replay: the terminal 409, which the client
+  // treats as a conflict and answers by re-reading (the reaper rulings).
+  assert.equal(await tab.saveGroup('luna', edit), null);
+  assert.deepEqual([tab.state.conflict, tab.error, tab.unknown], [true, RUNTIME_MESSAGES.conflict, null]);
+  assert.deepEqual(tab.sent, ['settings.read', 'settings.save', 'settings.save', 'settings.read']);
+  assert.deepEqual(tab.snapshot, shown, 'the re-read shows nothing changed');
+
+  // A new save is a new operation, and it applies.
+  uuid.mock.restore();
+  assert.ok(await tab.saveGroup('luna', edit));
+  assert.deepEqual([tab.error, tab.unknown, tab.snapshot.revision], [null, null, 5]);
+  assert.equal(prefsOf(h).luna_projects, !SETTINGS.alice.luna_projects);
 });
