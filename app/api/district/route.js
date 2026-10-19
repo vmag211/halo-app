@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { readLayer, buildLayer, storeLayer, GeographyIncompleteError } from '@/lib/mapBuild';
 import { householdCounty } from '@/lib/districtView';
-import { ERROR_CODES, apiError, requestIdFor, internalError } from '@/lib/apiErrors';
+import { ERROR_CODES, apiError, internalError } from '@/lib/apiErrors';
+import { publicMapRead } from '@/lib/publicAccess';
 
 // Falls back to a live build (~20s ArcGIS geography) when not pre-built.
 export const maxDuration = 60;
@@ -25,11 +26,38 @@ export const maxDuration = 60;
  * answer is a 503 and nothing is stored. The view's counts are all required
  * integers, so a partial placement would read as "0 systems" with a complete
  * population; no district totals are better than false ones.
+ *
+ * Without an Authorization header the read is public and cache-only (B05
+ * Task 6, lib/publicAccess.js): the stored view only, else a 503. There is no
+ * household, so no `profiles` row is read and the answer carries no
+ * `household_county` key at all (not null, which would say "your county is not
+ * ranked"). Nothing is built, stored or fetched. Any Authorization header is
+ * checked exactly as before.
  */
-export async function GET(request) {
-  const requestId = requestIdFor(request);
+
+/** The view without the full statewide ranking, which stays server side on every path. */
+function sharedView(view) {
+  const rest = { ...view };
+  delete rest.county_rankings;
+  return rest;
+}
+
+const read = publicMapRead(async (request, { anonymous, requestId }) => {
   const headers = { 'X-Request-Id': requestId };
   try {
+    if (anonymous) {
+      const view = await readLayer(supabaseAdmin, 'district');
+      if (!view) {
+        return apiError({
+          status: 503,
+          code: ERROR_CODES.UPSTREAM_UNAVAILABLE,
+          message: 'The district view is not available to view right now. Try again shortly.',
+          requestId,
+        });
+      }
+      return NextResponse.json({ ...sharedView(view), prebuilt: true }, { headers });
+    }
+
     const { userId } = await requireUser(request);
 
     // Read first, so a failure costs nothing (no live build, no store).
@@ -61,13 +89,16 @@ export async function GET(request) {
 
     // The full statewide ranking stays server-side; the response carries the
     // household's own county.
-    const { county_rankings, ...rest } = view;
-
-    return NextResponse.json({ ...rest, household_county: householdCounty(view, profile?.county ?? null), prebuilt }, { headers });
+    return NextResponse.json({ ...sharedView(view), household_county: householdCounty(view, profile?.county ?? null), prebuilt }, { headers });
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
     console.error(`District failed (request ${requestId}):`, err);
     return internalError(requestId);
   }
+});
+
+/** Next.js calls GET; the policy lives in `read` (lib/publicAccess.js). */
+export async function GET(request) {
+  return read(request);
 }

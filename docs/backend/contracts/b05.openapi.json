@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "HALO B05 discovery backend contract",
-    "version": "b05-1",
-    "description": "The six operations B05 built or fixed: map.layer and map.district (the two shipped map routes, fixed for quarter=latest and an incomplete geography lookup), locations.search, explore.area.read, explore.area.save and map.comparison. Dropped, and absent here: community.read and map.brief (no consumer, validator or type on the frontend ref). Blocked, and absent here: organizations.search (no participation content) and summary.prepare, summary.list and summary.read (no record collections to freeze). Response schemas mirror the frontend's own validators and parsers on origin/codex/october15-review-refinement (explore-service.ts, map-service.ts), which discard or refuse the whole payload on one wrong field; where a rule is not JSON Schema the conformance test transcribes the validator instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key (Ruling D10). No route grants anonymous access, although the registry marks the map operations public (Ruling D1, open question 1). Nothing here is a deployment or approval claim: migration 0022, which explore.area needs, is applied nowhere."
+    "version": "b05-2",
+    "description": "The six operations B05 built or fixed: map.layer and map.district (the two shipped map routes, fixed for quarter=latest and an incomplete geography lookup), locations.search, explore.area.read, explore.area.save and map.comparison. Dropped, and absent here: community.read and map.brief (no consumer, validator or type on the frontend ref). Blocked, and absent here: organizations.search (no participation content) and summary.prepare, summary.list and summary.read (no record collections to freeze). Response schemas mirror the frontend's own validators and parsers on origin/codex/october15-review-refinement (explore-service.ts, map-service.ts), which discard or refuse the whole payload on one wrong field; where a rule is not JSON Schema the conformance test transcribes the validator instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key (Ruling D10). The three map operations are public (B05 Task 6, approved by Vibhav on 2026-10-19): a request with no Authorization header at all is an anonymous, cache-only read, limited to 60 requests a minute per visitor and shared-cacheable for 10 minutes; any Authorization header is checked exactly as before. The other three operations require a session. Nothing here is a deployment or approval claim: migration 0022, which explore.area needs, is applied nowhere."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "security": [
@@ -17,7 +17,7 @@
         "operationId": "mapLayer",
         "x-halo-operation": "map.layer",
         "summary": "One map layer: water, radon, facilities or air",
-        "description": "Served from the daily pre-build (map_layers, migration 0011); a missing or stale layer is built live and, when complete, stored. Sign-in is required: the registry marks this operation public, the backend does not grant anonymous access (B05 Ruling D1, open question 1), so the default /map renders no live layer until that is decided. A water quarter is assembled from the UCMR 5 table for the time slider and is never stored. A live water build whose service-area lookup did not complete is still answered, marked geography_complete false and meta.availability partial with a note that says so, and is not stored; the client reads meta.availability partial as an incomplete layer (map-service.ts:31). The body is bare: no top-level data key (Ruling D10), because the client would parse body.data instead.",
+        "description": "Served from the daily pre-build (map_layers, migration 0011); a missing or stale layer is built live and, when complete, stored. Public read (B05 Task 6, lib/publicAccess.js): a request with no Authorization header at all is anonymous; any Authorization header, however malformed, is checked as before and is a 401 when it is not a valid session, never downgraded. An anonymous request is cache-only: it is answered only from what is already stored and never builds, stores or makes an outbound call; with nothing stored it is a 503. It is limited to 60 requests a minute per visitor across the three map routes, keyed by a digest of the forwarded client address, and the limiter fails open. A successful anonymous answer carries Cache-Control public, max-age=0, s-maxage=600; every other answer from the three map routes is private, no-store. All of them send Vary: Authorization. Anonymously, a layer is answered only from the stored pre-build, and a water quarter only when the service-area geography is already in the cache (a cache miss is never answered as a layer with every system unlocated). A water quarter is assembled from the UCMR 5 table for the time slider and is never stored. A live water build whose service-area lookup did not complete is still answered, marked geography_complete false and meta.availability partial with a note that says so, and is not stored; the client reads meta.availability partial as an incomplete layer (map-service.ts:31). The body is bare: no top-level data key (Ruling D10), because the client would parse body.data instead.",
         "parameters": [
           {
             "name": "layer",
@@ -54,6 +54,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "public, max-age=0, s-maxage=600 on an anonymous answer (no Authorization header): a 10-minute shared-cache lifetime and none in the browser. private, no-store on a signed-in answer.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -72,6 +84,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -83,10 +107,58 @@
             }
           },
           "401": {
-            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "description": "An Authorization header that is not a valid session: empty, not a bearer, or a bearer that is expired or invalid (auth_required). A request with no Authorization header at all is the anonymous read, never a 401.",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Anonymous only: more than 60 requests in a minute from one visitor across the three map routes (rate_limited, retryable), decided before anything is read. A signed-in request is never limited here, and during a limiter outage the visitor is answered (fail open).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "60 seconds, the length of the limiter window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -108,6 +180,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -119,7 +203,7 @@
             }
           },
           "503": {
-            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or a layer that could not be built live (upstream_unavailable, retryable, with the legacy layer field). A layer is never answered with an empty stand-in.",
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or a layer that could not be built live (upstream_unavailable, retryable, with the legacy layer field). For an anonymous request, nothing stored to answer from (upstream_unavailable, retryable, with the layer field): no fresh stored layer, or a water quarter whose service-area geography is not already cached. A layer is never answered with an empty stand-in.",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
@@ -129,6 +213,18 @@
               },
               "Retry-After": {
                 "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -150,13 +246,25 @@
         "operationId": "mapDistrict",
         "x-halo-operation": "map.district",
         "summary": "NC-08's water picture from public data, with the caller's own county",
-        "description": "The stored district view (map_layers, district) or a live build, plus household_county: the caller's county in the statewide ranking, read from their own profile. The full statewide ranking (county_rankings) stays server side and is forbidden here. With no stored view and a service-area lookup that did not complete, the answer is a 503 and nothing is stored: every count is a required integer, so a partial placement would read as 0 systems with a complete population. Contradiction 9.9 (the no-population branch the client rejects) is unreachable through every producer and pinned by test, so every by_contaminant row carries population_over and over_population_unknown. Same sign-in rule as /api/map (Ruling D1). Bare body (Ruling D10).",
+        "description": "The stored district view (map_layers, district) or a live build, plus household_county: the caller's county in the statewide ranking, read from their own profile. The full statewide ranking (county_rankings) stays server side and is forbidden here. With no stored view and a service-area lookup that did not complete, the answer is a 503 and nothing is stored: every count is a required integer, so a partial placement would read as 0 systems with a complete population. Contradiction 9.9 (the no-population branch the client rejects) is unreachable through every producer and pinned by test, so every by_contaminant row carries population_over and over_population_unknown. Public read (B05 Task 6, lib/publicAccess.js): a request with no Authorization header at all is anonymous; any Authorization header, however malformed, is checked as before and is a 401 when it is not a valid session, never downgraded. An anonymous request is cache-only: it is answered only from what is already stored and never builds, stores or makes an outbound call; with nothing stored it is a 503. It is limited to 60 requests a minute per visitor across the three map routes, keyed by a digest of the forwarded client address, and the limiter fails open. A successful anonymous answer carries Cache-Control public, max-age=0, s-maxage=600; every other answer from the three map routes is private, no-store. All of them send Vary: Authorization. Anonymously, only the stored view is answered, no profile is read, and household_county is absent (not null, which would say the county is not ranked). Bare body (Ruling D10).",
         "responses": {
           "200": {
-            "description": "The district view",
+            "description": "The district view: with household_county for a signed-in household, without it for an anonymous request.",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "public, max-age=0, s-maxage=600 on an anonymous answer (no Authorization header): a 10-minute shared-cache lifetime and none in the browser. private, no-store on a signed-in answer.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -165,16 +273,64 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MapDistrict"
+                  "$ref": "#/components/schemas/MapDistrictAnswer"
                 }
               }
             }
           },
           "401": {
-            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "description": "An Authorization header that is not a valid session: empty, not a bearer, or a bearer that is expired or invalid (auth_required). A request with no Authorization header at all is the anonymous read, never a 401.",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Anonymous only: more than 60 requests in a minute from one visitor across the three map routes (rate_limited, retryable), decided before anything is read. A signed-in request is never limited here, and during a limiter outage the visitor is answered (fail open).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "60 seconds, the length of the limiter window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -196,6 +352,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -207,7 +375,7 @@
             }
           },
           "503": {
-            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or no stored view and a service-area lookup that did not complete (upstream_unavailable, retryable). Nothing is stored.",
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or no stored view and a service-area lookup that did not complete (upstream_unavailable, retryable). For an anonymous request, no fresh stored view (upstream_unavailable, retryable). Nothing is stored.",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
@@ -217,6 +385,18 @@
               },
               "Retry-After": {
                 "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -647,7 +827,7 @@
         "operationId": "mapComparison",
         "x-halo-operation": "map.comparison",
         "summary": "The public records the comparison sheet sets side by side, honestly degraded",
-        "description": "Every record carries no method, no source version, every value qualifier unknown and coverage partial (B05 Ruling D3), so the client's compareEvidence answers \"Not comparable\" with the method, source and qualifier reasons for every pair and nothing can render \"Aligned evidence\" or \"Limited comparison\". That is a statement about the data HALO holds, not a defect: the only route to alignment is acquiring UCMR 5 method, release and non-detect qualifiers (tracker HO-074; open question 3). No sourceName is sent (the client falls back to \"Source not reported\"). Sources: water latest from the stored water layer, else the UCMR 5 table with no geography lookup; a water quarter from the UCMR 5 table; air from the stored air layer only, else a 503 (so while /api/map answers a live air build the comparison can still be blocked); facilities and radon have no comparable observation and answer no records with nothing read. No outbound call and no household table. Same sign-in rule as /api/map (Ruling D1). Bare body (Ruling D10).",
+        "description": "Every record carries no method, no source version, every value qualifier unknown and coverage partial (B05 Ruling D3), so the client's compareEvidence answers \"Not comparable\" with the method, source and qualifier reasons for every pair and nothing can render \"Aligned evidence\" or \"Limited comparison\". That is a statement about the data HALO holds, not a defect: the only route to alignment is acquiring UCMR 5 method, release and non-detect qualifiers (tracker HO-074; open question 3). No sourceName is sent (the client falls back to \"Source not reported\"). Sources: water latest from the stored water layer, else the UCMR 5 table with no geography lookup; a water quarter from the UCMR 5 table; air from the stored air layer only, else a 503 (so while /api/map answers a live air build the comparison can still be blocked); facilities and radon have no comparable observation and answer no records with nothing read. No outbound call and no household table. Public read (B05 Task 6, lib/publicAccess.js): a request with no Authorization header at all is anonymous; any Authorization header, however malformed, is checked as before and is a 401 when it is not a valid session, never downgraded. An anonymous request is cache-only: it is answered only from what is already stored and never builds, stores or makes an outbound call; with nothing stored it is a 503. It is limited to 60 requests a minute per visitor across the three map routes, keyed by a digest of the forwarded client address, and the limiter fails open. A successful anonymous answer carries Cache-Control public, max-age=0, s-maxage=600; every other answer from the three map routes is private, no-store. All of them send Vary: Authorization. Every source here is already cache-only, so an anonymous request gets the signed-in body. Bare body (Ruling D10).",
         "parameters": [
           {
             "name": "layer",
@@ -693,6 +873,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "public, max-age=0, s-maxage=600 on an anonymous answer (no Authorization header): a 10-minute shared-cache lifetime and none in the browser. private, no-store on a signed-in answer.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -711,6 +903,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -722,10 +926,58 @@
             }
           },
           "401": {
-            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "description": "An Authorization header that is not a valid session: empty, not a bearer, or a bearer that is expired or invalid (auth_required). A request with no Authorization header at all is the anonymous read, never a 401.",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Anonymous only: more than 60 requests in a minute from one visitor across the three map routes (rate_limited, retryable), decided before anything is read. A signed-in request is never limited here, and during a limiter outage the visitor is answered (fail open).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "60 seconds, the length of the limiter window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -747,6 +999,18 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -758,7 +1022,7 @@
             }
           },
           "503": {
-            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or no fresh stored air layer, or an unreadable UCMR 5 table (upstream_unavailable, retryable)",
+            "description": "a retryable auth outage (auth_unavailable, with Retry-After), or no fresh stored air layer, or an unreadable UCMR 5 table (upstream_unavailable, retryable), anonymous or signed in",
             "headers": {
               "X-Request-Id": {
                 "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
@@ -768,6 +1032,18 @@
               },
               "Retry-After": {
                 "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "private, no-store: never kept by a shared cache, anonymous or signed in.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "description": "Authorization, on every answer from the three map routes.",
                 "schema": {
                   "type": "string"
                 }
@@ -2364,6 +2640,213 @@
           "prebuilt"
         ],
         "additionalProperties": false
+      },
+      "MapDistrictPublic": {
+        "description": "The anonymous district answer (B05 Task 6): the stored view exactly as MapDistrict, with no household_county property at all, because there is no household. parseMapDistrict does not read household_county, so the client parses both.",
+        "type": "object",
+        "properties": {
+          "scope": {
+            "const": "NC-08"
+          },
+          "total_systems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "by_contaminant": {
+            "type": "object",
+            "properties": {
+              "PFOA": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "PFOS": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "PFHxS": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "PFNA": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              },
+              "HFPO-DA": {
+                "$ref": "#/components/schemas/DistrictContaminant"
+              }
+            },
+            "required": [
+              "PFOA",
+              "PFOS",
+              "PFHxS",
+              "PFNA",
+              "HFPO-DA"
+            ],
+            "additionalProperties": false
+          },
+          "systems_over_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "affected_population": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "affected_population_complete": {
+            "type": "boolean"
+          },
+          "over_limit_population_unknown": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string"
+          },
+          "systems_tested_any": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exceedance_lines": {
+            "type": "object",
+            "properties": {
+              "PFOA": {
+                "type": "string"
+              },
+              "PFOS": {
+                "type": "string"
+              },
+              "PFHxS": {
+                "type": "string"
+              },
+              "PFNA": {
+                "type": "string"
+              },
+              "HFPO-DA": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "PFOA",
+              "PFOS",
+              "PFHxS",
+              "PFNA",
+              "HFPO-DA"
+            ],
+            "additionalProperties": false
+          },
+          "counties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistrictCounty"
+            }
+          },
+          "state_comparison": {
+            "type": "object",
+            "properties": {
+              "district_share_over": {
+                "oneOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state_share_over": {
+                "oneOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "district_share_over",
+              "state_share_over"
+            ],
+            "additionalProperties": false
+          },
+          "ranked_counties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nc_counties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ranking_rule": {
+            "type": "string"
+          },
+          "unlocated_systems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "boundaries": {
+            "type": "object",
+            "properties": {
+              "district": {
+                "type": "string"
+              },
+              "counties": {
+                "type": "string"
+              },
+              "retrieved": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "district",
+              "counties",
+              "retrieved"
+            ],
+            "additionalProperties": false
+          },
+          "assembled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "prebuilt": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scope",
+          "total_systems",
+          "by_contaminant",
+          "systems_over_limit",
+          "affected_population",
+          "affected_population_complete",
+          "over_limit_population_unknown",
+          "note",
+          "systems_tested_any",
+          "exceedance_lines",
+          "counties",
+          "state_comparison",
+          "ranked_counties",
+          "nc_counties",
+          "ranking_rule",
+          "unlocated_systems",
+          "boundaries",
+          "assembled_at",
+          "prebuilt"
+        ],
+        "additionalProperties": false
+      },
+      "MapDistrictAnswer": {
+        "description": "The 200 of map.district: MapDistrict for a signed-in household (with household_county), MapDistrictPublic for an anonymous request (without it).",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MapDistrict"
+          },
+          {
+            "$ref": "#/components/schemas/MapDistrictPublic"
+          }
+        ]
       },
       "ComparisonValue": {
         "description": "One observation. method null and qualifier unknown are fixed by Ruling D3: HALO holds no analytical method and no non-detect qualifier, and composing either would be a false provenance claim. value is null when nothing was reported, never 0.",

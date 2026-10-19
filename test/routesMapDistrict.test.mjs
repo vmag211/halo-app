@@ -149,14 +149,22 @@ test('map: a database failure behind the quarter view is a 500 envelope with no 
   assert.ok(loggedText(logged).includes('Could not find the table'));
 });
 
-test('map: a missing session is a 401 envelope that echoes a client request id', async () => {
-  const h = harness();
-  const none = await expectEnvelope(await h.call('/api/map', 'GET', {}), { status: 401, code: 'auth_required' });
-  assert.equal(none.error, 'Sign-in required.');
-  await expectEnvelope(await h.call('/api/map', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+// Before B05 Task 6 this was "a missing session is a 401". No Authorization
+// header is now the public, cache-only read (test/routesMapPublic.test.mjs);
+// every Authorization header that is not a valid session is still the 401.
+test('map: an Authorization header that is not a valid session is a 401 envelope that echoes a client request id, and reads nothing', async () => {
+  const h = harness({ layers: [WATER_LAYER] });
+  for (const [authorization, error] of [['', 'Sign-in required.'], ['Basic abc', 'Sign-in required.'], ['Bearer', 'Sign-in required.'], ['Bearer test-token:nobody', 'Your session has expired. Please reload the app.']]) {
+    const body = await expectEnvelope(await h.call('/api/map', 'GET', { headers: { authorization } }), { status: 401, code: 'auth_required' });
+    assert.equal(body.error, error, `Authorization: ${JSON.stringify(authorization)}`);
+  }
+  await expectEnvelope(await h.call('/api/map', 'GET', { headers: { authorization: 'Bearer', 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+  assert.equal(h.db.queryLog.length, 0);
   const ok = await map(harness({ layers: [WATER_LAYER] }), '', 'alice', { 'x-request-id': 'client-trace-0001' });
   assert.equal(ok.headers.get('x-request-id'), 'client-trace-0001');
-  assert.equal(h.db.queryLog.length, 0);
+  const anonymous = await h.call('/api/map', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  assert.equal(anonymous.status, 200, 'no Authorization header at all is the public read');
+  assert.equal(anonymous.headers.get('x-request-id'), 'client-trace-0001');
 });
 
 test('map reads no household table: only the layer store and the public utilities', async () => {
@@ -290,11 +298,18 @@ test('district: a failed live build is a 500 envelope with no database text, and
   assert.ok(loggedText(logged).includes('Storing district failed'), 'the failed store is logged');
 });
 
-test('district: a missing session is a 401 envelope that echoes a client request id', async () => {
+// Before B05 Task 6 this was "a missing session is a 401"; see the map test above.
+test('district: an Authorization header that is not a valid session is a 401 envelope that echoes a client request id, and reads no profile', async () => {
   const h = harness({ layers: [DISTRICT_LAYER] });
-  await expectEnvelope(await h.call('/api/district', 'GET', {}), { status: 401, code: 'auth_required' });
-  await expectEnvelope(await h.call('/api/district', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+  for (const authorization of ['', 'Basic abc', 'Bearer', 'Bearer test-token:nobody']) {
+    await expectEnvelope(await h.call('/api/district', 'GET', { headers: { authorization } }), { status: 401, code: 'auth_required' });
+  }
+  await expectEnvelope(await h.call('/api/district', 'GET', { headers: { authorization: 'Bearer', 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+  assert.equal(h.db.queryLog.length, 0);
   assert.equal((await district(h, 'alice', { 'x-request-id': 'client-trace-0001' })).headers.get('x-request-id'), 'client-trace-0001');
+  const anonymous = await h.call('/api/district', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  assert.equal(anonymous.status, 200, 'no Authorization header at all is the public read');
+  assert.equal('household_county' in (await anonymous.json()), false);
 });
 
 test('district keeps its owner filter: the household county comes from the caller\'s own profile row', async () => {
