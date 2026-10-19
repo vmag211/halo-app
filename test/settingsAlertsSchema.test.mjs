@@ -649,21 +649,24 @@ test('running 0021 again changes nothing', async () => {
       `select indexname from pg_indexes where schemaname = 'public' and tablename = any($1) order by indexname`,
       [[PREFERENCES, 'alerts', 'profiles']],
     );
-    // Ruling S11 to S13: the save function and the seven triggers, created once whatever the runs.
+    // Rulings S11 to S13 and S15: the save function, the ledger guard and the eight triggers,
+    // created once whatever the runs. 0023's guard on operations is not 0021's, so it is left out.
     const { rows: triggers } = await db.query(
       `select tgrelid::regclass::text as on_table, tgname, pg_get_triggerdef(oid) as definition from pg_trigger
-        where not tgisinternal and tgrelid = any($1::regclass[]) order by tgname`,
-      [[`public.${PREFERENCES}`, 'public.profiles', 'public.notification_prefs', 'public.household_bands']],
+        where not tgisinternal and tgrelid = any($1::regclass[]) and tgname <> 'operations_actions_settled_guard' order by tgname`,
+      [[`public.${PREFERENCES}`, 'public.profiles', 'public.notification_prefs', 'public.household_bands', 'public.operations']],
     );
     const { rows: functions } = await db.query(
       `select p.oid::regprocedure::text as signature from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public' and p.proname in ('save_settings', 'advance_settings_revision', 'reconcile_profile_tenure') order by 1`,
+        where n.nspname = 'public'
+          and p.proname in ('save_settings', 'advance_settings_revision', 'reconcile_profile_tenure', 'guard_settled_settings_operation')
+        order by 1`,
     );
     return { columns, constraints, indexes, triggers, functions };
   };
   const first = await shape();
-  assert.equal(first.triggers.length, 7, 'seven triggers');
-  assert.equal(first.functions.length, 3, 'three functions');
+  assert.equal(first.triggers.length, 8, 'eight triggers');
+  assert.equal(first.functions.length, 4, 'four functions, so one save_settings: the earlier draft\'s signature is gone');
   await db.exec(MIGRATION.sql);
   assert.deepEqual(await shape(), first, 're-running the migration is a no-op');
 });

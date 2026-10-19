@@ -1,16 +1,51 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { requestIdFor, internalError, apiError, ERROR_CODES } from '@/lib/apiErrors';
+import { requestIdFor, internalError, apiError, loggableError, ERROR_CODES } from '@/lib/apiErrors';
 import { parseUuid, parseEnum } from '@/lib/validate';
 import {
   readOperation,
   isOperationsUnavailable,
+  listUnresolvedOperations,
   operationsUnavailable,
   OPERATION_DOMAINS,
   UNAUTHENTICATED_DOMAIN,
 } from '@/lib/operations';
 import { featureEnabled } from '@/lib/features';
 import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSnapshot } from '@/lib/actionsStore';
+
+/**
+ * Where each domain's succeeded receipt carries its `unresolvedOperations`
+ * (Ruling S16). A receipt is stored with `[]` there (Ruling S14: a stored
+ * receipt is history, not a lock), and this route puts the household's LIVE
+ * list for that domain in its place, without the operation being read:
+ * settled operations are never listed live, so two operations cannot park
+ * each other for ever, and work that is genuinely still pending stays
+ * locked, because no client re-reads after a reconcile that succeeds
+ * (ProductionAlerts.tsx, ProductionPreferences.tsx, useAccountService.ts).
+ * A domain not named here is replayed exactly as stored, except `actions`,
+ * which has its own overlay in GET below (B06 Ruling H18): its stored receipt
+ * has no snapshot to put a list into.
+ */
+const LIVE_LIST_PATHS = Object.freeze({
+  account: ['snapshot', 'unresolvedOperations'],
+  alerts: ['unresolvedOperations'],
+  settings: ['snapshot', 'unresolvedOperations'],
+});
+
+/**
+ * The receipt with the live list at `path`, when the stored receipt carries a
+ * list there; otherwise the receipt as it is. Nothing is changed in place.
+ */
+async function withLiveList(receipt, { path, operationId, profileId, domain }) {
+  const parents = path.slice(0, -1);
+  const key = path.at(-1);
+  let holder = receipt;
+  for (const step of parents) holder = holder?.[step];
+  if (!holder || typeof holder !== 'object' || !Array.isArray(holder[key])) return receipt;
+  const live = (await listUnresolvedOperations(supabaseAdmin, { profileId, domains: [domain] })).filter((id) => id !== operationId);
+  const put = (node, [step, ...rest]) => ({ ...node, [step]: rest.length ? put(node[step], rest) : live });
+  return put(receipt, path);
+}
 
 /**
  * GET /api/operations?operationId=<uuid>&domain=<domain>
@@ -21,7 +56,9 @@ import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSn
  *
  * `status` is one of succeeded, failed, cancelled, pending, unknown. The first
  * three are settled and carry `result`, the canonical receipt the original
- * route returned, replayed verbatim so the client can finish what it started.
+ * route returned, replayed as stored so the client can finish what it started,
+ * except that a succeeded receipt in a domain of LIVE_LIST_PATHS carries the
+ * household's live unresolved list rather than the stored `[]` (Ruling S16).
  * `pending` means the work is genuinely still running. `unknown` means the
  * attempt was recorded but never settled and has outstripped its window: the
  * honest answer when a process died, and specifically NOT a failure, because
@@ -87,35 +124,42 @@ export async function GET(request) {
       });
     }
 
-    // B06 Ruling H18 with S16: a succeeded `actions` operation is answered with
-    // the household's CURRENT snapshot and the live unresolved list minus the
-    // operation itself, at `snapshot.unresolvedOperations` where the actions
-    // adapter reads it (adapters.ts:7,11), and at the top level over the
-    // stored `[]` so the body does not contradict itself. The stored receipt
-    // holds ids and revisions only (Ruling H3). Behind the `tasks` flag like
-    // the rest of My Week (Ruling H17). Every other domain, and every other
-    // `actions` status, is replayed as stored.
-    let hydrated = null;
-    if (operation.domain === ACTIONS_DOMAIN && operation.status === 'succeeded') {
-      if (!featureEnabled('tasks')) return actionsUnavailable(requestId);
-      try {
-        const snapshot = await liveActionsSnapshot(supabaseAdmin, userId, operation.operationId);
-        hydrated = { unresolvedOperations: snapshot.unresolvedOperations, snapshot };
-      } catch (err) {
-        if (isActionsUnavailable(err)) return actionsUnavailable(requestId);
-        throw err;
+    // One overlay step, spread once below (Rulings S16, H18). `actions` is
+    // handled first and is deliberately NOT in LIVE_LIST_PATHS: its stored
+    // receipt holds ids and revisions only (Ruling H3), no snapshot, so the
+    // generic overlay would find no list and leave the client parked. A
+    // succeeded `actions` operation is answered with the household's CURRENT
+    // snapshot and the live list minus the operation itself, at
+    // `snapshot.unresolvedOperations` where the actions adapter reads it
+    // (adapters.ts:7,11) and at the top level over the stored `[]`. Behind
+    // the `tasks` flag like the rest of My Week (Ruling H17). Every other
+    // domain goes through LIVE_LIST_PATHS, and every other status is
+    // replayed as stored.
+    let result = operation.result && typeof operation.result === 'object' ? operation.result : {};
+    if (operation.status === 'succeeded') {
+      if (operation.domain === ACTIONS_DOMAIN) {
+        if (!featureEnabled('tasks')) return actionsUnavailable(requestId);
+        try {
+          const snapshot = await liveActionsSnapshot(supabaseAdmin, userId, operation.operationId);
+          result = { ...result, unresolvedOperations: snapshot.unresolvedOperations, snapshot };
+        } catch (err) {
+          if (isActionsUnavailable(err)) return actionsUnavailable(requestId);
+          throw err;
+        }
+      } else if (LIVE_LIST_PATHS[operation.domain]) {
+        result = await withLiveList(result, { path: LIVE_LIST_PATHS[operation.domain], operationId: operation.operationId, profileId: userId, domain: operation.domain });
       }
     }
 
     return NextResponse.json(
       {
         // The stored receipt first, so the client sees exactly the body the
-        // original route returned and its domain validators still pass. The
+        // original route returned and its domain validators still pass, with
+        // the live unresolved list in place of the stored one (Ruling S16). The
         // canonical fields are written after it: a receipt frozen at write time
         // must never override the status computed now, which is the only place
         // a stale 'pending' becomes 'unknown'.
-        ...(operation.result && typeof operation.result === 'object' ? operation.result : {}),
-        ...hydrated,
+        ...result,
         operationId: operation.operationId,
         domain: operation.domain,
         kind: operation.kind,
@@ -128,9 +172,9 @@ export async function GET(request) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    // Code and message only: a Postgres error's details and hint can hold a
-    // row, and the actions hook reads task rows (0023 review L2).
-    console.error(`operations read failed (request ${requestId}):`, err?.code ?? '', err?.message ?? String(err));
+    // Code and message only (loggableError): a Postgres error's details and
+    // hint can hold a row, and the actions overlay reads task rows.
+    console.error(`operations read failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }

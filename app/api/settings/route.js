@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { apiError, internalError, requestIdFor, ERROR_CODES } from '@/lib/apiErrors';
+import { apiError, internalError, loggableError, requestIdFor, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { isSettingsAlertsUnavailable, settingsAlertsUnavailable } from '@/lib/settingsAlerts';
@@ -9,6 +9,7 @@ import {
   changedFields,
   ensurePreferences,
   isSaveSettingsMissing,
+  isSettingsProfileMissing,
   parseSettingsSave,
   preferenceColumns,
   readBands,
@@ -46,25 +47,42 @@ import {
  * client was shown, so an unanswered tenure or water source the snapshot
  * reports as 'other' stays unanswered unless the person picks something else.
  *
- * Concurrency (Rulings S4, S11 and S12). `If-Match` is the revision the client
- * was shown. The whole save is one call to public.save_settings (0021): the
- * compare-and-set on the revision and every table the group writes, in one
- * transaction, with the home details saved through the 0016 home functions
- * inside it. So of two saves holding the same revision exactly one applies and
- * the other is a 409 having written nothing, a save that fails anywhere
- * applies nothing (a 500 recorded as failed is true), and the revision
- * advances exactly once per applied save. Every other writer of a value in the
- * snapshot advances the revision through 0021's triggers in the same
+ * Concurrency (Rulings S4, S11, S12 and S15). `If-Match` is the revision the
+ * client was shown. The whole save is one call to public.save_settings (0021):
+ * the revision check and every table the group writes, in one transaction,
+ * with the home details saved through the 0016 home functions inside it. So of
+ * two saves holding the same revision that change something exactly one
+ * applies and the other is a 409 having written nothing, a save that fails
+ * anywhere applies nothing (a 500 recorded as failed is true), and the
+ * revision advances exactly once per applied save that changed a value and not
+ * at all for a save of the values already stored (review finding C: the
+ * client accepts any valid receipt, ProductionPreferences.tsx, so nothing
+ * needs a strictly advancing revision, and a second device holding the same
+ * revision is not sent a needless conflict). Every other writer of a value in
+ * the snapshot advances the revision through 0021's triggers in the same
  * transaction as its write, so a change made anywhere else makes a stale save
  * here conflict instead of being reverted by it. The receipt is built from the
  * rows save_settings returns; nothing is read between its commit and the
  * ledger's settle.
  *
+ * The same transaction settles this save's own ledger row as succeeded
+ * (Ruling S15), with the receipt below, and 0021 then refuses to relabel it.
+ * So if save_settings commits and its answer is lost, runOperation's settle
+ * as failed is refused and logged (lib/operations.js settle does not throw),
+ * the route answers 500, which the client treats as an unknown outcome, and
+ * its "check status" reads the success the save was. If the ledger's reaper
+ * settled the row first, save_settings refuses with nothing written, and the
+ * route records and answers it as abandoned (a terminal 409).
+ *
  * Idempotency is the ledger (migration 0017) with domain 'settings' and
  * nothing else. The same operationId replays the first receipt without acting
  * again; a stale revision is decided inside the claimed operation, so a replay
  * of a lost success returns that success rather than a conflict; the same id
- * with a different body is a 409.
+ * with a different body is a 409. The receipt the ledger keeps carries
+ * `snapshot.unresolvedOperations: []` (Ruling S14): it is the record of what
+ * this save did, served unchanged by a replay and by GET /api/operations, and
+ * the list it was written with would be stale by then. Only the direct answer
+ * to the save that ran carries the live list, without this operation.
  *
  * Answers:
  *   200 { operationId, status: 'succeeded', snapshot }   the full snapshot, new revision
@@ -73,7 +91,11 @@ import {
  *       'home_changed' or 'operation_mismatch'
  *   409 conflict, reason 'operation_failed' or 'operation_abandoned': a
  *       replay of an id whose save failed, or was settled as abandoned by the
- *       ledger's reaper. Terminal: the same id never succeeds.
+ *       ledger's reaper (also on the first call, when the reaper got there
+ *       before save_settings). Terminal: the same id never succeeds.
+ *   404 not_found for a household with no profile row (review N1): there are no
+ *       settings to read or save, and nothing was changed. Decided before the
+ *       operation id is claimed, which the ledger's own foreign key would refuse
  *   422 validation_failed with field_errors, before anything is read or written
  *   503 feature_unavailable until 0017 and 0021 are applied, decided before the
  *       operation id is claimed, so "nothing was changed" is true (and, should
@@ -82,6 +104,10 @@ import {
  *
  * Identity comes only from the verified session token. No field of the body or
  * the query names a household, and every statement is scoped to the caller.
+ *
+ * A failure is logged as its code and message only (lib/apiErrors.js
+ * loggableError): a database error's details can quote the whole row it
+ * refused, location included (review of 0021, finding B).
  */
 
 /**
@@ -103,7 +129,13 @@ const MESSAGES = Object.freeze({
   failed: 'That save did not complete. Review the latest settings before saving again.',
   ifMatch: 'Send the settings revision you are saving against in If-Match.',
   idempotency: 'The Idempotency-Key header and the operationId must be the same id.',
+  noProfile: 'Settings are not available until this household is set up. Nothing was changed.',
 });
+
+/** 404: the household has no profile row, so it has no settings (review N1). Not retryable. */
+function profileMissing(requestId) {
+  return apiError({ status: 404, code: ERROR_CODES.NOT_FOUND, message: MESSAGES.noProfile, retryable: false, requestId });
+}
 
 /** Thrown inside the operation when If-Match is not the stored revision. */
 class StaleRevisionError extends Error {
@@ -154,15 +186,24 @@ export async function GET(request) {
     return NextResponse.json(await readSettingsSnapshot(supabaseAdmin, userId), { headers: { 'X-Request-Id': requestId } });
   } catch (err) {
     if (isSettingsAlertsUnavailable(err) || isOperationsUnavailable(err)) return settingsAlertsUnavailable(requestId);
+    if (isSettingsProfileMissing(err)) return profileMissing(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    console.error(`Settings read failed (request ${requestId}):`, err);
+    console.error(`Settings read failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }
 
-/** The one save, inside the operation the ledger has claimed. */
-async function save(supabase, { userId, operationId, group, patch, expectedRevision }) {
+/**
+ * The one save, inside the operation the ledger has claimed. Returns the
+ * receipt the ledger keeps, whose `unresolvedOperations` is always [] (Ruling
+ * S14): a stored receipt is history, not a lock, and GET /api/operations and a
+ * replay serve it as stored, so a list frozen into it would name operations
+ * long settled, and two overlapping saves would each park the other for ever.
+ * The live list, read before the save and without this operation, goes in
+ * `live` for the direct answer alone.
+ */
+async function save(supabase, { userId, operationId, group, patch, expectedRevision, live }) {
   // The precondition is decided here, after the claim, so a replay of a lost
   // response returns the first outcome instead of a conflict.
   const state = await readSettingsState(supabase, userId);
@@ -178,6 +219,7 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
   try {
     saved = await saveSettings(supabase, {
       profileId: userId,
+      operationId,
       expectedRevision,
       preferences: preferenceColumns(group, patch, state.preferences),
       changes,
@@ -187,9 +229,19 @@ async function save(supabase, { userId, operationId, group, patch, expectedRevis
     if (isConflictRefusal(haloRefusal(err))) throw new HomeChangedError();
     throw err;
   }
+  // The reaper settled this operation first, so save_settings wrote nothing.
+  // Recorded with the reaper's own reason, so the answer, a replay and a
+  // reconcile all say abandoned (review item 4 of the S14 follow-up).
+  if (saved.abandoned) return { status: 'failed', reason: 'abandoned' };
   if (!saved.saved) throw new StaleRevisionError(saved.revision);
 
-  return { status: 'succeeded', snapshot: settingsSnapshot({ ...saved, unresolvedOperations }) };
+  live.unresolvedOperations = unresolvedOperations;
+  return { status: 'succeeded', snapshot: settingsSnapshot({ ...saved, unresolvedOperations: [] }) };
+}
+
+/** The direct answer to a save this call made: the stored receipt with the live list (Ruling S14). */
+function withLiveList(receipt, unresolvedOperations) {
+  return { ...receipt, snapshot: { ...receipt.snapshot, unresolvedOperations } };
 }
 
 export async function PATCH(request) {
@@ -222,6 +274,8 @@ export async function PATCH(request) {
 
     // 0021 is proved here, before the operation id is claimed, so an
     // unavailable surface has written nothing when it says nothing was changed.
+    // So is the profile row: the preferences row's foreign key refuses a
+    // household without one (SettingsProfileMissingError, a 404 below).
     try {
       await ensurePreferences(supabaseAdmin, userId);
       await readSettingsProfile(supabaseAdmin, userId);
@@ -230,6 +284,7 @@ export async function PATCH(request) {
       throw err;
     }
 
+    const live = { unresolvedOperations: null };
     const outcome = await runOperation(
       supabaseAdmin,
       {
@@ -239,16 +294,18 @@ export async function PATCH(request) {
         kind: 'settings.save',
         input: { group, patch, expectedRevision },
       },
-      () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision }),
+      () => save(supabaseAdmin, { userId, operationId: operationId.value, group, patch, expectedRevision, live }),
     );
 
-    // A replay of an operation that settled as failed is a terminal 409 with
-    // the reason it failed, in either stored shape: the reaper's
-    // { status: 'failed', reason: 'abandoned' } for a save that never finished,
-    // or no result at all for one that threw in process (a stale revision, a
-    // home that changed, a database error). Neither is "not found" and neither
-    // can ever succeed on retry, and the client answers a 409 by re-reading.
-    if (outcome.replayed && outcome.status === 'failed') {
+    // An operation that settled as failed is a terminal 409 with the reason it
+    // failed, in either stored shape: the reaper's
+    // { status: 'failed', reason: 'abandoned' } for a save that never finished
+    // (on a replay, or on this call when save_settings found the row already
+    // reaped), or no result at all for one that threw in process (a stale
+    // revision, a home that changed, a database error). Neither is "not found"
+    // and neither can ever succeed on retry, and the client answers a 409 by
+    // re-reading.
+    if (outcome.status === 'failed') {
       const abandoned = outcome.result?.reason === 'abandoned';
       return conflict(
         abandoned ? MESSAGES.abandoned : MESSAGES.failed,
@@ -258,9 +315,14 @@ export async function PATCH(request) {
     }
 
     // A replay of work still running, or that died before it settled, has no
-    // receipt to replay: the client parks the id and reconciles later.
+    // receipt to replay: the client parks the id and reconciles later. A
+    // replay of a success is the stored receipt as it is, whose list is [];
+    // only the save this call made answers with the live list (Ruling S14).
     const receipt = outcome.result ?? { operationId: operationId.value, status: outcome.status };
-    return NextResponse.json(receipt, { headers });
+    const answer = !outcome.replayed && receipt.snapshot && live.unresolvedOperations
+      ? withLiveList(receipt, live.unresolvedOperations)
+      : receipt;
+    return NextResponse.json(answer, { headers });
   } catch (err) {
     if (err instanceof StaleRevisionError) {
       return conflict(MESSAGES.conflict, { reason: 'stale_revision', ...(err.revision ? { revision: err.revision } : {}) }, requestId);
@@ -270,10 +332,12 @@ export async function PATCH(request) {
     if (isSettingsAlertsUnavailable(err) || isSaveSettingsMissing(err) || isOperationsUnavailable(err)) {
       return settingsAlertsUnavailable(requestId);
     }
+    if (isSettingsProfileMissing(err)) return profileMissing(requestId);
     const authResponse = authErrorResponse(err, requestId);
     if (authResponse) return authResponse;
-    // The detail goes to the log: a database message is not for the person.
-    console.error(`Settings save failed (request ${requestId}):`, err);
+    // The code and message go to the log: a database message is not for the
+    // person, and its details, which can quote the refused row, go nowhere.
+    console.error(`Settings save failed (request ${requestId}):`, loggableError(err));
     return internalError(requestId);
   }
 }

@@ -20,6 +20,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { inspect } from 'node:util';
 import { createRouteHarness, muteConsoleError, rpcError } from './helpers/routeHarness.mjs';
 import { HALO_TABLES, haloTables } from './helpers/tables.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
@@ -131,7 +132,11 @@ const readBody = async (h, who = 'alice') => {
 /**
  * A save the way the real client builds it (SettingsWorkspace.tsx:88-90): the
  * whole `values` from the snapshot with only the group's slice edited, plus
- * household for home and display/calendar for display.
+ * household for home and display/calendar for display. The display block is
+ * the client's own (review N3): scale, motion and contrast as shown, the
+ * palette through `colorPalette`, so 'ocean' when none is stored, and the
+ * appearance and ambient drafts. productionPreferences below runs the
+ * client's whole save and reconcile logic.
  */
 function saveBody(snapshot, group, edit = {}, operationId = nextOp()) {
   const values = structuredClone(snapshot.values);
@@ -139,7 +144,8 @@ function saveBody(snapshot, group, edit = {}, operationId = nextOp()) {
   const body = { group, values, operationId };
   if (group === 'home') body.household = { ...Object.fromEntries(BAND_KEYS.map((key) => [key, false])), has_adult: true, ...edit.household };
   if (group === 'display') {
-    body.display = { ...snapshot.display, ...edit.display };
+    const { scale, motion, contrast, palette, appearance, ambient } = snapshot.display;
+    body.display = { scale, motion, contrast, palette: colorPalette(palette), appearance, ambient, ...edit.display };
     body.calendar = { ...snapshot.calendar, ...edit.calendar };
   }
   return body;
@@ -163,8 +169,157 @@ const notifOf = (h, who = 'alice') => h.db.rows('notification_prefs').find((row)
 const bandsOf = (h, who = 'alice') => h.db.rows('household_bands').find((row) => row.profile_id === h.identities[who].id);
 const opRow = (h, id) => h.db.rows('operations').find((row) => row.operation_id === id);
 const saveCalls = (h) => h.db.rpcCalls.filter((call) => call.name === 'save_settings').map((call) => call.args);
+/**
+ * Statements on these tables that write a value. save_settings first makes
+ * sure the household's notification and band rows exist (an insert of the
+ * profile id alone that does nothing when the row is there, review finding A
+ * on 0021), which writes no value and is left out.
+ */
+const ensuresRow = (q) => q.operation === 'upsert' && q.rows?.length === 1 && Object.keys(q.rows[0]).join() === 'profile_id';
+const valueWrites = (h, tables) => h.db.queryLog.filter((q) => tables.includes(q.table) && q.operation !== 'select' && !ensuresRow(q));
 const OWNED = ['profiles', 'profile_preferences', 'notification_prefs', 'household_bands', 'operations'];
 const tablesSnapshot = (h) => JSON.stringify(Object.fromEntries(OWNED.filter((t) => { try { h.db.rows(t); return true; } catch { return false; } }).map((t) => [t, h.db.rows(t)])));
+
+// ---------------------------------------------------------------------------
+// The client: ProductionPreferences.tsx and SettingsWorkspace.tsx, transcribed
+// ---------------------------------------------------------------------------
+//
+// From origin/codex/october15-review-refinement, branch for branch. React state
+// becomes plain fields, `useProductionResource('settings.read')` becomes
+// `reload()`, and `runtime.request` becomes the real route handlers plus
+// runtime.ts's status mapping, JSON check and envelope unwrap. What the
+// workspace keeps in drafts (the values, the display block, the calendar
+// block) is what `hydrate` puts there. `saveGroup` builds the body exactly as
+// SettingsWorkspace.save does in production, `display` included: the current
+// display block with its palette run through `colorPalette`, so 'ocean' when
+// none is stored, plus the appearance and ambient drafts.
+
+const RUNTIME_MESSAGES = {
+  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
+  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
+  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
+  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
+  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
+};
+class FrontendServiceError extends Error { constructor(code, message = RUNTIME_MESSAGES[code]) { super(message); this.code = code; } }
+const serviceMessage = (error) => (error instanceof FrontendServiceError ? error.message : RUNTIME_MESSAGES.unavailable);
+/** settings-preview.ts:8 */
+const colorPalette = (value) => (value === 'forest' || value === 'iris' ? value : 'ocean');
+/** settings-preview.ts:6 */
+const appearancePreference = (value) => (value === 'light' || value === 'dark' ? value : 'system');
+
+function productionPreferences(h, who = 'alice') {
+  const sent = [];
+  async function request(operation, body, options = {}) {
+    const mutation = operation === 'settings.save';
+    sent.push(operation);
+    let response;
+    if (operation === 'settings.read') response = await h.call(ROUTE, 'GET', { as: who });
+    else if (operation === 'operations.read') response = await h.call('/api/operations', 'GET', { as: who, url: `/api/operations?${new URLSearchParams(body)}` });
+    else {
+      const headers = { 'idempotency-key': options.idempotencyKey };
+      if (options.expectedRevision !== undefined) headers['if-match'] = String(options.expectedRevision);
+      response = await h.call(ROUTE, 'PATCH', { as: who, body, headers });
+    }
+    const json = await response.json().catch(() => null);
+    if (!response.ok) {
+      const s = response.status;
+      throw new FrontendServiceError(s === 401 ? 'session' : s === 403 ? 'permission' : s === 409 || s === 412 ? 'conflict' : s === 400 || s === 422 ? 'validation' : s === 429 ? 'rate_limited' : s >= 500 && mutation ? 'unknown_outcome' : 'unavailable');
+    }
+    if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response');
+    if (Object.hasOwn(json, 'data')) return json.data;
+    return json;
+  }
+
+  const read = { data: null, error: null, loading: false };
+  const state = { snapshot: null, error: null, pending: false, unknown: null, conflict: false };
+  // The workspace drafts hydrate writes (ProductionPreferences.tsx hydrate).
+  const drafts = { values: null, appearance: 'system', ambient: false, display: null, zone: 'America/New_York', streak: false, linked: true };
+  let lock = false;
+  const hydrate = (value) => {
+    state.snapshot = value;
+    state.unknown = value.unresolvedOperations[0] ?? null;
+    drafts.values = value.values;
+    drafts.appearance = value.display.appearance;
+    drafts.ambient = value.display.ambient;
+    drafts.display = value.display;
+    drafts.zone = value.calendar.zone;
+    drafts.streak = value.calendar.streak;
+    drafts.linked = value.calendar.linked;
+  };
+  async function reload() {
+    read.loading = true;
+    read.error = null;
+    try { read.data = await request('settings.read', {}); } catch (error) { read.data = null; read.error = serviceMessage(error); } finally { read.loading = false; }
+    if (read.data) {
+      if (validSettingsSnapshot(read.data)) hydrate(read.data);
+      else state.error = 'Settings could not be verified. Please retry.';
+    }
+  }
+  async function save(input) {
+    if (lock || state.unknown || !state.snapshot) return null;
+    lock = true; state.pending = true; state.error = null; state.conflict = false;
+    const id = crypto.randomUUID();
+    try {
+      const receipt = await request('settings.save', { ...input, operationId: id }, { idempotencyKey: id, expectedRevision: state.snapshot.revision });
+      if (receipt.operationId === id && ['failed', 'cancelled'].includes(receipt.status)) { state.error = 'The save was not applied. Your draft is still here.'; return null; }
+      const value = receipt.snapshot;
+      if (receipt.operationId !== id || receipt.status !== 'succeeded' || !validSettingsSnapshot(value)) {
+        state.unknown = id;
+        throw new FrontendServiceError('unknown_outcome', 'The save is not confirmed. Check its status before trying again.');
+      }
+      hydrate(value);
+      return value;
+    } catch (error) {
+      state.conflict = error instanceof FrontendServiceError && error.code === 'conflict';
+      if (error instanceof FrontendServiceError && error.code === 'conflict') await reload();
+      if (error instanceof FrontendServiceError && error.code === 'unknown_outcome') state.unknown = id;
+      state.error = serviceMessage(error);
+      return null;
+    } finally { lock = false; state.pending = false; }
+  }
+  async function reconcile() {
+    if (!state.unknown || lock) return;
+    lock = true; state.pending = true;
+    try {
+      const value = await request('operations.read', { operationId: state.unknown, domain: 'settings' });
+      if (value.operationId === state.unknown && value.status === 'succeeded' && validSettingsSnapshot(value.snapshot)) { hydrate(value.snapshot); state.error = null; }
+      else if (value.operationId === state.unknown && (value.status === 'failed' || value.status === 'cancelled')) { state.unknown = null; await reload(); state.error = 'The save was not applied. Your draft is still here.'; }
+      else state.error = 'The save is still being checked.';
+    } catch (error) { state.error = serviceMessage(error); } finally { lock = false; state.pending = false; }
+  }
+  /**
+   * SettingsWorkspace.save in production: the panel's edit over the hydrated
+   * values, plus `household` for home and the display and calendar drafts for
+   * display. `edit` changes the panel's draft the way a control would.
+   */
+  function saveGroup(panel, { values: editValues, household, display, calendar, appearance, ambient } = {}) {
+    const values = drafts.values;
+    const current = structuredClone(values);
+    if (editValues) editValues(current);
+    const submitted = panel === 'home' ? { ...values, home: current.home }
+      : panel === 'notifications' ? { ...values, notifications: current.notifications, quiet: current.quiet }
+        : panel === 'luna' ? { ...values, luna: current.luna }
+          : panel === 'display' ? { ...values, language: current.language } : values;
+    const currentDisplay = { scale: drafts.display.scale, motion: drafts.display.motion, contrast: drafts.display.contrast, palette: colorPalette(drafts.display.palette) };
+    const displayDraft = { ...currentDisplay, ...display };
+    const calendarDraft = { zone: drafts.zone, streak: drafts.streak, linked: drafts.linked, ...calendar };
+    const appearanceDraft = appearance ?? appearancePreference(drafts.appearance);
+    const ambientDraft = ambient ?? drafts.ambient;
+    return save({
+      group: panel,
+      values: submitted,
+      ...(panel === 'home' ? { household: household ?? Object.fromEntries(BAND_KEYS.map((key) => [key, false])) } : {}),
+      ...(panel === 'display' ? { display: { ...displayDraft, appearance: appearanceDraft, ambient: ambientDraft }, calendar: calendarDraft } : {}),
+    });
+  }
+  return {
+    sent, reload, reconcile, saveGroup, state,
+    get snapshot() { return state.snapshot; },
+    get unknown() { return state.unknown; },
+    get error() { return state.error ?? read.error ?? (state.unknown ? 'A settings save needs a status check.' : null); },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // GET
@@ -210,11 +365,16 @@ test('GET: a household that never saved settings gets the defaults at revision 1
   assert.equal(h.db.rows('profile_preferences').filter((row) => row.profile_id === h.identities.bob.id).length, 1);
 });
 
-test('GET: a household with no profile row still gets a valid snapshot', async () => {
+test('review N1: a household with no profile row is a 404 on GET and PATCH, writes nothing and claims nothing', async () => {
+  // The preferences row's foreign key refuses it, as 0021's does (the fake declares it, test/helpers/tables.mjs).
   const h = createRouteHarness({ tables: HALO_TABLES, identities: { carol: {} } });
-  const body = await readBody(h, 'carol');
-  assert.deepEqual(body.values.home, { year: '', water: 'other', tenure: 'other' });
-  assert.equal(body.values.language, 'en');
+  installSettingsDb(h.db);
+  const read = await expectEnvelope(await h.call(ROUTE, 'GET', { as: 'carol' }), { status: 404, code: 'not_found', retryable: false });
+  assert.doesNotMatch(JSON.stringify(read), /23503|foreign key|profile_preferences/);
+  assert.deepEqual(h.db.rows('profile_preferences'), [], 'no preferences row was made');
+  const body = { group: 'luna', values: { luna: { tasks: true, home: true, projects: true } }, operationId: nextOp() };
+  await expectEnvelope(await patch(h, body, { who: 'carol', revision: 1 }), { status: 404, code: 'not_found', retryable: false });
+  assert.deepEqual([h.db.rows('profile_preferences'), h.db.rows('operations')], [[], []], 'nothing written, no operation claimed');
 });
 
 test('GET: unresolvedOperations is a lock, so it lists only this household\'s pending settings operations', async () => {
@@ -346,12 +506,13 @@ test('PATCH notifications: the five switches and quiet hours are saved, and only
   assert.equal(receipt.snapshot.values.notifications.radon_season, false);
   assert.equal(receipt.snapshot.values.notifications.weather_advisory, false);
   assert.deepEqual(receipt.snapshot.values.quiet, { enabled: true, from: '23:00', to: '06:30', zone: 'America/Denver' });
-  const upserts = h.db.queryLog.filter((q) => q.table === 'notification_prefs' && q.operation === 'upsert');
-  assert.equal(upserts.length, 1);
-  assert.deepEqual(Object.keys(upserts[0].rows[0]).sort(), ['profile_id', 'radon_season', 'updated_at']);
+  const writes = valueWrites(h, ['notification_prefs']);
+  assert.equal(writes.length, 1);
+  assert.deepEqual(Object.keys(writes[0].values).sort(), ['radon_season', 'updated_at']);
   // The whole save is one save_settings call (Ruling S11), and it names only what changed.
   assert.deepEqual(saveCalls(h), [{
     p_profile_id: h.identities.alice.id,
+    p_operation_id: body.operationId,
     p_expected_revision: 4,
     p_preferences: { quiet_enabled: true, quiet_from: '23:00', quiet_to: '06:30', quiet_zone: 'America/Denver' },
     p_profile: null,
@@ -404,6 +565,19 @@ test('PATCH home: year, water, tenure and the household bands are saved, and GET
   assert.equal(profile.household.has_child, true);
 });
 
+test('round 3 finding F: a display save by a household that never answered the household question leaves household_set false (B01)', async () => {
+  const h = harness();
+  assert.equal(bandsOf(h, 'bob'), undefined);
+  const shown = await readBody(h, 'bob');
+  const body = saveBody(shown, 'display', { values: (v) => { v.language = 'es'; }, display: { appearance: 'dark' } });
+  assertReceipt(await (await patch(h, body, { who: 'bob', revision: 1 })).json(), body.operationId);
+  assert.deepEqual([bandsOf(h, 'bob'), notifOf(h, 'bob')], [undefined, undefined], 'no band or notification row was made');
+  const household = await (await h.call('/api/household', 'GET', { as: 'bob' })).json();
+  assert.equal(household.household_set, false);
+  const profile = await (await h.call('/api/profile', 'GET', { as: 'bob' })).json();
+  assert.equal(profile.household_set, false);
+});
+
 test('PATCH home through the current home (0016): the answers are saved in the home context and the profile follows it', async () => {
   const ctx = setup();
   registerHomeContextRpcs(ctx.h.db);
@@ -452,7 +626,7 @@ test('PATCH home: clearing the year stores null; unchanged bands are not rewritt
   const receipt = await (await patch(h, body, { revision: 4 })).json();
   assert.equal(receipt.snapshot.values.home.year, '');
   assert.equal(profileOf(h).home_year, null);
-  assert.equal(h.db.queryLog.filter((q) => q.table === 'household_bands' && q.operation !== 'select').length, 0);
+  assert.deepEqual(valueWrites(h, ['household_bands']), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -724,6 +898,39 @@ test('S11: the receipt is built from what save_settings returned, with nothing r
   assert.deepEqual(await readBody(h), receipt.snapshot, 'and it is what the next read says');
 });
 
+/** Every console.error argument as text, objects in full, so nothing they carry is missed. */
+const loggedText = (mock) => mock.mock.calls.flatMap((call) => call.arguments.map((arg) => inspect(arg, { depth: 8 }))).join('\n');
+
+test('review finding B: a failed save or read logs the error\'s code and message, never its details or hint, which can quote the refused row', async (t) => {
+  const errors = muteConsoleError(t);
+  const MARKER = 'MARKER-SETTINGS-LOG-9182';
+  // A refused row as Postgres reports it: coordinates, ZIP and PWSID in DETAIL.
+  const refused = rpcError('23514', 'new row for relation "profiles" violates check constraint "profiles_locale_check"',
+    `Failing row contains (${MARKER}, 35.409, -80.58, 28025, Cabarrus County, NC9990001).`, `hint ${MARKER}`);
+  const h = harness();
+  const shown = await readBody(h);
+  h.db.registerRpc('save_settings', () => { throw refused; });
+  await expectEnvelope(await patch(h, saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } }), { revision: 4 }), { status: 500, code: 'internal_error' });
+  // GET, with a read that fails the same way.
+  const from = h.db.from;
+  h.db.from = (name) => {
+    const builder = from(name);
+    if (name === 'profiles') builder.then = (ok, ko) => Promise.resolve({ data: null, error: refused }).then(ok, ko);
+    return builder;
+  };
+  await expectEnvelope(await read(h), { status: 500, code: 'internal_error' });
+  h.db.from = from;
+  // PUT /api/household, the other route here that calls a database function (save_household).
+  h.db.registerRpc('save_household', () => { throw refused; });
+  await expectEnvelope(await householdPut(h, { has_child: true }), { status: 500, code: 'internal_error' });
+
+  const lines = loggedText(errors);
+  assert.equal(errors.mock.callCount(), 3, 'each failure is logged');
+  assert.equal(lines.split('profiles_locale_check').length - 1, 3, 'with its message');
+  assert.match(lines, /23514/, 'and its code');
+  for (const quoted of [MARKER, '28025', 'NC9990001', '-80.58']) assert.equal(lines.includes(quoted), false, `${quoted} is not logged:\n${lines}`);
+});
+
 test('S11: save_settings missing alone (0021 half applied) is the same 503, recorded as failed with nothing changed', async () => {
   const h = harness();
   h.db.registerRpc('save_settings', () => { throw rpcError('PGRST202', 'Could not find the function public.save_settings in the schema cache'); });
@@ -808,25 +1015,18 @@ test('two saves holding the same revision: exactly one wins, and the loser wrote
   }
 });
 
-test('the compare-and-set is the lock: a save whose read saw the revision but whose write lost the race is a 409', async () => {
+test('the revision check in save_settings is the lock: a save whose read saw the revision but whose save lost the race is a 409', async () => {
   const h = harness();
   const shown = await readBody(h);
-  // Another writer advances the revision between the save's own read and its compare-and-set.
-  const from = h.db.from;
-  h.db.from = (name) => {
-    const builder = from(name);
-    if (name !== 'profile_preferences') return builder;
-    const realUpdate = builder.update.bind(builder);
-    builder.update = (values) => {
-      const chained = realUpdate(values);
-      if (values.revision !== 5) return chained;
-      h.db.from = from;
-      const realThen = chained.then.bind(chained);
-      chained.then = (ok, ko) =>
-        from('profile_preferences').update({ revision: 5 }).eq('profile_id', h.identities.alice.id).then(() => realThen(ok, ko));
-      return chained;
-    };
-    return builder;
+  // Another writer advances the revision between the route's own read and save_settings.
+  const rpc = h.db.rpc;
+  h.db.rpc = async (name, args) => {
+    if (name === 'save_settings') {
+      h.db.rpc = rpc;
+      const { error } = await h.db.from('profile_preferences').update({ revision: 5 }).eq('profile_id', h.identities.alice.id);
+      assert.equal(error, null);
+    }
+    return rpc(name, args);
   };
   const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
   const envelope = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason', 'revision'] });
@@ -900,6 +1100,36 @@ test('a success receipt leaves out its own id but keeps another pending settings
   const receipt = await (await patch(h, body, { revision: 4 })).json();
   assertReceipt(receipt, body.operationId);
   assert.deepEqual(receipt.snapshot.unresolvedOperations, [OTHER]);
+  // Ruling S14: that list is the direct answer's alone. The receipt the ledger
+  // keeps, which a replay and GET /api/operations serve, is history, not a lock.
+  const historical = { ...receipt, snapshot: { ...receipt.snapshot, unresolvedOperations: [] } };
+  assert.deepEqual(opRow(h, body.operationId).result, historical);
+  assert.deepEqual(await (await patch(h, body, { revision: 4 })).json(), historical, 'a replay is the stored receipt');
+  // Ruling S16: the reconcile carries the live list, so the other operation stays locked.
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${body.operationId}&domain=settings` })).json();
+  assert.deepEqual([reconciled.status, reconciled.snapshot], ['succeeded', receipt.snapshot]);
+});
+
+test('Ruling S16 (S14 review probe): a tab that parked Q while R was also pending keeps R after reconciling Q', async () => {
+  const R = '5e771265-eeee-4000-8000-0000000000a1';
+  // Pending work in another domain is another surface's lock, never this one's.
+  const ALERTS_WORK = '5e771265-eeee-4000-8000-0000000000a2';
+  const h = harness({ operations: [{ operation_id: R }, { operation_id: ALERTS_WORK, domain: 'alerts', kind: 'alerts.update' }] });
+  const tab = productionPreferences(h);
+  await tab.reload();
+  assert.equal(tab.unknown, R);
+  // Q runs, and its direct answer lists R.
+  const shown = await readBody(h);
+  const q = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  const receipt = await (await patch(h, q, { revision: 4 })).json();
+  assert.deepEqual(receipt.snapshot.unresolvedOperations, [R]);
+  // What a load taken while Q and R were both pending leaves the hook holding: Q parked.
+  tab.state.unknown = q.operationId;
+  await tab.reconcile();
+  assert.deepEqual([tab.unknown, tab.snapshot.values.luna.home], [R, !SETTINGS.alice.luna_home], 'R is still pending, so it is not silently unlocked');
+  assert.deepEqual((await readBody(h)).unresolvedOperations, [R]);
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${q.operationId}&domain=settings` })).json();
+  assert.deepEqual(reconciled.snapshot.unresolvedOperations, [R], 'this domain\'s live list only');
 });
 
 // ---------------------------------------------------------------------------
@@ -924,7 +1154,7 @@ test('a save of one group never writes another group\'s stale values back', asyn
   assert.deepEqual({ ...receipt.snapshot.values, luna: shown.values.luna }, shown.values);
   assert.deepEqual(receipt.snapshot.display, shown.display);
   assert.deepEqual(receipt.snapshot.calendar, shown.calendar);
-  assert.equal(h.db.queryLog.filter((q) => ['profiles', 'notification_prefs', 'household_bands'].includes(q.table) && q.operation !== 'select').length, 0);
+  assert.deepEqual(valueWrites(h, ['profiles', 'notification_prefs', 'household_bands']), []);
 });
 
 test('PATCH: every statement is scoped to the caller, a body naming another profile is refused, a query naming one is ignored, and bob is unchanged', async () => {
@@ -1042,4 +1272,248 @@ test('If-Match also accepts the revision as an entity tag', async () => {
 test('the route bounds its run time inside the ledger\'s 120 s window (maxDuration)', async () => {
   const route = await import('../app/api/settings/route.js');
   assert.equal(route.maxDuration, 60);
+});
+
+// ---------------------------------------------------------------------------
+// Ruling S15: save_settings settles its own ledger row
+// ---------------------------------------------------------------------------
+
+/** h.db.rpc, with save_settings's answer lost after it committed: the route gets a network failure. */
+function loseSaveAnswer(h) {
+  const rpc = h.db.rpc;
+  h.db.rpc = async (name, args) => {
+    const result = await rpc(name, args);
+    if (name !== 'save_settings') return result;
+    h.db.rpc = rpc;
+    assert.equal(result.error, null, 'the save itself committed');
+    return { data: null, error: { code: '', message: 'TypeError: fetch failed', details: null, hint: null } };
+  };
+}
+
+test('S15: a save whose answer is lost after it committed stays succeeded; the route answers 500 though the ledger refuses its failed settle', async (t) => {
+  const errors = muteConsoleError(t);
+  const h = harness();
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  loseSaveAnswer(h);
+  // The client treats a 500 on a save as an unknown outcome and checks its status.
+  await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 500, code: 'internal_error' });
+  const logged = errors.mock.calls.map((call) => call.arguments.join(' '));
+  assert.ok(logged.some((line) => line.includes(`could not settle ${body.operationId} as failed`) && line.includes('HALO_OPERATION_SETTLED')),
+    'runOperation\'s settle as failed was refused by the database and logged, not thrown');
+  // The row tells the truth, with the receipt save_settings stored: the save applied.
+  assert.equal(opRow(h, body.operationId).status, 'succeeded');
+  assert.equal(prefsOf(h).luna_home, !SETTINGS.alice.luna_home);
+  const reconciled = await (await h.call('/api/operations', 'GET', { as: 'alice', url: `/api/operations?operationId=${body.operationId}&domain=settings` })).json();
+  assert.equal(reconciled.status, 'succeeded');
+  assertReceipt({ operationId: reconciled.operationId, status: reconciled.status, snapshot: reconciled.snapshot }, body.operationId);
+  assert.deepEqual(reconciled.snapshot, await readBody(h), 'the save as applied, which is what the next read says');
+  // A replay of the same id answers that success too, not a conflict and not a failure.
+  const replay = await patch(h, body, { revision: 4 });
+  assert.equal(replay.status, 200);
+  assertReceipt(await replay.json(), body.operationId);
+});
+
+test('S15: a save whose ledger row the reaper settled first is refused by save_settings with nothing written, a terminal 409 operation_abandoned', async (t) => {
+  const errors = muteConsoleError(t);
+  const h = harness();
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'home', { values: (v) => { v.home.tenure = 'renter'; }, household: { has_teen: true } });
+  const before = withoutOperations(tablesSnapshot(h));
+  const rpc = h.db.rpc;
+  h.db.rpc = async (name, args) => {
+    if (name === 'save_settings') {
+      h.db.rpc = rpc;
+      // The reaper's own statement, for this row (lib/operations.js reapAbandonedOperations).
+      const { error } = await h.db.from('operations').update({ status: 'failed', result: { status: 'failed', reason: 'abandoned' } })
+        .eq('operation_id', args.p_operation_id).eq('status', 'pending');
+      assert.equal(error, null);
+    }
+    return rpc(name, args);
+  };
+  const first = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason'] });
+  assert.equal(first.reason, 'operation_abandoned', 'a terminal answer at once, not a 500 to check');
+  assert.equal(withoutOperations(tablesSnapshot(h)), before, 'no setting, no revision, no tenure, no band');
+  // The ledger keeps the reaper's reason, so a replay and a reconcile say the same.
+  assert.deepEqual([opRow(h, body.operationId).status, opRow(h, body.operationId).result?.reason], ['failed', 'abandoned']);
+  const replay = await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 409, code: 'conflict', extraKeys: ['reason'] });
+  assert.equal(replay.reason, 'operation_abandoned');
+  assert.equal(errors.mock.callCount(), 0, 'nothing went wrong that needs a log line');
+});
+
+test('review finding C: a save of the values already shown applies without advancing the revision', async () => {
+  const h = harness();
+  const shown = await readBody(h);
+  const body = saveBody(shown, 'luna');
+  const receipt = await (await patch(h, body, { revision: 4 })).json();
+  assertReceipt(receipt, body.operationId);
+  assert.deepEqual(receipt.snapshot, shown, 'the same snapshot, at the same revision');
+  assert.equal(prefsOf(h).revision, 4);
+  assert.equal(opRow(h, body.operationId).status, 'succeeded');
+  // So another device still showing revision 4 is not sent a needless conflict.
+  const other = saveBody(shown, 'luna', { values: (v) => { v.luna.projects = !v.luna.projects; } });
+  const applied = await (await patch(h, other, { revision: 4 })).json();
+  assertReceipt(applied, other.operationId);
+  assert.equal(applied.snapshot.revision, 5);
+});
+
+test('S11: an answer whose revision does not match whether it changed anything is a 500, not a made-up receipt', async (t) => {
+  muteConsoleError(t);
+  for (const answer of [{ changed: true, revision: 4 }, { changed: false, revision: 5 }, { changed: 'yes', revision: 5 }]) {
+    const h = harness();
+    const real = h.db.rpc;
+    h.db.rpc = async (name, args) => {
+      const result = await real(name, args);
+      if (name !== 'save_settings') return result;
+      return { data: { ...result.data, ...answer, preferences: { ...result.data.preferences, revision: answer.revision } }, error: null };
+    };
+    const shown = await readBody(h);
+    const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+    await expectEnvelope(await patch(h, body, { revision: 4 }), { status: 500, code: 'internal_error' });
+  }
+});
+
+/**
+ * Two saves of one household that overlap so each one's read of the pending
+ * list sees the other (review R1 of Task 2b, for settings), and both apply:
+ * the first saves the values it was shown (finding C: it keeps the revision),
+ * the second a real change at the same revision. The first runs until its
+ * read of the pending list and waits; the second runs until its own read of
+ * that list has answered; the first then reads (the second is pending), saves
+ * and commits; then the second saves.
+ */
+async function overlapSaves(h, first, second) {
+  const realFrom = h.db.from;
+  const realRpc = h.db.rpc;
+  const claims = [];
+  let listReads = 0;
+  let secondCall = null;
+  let secondListed;
+  const listed = new Promise((resolve) => { secondListed = resolve; });
+  let firstCommitted;
+  const committed = new Promise((resolve) => { firstCommitted = resolve; });
+  h.db.from = (name) => {
+    const builder = realFrom(name);
+    if (name !== 'operations') return builder;
+    const state = { claim: null, update: false, pendingList: false };
+    const upsert = builder.upsert.bind(builder);
+    builder.upsert = (row, ...rest) => { state.claim = row?.operation_id ?? null; return upsert(row, ...rest); };
+    const update = builder.update.bind(builder);
+    builder.update = (...args) => { state.update = true; return update(...args); };
+    const eq = builder.eq.bind(builder);
+    builder.eq = (column, value) => { if (column === 'status' && value === 'pending') state.pendingList = true; return eq(column, value); };
+    const then = builder.then.bind(builder);
+    builder.then = (ok, ko) => {
+      if (state.claim) claims.push(state.claim);
+      // A read of the pending list: the first is the first save's, the second the second's.
+      if (state.pendingList && !state.update && !state.claim) {
+        listReads += 1;
+        if (listReads === 1) { secondCall = second(); return listed.then(() => then(ok, ko)); }
+        if (listReads === 2) return then((result) => { secondListed(); return result; }).then(ok, ko);
+      }
+      return then(ok, ko);
+    };
+    return builder;
+  };
+  h.db.rpc = async (name, args) => {
+    if (name === 'save_settings' && args.p_operation_id === claims[1]) await committed;
+    const result = await realRpc(name, args);
+    if (name === 'save_settings' && args.p_operation_id === claims[0]) firstCommitted();
+    return result;
+  };
+  try {
+    const one = await first();
+    return [one, await secondCall];
+  } finally {
+    h.db.from = realFrom;
+    h.db.rpc = realRpc;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The client's own save and reconcile logic, over the real handlers (review N3)
+// ---------------------------------------------------------------------------
+
+test('client flow: load, then save every panel the way the workspace does; each receipt hydrates, nothing locks, the server agrees', async () => {
+  const h = harness();
+  // bob has never saved a setting: no palette stored, nothing answered.
+  const tab = productionPreferences(h, 'bob');
+  const server = async () => readBody(h, 'bob');
+  await tab.reload();
+  assert.deepEqual([tab.snapshot.revision, tab.unknown, tab.error], [1, null, null]);
+  assert.equal(Object.hasOwn(tab.snapshot.display, 'palette'), false);
+
+  assert.ok(await tab.saveGroup('luna', { values: (v) => { v.luna.home = true; } }));
+  assert.deepEqual([tab.snapshot.revision, tab.snapshot.values.luna.home, tab.unknown, tab.error], [2, true, null, null]);
+  assert.deepEqual(tab.snapshot, await server());
+
+  // The workspace sends its display block with colorPalette's 'ocean' when none is stored.
+  assert.ok(await tab.saveGroup('display', { appearance: 'dark', calendar: { zone: 'America/Chicago' } }));
+  assert.deepEqual([tab.snapshot.display.appearance, tab.snapshot.display.palette, tab.snapshot.calendar.zone], ['dark', 'ocean', 'America/Chicago']);
+  assert.equal(prefsOf(h, 'bob').display_palette, 'ocean', 'the palette the client sent is the one stored');
+  assert.deepEqual(tab.snapshot, await server());
+
+  assert.ok(await tab.saveGroup('notifications', { values: (v) => { v.notifications.radon_season = false; v.quiet = { enabled: true, from: '22:00', to: '07:00', zone: 'UTC' }; } }));
+  assert.ok(await tab.saveGroup('home', { values: (v) => { v.home = { year: '1990', water: 'well', tenure: 'renter' }; }, household: { ...Object.fromEntries(BAND_KEYS.map((key) => [key, false])), has_senior: true } }));
+  assert.deepEqual(tab.snapshot.values.home, { year: '1990', water: 'well', tenure: 'renter' });
+  assert.equal(bandsOf(h, 'bob').has_senior, true);
+  assert.deepEqual([tab.snapshot.revision, tab.unknown, tab.error], [5, null, null]);
+  assert.deepEqual(tab.snapshot, await server());
+
+  // Saving a panel as it stands applies and keeps the revision (review finding C).
+  assert.ok(await tab.saveGroup('luna'));
+  assert.deepEqual([tab.snapshot.revision, tab.unknown, tab.error], [5, null, null]);
+  assert.deepEqual(tab.sent, ['settings.read', 'settings.save', 'settings.save', 'settings.save', 'settings.save', 'settings.save'], 'no status check was ever needed');
+});
+
+test('client flow, Ruling S15: a save whose answer is lost is checked and shown as saved, never as "not applied"', async (t) => {
+  muteConsoleError(t);
+  const h = harness();
+  const tab = productionPreferences(h);
+  await tab.reload();
+  loseSaveAnswer(h);
+  assert.equal(await tab.saveGroup('luna', { values: (v) => { v.luna.projects = !v.luna.projects; } }), null);
+  assert.deepEqual([tab.error, tab.unknown !== null], [RUNTIME_MESSAGES.unknown_outcome, true], 'parked, with a status check offered');
+  await tab.reconcile();
+  assert.deepEqual([tab.unknown, tab.error], [null, null], 'the check finds the save, so the surface unlocks with no failure message');
+  assert.equal(tab.snapshot.values.luna.projects, !SETTINGS.alice.luna_projects);
+  assert.deepEqual(tab.snapshot, await readBody(h));
+});
+
+test('client flow: a save another tab got in first is a conflict; the read is retried, and the next save applies', async () => {
+  const h = harness();
+  const tab1 = productionPreferences(h);
+  const tab2 = productionPreferences(h);
+  await tab1.reload();
+  await tab2.reload();
+  assert.ok(await tab2.saveGroup('luna', { values: (v) => { v.luna.tasks = !v.luna.tasks; } }));
+  assert.equal(await tab1.saveGroup('luna', { values: (v) => { v.luna.home = !v.luna.home; } }), null);
+  assert.deepEqual([tab1.state.conflict, tab1.error, tab1.unknown], [true, RUNTIME_MESSAGES.conflict, null]);
+  assert.deepEqual(tab1.snapshot, tab2.snapshot, 'the retried read shows what the other tab saved');
+  assert.ok(await tab1.saveGroup('luna', { values: (v) => { v.luna.home = !v.luna.home; } }));
+  assert.deepEqual([tab1.snapshot.revision, tab1.unknown], [6, null]);
+  assert.deepEqual(tab1.snapshot, await readBody(h));
+});
+
+test('client flow, Ruling S14: two overlapping saves from two tabs no longer park each other for ever (review R1, reproduced)', { timeout: 10_000 }, async () => {
+  const h = harness();
+  const tab1 = productionPreferences(h);
+  const tab2 = productionPreferences(h);
+  await tab1.reload();
+  await tab2.reload();
+  const [first, second] = await overlapSaves(h,
+    () => tab1.saveGroup('luna'),
+    () => tab2.saveGroup('luna', { values: (v) => { v.luna.home = !v.luna.home; } }));
+  assert.ok(first && second, 'both saves applied');
+  const [x, y] = h.db.rows('operations').map((op) => op.operation_id);
+  // Each one's read of the ledger saw the other pending, and each direct answer says so.
+  assert.deepEqual([tab1.unknown, tab2.unknown], [y, x]);
+  // "Check save status" settles it in one step. Before Ruling S14, y's stored
+  // receipt named x and x's named y, so each check parked the other one.
+  await tab1.reconcile();
+  assert.deepEqual([tab1.unknown, tab1.error], [null, null], 'tab 1 is unlocked by one check');
+  await tab2.reconcile();
+  assert.deepEqual([tab2.unknown, tab2.error], [null, null], 'tab 2 is unlocked by one check');
+  assert.deepEqual([opRow(h, x).result.snapshot.unresolvedOperations, opRow(h, y).result.snapshot.unresolvedOperations], [[], []]);
+  assert.equal(prefsOf(h).luna_home, !SETTINGS.alice.luna_home);
 });

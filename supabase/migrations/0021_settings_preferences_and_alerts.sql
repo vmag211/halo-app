@@ -13,11 +13,12 @@
 -- on an existing row, and alerts.revision starts at the constant 1. Both tables
 -- are small (one row per household, a handful of alerts each). The foreign key
 -- to profiles takes a brief SHARE ROW EXCLUSIVE on profiles as it is created.
--- It also creates three functions and seven triggers (Rulings S11 to S13,
--- below). Creating a trigger takes SHARE ROW EXCLUSIVE on profiles,
--- notification_prefs and household_bands for a moment, and a re-run drops each
--- one first, which takes ACCESS EXCLUSIVE for a moment; a save on one of those
--- tables waits that long and then goes on.
+-- It also creates four functions and eight triggers (Rulings S11 to S13 and
+-- S15, below). Creating a trigger takes SHARE ROW EXCLUSIVE on profiles,
+-- notification_prefs, household_bands and operations for a moment, and a
+-- re-run drops each one first, which takes ACCESS EXCLUSIVE for a moment; a
+-- save on one of those tables, a ledger claim or settle included, waits that
+-- long and then goes on.
 --
 -- WHY THERE IS A MIGRATION AT ALL (Ruling S2). Neither surface in this package
 -- can be served from the tables that already exist. The derivation is section 8
@@ -519,18 +520,20 @@ create trigger profiles_tenure_reconcile
   execute function public.reconcile_profile_tenure();
 
 -- ---------------------------------------------------------------------------
--- save_settings: one settings save, all or nothing (Ruling S11)
+-- save_settings: one settings save, all or nothing (Rulings S11 and S15)
 -- ---------------------------------------------------------------------------
 -- PATCH /api/settings calls this once per save, with the service role, after
--- it has verified the token, read the snapshot and worked out what the save
--- changes. Everything the save writes happens here, in one transaction: the
--- compare-and-set on the revision, the group's own columns, and the home
--- details, tenure, language, switches and bands that live in other tables. A
--- refusal or an error anywhere rolls all of it back, so a failed save leaves
--- nothing applied and "not applied" is always true when the route says it.
+-- it has verified the token, claimed the operation in the ledger (0017), read
+-- the snapshot and worked out what the save changes. Everything the save
+-- writes happens here, in one transaction: the revision check, the group's own
+-- columns, the home details, tenure, language, switches and bands that live in
+-- other tables, and the settle of the save's own ledger row. A refusal or an
+-- error anywhere rolls all of it back, so a failed save leaves nothing applied
+-- and "not applied" is always true when the route says it.
 --
 -- p_profile_id is trusted for the same reason as in 0016: only the service
 -- role may call this, and the route passes the id from the session token.
+-- p_operation_id is the operation the route claimed for this save.
 -- p_expected_revision is the client's If-Match. The other arguments are what
 -- to write, each null for "nothing in that table":
 --   p_preferences     profile_preferences columns, by name ({} for none);
@@ -547,28 +550,87 @@ create trigger profiles_tenure_reconcile
 --                     home_changed);
 --   p_notifications   the switches to change;
 --   p_bands           the bands to store.
--- Any other key is HALO_INVALID_INPUT, as in 0016.
+-- Any other key is HALO_INVALID_INPUT, as in 0016. So is a value outside what
+-- its column allows (review finding B): the enums, the HH:MM times, the zone
+-- shape, tenure and locale are checked here, before anything is read, so a bad
+-- value is refused by name and never reaches a CHECK, whose DETAIL would put
+-- the whole failing row, location included, into the server log.
+--
+-- THE SAVE SETTLES ITS OWN LEDGER ROW (Ruling S15, the pattern 0023's
+-- commit_household_actions set for My Week, B06 Rulings H8, H28 and H29).
+-- Straight after the profile, and before anything is read or written, this
+-- function locks this operation's row in public.operations, which must be
+-- this household's, in domain 'settings' and still 'pending'; otherwise it
+-- raises HALO_OPERATION_NOT_PENDING with nothing written. The reaper in lib/operations.js settles an abandoned row with a
+-- conditional `update ... where status = 'pending'`, so the two exclude each
+-- other: if the reaper settled the row first, nothing matches here and the
+-- save is refused; if this save holds the row, the reaper waits and then finds
+-- it no longer pending. The last thing it does is settle that row 'succeeded'
+-- with the receipt the route would store: { operationId, status, snapshot },
+-- the snapshot built here from the rows as committed, with
+-- `unresolvedOperations: []` (Ruling S14: a stored receipt is history, not a
+-- lock). So a settings value is saved if and only if its operation is
+-- 'succeeded', and a save whose answer is lost after the commit reconciles as
+-- the success it was, with a snapshot the client accepts. lib/settings.js
+-- `settingsSnapshot` builds the same object in JavaScript;
+-- test/settingsSaveDb.test.mjs runs both over the same rows and fails when
+-- they differ. runOperation's own settle afterwards rewrites the receipt as
+-- 'succeeded' again, which section "A settled settings operation keeps its
+-- status" below allows; its settle as 'failed', after a lost answer, it
+-- refuses.
 --
 -- Locks are taken in the order every other writer of these rows takes them,
 -- so two writers wait for each other rather than deadlock: the profile first
--- (as save_household and the 0016 functions do), then the notification and
--- band rows, then the preferences row, which every trigger above takes last.
+-- (as save_household and the 0016 functions do), then this operation's own
+-- ledger row, then the notification and band rows, then the preferences row,
+-- which every trigger above takes last (P, O, N, B, R; 0021 round 3 review,
+-- finding E). Profile before ledger row is the order deleting an account takes
+-- them: auth.users cascades to the profile, and the profile cascades to its
+-- operations rows (0017). The reaper takes ledger rows and nothing else, so it
+-- can wait for this save or this save for it, never both.
 --
--- The revision advances exactly once per save. The compare-and-set sets it to
--- p_expected_revision + 1, and the writes after it fire the triggers above,
--- which advance it again inside this transaction; the last statement puts it
--- back to p_expected_revision + 1. Nobody can see the values in between: the
--- row is locked by this transaction until it commits.
+-- The notification row is made first, when the save writes the switches
+-- (review finding A). Without that, a first-time PUT /api/notifications
+-- deadlocks with the save: its upsert inserts the row, and its trigger then
+-- waits for the preferences row this save holds, while this save's own insert
+-- of the same row waits for the PUT's uncommitted one. Made here, before the
+-- preferences row is locked, the insert waits for the PUT to commit (or the
+-- PUT waits for this save) and nothing waits in a circle. The band row is
+-- made the same way when the save writes the bands, for symmetry: every other
+-- writer of bands locks the profile first, so it could not deadlock. Each row
+-- is made only for the group that writes it (round 3 finding F): a row's mere
+-- existence is an answer to some readers (household_set, B01, is true once a
+-- band row exists), so a save of the display settings must not make one. A
+-- row made here is all defaults, so it fires no trigger, and a save that is
+-- then refused deletes it again: a refused save leaves nothing behind.
+--
+-- THE REVISION ADVANCES ONCE PER SAVE THAT CHANGES SOMETHING (review finding
+-- C), and not at all for a save of the values already stored. The group's
+-- columns are written without touching the revision, so the triggers above
+-- advance it for every write that changed a stored value, exactly as for any
+-- other writer, and the last statement puts it back to p_expected_revision + 1
+-- if anything moved it. Nobody can see the values in between: the row is
+-- locked by this transaction until it commits. A save that changes nothing
+-- keeps the revision, so a second device holding the same revision can still
+-- save; the client accepts any receipt whose snapshot is valid
+-- (ProductionPreferences.tsx: no rule that the revision advances).
 --
 -- Returns { saved: false, revision } when the revision is not
--- p_expected_revision (revision null when there is no preferences row), and
--- nothing is written. Otherwise { saved: true, revision, preferences,
--- profile, notifications }: the committed rows a snapshot is built from, read
--- at the end of this transaction, so the route builds its receipt from them
--- without reading anything after the commit.
+-- p_expected_revision (revision null when there is no preferences row), with
+-- nothing written and the ledger row still pending. Otherwise { saved: true,
+-- changed, revision, preferences, profile, notifications }: whether a value
+-- changed, and the committed rows a snapshot is built from, read at the end of
+-- this transaction, so the route builds its receipt from them without reading
+-- anything after the commit.
+
+-- An earlier draft of this file had no p_operation_id. 0021 was applied
+-- nowhere with it, but a re-run over a database that has it must not leave a
+-- second save_settings for PostgREST to choose between.
+drop function if exists public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb);
 
 create or replace function public.save_settings(
   p_profile_id        uuid,
+  p_operation_id      uuid,
   p_expected_revision int,
   p_preferences       jsonb,
   p_profile           jsonb,
@@ -596,20 +658,32 @@ declare
   band_keys constant text[] := array[
     'has_toddler', 'has_child', 'has_teen', 'has_adult', 'has_senior', 'has_pregnant', 'has_respiratory'
   ];
+  -- The column checks above, as patterns: the client's own lists and formats.
+  clock        constant text := '^([01][0-9]|2[0-3]):[0-5][0-9]$';
+  zone_shape   constant text := '^[A-Za-z][A-Za-z0-9_+-]{0,39}(/[A-Za-z0-9_+-]{1,40}){0,2}$';
   prefs        jsonb := coalesce(p_preferences, '{}'::jsonb);
   bad          text;
   key          text;
-  current_rev  int;
+  stored       public.profile_preferences%rowtype;
   saved        public.profile_preferences%rowtype;
   home         public.home_contexts%rowtype;
   located      record;
   profile_row  record;
   notification public.notification_prefs%rowtype;
   has_notes    boolean;
+  made_notes   boolean;
+  made_bands   boolean;
+  current_rev  int;
+  changed      boolean;
+  receipt      jsonb;
+  touched      int;
 begin
   -- Arguments first: nothing is read or written for a malformed call.
   if p_profile_id is null then
     raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_profile_id is required';
+  end if;
+  if p_operation_id is null then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_operation_id is required';
   end if;
   if p_expected_revision is null or p_expected_revision < 1 then
     raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_expected_revision must be a positive integer';
@@ -634,6 +708,23 @@ begin
       raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = format('p_preferences.%s must be true or false', key);
     end if;
   end loop;
+  -- Each value its column allows (finding B). The DETAIL names keys, never values.
+  select string_agg(v.name, ', ' order by v.name) into bad
+    from (values
+      ('display_appearance', '^(system|light|dark)$'),
+      ('display_palette',    '^(ocean|forest|iris)$'),
+      ('display_scale',      '^(100|115|130|150)$'),
+      ('display_motion',     '^(system|full|reduce)$'),
+      ('quiet_from',         clock),
+      ('quiet_to',           clock),
+      ('quiet_zone',         zone_shape),
+      ('calendar_zone',      zone_shape)
+    ) as v(name, pattern)
+   where jsonb_typeof(prefs -> v.name) = 'string' and (prefs ->> v.name) !~ v.pattern;
+  if bad is not null then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+      detail = format('p_preferences has a value its column does not allow: %s', bad);
+  end if;
 
   if p_profile is not null then
     if jsonb_typeof(p_profile) <> 'object' then
@@ -649,6 +740,12 @@ begin
        or (p_profile ? 'renter_mode' and jsonb_typeof(p_profile -> 'renter_mode') is distinct from 'boolean') then
       raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
         detail = 'p_profile.tenure and p_profile.locale must be strings and p_profile.renter_mode true or false';
+    end if;
+    -- profiles_tenure_check (above) and profiles_locale_check (0002), checked here (finding B).
+    if (p_profile ? 'tenure' and p_profile ->> 'tenure' not in ('owner', 'renter', 'other'))
+       or (p_profile ? 'locale' and p_profile ->> 'locale' not in ('en', 'es')) then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+        detail = 'p_profile.tenure must be owner, renter or other, and p_profile.locale en or es';
     end if;
   end if;
 
@@ -697,15 +794,60 @@ begin
     end if;
   end if;
 
-  -- The locks, in every writer's order (see above).
+  -- 1. The profile, as every other writer of it locks it first (finding E).
   perform 1 from public.profiles where id = p_profile_id for no key update;
   if not found then
     raise exception 'HALO_PROFILE_NOT_FOUND' using errcode = 'P0001';
   end if;
+
+  -- 2. This operation's own ledger row, locked before anything is read or
+  --    written (Ruling S15). Not pending (reaped, settled, another
+  --    household's or another domain's): nothing is written.
+  perform 1 from public.operations o
+   where o.operation_id = p_operation_id and o.profile_id = p_profile_id
+     and o.domain = 'settings' and o.status = 'pending'
+     for update;
+  if not found then
+    raise exception 'HALO_OPERATION_NOT_PENDING' using errcode = 'P0001';
+  end if;
+
+  -- 3. The notification and band rows exist when this save writes them, then
+  --    are locked (findings A and F). All defaults, so neither insert fires a
+  --    trigger; a group this save does not write makes no row.
+  made_notes := false;
+  if p_notifications is not null and p_notifications <> '{}'::jsonb then
+    insert into public.notification_prefs (profile_id) values (p_profile_id) on conflict (profile_id) do nothing;
+    made_notes := found;
+  end if;
+  made_bands := false;
+  if p_bands is not null and p_bands <> '{}'::jsonb then
+    insert into public.household_bands (profile_id) values (p_profile_id) on conflict (profile_id) do nothing;
+    made_bands := found;
+  end if;
   perform 1 from public.notification_prefs where profile_id = p_profile_id for no key update;
   perform 1 from public.household_bands where profile_id = p_profile_id for no key update;
 
-  -- The compare-and-set, with the group's own columns. A miss writes nothing.
+  -- 4. The revision check, holding the preferences row until commit. A miss
+  --    writes nothing: the rows step 3 made are removed again.
+  select * into stored from public.profile_preferences where profile_id = p_profile_id for no key update;
+  if not found or stored.revision <> p_expected_revision then
+    if made_notes then
+      delete from public.notification_prefs where profile_id = p_profile_id;
+    end if;
+    if made_bands then
+      delete from public.household_bands where profile_id = p_profile_id;
+    end if;
+    return jsonb_build_object('saved', false, 'revision', stored.revision);
+  end if;
+  -- profile_preferences_quiet_window_check on the row as it will be (finding B).
+  if coalesce((prefs ->> 'quiet_enabled')::boolean, stored.quiet_enabled)
+     and coalesce(prefs ->> 'quiet_from', stored.quiet_from) = coalesce(prefs ->> 'quiet_to', stored.quiet_to) then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001',
+      detail = 'quiet hours that are on need different start and end times';
+  end if;
+
+  -- 5. The group's own columns. The revision is left to the trigger above, so
+  --    it moves only if a value did (finding C).
   update public.profile_preferences pp set
     display_appearance = case when prefs ? 'display_appearance' then prefs ->> 'display_appearance' else pp.display_appearance end,
     display_palette    = case when prefs ? 'display_palette' then prefs ->> 'display_palette' else pp.display_palette end,
@@ -723,15 +865,10 @@ begin
     luna_tasks         = case when prefs ? 'luna_tasks' then (prefs ->> 'luna_tasks')::boolean else pp.luna_tasks end,
     luna_home          = case when prefs ? 'luna_home' then (prefs ->> 'luna_home')::boolean else pp.luna_home end,
     luna_projects      = case when prefs ? 'luna_projects' then (prefs ->> 'luna_projects')::boolean else pp.luna_projects end,
-    revision           = pp.revision + 1,
     updated_at         = now()
-  where pp.profile_id = p_profile_id and pp.revision = p_expected_revision;
-  if not found then
-    select revision into current_rev from public.profile_preferences where profile_id = p_profile_id;
-    return jsonb_build_object('saved', false, 'revision', current_rev);
-  end if;
+  where pp.profile_id = p_profile_id;
 
-  -- The home details, through the home context (0016), inside this transaction.
+  -- 6. The home details, through the home context (0016), inside this transaction.
   if p_home is not null then
     select * into home from public.home_contexts where profile_id = p_profile_id and effective_to is null;
     if found then
@@ -775,57 +912,41 @@ begin
     where id = p_profile_id;
   end if;
 
+  -- Each row exists when its group is sent (step 3), so these are plain
+  -- updates of the keys sent.
   if p_notifications is not null and p_notifications <> '{}'::jsonb then
-    insert into public.notification_prefs as np (
-      profile_id, air_quality_change, weather_advisory, new_water_results, radon_season, season_summary, updated_at
-    ) values (
-      p_profile_id,
-      coalesce((p_notifications ->> 'air_quality_change')::boolean, true),
-      coalesce((p_notifications ->> 'weather_advisory')::boolean, true),
-      coalesce((p_notifications ->> 'new_water_results')::boolean, true),
-      coalesce((p_notifications ->> 'radon_season')::boolean, true),
-      coalesce((p_notifications ->> 'season_summary')::boolean, true),
-      now()
-    )
-    on conflict (profile_id) do update set
-      air_quality_change = case when p_notifications ? 'air_quality_change' then excluded.air_quality_change else np.air_quality_change end,
-      weather_advisory   = case when p_notifications ? 'weather_advisory' then excluded.weather_advisory else np.weather_advisory end,
-      new_water_results  = case when p_notifications ? 'new_water_results' then excluded.new_water_results else np.new_water_results end,
-      radon_season       = case when p_notifications ? 'radon_season' then excluded.radon_season else np.radon_season end,
-      season_summary     = case when p_notifications ? 'season_summary' then excluded.season_summary else np.season_summary end,
-      updated_at         = excluded.updated_at;
+    update public.notification_prefs np set
+      air_quality_change = coalesce((p_notifications ->> 'air_quality_change')::boolean, np.air_quality_change),
+      weather_advisory   = coalesce((p_notifications ->> 'weather_advisory')::boolean, np.weather_advisory),
+      new_water_results  = coalesce((p_notifications ->> 'new_water_results')::boolean, np.new_water_results),
+      radon_season       = coalesce((p_notifications ->> 'radon_season')::boolean, np.radon_season),
+      season_summary     = coalesce((p_notifications ->> 'season_summary')::boolean, np.season_summary),
+      updated_at         = now()
+    where np.profile_id = p_profile_id;
   end if;
 
   if p_bands is not null and p_bands <> '{}'::jsonb then
-    insert into public.household_bands as hb (
-      profile_id, has_toddler, has_child, has_teen, has_adult, has_senior, has_pregnant, has_respiratory, updated_at
-    ) values (
-      p_profile_id,
-      coalesce((p_bands ->> 'has_toddler')::boolean, false),
-      coalesce((p_bands ->> 'has_child')::boolean, false),
-      coalesce((p_bands ->> 'has_teen')::boolean, false),
-      coalesce((p_bands ->> 'has_adult')::boolean, false),
-      coalesce((p_bands ->> 'has_senior')::boolean, false),
-      coalesce((p_bands ->> 'has_pregnant')::boolean, false),
-      coalesce((p_bands ->> 'has_respiratory')::boolean, false),
-      now()
-    )
-    on conflict (profile_id) do update set
-      has_toddler     = case when p_bands ? 'has_toddler' then excluded.has_toddler else hb.has_toddler end,
-      has_child       = case when p_bands ? 'has_child' then excluded.has_child else hb.has_child end,
-      has_teen        = case when p_bands ? 'has_teen' then excluded.has_teen else hb.has_teen end,
-      has_adult       = case when p_bands ? 'has_adult' then excluded.has_adult else hb.has_adult end,
-      has_senior      = case when p_bands ? 'has_senior' then excluded.has_senior else hb.has_senior end,
-      has_pregnant    = case when p_bands ? 'has_pregnant' then excluded.has_pregnant else hb.has_pregnant end,
-      has_respiratory = case when p_bands ? 'has_respiratory' then excluded.has_respiratory else hb.has_respiratory end,
-      updated_at      = excluded.updated_at;
+    update public.household_bands hb set
+      has_toddler     = coalesce((p_bands ->> 'has_toddler')::boolean, hb.has_toddler),
+      has_child       = coalesce((p_bands ->> 'has_child')::boolean, hb.has_child),
+      has_teen        = coalesce((p_bands ->> 'has_teen')::boolean, hb.has_teen),
+      has_adult       = coalesce((p_bands ->> 'has_adult')::boolean, hb.has_adult),
+      has_senior      = coalesce((p_bands ->> 'has_senior')::boolean, hb.has_senior),
+      has_pregnant    = coalesce((p_bands ->> 'has_pregnant')::boolean, hb.has_pregnant),
+      has_respiratory = coalesce((p_bands ->> 'has_respiratory')::boolean, hb.has_respiratory),
+      updated_at      = now()
+    where hb.profile_id = p_profile_id;
   end if;
 
-  -- Exactly one advance for the whole save (see above). Only revision is set,
-  -- so no trigger fires.
-  update public.profile_preferences
-     set revision = p_expected_revision + 1
-   where profile_id = p_profile_id and revision <> p_expected_revision + 1;
+  -- 7. Exactly one advance for a save that changed something, none for one
+  --    that changed nothing (see above). Only revision is set, so no trigger fires.
+  select revision into current_rev from public.profile_preferences where profile_id = p_profile_id;
+  changed := current_rev <> p_expected_revision;
+  if changed then
+    update public.profile_preferences
+       set revision = p_expected_revision + 1
+     where profile_id = p_profile_id and revision <> p_expected_revision + 1;
+  end if;
 
   select * into saved from public.profile_preferences where profile_id = p_profile_id;
   select home_year, water_source, locale, tenure, renter_mode into profile_row
@@ -833,8 +954,61 @@ begin
   select * into notification from public.notification_prefs where profile_id = p_profile_id;
   has_notes := found;
 
+  -- 8. Settle this operation's own row, in this transaction (Ruling S15), with
+  --    the receipt the route stores: the snapshot lib/settings.js
+  --    settingsSnapshot builds from these rows, and no unresolved list (S14).
+  receipt := jsonb_build_object(
+    'operationId', p_operation_id,
+    'status', 'succeeded',
+    'snapshot', jsonb_build_object(
+      'revision', saved.revision,
+      'values', jsonb_build_object(
+        'home', jsonb_build_object(
+          'year', case when profile_row.home_year between 1000 and 9999 then profile_row.home_year::text else '' end,
+          'water', case when profile_row.water_source in ('utility', 'well', 'spring', 'other') then profile_row.water_source else 'other' end,
+          -- Unanswered: 'renter' while renter_mode is true, otherwise 'other', never 'owner' (S8, S13).
+          'tenure', case when profile_row.tenure in ('owner', 'renter', 'other') then profile_row.tenure
+                         when profile_row.renter_mode then 'renter' else 'other' end
+        ),
+        -- No row reads as every switch on (0010's defaults).
+        'notifications', jsonb_build_object(
+          'air_quality_change', coalesce(notification.air_quality_change, true),
+          'weather_advisory', coalesce(notification.weather_advisory, true),
+          'new_water_results', coalesce(notification.new_water_results, true),
+          'radon_season', coalesce(notification.radon_season, true),
+          'season_summary', coalesce(notification.season_summary, true)
+        ),
+        'quiet', jsonb_build_object('enabled', saved.quiet_enabled, 'from', saved.quiet_from, 'to', saved.quiet_to, 'zone', saved.quiet_zone),
+        'luna', jsonb_build_object('tasks', saved.luna_tasks, 'home', saved.luna_home, 'projects', saved.luna_projects),
+        'language', case when profile_row.locale = 'es' then 'es' else 'en' end
+      ),
+      -- A palette is sent only when one is stored: the client refuses null.
+      'display', jsonb_build_object(
+        'appearance', saved.display_appearance,
+        'ambient', saved.display_ambient,
+        'scale', saved.display_scale,
+        'motion', saved.display_motion,
+        'contrast', saved.display_contrast
+      ) || case when saved.display_palette in ('ocean', 'forest', 'iris')
+                then jsonb_build_object('palette', saved.display_palette) else '{}'::jsonb end,
+      'calendar', jsonb_build_object('zone', saved.calendar_zone, 'streak', saved.calendar_streak, 'linked', saved.calendar_linked),
+      'unresolvedOperations', '[]'::jsonb
+    )
+  );
+  update public.operations o
+     set status = 'succeeded', result = receipt, updated_at = now()
+   where o.operation_id = p_operation_id and o.profile_id = p_profile_id
+     and o.domain = 'settings' and o.status = 'pending';
+  get diagnostics touched = row_count;
+  if touched <> 1 then
+    -- Cannot happen while step 1's lock is held; kept so the settle is never
+    -- assumed.
+    raise exception 'HALO_OPERATION_NOT_PENDING' using errcode = 'P0001';
+  end if;
+
   return jsonb_build_object(
     'saved', true,
+    'changed', changed,
     'revision', saved.revision,
     'preferences', to_jsonb(saved),
     'profile', jsonb_build_object(
@@ -849,10 +1023,52 @@ begin
 end;
 $$;
 
-revoke execute on function public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)
+revoke execute on function public.save_settings(uuid, uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)
   from public, anon, authenticated;
-grant execute on function public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)
+grant execute on function public.save_settings(uuid, uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)
   to service_role;
+
+-- ---------------------------------------------------------------------------
+-- A settled settings operation keeps its status (Ruling S15)
+-- ---------------------------------------------------------------------------
+-- Why. runOperation (lib/operations.js) settles by operation id alone, with no
+-- status condition, and settles 'failed' whenever its execute throws. If
+-- save_settings has committed and its answer is then lost on the way back (a
+-- dropped connection, a timeout between PostgREST and the route), execute
+-- throws and that settle would turn a 'succeeded' row whose settings were
+-- saved into 'failed', and the client would then say "The save was not
+-- applied." while the values were. So, in the 'settings' domain, a row that
+-- has left 'pending' may not change its status: the settle fails,
+-- lib/operations.js logs it rather than throwing, and the row keeps telling
+-- the truth. Rewriting the receipt of a 'succeeded' row as 'succeeded'
+-- (runOperation's own settle after a save it saw commit) is still allowed, and
+-- so is the reaper, which only ever touches 'pending' rows.
+--
+-- The same rule 0023 gives the 'actions' domain, with its own function and
+-- trigger rather than a shared one: 0021 runs before 0023, and each must apply
+-- and back out without the other.
+
+create or replace function public.guard_settled_settings_operation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  raise exception 'HALO_OPERATION_SETTLED' using errcode = 'P0001',
+    detail = format('operation %s is already %s', old.operation_id, old.status);
+end;
+$$;
+
+revoke execute on function public.guard_settled_settings_operation()
+  from public, anon, authenticated;
+
+drop trigger if exists operations_settings_settled_guard on public.operations;
+create trigger operations_settings_settled_guard
+  before update on public.operations
+  for each row
+  when (old.domain = 'settings' and old.status <> 'pending' and new.status is distinct from old.status)
+  execute function public.guard_settled_settings_operation();
 
 -- ---------------------------------------------------------------------------
 -- Verification (read only). Expect one row, all seven columns true.
@@ -887,13 +1103,13 @@ grant execute on function public.save_settings(uuid, int, jsonb, jsonb, jsonb, j
 --         and tgname in ('profile_preferences_settings_revision', 'profiles_settings_revision',
 --                        'profiles_tenure_reconcile', 'notification_prefs_settings_revision',
 --                        'notification_prefs_settings_revision_insert', 'household_bands_settings_revision',
---                        'household_bands_settings_revision_insert')) = 7
+--                        'household_bands_settings_revision_insert', 'operations_settings_settled_guard')) = 8
 --     and has_function_privilege('service_role',
---           'public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE')
+--           'public.save_settings(uuid, uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE')
 --     and not exists (
 --       select 1 from unnest(array['anon', 'authenticated']) as r
 --        where has_function_privilege(r,
---                'public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE'))
+--                'public.save_settings(uuid, uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE'))
 --       as revision_kept_by_the_database;
 --
 -- ---------------------------------------------------------------------------
@@ -907,8 +1123,11 @@ grant execute on function public.save_settings(uuid, int, jsonb, jsonb, jsonb, j
 -- PUT /api/household, PATCH /api/profile, POST /api/onboard and
 -- PATCH /api/home-contexts/[id] keep working exactly as before 0021: none of
 -- them reads anything this migration added, and the triggers that advanced the
--- settings revision and kept tenure in step with renter_mode go with it. The
--- triggers are dropped before the tenure column, because they name it.
+-- settings revision and kept tenure in step with renter_mode go with it, as
+-- does the guard on settled settings operations. The triggers go first,
+-- before the table they write and the tenure column they name, so the order
+-- is safe even when the statements are run one at a time (review finding D);
+-- the preferences table's own trigger goes with the table.
 --
 -- What is lost: every household's display, quiet-hours, calendar and
 -- Luna-context choices, and the settings revision with them, because the whole
@@ -922,20 +1141,24 @@ grant execute on function public.save_settings(uuid, int, jsonb, jsonb, jsonb, j
 -- The tenure answer is lost too, and reapplying leaves every household
 -- unanswered again rather than guessing from renter_mode. Nothing cascades:
 -- renter_mode, the notification preferences and the household bands are
--- untouched, so the existing settings screens keep their values.
+-- untouched, so the existing settings screens keep their values. Ledger rows
+-- in domain 'settings' stay in public.operations; with the guard gone they are
+-- ordinary ledger rows again.
 --
 -- The tested copy of this block is in docs/backend/YOUR_TODO.md, which is what
 -- test/migrationBackout.test.mjs runs.
 --
 -- <!-- backout-0021 -->
--- drop table if exists public.profile_preferences;
+-- drop trigger if exists operations_settings_settled_guard on public.operations;
 -- drop trigger if exists profiles_tenure_reconcile on public.profiles;
 -- drop trigger if exists profiles_settings_revision on public.profiles;
 -- drop trigger if exists notification_prefs_settings_revision on public.notification_prefs;
 -- drop trigger if exists notification_prefs_settings_revision_insert on public.notification_prefs;
 -- drop trigger if exists household_bands_settings_revision on public.household_bands;
 -- drop trigger if exists household_bands_settings_revision_insert on public.household_bands;
--- drop function if exists public.save_settings(uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb);
+-- drop function if exists public.guard_settled_settings_operation();
+-- drop function if exists public.save_settings(uuid, uuid, int, jsonb, jsonb, jsonb, jsonb, jsonb);
+-- drop table if exists public.profile_preferences;
 -- drop function if exists public.reconcile_profile_tenure();
 -- drop function if exists public.advance_settings_revision();
 -- alter table public.alerts
