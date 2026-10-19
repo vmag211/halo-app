@@ -220,3 +220,28 @@ test('complete says whether the lookup finished: an empty Map from a failed look
   assert.deepEqual([shared.source, shared.complete], ['shared', true]);
   assert.equal((await getWaterGeo([], { store: null, force: true })).complete, true, 'no ids, nothing left to look up');
 });
+
+// A 200 that answers no features array, or a truncated page, did not finish the
+// batch. It must not read as "found none", which would be cached for 7 days and
+// stored by the cron as a complete, all-unlocated map.
+for (const [label, body] of [
+  ['{}', {}],
+  ['[]', []],
+  ['{features:null}', { features: null }],
+  ['{features:[],exceededTransferLimit:true}', { features: [], exceededTransferLimit: true }],
+]) {
+  test(`a 200 answering ${label} is a failed batch, not a complete lookup, and is cached nowhere`, async () => {
+    _resetWaterGeoCache();
+    const store = fakeStore();
+    const ids = ['NC0113010', 'NC0000001'];
+    const answer = async () => ({ ok: true, json: async () => body });
+    const direct = await fetchWaterGeo(ids, { fetchImpl: answer });
+    assert.deepEqual([direct.found, direct.failedBatches], [0, 1]);
+
+    const r = await getWaterGeo(ids, { store, force: true, fetchImpl: answer });
+    assert.deepEqual([r.found, r.failedBatches, r.complete], [0, 1, false]);
+    assert.equal(store.sets, 0, 'never written to the shared cache');
+    const next = await getWaterGeo(ids, { store, fetchImpl: oneFeature });
+    assert.deepEqual([next.source, next.complete], ['arcgis', true], 'not held in memory either, so the next request retries');
+  });
+}
