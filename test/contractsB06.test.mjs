@@ -22,14 +22,15 @@
  *     `docs/backend/contracts/fixtures/b06/` is the normalised body a real
  *     handler produced in this file, and the last tests fail if one drifts.
  *
- * The client code is TRANSCRIBED, not summarised, once, in
+ * The client code is IMPORTED from the real TypeScript modules, once, by
  * test/helpers/frontendB06.mjs (shared with routesActionsCommit,
- * routesActionsCommitDb, routesOperations and routesWeekChanges; its header
- * names every source line on `origin/codex/october15-review-refinement` at
- * 5ac06f6). A transcription that always said yes would pass every body, so
- * `the transcriptions reject what the client rejects` shows it saying no, and
- * a drift test pins lib/actionRules.js (the server's own copy, Ruling H15)
- * against it on a shared corpus.
+ * routesActionsCommitDb, routesOperations and routesWeekChanges; the real
+ * runtime's own `request` runs over the route harness, and only the `.tsx`
+ * screen logic stays transcribed there). A validator that always said yes
+ * would pass every body, so `the transcriptions reject what the client
+ * rejects` (its name is kept from when they were copies) shows it saying no,
+ * and a drift test pins lib/actionRules.js (the server's own copy, Ruling H15)
+ * against the real frontend on a shared corpus.
  *
  * Structure, in order: the schemas against the fixtures, the contract's own
  * coverage, the schemas refusing drift, the transcriptions' self-checks and
@@ -221,7 +222,9 @@ test('every registry path resolves to a route file with the documented method an
     if (op.path !== '/api/operations') assert.match(source, /^export const maxDuration = 60;$/m, `${op.path}: maxDuration 60 (Ruling H21)`);
     assert.equal(source.includes(EM_DASH), false, `${op.path}: no U+2014 in server copy (Ruling H22)`);
   }
-  for (const [operation, { path: route, method = 'GET' }] of Object.entries(fe.productionOperations)) {
+  // The real registry holds every operation the app has; these are the five this surface uses.
+  for (const operation of ['operations.read', 'actions.load', 'actions.commit', 'week.changes', 'week.acknowledge']) {
+    const { path: route, method = 'GET' } = fe.productionOperations[operation];
     const op = [...operations.values()].find((item) => item['x-halo-operation'] === operation);
     assert.ok(op, `${operation} is documented`);
     assert.deepEqual([op.path, op.method], [route, method], `${operation}: the client's path and method`);

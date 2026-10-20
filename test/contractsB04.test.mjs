@@ -19,12 +19,12 @@
  *   - with the document, `docs/backend/contracts/b04.openapi.json`, which is
  *     what a reader will believe.
  *
- * The client code is TRANSCRIBED, not summarised, in
- * test/helpers/frontendB04.mjs (one copy, shared with the per-route suites;
- * its header names every source line on
- * `origin/codex/october15-review-refinement`). A transcription that always
- * said yes would pass every body here, so `the transcriptions reject what the
- * client rejects` shows each of them saying no.
+ * The client code is IMPORTED from the real TypeScript modules by
+ * test/helpers/frontendB04.mjs (one copy, shared with the per-route suites);
+ * only the two `.tsx` hooks stay transcribed there, over the real runtime. A
+ * validator that always said yes would pass every body here, so `the
+ * transcriptions reject what the client rejects` (its name is kept from when
+ * they were copies) shows each of them saying no.
  *
  * Structure, in order: the schemas against the fixtures, the contract's own
  * coverage, the transcriptions' self-checks, the fixtures against the

@@ -9,9 +9,11 @@
  * - components/expanded/SettingsWorkspace.tsx:52: the settings `blocked`
  *   derivation that gates every privacy button;
  * - lib/frontend/production/runtime.ts:28,86-89: the registry entries the
- *   panel calls. The runtime's own request (its status mapping and envelope
- *   unwrap, runtime.ts:107-158) is test/helpers/frontendB06.mjs's
- *   `clientRuntime`, shared with the B06 and B07 route suites.
+ *   panel calls, now READ from the real runtime (REGISTRY_LINES still pins
+ *   their text). The real runtime's own request (its status mapping and
+ *   envelope unwrap) runs over the route harness as test/helpers/frontendB06.mjs's
+ *   `clientRuntime`, shared with the B06 and B07 route suites. Only the
+ *   `.tsx` component lines below remain transcribed.
  *
  * CLIENT_LINES are the component's lines exactly as they stand, leading
  * space included; the drift test in the contract suite requires the component
@@ -75,12 +77,12 @@ export const TYPE_STRIPS = Object.freeze({
   reconcile: [['runtime.request<Outcome>(', 'runtime.request(']],
 });
 
-/** The client's registry, parsed from REGISTRY_LINES (not retyped). */
+/** The client's registry entries the panel calls, read from the real runtime (not parsed from REGISTRY_LINES). */
 export const PRIVACY_OPERATIONS = Object.freeze(Object.fromEntries(REGISTRY_LINES.map((line) => {
-  const [, name, path, method] = line.match(/^ {2}'([a-z.]+)': \{path:'([^']+)'(?:,method:'([A-Z]+)')?\},$/);
-  return [name, method ? { path, method } : { path }];
+  const [, name] = line.match(/^ {2}'([a-z.]+)': \{/);
+  if (!productionOperations[name]) throw new Error(`frontendB07: the real runtime has no ${name}`);
+  return [name, productionOperations[name]];
 })));
-Object.assign(productionOperations, PRIVACY_OPERATIONS);
 
 /** The lines with their annotations removed. `lines` lets a negative control pass an altered copy. */
 export function plainLines(lines = CLIENT_LINES) {

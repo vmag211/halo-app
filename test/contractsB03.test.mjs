@@ -18,19 +18,19 @@
  *   - with the document, `docs/backend/contracts/b03.openapi.json`, which is
  *     what a reader will believe.
  *
- * THE VALIDATORS BELOW ARE TRANSCRIBED, not summarised, from
- * `lib/frontend/production/luna-service.ts` on
- * `origin/codex/october15-review-refinement` (read with `git show`; the file is
- * not checked out here). They are BOOLEAN predicates rather than the assert
- * helpers the route suites use, for one reason: a transcription that always
- * said yes would pass every payload in this file, so the transcription itself
- * has to be shown to reject things. `the transcribed validators reject what the
- * client rejects` below does that, and it includes both directions of the one
+ * THE VALIDATORS BELOW ARE THE REAL ONES, imported from
+ * `lib/frontend/production/luna-service.ts` through
+ * test/frontend-test-loader.mjs (they were once transcribed text). They are
+ * BOOLEAN predicates rather than the assert helpers the route suites use, for
+ * one reason: a validator that always said yes would pass every payload in
+ * this file, so it has to be shown to reject things. `the transcribed
+ * validators reject what the client rejects` below does that (its name is kept
+ * from when they were copies), and it includes both directions of the one
  * rule that is easy to get backwards: `validLunaRun` requires the conversation
  * when, and only when, the status is `completed`.
  *
  * Structure, in order: the schemas against the fixtures, the contract's own
- * coverage, the transcribed validators and their self-checks, the real handlers
+ * coverage, the real validators and their self-checks, the real handlers
  * against both, cross-route agreement, and the two directions of header
  * documentation (which runs last, because it reports on what ran before it).
  *
@@ -45,6 +45,8 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
+import { loadFrontend } from './frontend-test-loader.mjs';
+import { clientRequest } from './helpers/frontendB06.mjs';
 
 // The run model, to reach `generating`: no route sets it, the scheduled
 // generation does, by claiming a queued run.
@@ -165,138 +167,16 @@ test('B03 schemas reject the drift that would cost somebody their answer', () =>
 });
 
 // ---------------------------------------------------------------------------
-// The frontend's validators, transcribed. Every claim below is quoted from
-// lib/frontend/production/luna-service.ts on
-// origin/codex/october15-review-refinement, with the file:line the B03 contract
-// digest cites. The client runs these on every payload and throws the whole
-// thing away when one returns false.
+// The frontend's validators: the REAL ones, from
+// lib/frontend/production/luna-service.ts (with explore-service.ts's
+// safeSourceUrl and date-input.ts's parseCalendarDate that they call),
+// compiled in memory by test/frontend-test-loader.mjs. The client runs these
+// on every payload and throws the whole thing away when one returns false.
 // ---------------------------------------------------------------------------
 
-/** `object` (luna-service.ts:12). */
-const object = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-
-/** `text` (luna-service.ts:13). Tab, LF and CR are permitted; the other control characters are not. */
-const text = (value, max = 16000) =>
-  typeof value === 'string' && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
-
-/** `parseCalendarDate` (date-input.ts:2-10), which `sourceInstant` calls. */
-function parseCalendarDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const date = new Date(0);
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCFullYear(year, month - 1, day);
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
-}
-
-/** `sourceInstant` (luna-service.ts:14). */
-const sourceInstant = (value) =>
-  text(value, 100)
-  && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/.test(value)
-  && !!parseCalendarDate(value.slice(0, 10))
-  && Number.isFinite(Date.parse(value));
-
-/** `destinations` (luna-service.ts:15); the empty string is a member. */
-const destinations = new Set(['', 'tests', 'maintenance', 'food', 'summary', 'journal', 'patterns', 'recap', 'outdoors', 'community', 'organizations', 'opportunities', 'projects', 'outreach', 'observations']);
-
-/** `safeSourceUrl` (explore-service.ts:11). */
-function safeSourceUrl(value) {
-  if (!text(value, 3000)) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password;
-  } catch {
-    return false;
-  }
-}
-
-/** `validLunaEvidence` (luna-service.ts:16-18), against the message's OWN source count. */
-const validLunaEvidence = (value, sourceCount) =>
-  Array.isArray(value) && value.length > 0 && value.length <= 20
-  && value.every((block) =>
-    object(block)
-    && ['fact', 'interpretation', 'next-step'].includes(String(block.kind))
-    && text(block.text, 3000) && !!block.text.trim()
-    && Array.isArray(block.sourceIndexes) && block.sourceIndexes.length <= 30
-    && new Set(block.sourceIndexes).size === block.sourceIndexes.length
-    && block.sourceIndexes.every((index) => Number.isInteger(index) && index >= 0 && index < sourceCount)
-    && (block.kind !== 'fact' || block.sourceIndexes.length > 0)
-    && (block.scope === undefined || text(block.scope, 500))
-    && (block.observedAt === undefined || sourceInstant(block.observedAt)));
-
-/** `validLunaNavigation` (luna-service.ts:19). No route in this package emits a link. */
-const validLunaNavigation = (value) =>
-  object(value) && text(value.label, 160)
-  && ['today', 'home', 'act', 'plan', 'settings', 'map'].includes(String(value.tab))
-  && (value.destination === undefined || destinations.has(String(value.destination)))
-  && (value.record === undefined || (text(value.record, 200) && /^[A-Za-z0-9:_-]+$/.test(value.record)))
-  && (value.view === undefined || ['list', 'detail', 'new', 'edit'].includes(String(value.view)));
-
-/** `validLunaProposal` (luna-service.ts:20). No route in this package emits a proposal (Ruling L7). */
-const validLunaProposal = (value) =>
-  object(value) && text(value.id, 200) && !!value.id
-  && Number.isInteger(value.revision) && Number(value.revision) > 0
-  && text(value.title, 500) && text(value.summary, 3000)
-  && typeof value.destructive === 'boolean'
-  && text(value.expiresAt, 100) && Number.isFinite(Date.parse(value.expiresAt))
-  && ['review', 'applied', 'cancelled'].includes(String(value.status))
-  && Array.isArray(value.changes) && value.changes.length <= 100
-  && value.changes.every((change) => object(change) && text(change.label, 300) && text(change.before, 3000) && text(change.after, 3000))
-  && (value.fields === undefined
-    || (Array.isArray(value.fields) && value.fields.length <= 20
-      && value.fields.every((field) => object(field) && text(field.name, 100) && /^[a-zA-Z][\w.:-]*$/.test(field.name)
-        && text(field.label, 300) && ['text', 'date'].includes(String(field.kind)) && text(field.value, 3000))));
-
-/** `validLunaConversation` (luna-service.ts:21-27), clause for clause. */
-function validLunaConversation(value) {
-  if (!object(value)) return false;
-  if (Array.isArray(value.messages) && value.messages.some((message) => object(message) && message.evidence !== undefined
-    && (message.role !== 'assistant' || !validLunaEvidence(message.evidence, Array.isArray(message.sources) ? message.sources.length : 0)))) return false;
-  if (value.pendingRequest !== undefined && value.pendingRequest !== null
-    && (!object(value.pendingRequest) || !text(value.pendingRequest.id, 200) || !value.pendingRequest.id
-      || !text(value.pendingRequest.text, 1000)
-      || (value.pendingRequest.runId !== undefined && !text(value.pendingRequest.runId, 200)))) return false;
-  if (value.unresolvedOperations !== undefined
-    && (!object(value.unresolvedOperations) || Object.keys(value.unresolvedOperations).length > 100
-      || Object.entries(value.unresolvedOperations).some(([key, id]) => !key || key.length > 200 || !text(id, 200) || !id))) return false;
-  return object(value) && text(value.id, 200) && !!value.id
-    && Number.isInteger(value.revision) && Number(value.revision) > 0
-    && Array.isArray(value.messages) && value.messages.length <= 500
-    && new Set(value.messages.map((item) => (object(item) ? item.id : null))).size === value.messages.length
-    && value.messages.every((message) => object(message) && text(message.id, 200) && !!message.id
-      && ['user', 'assistant'].includes(String(message.role)) && text(message.text)
-      && (message.sources === undefined
-        || (Array.isArray(message.sources) && message.sources.length <= 30
-          && message.sources.every((source) => object(source) && text(source.title, 500) && safeSourceUrl(source.url))))
-      && (message.links === undefined
-        || (Array.isArray(message.links) && message.links.length <= 20 && message.links.every(validLunaNavigation)))
-      && (message.choices === undefined
-        || (Array.isArray(message.choices) && message.choices.length <= 20 && message.choices.every((choice) => text(choice, 1000))))
-      && (message.proposal === undefined || validLunaProposal(message.proposal)));
-}
-
-/** `validLunaRun` (luna-service.ts:28). The conversation is required when, and only when, completed. */
-const validLunaRun = (value) =>
-  object(value) && text(value.id, 200) && !!value.id
-  && ['queued', 'generating', 'completed', 'failed', 'cancelled'].includes(String(value.status))
-  && (value.message === undefined || text(value.message, 1000))
-  && (value.conversation === undefined ? value.status !== 'completed' : validLunaConversation(value.conversation));
-
-/** `validLunaCapabilities` (luna-service.ts:29). All seven members are mandatory. */
-const validLunaCapabilities = (value) =>
-  object(value) && typeof value.available === 'boolean'
-  && text(value.providerLabel, 300) && text(value.retentionSummary, 2000)
-  && typeof value.publicRetrieval === 'boolean'
-  && object(value.context) && ['tasks', 'home', 'projects'].every((key) => typeof value.context[key] === 'boolean')
-  && Array.isArray(value.tools) && value.tools.length <= 100 && value.tools.every((tool) => text(tool, 200));
-
-/** `validLunaOperation` (luna-service.ts:31). Nothing in this package answers one; see the ledger test. */
-const validLunaOperation = (value) =>
-  object(value) && text(value.id, 200) && !!value.id
-  && ['succeeded', 'failed', 'unknown', 'pending', 'cancelled'].includes(String(value.status))
-  && (value.conversation === undefined || validLunaConversation(value.conversation))
-  && (value.message === undefined || text(value.message, 1000));
+const {
+  validLunaCapabilities, validLunaConversation, validLunaNavigation, validLunaOperation, validLunaProposal, validLunaRun,
+} = await loadFrontend('production/luna-service');
 
 const EM_DASH = '—';
 /** Everything a Luna response must satisfy beyond its own validator. */
@@ -382,7 +262,7 @@ const VALIDATOR = Object.freeze({
   lunaRunCancel: validLunaRun,
 });
 
-test('every success fixture is a payload the client would actually accept, not only one the document allows', () => {
+test('every success fixture is a payload the client would actually accept, not only one the document allows', async () => {
   // The fixtures above are checked against the OpenAPI schemas, which is a
   // different and weaker thing: the document is ours, and a fixture that
   // satisfies it could still be discarded by the client. A fixture is supposed
@@ -409,7 +289,7 @@ test('every success fixture is a payload the client would actually accept, not o
       // the runtime unwraps it to null, which the component treats as "none".
       assert.equal(fixture.operationId, 'lunaConversation', `${fixture.name}: only the read has an absent shape`);
       assert.equal(validLunaConversation(fixture.body), false, `${fixture.name}: the absent shape is not a conversation`);
-      assert.equal(clientUnwrap(fixture.body), null, `${fixture.name}: the client receives null`);
+      assert.equal(await clientUnwrap(fixture.body), null, `${fixture.name}: the client receives null`);
       continue;
     }
     assert.equal(
@@ -607,7 +487,7 @@ test('B03 handler conformance: the conversation read answers either a conversati
   // composer test below for why `{ conversation: null }` locked the composer.
   const { body: absent } = await readConversation(h);
   assert.deepEqual(absent, { data: null });
-  assert.equal(clientUnwrap(absent), null, 'what the component actually receives is null');
+  assert.equal(await clientUnwrap(absent), null, 'what the component actually receives is null');
   assert.equal(
     validLunaConversation(absent),
     false,
@@ -641,22 +521,14 @@ test('B03 handler conformance: the conversation read answers either a conversati
 // ---------------------------------------------------------------------------
 
 /**
- * `runtime.ts:147-153` for a 2xx JSON response, clause for clause. A body that
- * is not an object is an `invalid_response` (thrown here as an Error), an
- * object with an own `data` key is unwrapped once, and anything else is handed
- * to the caller as it is.
+ * What the real runtime (`runtime.ts` `request`, the status mapping and the
+ * envelope unwrap at :144-153) hands a component for a 2xx JSON body: a body
+ * that is not an object is an `invalid_response` (rejected with a
+ * FrontendServiceError), an object with an own `data` key is unwrapped once,
+ * and anything else is handed to the caller as it is. It runs the real
+ * `createProductionRuntime(...).request` over that one response.
  */
-function clientUnwrap(json) {
-  if (json === null || typeof json !== 'object') throw new Error('invalid_response');
-  if (Object.hasOwn(json, 'data')) {
-    const envelope = json;
-    return envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data) && envelope.meta
-      ? { ...envelope.data, _meta: envelope.meta }
-      : envelope.data;
-  }
-  return json;
-}
-
+const clientUnwrap = (json) => clientRequest(new Response(JSON.stringify(json), { status: 200, headers: { 'content-type': 'application/json' } }), false);
 /**
  * `ProductionLunaConversation.tsx:36`, the whole predicate, with the terms
  * that are not about the read given their resting values for a person who has
@@ -675,13 +547,13 @@ test('a household that never used Luna can send its first message: the absent re
   const h = harness();
 
   const { body: capsBody } = await call(h, 'lunaCapabilities');
-  const capsData = clientUnwrap(capsBody);
+  const capsData = await clientUnwrap(capsBody);
   const caps = validLunaCapabilities(capsData) ? capsData : null; // ProductionLunaConversation.tsx:34
   assert.equal(caps?.available, true, 'precondition: Luna is available, so only the read can block');
 
   // The read, exactly as the component receives it.
   const { body } = await readConversation(h);
-  const initialData = clientUnwrap(body);
+  const initialData = await clientUnwrap(body);
   assert.equal(
     Boolean(initialData && !validLunaConversation(initialData)),
     false,
@@ -704,14 +576,14 @@ test('a household that never used Luna can send its first message: the absent re
 
   // A household WITH a conversation still validates and still is not blocked.
   const { body: presentBody } = await readConversation(h);
-  const present = clientUnwrap(presentBody);
+  const present = await clientUnwrap(presentBody);
   acceptable(validLunaConversation, present, 'the read once a conversation exists');
   assert.equal(present.id, run.conversation.id, 'the read names the conversation the message started');
   assert.equal(composerBlocked({ caps, initialData: present }), false);
 
   // The transcription is not a yes-machine: the old absent body did block.
-  assert.equal(composerBlocked({ caps, initialData: clientUnwrap({ conversation: null }) }), true, '{ conversation: null } locks the composer');
-  assert.throws(() => clientUnwrap(null), /invalid_response/, 'a bare null body is not an answer the runtime accepts');
+  assert.equal(composerBlocked({ caps, initialData: await clientUnwrap({ conversation: null }) }), true, '{ conversation: null } locks the composer');
+  await assert.rejects(clientUnwrap(null), (error) => error.code === 'invalid_response', 'a bare null body is not an answer the runtime accepts');
 });
 
 test('B03 handler conformance: a message answers a run that already carries the person\'s own turn', async (t) => {

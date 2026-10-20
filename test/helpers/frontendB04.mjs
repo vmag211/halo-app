@@ -1,23 +1,29 @@
 /**
- * The frontend code the B04 routes are judged by, TRANSCRIBED, not summarised,
- * from `origin/codex/october15-review-refinement` (5ac06f6; read with
- * `git show`, the files are not checked out here). TypeScript to JavaScript
- * with the types stripped and nothing else changed in the validators. One
+ * The frontend code the B04 routes are judged by. Everything that lives in a
+ * TypeScript module is IMPORTED from the real file (compiled in memory by
+ * test/frontend-test-loader.mjs, the same way test/frontend-*.test.mjs load
+ * it), so a change to a frontend validator changes what these suites see. One
  * copy, shared by every B04 suite that needs it (test/routesSettings.test.mjs,
  * test/routesAlertsState.test.mjs and the contract suite
  * test/contractsB04.test.mjs), so the per-route suites and the contract suite
  * cannot drift apart:
  *
- * - `lib/frontend/settings-preview.ts:2,6,8` (notificationKinds,
- *   appearancePreference, colorPalette);
- * - `lib/frontend/expanded-preview.ts:30-35` (validActionDate);
- * - `lib/frontend/production/preferences-service.ts:4-11` (zone, bool,
- *   validSettingsSnapshot);
- * - `lib/frontend/production/alerts-service.ts:5-14` (destinations, factors,
- *   source, validAlertSnapshot, alertReceiptCovers);
- * - `lib/frontend/production/runtime.ts:91-98,144,147-153` (the message table,
- *   serviceMessage, the status mapping, the JSON check and the envelope
- *   unwrap), as `clientRequest`;
+ * - `lib/frontend/settings-preview.ts` (notificationKinds, appearancePreference,
+ *   colorPalette);
+ * - `lib/frontend/expanded-preview.ts` (validActionDate);
+ * - `lib/frontend/production/preferences-service.ts` (validSettingsSnapshot);
+ * - `lib/frontend/production/alerts-service.ts` (validAlertSnapshot,
+ *   alertReceiptCovers);
+ * - `lib/frontend/production/runtime.ts`: the real `createProductionRuntime`,
+ *   whose own `request` runs with the route harness as its `fetcher` (the
+ *   status mapping, the JSON check and the envelope unwrap are the runtime's
+ *   own; see `clientRuntime` and `clientRequest` in test/helpers/frontendB06.mjs),
+ *   with its message table read back from the real runtime as
+ *   `RUNTIME_MESSAGES`.
+ *
+ * Still TRANSCRIBED, from `origin/codex/october15-review-refinement`
+ * (5ac06f6), because the code lives in a `.tsx` hook that cannot be imported:
+ *
  * - `components/production/ProductionPreferences.tsx:15-20` and
  *   `components/expanded/SettingsWorkspace.tsx:88-90` (hydrate, save,
  *   reconcile and the workspace's save body), as `productionPreferences`;
@@ -25,86 +31,31 @@
  *   `productionAlerts`.
  *
  * In the two hooks React state becomes plain fields, `useProductionResource`
- * and its effect become `reload()`, and `runtime.request` becomes the real
- * route handlers through `clientRequest`. Everything else is the hooks' own
- * logic, branch for branch, so a body the validators accept but a hook
- * mishandles fails in whichever suite drives it.
+ * and its effect become `reload()`, and `runtime.request` is the real runtime
+ * over the real route handlers. Everything else is the hooks' own logic,
+ * branch for branch, so a body the validators accept but a hook mishandles
+ * fails in whichever suite drives it.
  *
- * A transcription that accepted everything would pass every body it is given,
- * so each suite that uses one also shows that it rejects what the client
+ * A validator that accepted everything would pass every body it is given, so
+ * each suite that uses these also shows that they reject what the client
  * rejects (precedent: test/helpers/frontendB05.mjs).
  */
 import { BAND_KEYS } from '../../lib/household.js';
+import { loadFrontend } from '../frontend-test-loader.mjs';
+import { FrontendServiceError, clientRequest, clientRuntime, messages, serviceMessage } from './frontendB06.mjs';
 
-// ------------------------------------------- transcribed: settings-preview.ts
+const settingsPreview = await loadFrontend('settings-preview');
+const expandedPreview = await loadFrontend('expanded-preview');
+const preferencesService = await loadFrontend('production/preferences-service');
+const alertsService = await loadFrontend('production/alerts-service');
 
-const notificationKinds = ['air_quality_change','weather_advisory','new_water_results','radon_season','season_summary'];
-/** settings-preview.ts:6 */
-const appearancePreference = (value) => (value === 'light' || value === 'dark' ? value : 'system');
-/** settings-preview.ts:8 */
-const colorPalette = (value) => (value === 'forest' || value === 'iris' ? value : 'ocean');
+const { notificationKinds, appearancePreference, colorPalette } = settingsPreview;
+const { validActionDate } = expandedPreview;
+const { validSettingsSnapshot } = preferencesService;
+const { validAlertSnapshot, alertReceiptCovers } = alertsService;
 
-// ------------------------------------------- transcribed: expanded-preview.ts
-
-function validActionDate(value) {
-  if (value === '') return true;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T12:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-
-// ------------------------------------------ transcribed: preferences-service.ts
-
-function zone(value){if(typeof value!=='string')return false;try{new Intl.DateTimeFormat('en',{timeZone:value});return true;}catch{return false;}}
-const bool=(value)=>typeof value==='boolean';
-function validSettingsSnapshot(value){
- const v=value;if(!v||!Number.isSafeInteger(v.revision)||v.revision<1||!Array.isArray(v.unresolvedOperations)||v.unresolvedOperations.some(id=>typeof id!=='string'||!id)||!v.values?.home||!v.values.quiet||!v.values.notifications||!v.values.luna||!v.display||!v.calendar)return false;
- if(v.display.palette!==undefined&&!['ocean','forest','iris'].includes(v.display.palette))return false;
- const {home,quiet,notifications,luna,language}=v.values;
- return typeof home.year==='string'&&(!home.year||/^\d{4}$/.test(home.year))&&['utility','well','spring','other'].includes(home.water)&&['owner','renter','other'].includes(home.tenure)&&notificationKinds.every(key=>bool(notifications[key]))&&bool(quiet.enabled)&&/^([01]\d|2[0-3]):[0-5]\d$/.test(quiet.from)&&/^([01]\d|2[0-3]):[0-5]\d$/.test(quiet.to)&&zone(quiet.zone)&&['tasks','home','projects'].every(key=>bool(luna[key]))&&['en','es'].includes(language)&&['system','light','dark'].includes(v.display.appearance)&&['100','115','130','150'].includes(v.display.scale)&&['system','full','reduce'].includes(v.display.motion)&&bool(v.display.contrast)&&bool(v.display.ambient)&&zone(v.calendar.zone)&&bool(v.calendar.streak)&&bool(v.calendar.linked);
-}
-
-// ----------------------------------------------- transcribed: alerts-service.ts
-
-const destinations={home:['tests','maintenance','food','summary'],plan:['journal','patterns','recap','outdoors','reminders'],today:[]};
-const factors=['air','uv','pollen','mold','pfas','radon','lead'];
-function source(value){if(!value)return true;try{const url=new URL(value.url);return typeof value.title==='string'&&!!value.title&&url.protocol==='https:'&&!url.username&&!url.password;}catch{return false;}}
-function validAlertSnapshot(value){
- const v=value;
- return !!v&&Array.isArray(v.unresolvedOperations)&&v.unresolvedOperations.every(id=>typeof id==='string'&&!!id)&&Array.isArray(v.items)&&new Set(v.items.map(item=>item?.id)).size===v.items.length&&v.items.every(item=>item&&typeof item.id==='string'&&!!item.id&&Number.isSafeInteger(item.revision)&&item.revision>0&&typeof item.title==='string'&&!!item.title&&typeof item.body==='string'&&['Home','Your week','Conditions'].includes(item.category)&&!!item.date&&validActionDate(item.date)&&typeof item.read==='boolean'&&typeof item.dismissed==='boolean'&&[...notificationKinds,'app'].includes(item.kind)&&item.target&&Object.hasOwn(destinations,item.target.tab)&&(!item.target.destination||destinations[item.target.tab].includes(item.target.destination))&&(!item.target.learn||factors.includes(item.target.learn))&&source(item.source));
-}
-function alertReceiptCovers(value,selected,patch){
- return selected.length>0&&selected.every(previous=>{const next=value.items.find(item=>item.id===previous.id);return !!next&&next.revision>previous.revision&&(patch.read===undefined||next.read===patch.read)&&(patch.dismissed===undefined||next.dismissed===patch.dismissed);});
-}
-
-// ------------------------------------------------------ transcribed: runtime.ts
-
-const RUNTIME_MESSAGES = {
-  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
-  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
-  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
-  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
-  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
-};
-class FrontendServiceError extends Error { constructor(code, message = RUNTIME_MESSAGES[code]) { super(message); this.code = code; } }
-const serviceMessage = (error) => (error instanceof FrontendServiceError ? error.message : RUNTIME_MESSAGES.unavailable);
-
-/**
- * What runtime.request does with a response once it has one: the status
- * mapping (:144), the JSON check (:147) and the envelope unwrap (:149-152).
- */
-async function clientRequest(response, mutation) {
-  const json = await response.json().catch(() => null);
-  if (!response.ok) {
-    const s = response.status;
-    throw new FrontendServiceError(s === 401 ? 'session' : s === 403 ? 'permission' : s === 409 || s === 412 ? 'conflict' : s === 400 || s === 422 ? 'validation' : s === 429 ? 'rate_limited' : s >= 500 && mutation ? 'unknown_outcome' : 'unavailable');
-  }
-  if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response');
-  if (Object.hasOwn(json, 'data')) return json.data;
-  return json;
-}
-
-const operationsRead = (h, as, body) => h.call('/api/operations', 'GET', { as, url: `/api/operations?${new URLSearchParams(body)}` });
+/** The runtime's message table (runtime.ts:91-97), read back from the real runtime. */
+const RUNTIME_MESSAGES = messages;
 
 // ------------------------------- transcribed: ProductionPreferences.tsx and
 // ------------------------------- SettingsWorkspace.tsx (the save body)
@@ -117,18 +68,10 @@ const operationsRead = (h, as, body) => h.call('/api/operations', 'GET', { as, u
 
 function productionPreferences(h, who = 'alice') {
   const sent = [];
+  const runtime = clientRuntime(h, who);
   async function request(operation, body, options = {}) {
-    const mutation = operation === 'settings.save';
     sent.push(operation);
-    let response;
-    if (operation === 'settings.read') response = await h.call('/api/settings', 'GET', { as: who });
-    else if (operation === 'operations.read') response = await operationsRead(h, who, body);
-    else {
-      const headers = { 'idempotency-key': options.idempotencyKey };
-      if (options.expectedRevision !== undefined) headers['if-match'] = String(options.expectedRevision);
-      response = await h.call('/api/settings', 'PATCH', { as: who, body, headers });
-    }
-    return clientRequest(response, mutation);
+    return runtime.request(operation, body, options);
   }
 
   const read = { data: null, error: null, loading: false };
@@ -225,14 +168,10 @@ function productionPreferences(h, who = 'alice') {
 
 function productionAlerts(h, as = 'alice') {
   const sent = [];
+  const runtime = clientRuntime(h, as);
   async function request(operation, body, idempotencyKey) {
-    const mutation = operation === 'alerts.update';
     sent.push(operation);
-    let response;
-    if (operation === 'alerts.read') response = await h.call('/api/alerts', 'GET', { as, url: '/api/alerts' });
-    else if (operation === 'operations.read') response = await operationsRead(h, as, body);
-    else response = await h.call('/api/alerts/state', 'POST', { as, body, headers: { 'idempotency-key': idempotencyKey } });
-    return clientRequest(response, mutation);
+    return runtime.request(operation, body, { idempotencyKey });
   }
 
   const resource = { data: null, error: '', loading: false };
@@ -289,10 +228,10 @@ function productionAlerts(h, as = 'alice') {
   };
 }
 
+
 export {
   notificationKinds, appearancePreference, colorPalette, validActionDate,
-  zone, bool, validSettingsSnapshot,
-  destinations, factors, source, validAlertSnapshot, alertReceiptCovers,
+  validSettingsSnapshot, validAlertSnapshot, alertReceiptCovers,
   RUNTIME_MESSAGES, FrontendServiceError, serviceMessage, clientRequest,
   productionPreferences, productionAlerts,
 };

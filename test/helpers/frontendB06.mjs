@@ -1,27 +1,32 @@
 /**
- * What My Week does with a save, TRANSCRIBED, not summarised, from
- * `origin/codex/october15-review-refinement` (5ac06f6; read with `git show`,
- * the files are not checked out here). TypeScript to JavaScript with the types
- * stripped and nothing else changed, except where a declared seam below says
- * so. One copy, shared by the commit suites (routesActionsCommit and
- * routesActionsCommitDb), so they cannot drift apart:
+ * What My Week does with a save. The client's modules (TypeScript) are
+ * IMPORTED from the real files, compiled in memory by
+ * test/frontend-test-loader.mjs, so a change to a frontend validator changes
+ * what every suite that uses this file sees. One copy, shared by the commit
+ * suites (routesActionsCommit and routesActionsCommitDb) and the contract
+ * suites, so they cannot drift apart:
  *
- * - `lib/frontend/production/runtime.ts:12-14` (FrontendServiceError),
- *   `:29-30` and `:28` (the three registry entries this surface uses),
- *   `:91-97` (messages), `:107-158` (`request`: the method and mutation rule,
- *   the query string, the headers, the status mapping at :144 and the
- *   envelope unwrap at :147-153);
- * - `lib/frontend/production/adapters.ts:5-12` (`invalid`, and the action
- *   adapter's `receipt` check, `load`, `commit` and `reconcile`);
- * - `lib/frontend/production/action-service.ts:27-53` (actionMetadataError,
- *   object, text, validZone, validActionPreferences), `:86-99`
- *   (validActionSnapshot), `:102-115` (sameValue, actionReceiptCoversCommand);
- * - `lib/frontend/expanded-preview.ts:30-48` (validActionDate,
- *   actionDraftError, revisedActionBatch);
- * - `lib/frontend/week-preview.ts:4-6,11-16` (emptyWeekMeta, dayAdd,
- *   weekStart, eventInstant);
- * - `lib/frontend/week-planning.ts:7-8,12-19` (reviewMetaVersion,
- *   captureReview, prepareReview);
+ * - `lib/frontend/production/runtime.ts`: FrontendServiceError,
+ *   productionOperations, serviceMessage and `createProductionRuntime`, whose
+ *   own `request` runs with the route harness as its `fetcher` (see
+ *   `clientRuntime`); the message table is not exported, so `messages` is
+ *   read back from the real runtime, one answer per failure code;
+ * - `lib/frontend/production/adapters.ts`: createActionAdapter;
+ * - `lib/frontend/production/action-service.ts`: actionMetadataError,
+ *   validActionPreferences, validActionSnapshot, actionReceiptCoversCommand;
+ * - `lib/frontend/expanded-preview.ts`: validActionDate, actionDraftError,
+ *   revisedActionBatch;
+ * - `lib/frontend/week-preview.ts`: emptyWeekMeta, dayAdd, weekStart,
+ *   eventInstant;
+ * - `lib/frontend/week-planning.ts`: reviewMetaVersion, captureReview,
+ *   prepareReview, changeEvidenceKey, usableWeekChanges.
+ *
+ * Still TRANSCRIBED (from `origin/codex/october15-review-refinement`, 5ac06f6,
+ * types stripped, nothing else changed), because the code lives in a `.tsx`
+ * component that cannot be imported, or is not exported by its module:
+ *
+ * - `lib/frontend/production/action-service.ts:102` (`sameValue`, a private
+ *   helper of actionReceiptCoversCommand, not exported);
  * - `components/expanded/ExpandedPreviewState.tsx:60-152`, the screen's
  *   decisions as a plain object (`myWeek`): `commitSnapshot` (:60-68), the
  *   load effect (:69-80), `mutate` (:81-106), `reconcile` (:107-118), the
@@ -29,22 +34,20 @@
  *   (:146-152);
  * - `components/expanded/WeekReviewPlanner.tsx:17` (`apply`, the weekly
  *   review's save), as `applyWeekPlan`;
- * - the week strip (B06 Task 5, moved here from routesWeekChanges by Task 6
- *   so the per-route suite and the contract suite share one copy):
- *   `runtime.ts:31-32` (its two registry entries) and `:98`
- *   (`serviceMessage`), `useProductionResource`'s settle
+ * - the week strip: `useProductionResource`'s settle
  *   (`components/production/ProductionContext.tsx:14`), `useWeekChanges` and
  *   `WeekUpdateList` (`components/expanded/WeekUpdates.tsx:14-30`), as
- *   `weekStrip`, and `changeEvidenceKey` and `usableWeekChanges`
- *   (`lib/frontend/week-planning.ts:29-30`).
+ *   `weekStrip`.
  *
  * Declared seams, none of which changes an outcome a route can cause:
  * - React state becomes plain fields; `setLoadVersion` (a reload) becomes a
  *   counter, `reloads`.
- * - `request` takes the route harness as `fetch`, and drops credentials,
- *   timeouts and the offline branch. `lose` makes it throw after the server
- *   has answered, which is what a dropped connection does: the request was
- *   sent, so a mutation becomes `unknown_outcome` (:118, :156).
+ * - `clientRuntime` is the real `createProductionRuntime` with a `fetcher`
+ *   that hands the request to the route harness. It supplies a credential for
+ *   the person the harness runs as, and a `navigator` that reports online (a
+ *   Node process has none; a browser does). `lose` makes the fetcher throw
+ *   after the server has answered, which is what a dropped connection does:
+ *   the request was sent, so a mutation becomes `unknown_outcome`.
  * - `mutate`'s second guard (:83, the workspace `scenario`, `fail` and
  *   `navigator.onLine`) is not modelled: the scenario starts `ready` and is
  *   not a settings dependency (digest 6.2).
@@ -60,250 +63,152 @@
  *   (WeekReviewPlanner.tsx:17). It returns the feedback line instead of
  *   setting it.
  * - `changeState` takes `today` instead of `lunaCalendarAnchor(new Date(), zone)`.
- * - `Intl` is this module's binding, so a test can stand in for a browser
- *   whose ICU knows a zone this Node does not (digest 9.5, Ruling H24): see
- *   `setBrowserZones`. By default it is Node's own.
- * - `validReminderStates` is not transcribed: the server never sends
- *   `reminderStates`, so a body carrying it fails here loudly.
- * - `request` also honours `options.lose` (the week strip's acknowledgement
- *   passes it per call), with the same effect as `lose(operation)`.
+ * - `setBrowserZones` replaces the global `Intl` (which the real modules
+ *   read) so a test can stand in for a browser whose ICU knows a zone this
+ *   Node does not (digest 9.5, Ruling H24). By default it is Node's own.
  * - `weekStrip`: `queueMicrotask` in the restore effect (:17) is synchronous,
  *   `live.retry()` is a counter (`retries`), and the workspace scenario of
  *   :19 is `sourceReady`, which production starts `ready` (digest 6.2).
  *
- * A transcription that accepted everything would prove nothing, so the suites
+ * A validator that accepted everything would prove nothing, so the suites
  * that use this also show it refusing what the client refuses.
  */
+import { loadFrontend } from '../frontend-test-loader.mjs';
+
+const runtimeModule = await loadFrontend('production/runtime');
+const adapters = await loadFrontend('production/adapters');
+const actionService = await loadFrontend('production/action-service');
+const expandedPreview = await loadFrontend('expanded-preview');
+const weekPreview = await loadFrontend('week-preview');
+const weekPlanning = await loadFrontend('week-planning');
+
+// --------------------------------------------------- a browser's Intl and navigator
 
 const NodeIntl = globalThis.Intl;
-let Intl = NodeIntl;
 
 /**
  * Stand in for a browser whose ICU accepts zones this Node rejects: each name
  * in `aliases` is formatted as the zone it maps to. `null` restores Node's own.
+ * The real frontend modules read the global `Intl`, so this replaces it.
  */
 export function setBrowserZones(aliases) {
-  if (!aliases) { Intl = NodeIntl; return; }
+  if (!aliases) { browserIntl = NodeIntl; globalThis.Intl = NodeIntl; return; }
   const DateTimeFormat = function DateTimeFormat(locale, options) {
     const zone = options?.timeZone;
     return new NodeIntl.DateTimeFormat(locale, zone && Object.hasOwn(aliases, zone) ? { ...options, timeZone: aliases[zone] } : options);
   };
-  Intl = { DateTimeFormat };
+  browserIntl = Object.create(NodeIntl, { DateTimeFormat: { value: DateTimeFormat, configurable: true, writable: true } });
+  globalThis.Intl = browserIntl;
 }
+/** The browser's Intl. The server runs in this process too, and keeps Node's own while a request is in its hands (see `clientRuntime`). */
+let browserIntl = NodeIntl;
+
+/** A browser reports whether it is online; Node has no `navigator.onLine`. */
+function setOnline(online) {
+  Object.defineProperty(globalThis, 'navigator', { value: { onLine: online }, configurable: true, writable: true });
+}
+setOnline(true);
 
 // ------------------------------------------------------------ runtime.ts
 
-/** runtime.ts:12-14 */
-export class FrontendServiceError extends Error {
-  constructor(code, message, operationId, retryAfter, fields) {
-    super(message);
-    this.code = code;
-    this.operationId = operationId;
-    this.retryAfter = retryAfter;
-    this.fields = fields;
-    this.name = 'FrontendServiceError';
-  }
-}
-
-/** runtime.ts:28-32, the registry entries My Week and its week strip use. */
-export const productionOperations = {
-  'operations.read': { path: '/api/operations' },
-  'actions.load': { path: '/api/frontend/actions' },
-  'actions.commit': { path: '/api/frontend/actions/commands', method: 'POST' },
-  'week.changes': { path: '/api/week/changes' },
-  'week.acknowledge': { path: '/api/week/changes/acknowledge', method: 'POST' },
-};
-
-/** runtime.ts:91-97 */
-export const messages = {
-  offline: 'You are offline. Your changes are still here.', session: 'Please reconnect your session to continue.',
-  permission: 'This action is not available for this account.', conflict: 'This item changed. Review the latest version before saving.',
-  validation: 'Check the highlighted information and try again.', rate_limited: 'Please wait before trying again.',
-  unavailable: 'This service is unavailable. Try again later.', invalid_response: 'The service returned incomplete information. Please retry.',
-  aborted: 'Request cancelled.', unknown_outcome: 'The result is not confirmed. Check its status before trying again.',
-};
+export const { FrontendServiceError, productionOperations, serviceMessage, createProductionRuntime } = runtimeModule;
 
 /**
- * `request` (runtime.ts:107-158) with the route harness as `fetch`.
- * `lose(operation)` returning true drops that response after the server has
- * answered it (a lost connection).
+ * One real runtime over a canned `fetcher`, for the person `identityId`.
+ * The credential is the one the harness would have verified.
+ */
+function realRuntime(fetcher, { identityId = 'person', homeContextId = null } = {}) {
+  return createProductionRuntime({ identityId, homeContextId, credential: async () => ({ identityId, accessToken: 'test-token' }), fetcher });
+}
+
+/**
+ * The runtime's message table (runtime.ts:91-97, not exported), read back from
+ * the real runtime: one failing answer per code, and the message it carries.
+ */
+export const messages = await (async () => {
+  const answer = (status, body = '{}') => async () => new Response(body, { status, headers: { 'content-type': 'application/json' } });
+  const failure = (fetcher, operation, input, options) => realRuntime(fetcher).request(operation, input, options).then(() => null, (error) => error);
+  const found = {};
+  for (const [name, error] of [
+    ['session', await failure(answer(401), 'settings.read')],
+    ['permission', await failure(answer(403), 'settings.read')],
+    ['conflict', await failure(answer(409), 'settings.read')],
+    ['validation', await failure(answer(422), 'settings.read')],
+    ['rate_limited', await failure(answer(429), 'settings.read')],
+    ['unavailable', await failure(answer(503), 'settings.read')],
+    ['invalid_response', await failure(answer(200, 'not json'), 'settings.read')],
+    ['unknown_outcome', await failure(answer(500), 'settings.save', {})],
+    ['aborted', await failure(answer(200), 'settings.read', undefined, { signal: AbortSignal.abort() })],
+  ]) {
+    if (error?.code !== name) throw new Error(`the real runtime did not answer ${name}: ${error?.code}`);
+    found[name] = error.message;
+  }
+  setOnline(false);
+  try {
+    const error = await failure(async () => { throw new Error('network'); }, 'settings.read');
+    if (error?.code !== 'offline') throw new Error(`the real runtime did not answer offline: ${error?.code}`);
+    found.offline = error.message;
+  } finally { setOnline(true); }
+  return Object.freeze(found);
+})();
+
+/**
+ * The real `createProductionRuntime(...).request` with the route harness as
+ * `fetcher`. `lose(operation)` returning true drops that response after the
+ * server has answered it (a lost connection).
  */
 export function clientRuntime(h, who, { homeContextId = null, env, lose = () => false } = {}) {
   return {
-    async request(operation, body, options = {}) {
-      const endpoint = productionOperations[operation];
-      const method = endpoint.method ?? 'GET', mutation = method !== 'GET';
-      const operationId = mutation ? options.idempotencyKey ?? crypto.randomUUID() : undefined;
-      let sent = false;
-      try {
-        let path = endpoint.path;
-        if (!mutation && body && typeof body === 'object') {
-          const query = new URLSearchParams();
-          for (const [key, value] of Object.entries(body)) if (value !== undefined && value !== null) query.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-          if (query.size) path += `?${query}`;
-        }
-        const headers = { Accept: 'application/json' };
-        if (homeContextId) headers['X-Halo-Home-Context'] = homeContextId;
-        if (options.expectedRevision !== undefined) headers['If-Match'] = String(options.expectedRevision);
-        if (operationId) headers['Idempotency-Key'] = operationId;
-        if (mutation) headers['Content-Type'] = 'application/json';
-        sent = true;
-        const response = await h.call(endpoint.path, method, { as: who, url: path, headers, env, rawBody: mutation ? JSON.stringify(body ?? {}) : undefined });
+    request(operation, body, options = {}) {
+      const fetcher = async (requestPath, init) => {
+        const route = new URL(requestPath, 'http://client.invalid').pathname;
+        const mutation = init.method !== 'GET';
+        // The browser's session is the harness's `as`: the runtime's own bearer header is dropped so it cannot override it.
+        const headers = { ...init.headers };
+        delete headers.Authorization;
+        // The server answers with Node's own Intl, not the browser's stand-in.
+        globalThis.Intl = NodeIntl;
+        let response;
+        try { response = await h.call(route, init.method, { as: who, url: requestPath, headers, env, rawBody: mutation ? init.body : undefined }); } finally { globalThis.Intl = browserIntl; }
         if (lose(operation) || options.lose) throw new DOMException('Request ended', 'AbortError');
-        const json = await response.json().catch(() => null);
-        if (!response.ok) {
-          const code = response.status === 401 ? 'session' : response.status === 403 ? 'permission' : response.status === 409 || response.status === 412 ? 'conflict' : response.status === 400 || response.status === 422 ? 'validation' : response.status === 429 ? 'rate_limited' : response.status >= 500 && mutation ? 'unknown_outcome' : 'unavailable';
-          const retry = Number(response.headers.get('Retry-After')); throw new FrontendServiceError(code, messages[code], operationId, Number.isFinite(retry) && retry > 0 ? retry : undefined);
-        }
-        if (json === null || typeof json !== 'object') throw new FrontendServiceError(mutation ? 'unknown_outcome' : 'invalid_response', messages[mutation ? 'unknown_outcome' : 'invalid_response'], operationId);
-        // The response envelope is unwrapped once. Domain adapters validate its canonical schema.
-        if (Object.hasOwn(json, 'data')) {
-          const envelope = json;
-          return (envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data) && envelope.meta ? { ...envelope.data, _meta: envelope.meta } : envelope.data);
-        }
-        return json;
-      } catch (error) {
-        if (error instanceof FrontendServiceError) throw error;
-        const code = sent && mutation ? 'unknown_outcome' : 'unavailable';
-        throw new FrontendServiceError(code, messages[code], operationId);
-      }
+        return response;
+      };
+      return realRuntime(fetcher, { identityId: who ?? 'anonymous', homeContextId }).request(operation, body, options);
     },
   };
 }
 
-/** runtime.ts:98 */
-export function serviceMessage(error) { return error instanceof FrontendServiceError ? error.message : messages.unavailable; }
+/**
+ * What runtime.request does with a response once it has one: the real
+ * runtime, handed that one response (the status mapping, the JSON check and
+ * the envelope unwrap). `mutation` picks a registry entry that is one.
+ */
+export function clientRequest(response, mutation) {
+  return realRuntime(async () => response).request(mutation ? 'settings.save' : 'settings.read', mutation ? {} : undefined);
+}
 
 // ------------------------------------------------------ expanded-preview.ts
 
-/** expanded-preview.ts:30-35 */
-export function validActionDate(value) {
-  if (value === '') return true;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T12:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-/** expanded-preview.ts:36-40 */
-export function actionDraftError(title, date) {
-  if (!title.trim() || title.trim().length > 160) return 'Enter a title between 1 and 160 characters.';
-  if (!validActionDate(date)) return 'Choose a valid calendar date.';
-  return null;
-}
-/** expanded-preview.ts:43-48 */
-export function revisedActionBatch(actions,changes) {
-  if(new Set(changes.map(c=>c.id)).size!==changes.length)return null;
-  for(const c of changes){const a=actions.find(a=>a.id===c.id);if(!a||(a.revision??1)!==c.revision||actionDraftError(c.patch.title,c.patch.date)||!['saved','waiting','completed'].includes(c.patch.state))return null;}
-  return actions.map(a=>{const c=changes.find(c=>c.id===a.id);return c?{...a,...c.patch,title:c.patch.title.trim(),revision:c.revision+1}:a;});
-}
+export const { validActionDate, actionDraftError, revisedActionBatch } = expandedPreview;
 
 // ---------------------------------------------------------- week-preview.ts
 
-/** week-preview.ts:4 */
-export const emptyWeekMeta = { note:'', paused:false, archived:false, completedOn:'', time:'', duration:60, zone:'America/New_York', recurrence:'none', reminder:false, history:[] };
-/** week-preview.ts:5-6 */
-export function dayAdd(day, amount) { const d=new Date(`${day}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+amount);return d.toISOString().slice(0,10); }
-export function weekStart(day) {return dayAdd(day,-((new Date(`${day}T12:00:00Z`).getUTCDay()+6)%7));}
-/** week-preview.ts:11-16 */
-export function eventInstant(day,time,zone) {
-  if (!day || !validActionDate(day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
-  try {const target=`${day}T${time}`; const base=Date.parse(`${target}:00Z`);const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});const matches=[];
-    for(let offset=-14*60;offset<=14*60;offset+=15){const instant=new Date(base+offset*60000);const p=fmt.formatToParts(instant);const get=(type)=>p.find(x=>x.type===type)?.value; if(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`===target) matches.push(instant.toISOString());}return matches.length===1?matches[0]:null;
-  }catch{return null;}
-}
+export const { emptyWeekMeta, dayAdd, weekStart, eventInstant } = weekPreview;
 
 // -------------------------------------------------------- action-service.ts
 
-/** action-service.ts:27-36 */
-export function actionMetadataError(meta, action) {
-  if (!meta || typeof meta !== 'object' || typeof meta.time !== 'string' || typeof meta.completedOn !== 'string' || typeof meta.zone !== 'string' || [meta.paused,meta.archived,meta.reminder].some(value=>typeof value!=='boolean') || meta.estimateSet!==undefined&&typeof meta.estimateSet!=='boolean') return 'The task schedule is invalid.';
-  if (typeof meta.note !== 'string' || meta.note.length > 3000 || !Array.isArray(meta.history) || meta.history.some(line => typeof line !== 'string')) return 'The task details are invalid.';
-  if (!Number.isInteger(meta.duration) || meta.duration < 15 || meta.duration > 1440) return 'Choose a duration between 15 and 1440 minutes.';
-  try { new Intl.DateTimeFormat('en', { timeZone: meta.zone }); } catch { return 'Choose a valid timezone.'; }
-  if (meta.time && !eventInstant(action.date, meta.time, meta.zone)) return 'Choose a valid dated time outside clock-change gaps or ambiguous times.';
-  if (!['none', 'weekly', 'after-completion'].includes(meta.recurrence) || meta.recurrence !== 'none' && (!action.date || meta.time)) return 'Repeating tasks need an all-day date.';
-  if (meta.completedOn && actionDraftError('Completion', meta.completedOn)) return 'The completion date is invalid.';
-  return null;
-}
+export const { actionMetadataError, validActionPreferences, validActionSnapshot, actionReceiptCoversCommand } = actionService;
 
-/** action-service.ts:38-40 */
-const object=(value)=>!!value&&typeof value==='object'&&!Array.isArray(value);
-const text=(value,max=500)=>typeof value==='string'&&value.length<=max;
-function validZone(value){if(!text(value,100)||!value)return false;try{new Intl.DateTimeFormat('en',{timeZone:value});return true;}catch{return false;}}
-/** action-service.ts:41-53 */
-export function validActionPreferences(value){
- if(!object(value))return false;
- return Object.entries(value).every(([key,item])=>{
-  if(key==='week:focus')return text(item,300);
-  if(key==='food-interests')return Array.isArray(item)&&item.length<=5&&new Set(item).size===item.length&&item.every(entry=>['fish','gardens','evidence','growers','water'].includes(entry));
-  if(key==='week:availability')return object(item)&&Object.keys(item).length<=1000&&Object.entries(item).every(([day,minutes])=>!!day&&validActionDate(day)&&Number.isInteger(minutes)&&Number(minutes)>=0&&Number(minutes)<=10080);
-  if(key==='week:season-dismissals')return Array.isArray(item)&&item.length<=1000&&new Set(item).size===item.length&&item.every(entry=>text(entry,200)&&entry.length>0);
-  if(key==='week:review-preferences')return object(item)&&Object.keys(item).every(name=>['enabled','weekday','time','zone'].includes(name))&&typeof item.enabled==='boolean'&&Number.isInteger(item.weekday)&&Number(item.weekday)>=0&&Number(item.weekday)<=6&&typeof item.time==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)&&validZone(item.zone);
-  if(key==='outdoorPlan')return object(item)&&Object.keys(item).every(name=>['key','place','period','watchRequested','forecastVersion','forecastIssuedAt','forecastExpiresAt'].includes(name))&&text(item.key,300)&&text(item.place,500)&&text(item.period,100)&&typeof item.watchRequested==='boolean'&&(item.forecastVersion===null||text(item.forecastVersion,300))&&[item.forecastIssuedAt,item.forecastExpiresAt].every(date=>date===null||typeof date==='string'&&Number.isFinite(Date.parse(date)));
-  return false;
- });
-}
-
-/** action-service.ts:86-99 (validReminderStates not transcribed; see the header) */
-export function validActionSnapshot(value) {
-  if (!value || typeof value !== 'object') return false;
-  const data = value;
-  if(data.preferences!==undefined&&!validActionPreferences(data.preferences))return false;
-  if(data.unresolvedOperations!==undefined&&(!Array.isArray(data.unresolvedOperations)||data.unresolvedOperations.length>100||data.unresolvedOperations.some(id=>typeof id!=='string'||!id||id.length>200)||new Set(data.unresolvedOperations).size!==data.unresolvedOperations.length))return false;
-  if (!Array.isArray(data.actions) || !data.metas || typeof data.metas !== 'object' || Array.isArray(data.metas)) return false;
-  const ids = new Set(), keys = new Set();
-  for (const action of data.actions) {
-    if (!action || typeof action.id !== 'string' || !action.id || typeof action.key !== 'string' || !action.key || ids.has(action.id) || keys.has(action.key) || typeof action.title !== 'string' || typeof action.date !== 'string' || actionDraftError(action.title, action.date) || !['saved', 'waiting', 'completed'].includes(action.state) || !Number.isInteger(action.revision) || (action.revision ?? 0) < 1 || typeof action.reason !== 'string' || typeof action.origin !== 'string') return false;
-    ids.add(action.id); keys.add(action.key);
-    if (data.metas[action.key] && actionMetadataError({ ...emptyWeekMeta, ...data.metas[action.key] }, action)) return false;
-  }
-  if (data.reminderStates !== undefined) throw new Error('reminderStates is not transcribed: the server must not send it');
-  return Object.keys(data.metas).every(key => keys.has(key));
-}
-
-/** action-service.ts:102-115 */
+/** action-service.ts:102 (private there, so transcribed) */
 export function sameValue(a,b){if(Object.is(a,b))return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;const left=Object.keys(a),right=Object.keys(b);return left.length===right.length&&left.every(key=>Object.hasOwn(b,key)&&sameValue(a[key],b[key]));}
-export function actionReceiptCoversCommand(command,previous,receipt) {
- if(receipt.status!=='succeeded'||!validActionSnapshot(receipt.snapshot))return false;
- const next=receipt.snapshot;
- if(command.kind==='clear')return next.actions.length===0&&Object.keys(next.metas).length===0;
- if(command.kind==='delete'){const old=previous.actions.find(action=>action.id===command.id);return !!old&&!next.actions.some(action=>action.id===command.id)&&!Object.hasOwn(next.metas,old.key);}
- if(command.kind==='revise'&&!command.changes.every(change=>{const action=next.actions.find(item=>item.id===change.id);return action&&Number(action.revision)>change.revision&&action.title===change.patch.title.trim()&&action.date===change.patch.date&&action.state===change.patch.state;}))return false;
- if(command.kind==='add'&&!command.seeds.every(seed=>{const action=next.actions.find(item=>item.key===seed.key),old=previous.actions.find(item=>item.key===seed.key);return !!action&&(old?sameValue(action,old):action.title===seed.title.trim()&&action.date===command.date&&action.state===(command.initialStates?.[seed.key]??'saved'));}))return false;
- for(const [key,meta]of Object.entries(command.metadata??{})){
-  if(command.kind==='add'&&previous.actions.some(action=>action.key===key))continue;
-  if(meta===null?Object.hasOwn(next.metas,key):!sameValue(next.metas[key],meta))return false;
- }
- return Object.entries(command.preferences??{}).every(([key,value])=>sameValue(next.preferences?.[key],value));
-}
 
 // --------------------------------------------------------------- adapters.ts
 
-/** adapters.ts:5 */
-function invalid(){return new FrontendServiceError('invalid_response','The service returned incomplete information. Please retry.');}
-/** adapters.ts:6-12, the production action adapter. */
-export function createActionAdapter(runtime) {
- const receipt=(value,id)=>{if(!value||value.operationId!==id||!['succeeded','failed','pending','unknown','cancelled'].includes(value.status)||value.status==='succeeded'&&(!validActionSnapshot(value.snapshot)||!Array.isArray(value.snapshot?.unresolvedOperations)))throw invalid();return value;};
- return {
-  async load(signal){const value=await runtime.request('actions.load',undefined,{signal});if(!validActionSnapshot(value)||!Array.isArray(value.unresolvedOperations))throw invalid();return value;},
-  async commit(command,{operationId,signal}){try{return receipt(await runtime.request('actions.commit',{...command,operationId},{signal,idempotencyKey:operationId}),operationId);}catch(error){if(error instanceof FrontendServiceError)return {operationId,status:error.code==='unknown_outcome'||error.code==='invalid_response'?'unknown':'failed',message:error.message};throw error;}},
-  async reconcile(operationId,signal){return receipt(await runtime.request('operations.read',{operationId,domain:'actions'},{signal}),operationId);}
- };
-}
+export const { createActionAdapter } = adapters;
 
 // ----------------------------------------------------------- week-planning.ts
 
-/** week-planning.ts:7-8 */
-export const reviewMetaVersion=(meta)=>JSON.stringify([meta.paused,meta.archived,meta.time,meta.duration,meta.estimateSet,meta.zone,meta.recurrence,meta.completedOn,meta.reminder,meta.note,meta.history]);
-export function captureReview(actions,metas){return actions.filter(a=>a.state!=='completed'&&!metas[a.key]?.archived).map(a=>({id:a.id,key:a.key,revision:a.revision??1,choice:'keep',date:a.date,selected:false,metaVersion:reviewMetaVersion({...emptyWeekMeta,...metas[a.key]})}));}
-/** week-planning.ts:12-19 */
-export function prepareReview(decisions,actions,metas,day){
-  const result={error:'',changes:[],metas:{...metas},diffs:[]};const selected=decisions.filter(d=>d.selected&&d.choice!=='keep');const ids=new Set();
-  for(const decision of selected){const current=actions.find(a=>a.id===decision.id);if(ids.has(decision.id)||!current||current.key!==decision.key||current.state==='completed'||(current.revision??1)!==decision.revision){result.error='A selected task changed. Reopen the review before applying anything.';return {...result,changes:[],diffs:[]};}ids.add(decision.id);const m={...emptyWeekMeta,...metas[current.key]};if(m.archived||reviewMetaVersion(m)!==decision.metaVersion){result.error='A selected schedule changed. Reopen the review before applying anything.';return {...result,changes:[],diffs:[]};}
-    if(decision.choice==='move'&&(!decision.date||!validActionDate(decision.date)||m.time&&!eventInstant(decision.date,m.time,m.zone))){result.error='Choose a valid date for each move, including its saved timezone.';return {...result,changes:[],diffs:[]};}
-    const date=decision.choice==='later'?'':decision.choice==='move'?decision.date:current.date;const next={...m,paused:decision.choice==='pause'?true:decision.choice==='move'||decision.choice==='later'?false:m.paused,time:decision.choice==='later'?'':m.time,recurrence:decision.choice==='later'?'none':m.recurrence,history:[...m.history,`Weekly review ${day}: ${decision.choice==='move'?`Moved to ${date}`:decision.choice==='pause'?'Paused':'Kept for later'}.`]};
-    result.changes.push({id:current.id,revision:decision.revision,patch:{title:current.title,date,state:current.state}});result.metas[current.key]=next;result.diffs.push(`${current.title}: ${decision.choice==='move'?`${current.date||'Unscheduled'} to ${date}${m.time?` at ${m.time} (${m.zone})`:''}`:decision.choice==='pause'?'Pause, keeping its date':'Save for later, removing its date and time'}`);
-  }return result;
-}
+export const { reviewMetaVersion, captureReview, prepareReview, changeEvidenceKey, usableWeekChanges } = weekPlanning;
 
 // ------------------------------------------------- ExpandedPreviewState.tsx
 
@@ -411,19 +316,8 @@ export async function applyWeekPlan(week, { decisions, chosenFocus, capacity, st
   return 'Week plan saved.';
 }
 
+
 // ------------------------------------------------------------- the week strip
-
-/**
- * U+2014, built from its code point so this file carries no em dash of its
- * own (AGENTS.md). The client's regular expression matches every U+2014 (its
- * unicode escape, global flag); `EM_DASH_ALL` matches the same thing.
- */
-const EM_DASH_ALL = new RegExp(String.fromCharCode(0x2014), 'g');
-
-/** week-planning.ts:29 */
-export const changeEvidenceKey = (change) => `${change.id}:${change.version}`;
-/** week-planning.ts:30 */
-export function usableWeekChanges(changes, actions, acknowledged) { return changes.filter((change, index) => Boolean(change.id && change.id.length <= 240 && change.version && change.version.length <= 100 && change.sourceVersion) && ['date-changed', 'cancelled', 'report', 'routine', 'conditions', 'missing-origin'].includes(change.kind) && changes.findIndex(c => changeEvidenceKey(c) === changeEvidenceKey(change)) === index && actions.some(a => a.id === change.actionId && a.key === change.actionKey && a.state !== 'completed') && !acknowledged.includes(changeEvidenceKey(change))).map(change => ({ ...change, title: change.title.replace(EM_DASH_ALL, ',').slice(0, 160), summary: change.summary.replace(EM_DASH_ALL, ',').slice(0, 600), sourceLabel: change.sourceLabel.replace(EM_DASH_ALL, ',').slice(0, 100), date: change.date && validActionDate(change.date) ? change.date : '', sourceUrl: change.sourceUrl && /^https:\/\//i.test(change.sourceUrl) ? change.sourceUrl : undefined })); }
 
 /**
  * `useWeekChanges` in production (WeekUpdates.tsx:14-25) and `WeekUpdateList`'s
