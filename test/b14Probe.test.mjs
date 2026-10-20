@@ -11,7 +11,7 @@ import sharp from 'sharp';
 import { muteConsoleError } from './helpers/routeHarness.mjs';
 import { createDb } from './db/pgliteHarness.mjs';
 import { sampleRecord, body as workspaceBody } from './helpers/workspaceWorld.mjs';
-import { ON, createWorld } from './helpers/attachmentsWorld.mjs';
+import { createWorld } from './helpers/attachmentsWorld.mjs';
 
 let db;
 before(async () => { db = await createDb(); });
@@ -312,8 +312,6 @@ test('the same operation id with a different collection or record is a 409, and 
   assert.equal((await upload(w, image, { fields: { operationId }, name: 'other.jpg' })).status, 409);
   const text = JSON.stringify(await (await w.reconcileFiles(operationId)).json());
   assert.ok(!text.includes(w.ids.alice) && !text.includes('object'));
-  assert.ok(await db.query(`select 1`), 'db alive');
-  void ON;
 });
 
 // ------------------------------------------------------ references and limits
@@ -322,7 +320,7 @@ test('a staged file cannot be moved to another record or named twice; the trigge
   const w = await createWorld(db);
   const image = await jpeg();
   const a = await (await upload(w, image, { fields: { recordId: 'obs-a' } })).json();
-  const b = await (await upload(w, image, { fields: { recordId: 'obs-b' } })).json();
+  assert.equal((await upload(w, image, { fields: { recordId: 'obs-b' } })).status, 200);
   const write = async (record) => (await (await w.command(workspaceBody({ kind: 'write', collection: 'observations', record, expectedRevision: null }))).json());
   const obs = (id, file) => ({ ...sampleRecord('observations', { id, homeContextId: w.home.alice }), photoAttachmentId: file.id, photoAttachmentRevision: 1, photoMetadataRemoved: true });
   // obs-b names obs-a's file, obs-a a wrong revision: both refused by the route, nothing linked.
