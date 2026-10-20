@@ -3,27 +3,27 @@
 One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for how to work, then the
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
-Updated 2026-10-19: B04, B05 and B06 complete, and **the frontend merged in** (`1253025`, the frontend
-ref at `5ac06f6`). `vmag211/backend` is not merged to main. On the merged tree **3,739 tests pass**
-(3,384 backend, 709 frontend, 354 shared), 0 fail, 0 skipped; `npm run typecheck` clean;
-`npm run lint` 0 errors and 7 warnings (the backend's five: district, backfill, assistantRag.test,
-uploadData, daily-score; and two of the frontend's own); `next build` passes with placeholder Supabase
-variables. Run any build in a scratch worktree: `next build` auto-loads `.env.local`, which the
-boundary forbids reading.
+Updated 2026-10-20: B04 to B07 and B10 are complete (B10 except Task 5, gated on Vibhav), B08 is
+partly merged, and **the frontend is merged in** (`1253025`, the frontend ref at `5ac06f6`).
+`vmag211/backend` is not merged to main. At `origin/vmag211/backend` (`a5268be`),
+`node --test test/*.test.mjs` runs **4,599 tests: 4,599 pass, 0 fail, 0 skipped**;
+`npm run typecheck` clean; `npm run lint` 0 errors and 6 warnings (all pre-existing). Run any build in a
+scratch worktree: `next build` auto-loads `.env.local`, which the boundary forbids reading (it last
+passed with placeholder Supabase variables on 2026-10-19; not re-run).
 
 ## What exists
 
-43 route files under `app/api` on `vmag211/backend`, exporting 56 method handlers. The frontend
-registry declares **72 operations**, each with a path and a method (`lib/frontend/production/runtime.ts`
-on `origin/codex/october15-review-refinement`). **25 have a backend route at the declared path and
-method; 47 do not. Of the 25, 23 answer**: `actions.load` and `actions.commit` answer 503 while the
-`tasks` flag is off. Measured 2026-10-19 by the B04 Task 3 reviewer on `b5e978c` plus B04 Task 3; B06
-Task 6 added no route. Method: every
-`'<op>': {path, method}` entry of `productionOperations` (the method defaults to GET), matched as an exact
-method-and-path pair against every `export ... GET|POST|PUT|PATCH|DELETE` in `app/api/**/route.js`, read
-with `git grep` on the tip being measured. A match means only that a route exists at that path and
-method. It does not mean the body passes the operation's validator: the per-package conformance suites
-are what show that. The 23, by the package that made them answer:
+49 route files under `app/api` on `vmag211/backend`, exporting 63 method handlers. The frontend
+registry declares **72 operations**, each with a path and a method (`lib/frontend/production/runtime.ts`;
+the file is identical on `origin/codex/october15-review-refinement`). **30 have a backend route at the
+declared path and method; 42 do not. Of the 30, 24 answer**: `actions.load` and `actions.commit` answer
+503 while the `tasks` flag is off, and the four `privacy.*` operations answer "unavailable" (503) until
+0024 is applied and `HALO_PRIVACY_REVIEW_KEY` is set. Measured 2026-10-20 on `a5268be`; B07 added four
+routes and B10 one since the 2026-10-19 count of 25. Method: every `'<op>': {path, method}` entry of
+`productionOperations` (the method defaults to GET), matched as an exact method-and-path pair against
+every exported `GET|POST|PUT|PATCH|DELETE` in `app/api/**/route.js`. A match means only that a route
+exists at that path and method. It does not mean the body passes the operation's validator: the
+per-package conformance suites are what show that. The 24, by the package that made them answer:
 
 | Package | Operations |
 | --- | --- |
@@ -34,17 +34,18 @@ are what show that. The 23, by the package that made them answer:
 | B04 2b | `alerts.update` (`POST /api/alerts/state`), and `GET /api/alerts` extended to the contract read |
 | B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
 | B06 Task 5 | `week.changes`, `week.acknowledge` |
+| B10 | `forecast.read` (`GET /api/forecast`; Open-Meteo and NWS only, AirNow not yet) |
 
-B06 `actions.load` and `actions.commit` are merged behind the `tasks` flag, which answers 503 while
-off, so they are not counted as answering. The count was 14 of 72 on 2026-10-18, and the frontend
-closeout note's 68 operations is four short.
+Built but not counted as answering: B06 `actions.load` and `actions.commit` (the `tasks` flag is off) and
+B07 `privacy.status`, `privacy.inspect`, `privacy.export`, `privacy.clear` (no key, 0024 not applied).
+The count was 14 of 72 on 2026-10-18, and the frontend closeout note's 68 operations is four short.
 
 **The remaining work is backend, not wiring.** The frontend half is already written. Components call
 `runtime.request('<operation>')`, the registry resolves the path, and a validator checks the response, so
 a route landing at the declared path and method with a body the validator accepts makes an operation live
 with no frontend edit. That file says so itself: "These are explicit frontend contracts, not claims that
 the backend implements them." Two exceptions need frontend work: recovery needs the client to send a
-Turnstile token field, and `evidence.read` waits on the provenance decision below.
+Turnstile token field, and `evidence.read` is built but held (ruling E25, see B08 below).
 
 The two halves are now in one tree (`1253025`), but **nothing has yet been driven end to end through a
 browser**. The per-package conformance tests run the real handlers against validators transcribed
@@ -63,9 +64,13 @@ lazy so `next build` needs no secrets. About 31 Playwright UI tests already fail
 | B01 baseline, identity, home context | Complete |
 | B02 identity linking and recovery | Complete except two tasks dropped on purpose, see below |
 | B03 Luna, conversational MVP | Complete. Six endpoints, answers and cites, does not act |
-| B04 settings and alerts | Complete. Four operations (`settings.read`, `settings.save`, `alerts.read`, `alerts.update`), contract `b04-1` with the reconcile, Rulings S1 to S16. `GET /api/capabilities` and `GET /api/evidence` dropped, see below |
+| B04 settings and alerts | Complete. Four operations (`settings.read`, `settings.save`, `alerts.read`, `alerts.update`), contract `b04-1` with the reconcile, Rulings S1 to S16. `GET /api/capabilities` dropped, see below |
 | B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-2` |
 | B06 My Week (tasks) | Complete. `actions.load`, `actions.commit`, `week.changes`, `week.acknowledge` and the `actions` reconcile, migration 0023, contract `b06-1`, Rulings H1 to H33. `actions.*` behind the `tasks` flag; task retention decided 2026-10-19, so the flag may be turned on once 0023 is applied; the week strip is ungated |
+| B07 privacy | Complete. `privacy.status`, `privacy.inspect`, `privacy.export`, `privacy.clear`, migration 0024, contract `b07-1`, Rulings P1 to P18. Off until 0024 is applied and `HALO_PRIVACY_REVIEW_KEY` is set (no flag); clear all is not account deletion |
+| B08 evidence | Partly merged. Merged: migration 0025 (`daily_maxima`), the method, and the recorder cron `GET\|POST /api/cron/daily-maxima` (`vercel.json`, 12:00 UTC). **Built but held, unmerged:** `GET /api/evidence` and `GET /api/profile`'s additive `home_context`. Ruling E25: emitting `home_context` makes the frontend remount (`ProductionApp.tsx:35` keys on the revision) and drop unsaved drafts, so it waits for Yogi (`YOUR_TODO.md` Part 4 items 24 and 25). Task 6 (contracts) not started |
+| B09 Luna household context | Planned, not built (`plans/b09-luna-context.md`); household context stays off by decision 2 |
+| B10 forecast | Complete except Task 5, the AirNow forecast adapter, gated on Vibhav capturing the AirNow docs (`YOUR_TODO.md` Part 3 item 10). `forecast.read`, contract `b10-1`; air is "not checked" until Task 5 lands. No migration |
 
 ## Migrations
 
@@ -88,6 +93,28 @@ as read" gateway check, are `YOUR_TODO.md` 2.10.
 They were applied as one batch; each keeps its apply steps and a tested back-out block in `YOUR_TODO.md`
 (0022 is 2.11). Once the backend branch is deployed, both Explore area verbs work against the applied 0022.
 
+**0024 and 0025 are written, merged to `vmag211/backend`, and applied nowhere: pending for Vibhav.**
+0024 is privacy (`clear_household_records`, the fingerprint and count functions, the receipt purge and
+the freeze trigger; no table; `YOUR_TODO.md` 2.14). 0025 is `daily_maxima` for B08 (2.15); apply it as
+soon as the recorder is deployed, because a day is recorded only from the first run on and cannot be
+backfilled. They are independent, and the clear handles 0025's table whichever goes first. One-paste
+bundles with verify scripts: `docs/backend/apply/apply-0024.sql`, `verify-0024.sql`, `apply-0025.sql`,
+`verify-0025.sql`. Applying 0024 turns nothing on; the key does.
+
+## Environment variables Vibhav must set
+
+Names only; never write a value or an address into the repository. Server side, Sensitive, in every
+environment that should have the feature, then redeploy.
+
+- `HALO_PRIVACY_REVIEW_KEY` (32+ random characters, never `NEXT_PUBLIC_`, never the recovery key's
+  value): the only switch for privacy (`YOUR_TODO.md` 2.16). Staging first, one browser pass, then
+  production.
+- `NWS_CONTACT`: the contact the National Weather Service asks for in the `User-Agent`. Unset or left at
+  the placeholder, the forecast makes no NWS request and "Official notices" shows the fallback
+  (`YOUR_TODO.md` Part 3 item 8).
+- `HALO_FEATURE_TASKS=on` (My Week) once 0023 is applied, and `HALO_FEATURE_LUNA=on` with
+  `ASSISTANT_CHAT_MODEL` and `ASSISTANT_EMBED_MODEL` set explicitly (`YOUR_TODO.md` 2.13 step 3).
+
 ## What is deliberately not built, and why
 
 - **Account recovery cannot complete end to end.** Vibhav stopped the package on 2026-10-18 to move to
@@ -108,9 +135,11 @@ They were applied as one batch; each keeps its apply steps and a tested back-out
   validator, and the mechanism is harmful on reads, since `runtime.ts` refuses to dispatch an operation
   whose `enabled` is false, so a disabled read leaves the UI's snapshot null forever. The working pattern
   is the per-domain `{enabled, reason}` snapshot on `GET /api/account`.
-- **`GET /api/evidence` is dropped** until Vibhav resolves a provenance conflict: its validator accepts
-  only a `daily maximum` comparison basis while `daily_scores` holds app-time observations, so a truthful
-  response cannot validate and a validating one is a false claim about how the number was derived.
+- **`GET /api/evidence` is built but held, not merged** (it was dropped until the provenance conflict was
+  decided). Its validator accepts only a `daily maximum` basis while `daily_scores` holds app-time
+  observations, so B08 serves only `daily_maxima` and never relabels `daily_scores`. Both it and
+  `GET /api/profile`'s `home_context` wait on ruling E25 (see the B08 row); until then `evidence.read`
+  has no route and the app shows its own empty state.
 - **B05 dropped `community.read` and `map.brief`** (no consumer, validator or type on the frontend ref),
   and **blocked `organizations.search`** (no participation content, a disjoint cause vocabulary, no
   stated meaning for `complete`) and **the summaries trio** (no record collections to freeze). The plan
@@ -124,8 +153,9 @@ They were applied as one batch; each keeps its apply steps and a tested back-out
 
 ## Decisions only Vibhav can make
 
-1. **Evidence basis**: record daily maxima in the pipeline, or add a contract word for app-time
-   observations. Blocks `GET /api/evidence`.
+1. **Evidence basis: decided 2026-10-19, record daily maxima.** The recorder is merged (0025 pending). What
+   remains is Yogi's frontend remount fix (`YOUR_TODO.md` Part 4 items 24 and 25) before `GET /api/evidence`
+   and `home_context` are merged.
 2. **Household data to a free-tier model. Decided 2026-10-19: no.** Luna's configured free tier
    (OpenRouter's NVIDIA endpoints) trains on, logs and keeps inputs, and NVIDIA's trial terms forbid
    health and personal data and production use (`plans/b09-luna-context.md`). Household context stays
@@ -182,6 +212,11 @@ They were applied as one batch; each keeps its apply steps and a tested back-out
   only delivery path, and no alert may be designed assuming a push arrives.
 - **`HALO_RECOVERY_TOKEN_KEY`** has no `.env.example` home, no rotation story, and a floor that cannot
   check entropy. Rotating it invalidates every outstanding restore token.
+- **`HALO_PRIVACY_REVIEW_KEY`** is the privacy switch and must be a different value from the recovery key.
+  Rotating it only voids reviews younger than ten minutes. Clear all is irreversible and no browser pass
+  has run: staging first (`YOUR_TODO.md` 2.16).
+- **The AirNow forecast is not built**: until Vibhav captures the AirNow docs (B10 Task 5), the forecast's
+  Air coverage says air was not checked, and Air and Pollen cards show "Unavailable".
 - **Model ids must be pinned in the deployment.** An unset `ASSISTANT_CHAT_MODEL` or
   `ASSISTANT_EMBED_MODEL` used to select a paid OpenAI default; `988074d` makes that fail loudly, but set
   both explicitly anyway.
@@ -201,4 +236,6 @@ They were applied as one batch; each keeps its apply steps and a tested back-out
 4. One writer per checkout. Parallel implementers get worktrees, which provision from `origin/main`, so
    each must `git reset --hard vmag211/backend` first.
 5. Gate before every commit: `node --test test/*.test.mjs`, `npm run typecheck`, `npm run lint`,
-   `git diff --check`. Report real counts.
+   `git diff --check`. Report real counts (4,599 tests at `a5268be`).
+6. Process, from 2026-10-20: there are no separate reviewer agents. Each task is built by its implementer
+   and tested once by the implementer's own test subagent, which fixes or reports what it finds.
