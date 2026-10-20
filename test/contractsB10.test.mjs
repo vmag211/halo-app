@@ -556,16 +556,30 @@ test('a date past horizonEnd shows the future message and a check-again date; a 
   assertRenderable(far, 'far');
   assertRenderable(past, 'past');
 
-  // Pinned as it is (frontend N2, YOUR_TODO Part 4): a populated answer with no periods keeps
-  // F18's 90-minute expiry, and once it passes, validate refuses the save while Refresh
-  // forecast renders only with periods (WeekOutdoors.tsx:44), so the screen offers no refresh.
-  const at = Date.parse(far.live.data.expiresAt);
-  assert.equal(at, FORECAST_NOW + 90 * 60_000, 'the fetch (at FORECAST_NOW) plus 90 minutes, not the empty kinds\' 24 hours');
-  t.mock.timers.setTime(at);
-  const stuck = decide(far.read, { date: '2026-11-30', place: '', period: 'Morning', now: at, acknowledged: '' });
-  assert.equal(stuck.expired, true);
-  assert.equal(stuck.validation, copy.forecastExpired, 'the save is refused');
-  assert.deepEqual(stuck.periods, [], 'and no periods, so no Refresh forecast control (N2)');
+  // F18 (controller ruling, Task 9): an answer with provider data but no periods expires 24 hours
+  // out, like an empty one. Refresh forecast renders only with periods (WeekOutdoors.tsx:44), so a
+  // 90-minute expiry would refuse the save with no way to refresh. Still saveable 23 hours later.
+  for (const s of [far, past]) {
+    const at = Date.parse(s.live.data.expiresAt);
+    assert.equal(at, FORECAST_NOW + 24 * HOUR, `${s.draft.date}: 24 hours, not the 90 minutes of an answer with periods`);
+    const later = decide(s.read, { date: s.draft.date, place: '', period: 'Morning', now: FORECAST_NOW + 23 * HOUR, acknowledged: '' });
+    assert.equal(later.expired, false, s.draft.date);
+    assert.notEqual(later.validation, copy.forecastExpired, `${s.draft.date}: never refused as an expired forecast`);
+  }
+  // The past date is refused for its own reason, as before; the far date saves.
+  assert.equal(decide(far.read, { date: '2026-11-30', place: '', period: 'Morning', now: FORECAST_NOW + 23 * HOUR, acknowledged: '' }).validation, '');
+  const withPeriods = await screen(cw);
+  assert.equal(Date.parse(withPeriods.live.data.expiresAt), FORECAST_NOW + 90 * 60_000, 'an answer with periods keeps the 90 minutes');
+});
+
+test('F18: today after 21:00 local has no periods and also expires 24 hours out', async (t) => {
+  const late = Date.parse('2026-10-20T01:30:00Z'); // 21:30 EDT on 2026-10-19
+  freezeClock(t, late);
+  const cw = clientWorld(t);
+  const s = await screen(cw, { date: TODAY, now: late });
+  assert.deepEqual(s.periods, []);
+  assert.equal(s.live.data.expiresAt, new Date(late + 24 * HOUR).toISOString());
+  assert.equal(s.emptyMessage, copy.forecastUnavailable);
 });
 
 test('AirNow category only: the Air card says Unavailable, the category is in coverage and in the tradeoff', async (t) => {
