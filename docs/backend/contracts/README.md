@@ -21,6 +21,16 @@ A 200 refusal's `message` is fixed per reason, and an `invalid_result` refusal c
 
 Run `node --test test/contractsB06.test.mjs`. Migration 0023 was applied to production on 2026-10-19, and the flag is on in no environment. Nothing here has run against a real Supabase project.
 
+## B10 forecast contract
+
+`b10.openapi.json`, version `b10-1`, documents one operation, `forecastRead` (`GET /api/forecast`, registry operation `forecast.read`), the outdoor planner's forecast snapshot for one date at the saved home or a typed North Carolina place. `info.x-halo-rulings` carries F12 (date-only, inclusive, zone-local horizon), F17 (the two meanings of `issuedAt`), F18 and F18-S (expiry and stale serving), F19 (content versions) and F21 (statuses). The 503's log-only reason tokens, `open_meteo_incomplete` among them, are listed in its description and never sent.
+
+- **It runs the client's whole path.** `test/contractsB10.test.mjs` uses the real `createProductionRuntime` (loaded as the frontend tests load it), whose fetcher is the real route handler, so query building, status mapping and the envelope are the client's own code. The hook's handling, the validator and the outdoor planner's decisions and text are transcribed in `test/helpers/frontendB10.mjs`, with a drift test against the working tree. Each scenario asserts what the screen shows, including the save that becomes a B06 task.
+- **Every fixture is a real handler's answer**, captured with a fixed clock and the request id `b10-contract-0001`. Regenerate after a deliberate contract change with `node test/contractsB10.test.mjs --write-b10-fixtures` and review the diff.
+- **The schema is stricter than the validator in one place on purpose.** The client checks only that `coverage` exists; a non-string value would pass it and break the render, so `Coverage` requires four strings, each beginning with the place.
+
+Several schema constraints describe this release: `air` and `pollen` are always `null` (AirNow is daily, C1; no free pollen source), and `changedMessage` is forbidden (no change service). AirNow (Task 5) is not connected, so production answers say air was not checked; the suite stands an adapter in through `lib/forecast/airNowSlot.js` and also runs with the slot empty. Weather data is by Open-Meteo.com under CC BY 4.0, credited in Weather coverage. Run `node --test test/contractsB10.test.mjs`. Nothing here has run against a real provider, Upstash or Supabase project.
+
 ## B04 settings and alerts contract
 
 `b04.openapi.json`, version `b04-1`, documents `settingsRead` and `settingsSave` (`GET` and `PATCH /api/settings`), `alertsRead` (`GET /api/alerts`, the legacy read with the contract inbox added) and `alertsUpdate` (`POST /api/alerts/state`), plus `operationsRead` (`GET /api/operations`) for the settings and alerts domains only, because that is how both clients clear a parked operation. Each names its frontend registry entry in `x-halo-operation`. `capabilities.read` and `evidence.read` were dropped before execution and are not documented. `test/contractsB04.test.mjs` is the conformance suite, and it follows the B05 one:

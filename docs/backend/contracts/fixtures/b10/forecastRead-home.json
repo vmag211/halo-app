@@ -1,0 +1,55 @@
+{
+  "operationId": "forecastRead",
+  "status": 200,
+  "body": {
+    "periods": [
+      {
+        "name": "Morning",
+        "start": "2026-10-20T12:00:00Z",
+        "end": "2026-10-20T16:00:00Z",
+        "air": null,
+        "uv": 3.2,
+        "pollen": null,
+        "weather": "48 to 64 °F (9 to 18 °C), clear sky, feels like up to 57 °F, no rain in the model, wind up to 7 mph",
+        "tradeoff": "Coolest feels-like temperature of these periods. Air is a daily AirNow forecast, the same for every period: ozone Good (AQI 41) and PM2.5 Moderate (category only, no AQI number issued).",
+        "version": "Open-Meteo GFS run 2026-10-19T12Z; AirNow 2026-10-19"
+      },
+      {
+        "name": "Afternoon",
+        "start": "2026-10-20T16:00:00Z",
+        "end": "2026-10-20T21:00:00Z",
+        "air": null,
+        "uv": 5.2,
+        "pollen": null,
+        "weather": "68 to 74 °F (20 to 23 °C), clear sky, feels like up to 67 °F, no rain in the model, wind up to 9 mph",
+        "tradeoff": "Highest UV of these periods. Warmest feels-like temperature of these periods. Air is a daily AirNow forecast, the same for every period: ozone Good (AQI 41) and PM2.5 Moderate (category only, no AQI number issued).",
+        "version": "Open-Meteo GFS run 2026-10-19T12Z; AirNow 2026-10-19"
+      },
+      {
+        "name": "Evening",
+        "start": "2026-10-20T21:00:00Z",
+        "end": "2026-10-21T01:00:00Z",
+        "air": null,
+        "uv": 2.2,
+        "pollen": null,
+        "weather": "63 to 73 °F (17 to 23 °C), clear sky, feels like up to 65 °F, no rain in the model, wind up to 8 mph",
+        "tradeoff": "Lowest UV of these periods. Air is a daily AirNow forecast, the same for every period: ozone Good (AQI 41) and PM2.5 Moderate (category only, no AQI number issued).",
+        "version": "Open-Meteo GFS run 2026-10-19T12Z; AirNow 2026-10-19"
+      }
+    ],
+    "issuedAt": "2026-10-19T12:00:00.000Z",
+    "expiresAt": "2026-10-19T21:37:00.000Z",
+    "zone": "America/New_York",
+    "source": "Open-Meteo, EPA AirNow and the National Weather Service, for your home area",
+    "version": "fc1-a3a38ab9ba62f4f2",
+    "horizonStart": "2026-10-19",
+    "horizonEnd": "2026-10-25",
+    "warningStatus": "No National Weather Service alerts are active for this area as of 16:07 EDT. Check the official site before going.",
+    "coverage": {
+      "Air": "For your home area: EPA AirNow forecast for the Charlotte, NC reporting area, issued 2026-10-19, for 2026-10-20 as a whole day: ozone Good (AQI 41) and PM2.5 Moderate (category only, no AQI number issued). AirNow forecast dates for this area: 2026-10-20. The daily forecast is shown as received and is not split into periods. Forecast by the state or local air agency, via the EPA AirNow program.",
+      "UV": "For your home area: Open-Meteo GFS model UV index, the highest hourly value in each period, through 2026-10-25. Modelled, not measured. A period missing any hourly UV value shows Unavailable.",
+      "Pollen": "For your home area: Unavailable. HALO has no free pollen forecast for this area.",
+      "Weather": "For your home area: Open-Meteo GFS Global model forecast, run 2026-10-19 12:00 UTC, hourly values summarised by period (Morning 08:00 to 12:00, Afternoon 12:00 to 17:00, Evening 17:00 to 21:00, America/New_York time), for 2026-10-19 through 2026-10-25. Rain is the model's amount in inches, not a chance of rain. From 2026-10-24, Open-Meteo interpolates hourly values from 3-hourly model steps. Weather data by Open-Meteo.com (CC BY 4.0)."
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "operationId": "forecastRead",
+  "status": 200,
+  "body": {
+    "periods": [],
+    "issuedAt": "2026-10-19T12:00:00.000Z",
+    "expiresAt": "2026-10-19T21:37:00.000Z",
+    "zone": "America/New_York",
+    "source": "Open-Meteo and the National Weather Service, for your home area",
+    "version": "fc1-c047bc20af5472aa",
+    "horizonStart": "2026-10-19",
+    "horizonEnd": "2026-10-25",
+    "warningStatus": "No National Weather Service alerts are active for this area as of 16:07 EDT. Check the official site before going.",
+    "coverage": {
+      "Air": "For your home area: EPA AirNow issued no air forecast for 2026-11-30 for the Charlotte, NC reporting area. AirNow forecast dates for this area: 2026-10-20. Check AirNow before going.",
+      "UV": "For your home area: Open-Meteo GFS model UV index, the highest hourly value in each period, through 2026-10-25. Modelled, not measured. A period missing any hourly UV value shows Unavailable.",
+      "Pollen": "For your home area: Unavailable. HALO has no free pollen forecast for this area.",
+      "Weather": "For your home area: Open-Meteo GFS Global model forecast, run 2026-10-19 12:00 UTC, hourly values summarised by period (Morning 08:00 to 12:00, Afternoon 12:00 to 17:00, Evening 17:00 to 21:00, America/New_York time), for 2026-10-19 through 2026-10-25. Rain is the model's amount in inches, not a chance of rain. From 2026-10-24, Open-Meteo interpolates hourly values from 3-hourly model steps. Weather data by Open-Meteo.com (CC BY 4.0)."
+    }
+  }
+}

@@ -258,3 +258,14 @@ test('without fetchImpl it uses the global fetch, which in a route test is the s
   assert.deepEqual(r, { ok: true, json: { features: [] }, status: 200 });
   assert.deepEqual(hosts, ['api.weather.gov']);
 });
+
+test('a fractional timeout is rounded up to whole milliseconds, never refused or shortened (B10 N7)', async () => {
+  let called = 0;
+  const fetchImpl = async () => ((called += 1), new Response('{"a":1}'));
+  for (const timeoutMs of [0.5, 999.2, MAX_TIMEOUT_MS - 0.5]) {
+    assert.deepEqual(await getJson(URL_WITH_KEY, { fetchImpl, timeoutMs }), { ok: true, json: { a: 1 }, status: 200 }, String(timeoutMs));
+  }
+  assert.equal(called, 3);
+  // 0.5 waits a whole millisecond: a stub that never answers is abandoned, not refused as no_timeout.
+  assert.deepEqual(await getJson(URL_WITH_KEY, { fetchImpl: () => new Promise(() => {}), timeoutMs: 0.5 }), { ok: false, reason: 'timeout' });
+});

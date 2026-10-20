@@ -1,0 +1,228 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B10 forecast backend contract",
+    "version": "b10-1",
+    "description": "The one operation B10 built: forecast.read, GET /api/forecast (app/api/forecast/route.js), the outdoor planner's forecast snapshot for one date (frontend P03, components/expanded/WeekOutdoors.tsx through useProductionForecast in components/production/WeekSources.tsx). The response schema follows the frontend's validator (WeekSources.tsx:15-16), which drops the whole snapshot and shows \"Forecast information could not be verified.\" on one wrong field. JSON Schema cannot state every one of its rules (an instant that Date.parse reads, a period end after its start, a zone Intl accepts), so those are in the descriptions, and test/contractsB10.test.mjs runs the validator itself, plus unique period names and horizonStart on or before horizonEnd, on every real answer. The schema is stricter where the server is: the validator only checks that coverage exists, so a coverage value that is not a string would pass it and fail when the screen renders it (a render-level rule, written into the schema here). Sources are free only (Decision 9, D-F2): Open-Meteo's GFS model for weather and UV (CC BY 4.0, non-commercial free tier), the National Weather Service's active alerts for Official notices, and EPA AirNow's daily forecast for air, which is wired through lib/forecast/airNowSlot.js and is NOT connected yet (B10 Task 5 waits on the authenticated AirNow documentation); until it is, Air coverage says air was not checked. Pollen is never forecast. Rain is the model's amount in inches inside the weather text, never a chance or a percentage. Only statuses the handler can produce are listed. Every body is bare: none carries a top-level data key, which runtime.ts:149-153 would unwrap. Nothing here is a deployment, provider-eligibility or approval claim.",
+    "x-halo-rulings": {
+      "F12": "Horizon fields are date-only (YYYY-MM-DD), inclusive and local to `zone`. horizonStart is today in `zone`; horizonEnd is the last date from today to today + 6 on which all three periods have complete hourly temperature and a documented weather code. It depends on the data, never on the requested date. Empty snapshots carry today to today + 6 in America/New_York. The client compares the requested date with horizonEnd.slice(0,10) (WeekOutdoors.tsx:32), so a date after it shows the future message and a check-again date.",
+      "F17": "issuedAt has two meanings. With provider data (periods present, or a populated answer whose date has no periods), it is the initialisation time of the Open-Meteo model run used, never the fetch or the answer time; the screen prints it after \"Issued\". In an empty snapshot (no_home, unmatched, ambiguous, outside) it is the time HALO answered; the screen never prints it, since it prints Issued only with periods.",
+      "F18": "expiresAt is the earliest fetch of the Open-Meteo and AirNow data used plus 90 minutes, and a populated answer is never served already expired. Empty snapshots expire 24 hours after the answer. Stale serving (ruling F18-S): while Open-Meteo's two grids do not agree on the latest run (run_unknown), the last confirmed forecast is served with its own issuedAt, an expiresAt 30 minutes after the answer and a Weather coverage sentence saying a newer model run is not yet confirmed, for at most 8 hours after it was fetched; past that it is a 503.",
+      "F19": "version (and each period's version) changes only with content. The same provider data fetched again, at any time in its hour, keeps it, so the client's selectionSignature (WeekOutdoors.tsx:32) does not change and no false \"forecast changed\" appears. changedMessage is never sent, so the client's changed and needsReview stay false.",
+      "F21": "200 is a populated snapshot or an empty one (periods []), always with full metadata and four coverage strings. A past date, a date past the horizon, today after 21:00 local, and every place HALO could not use are 200 with no periods. 400 for a missing or non-calendar date and for a place over 100 characters or with a control character, before anything is read or fetched. 401 without a session. 429 when the household's forecast budget is spent. 503 with Retry-After when Open-Meteo did not answer usably (or the profile read failed, or the session service is down); AirNow or NWS failing alone is still a 200 whose Air coverage or Official notices say so.",
+      "coverage": "Exactly four keys, Air, UV, Pollen and Weather (the screen's own list, WeekOutdoors.tsx:46), each a string beginning with the place it describes: \"For your home area:\", \"For <Place>, NC (Census internal point):\" or \"For the place you typed:\"."
+    }
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/api/forecast": {
+      "get": {
+        "operationId": "forecastRead",
+        "x-halo-operation": "forecast.read",
+        "summary": "The outdoor planner's forecast snapshot for one date, at the saved home or a typed North Carolina place",
+        "description": "Called by the real client as runtime.request('forecast.read',{date,place}) (WeekSources.tsx:13), which builds ?date=...&place=... with URLSearchParams and keeps an empty place (runtime.ts:125-128). Place (F1, Decision 9 D-F1): an empty place is the household's saved home, read owner-scoped from the caller's own profile and only then; no saved home is an empty snapshot. Typed text resolves through the Census gazetteer (lib/forecast/place.js: NC counties, places and ZCTAs, exact matches only); an unmatched, ambiguous or out-of-state place is an empty snapshot answered with no provider call and no budget spent, so each keystroke is free (trap 18). The typed text is never logged, cached or stored; provider URLs and cache keys carry the point rounded to 2 decimals. Provider data is cached for the hour across households (NWS alerts in 10-minute slots), never the snapshot, and a provider failure is remembered for 60 seconds. One forecast costs at most four Open-Meteo metadata reads (two before, two after the forecast), one forecast call, one AirNow call and one NWS call. Headers on every answer: Cache-Control private, no-store, and X-Request-Id.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "description": "The planned date, a real calendar date in YYYY-MM-DD form, 2000-01-01 or later. Any date is accepted; outside the horizon the answer has no periods (F21).",
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "place",
+            "in": "query",
+            "required": false,
+            "description": "Free text, at most 100 characters before any trimming (the input's own maxLength, WeekOutdoors.tsx:42), no control characters or line breaks. Empty, absent or only whitespace means the saved home (the resolver trims).",
+            "schema": { "type": "string", "maxLength": 100 }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client on every private request (runtime.ts:132). Ignored here: the home is always the session's own profile, so a foreign value changes nothing.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A snapshot: populated (periods for the date) or empty (periods []), see F21.",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ForecastSnapshot" } } }
+          },
+          "400": {
+            "description": "The date or the place failed a rule (validation_failed, one field error: date with invalid_date or date_out_of_range, or place with text_too_long, invalid_characters or, should the resolver ever fail to read it, invalid_place). Checked before anything is read or fetched; the place is never echoed.",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required). The client shows \"Please reconnect your session to continue.\"",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "429": {
+            "description": "The household's forecast budget (30 provider-reaching requests an hour) is spent (rate_limited). Only a request that would call a provider spends it; a cached answer and an empty snapshot never do. Retry-After is 120. The client shows \"Please wait before trying again.\"",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "Retry-After": { "$ref": "#/components/headers/RetryAfter" }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "500": {
+            "description": "Internal error. The detail is logged with the request id and never returned.",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "503": {
+            "description": "Retryable (upstream_unavailable, with Retry-After in whole seconds), or the session service is down (auth_unavailable). The client shows \"This service is unavailable. Try again later.\" with Retry forecast. The cause is a log token only, never in the body: open_meteo_<adapter reason> (open_meteo_http_<status>, open_meteo_timeout, open_meteo_network, open_meteo_invalid, open_meteo_too_large, open_meteo_budget when the Open-Meteo daily or minute budget refused the call, open_meteo_run_unknown when the grids disagree and no confirmed forecast is kept, open_meteo_run_unknown_stale when the kept one is over 8 hours old), open_meteo_incomplete (no date from today to today + 6 has all three periods complete in the series, so no horizon can be stated), zone (the place's time zone is unusable), stale (the data would already be expired), a failed profile read (Retry-After 60) and gazetteer_point.",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "Retry-After": { "$ref": "#/components/headers/RetryAfter" }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+        "schema": { "type": "string" }
+      },
+      "NoStore": {
+        "description": "private, no-store on every answer: a snapshot can describe the saved home.",
+        "schema": { "type": "string", "const": "private, no-store" }
+      },
+      "RetryAfter": {
+        "description": "Whole seconds, at least 1. Sent on every 429 and every 503 (upstream_unavailable, and auth_unavailable from the shared auth answer); the client keeps it as retryAfter (runtime.ts:145).",
+        "schema": { "type": "string", "pattern": "^[1-9]\\d*$" }
+      }
+    },
+    "schemas": {
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": { "type": "string", "enum": ["date", "place"] },
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "required": ["field", "code", "message"],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence. Strict here, because a field that leaked a provider reason or the typed place would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "description": "The legacy sentence; equal to message." },
+          "code": {
+            "type": "string",
+            "enum": ["validation_failed", "auth_required", "auth_unavailable", "rate_limited", "upstream_unavailable", "internal_error"]
+          },
+          "message": { "type": "string" },
+          "field_errors": { "type": "array", "items": { "$ref": "#/components/schemas/FieldError" } },
+          "retryable": { "type": "boolean" },
+          "request_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{8,64}$" }
+        },
+        "required": ["error", "code", "message", "field_errors", "retryable", "request_id"],
+        "additionalProperties": false
+      },
+      "PresentableText": {
+        "description": "Text the screen renders as received: no U+2014 (house rule) and no control characters.",
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^\\u0000-\\u001f\\u2014]*$"
+      },
+      "UtcInstant": {
+        "description": "A UTC instant ending in Z, which the client's offset rule (WeekSources.tsx:15, /Z$|[+-]\\d{2}:\\d{2}$/) accepts and Date.parse reads (trap 15).",
+        "type": "string",
+        "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])T([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(\\.\\d{3})?Z$"
+      },
+      "LocalDate": {
+        "description": "A date-only YYYY-MM-DD in the snapshot's zone (F12).",
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "ForecastPeriod": {
+        "description": "One planning period of the requested date (F13): Morning 08:00 to 12:00, Afternoon 12:00 to 17:00, Evening 17:00 to 21:00 local, as UTC instants. A period that has ended, or lacks any hour of temperature or a documented weather code, is left out.",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "enum": ["Morning", "Afternoon", "Evening"] },
+          "start": { "$ref": "#/components/schemas/UtcInstant" },
+          "end": { "$ref": "#/components/schemas/UtcInstant", "description": "After start (the client refuses otherwise)." },
+          "air": {
+            "type": "null",
+            "description": "Always null: AirNow's forecast is one value per day, not per period, so it is shown in Air coverage and in tradeoff instead (C1, open question 5). The Air card shows Unavailable. The client would accept a finite number."
+          },
+          "uv": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 30,
+            "description": "The highest hourly modelled UV index in the period, one decimal; null when any hour lacks UV (the screen shows Unavailable). 0 is a value."
+          },
+          "pollen": { "type": "null", "description": "Always null: HALO has no free pollen forecast. The client would accept a string." },
+          "weather": {
+            "allOf": [{ "$ref": "#/components/schemas/PresentableText" }],
+            "description": "Temperatures in °F with °C in parentheses, the most severe WMO condition (marked \"at times\" when it varies), feels-like, the model's rain amount in inches (never a chance), wind."
+          },
+          "tradeoff": { "allOf": [{ "$ref": "#/components/schemas/PresentableText" }], "description": "Comparisons between the periods present, and the day's AirNow forecast when there is one. Never empty." },
+          "version": { "type": "string", "minLength": 1, "maxLength": 300, "description": "Readable provenance (model run, AirNow issue date); the client puts it in the saved task's reason and history." }
+        },
+        "required": ["name", "start", "end", "air", "uv", "pollen", "weather", "tradeoff", "version"],
+        "additionalProperties": false
+      },
+      "Coverage": {
+        "description": "Exactly the screen's four rows (WeekOutdoors.tsx:46), each a string beginning with the place. The client's validator checks only that coverage exists; a non-string value would reach the screen as a React child, so the string rule is the contract's.",
+        "type": "object",
+        "properties": {
+          "Air": { "$ref": "#/components/schemas/CoverageText" },
+          "UV": { "$ref": "#/components/schemas/CoverageText" },
+          "Pollen": { "$ref": "#/components/schemas/CoverageText" },
+          "Weather": { "$ref": "#/components/schemas/CoverageText" }
+        },
+        "required": ["Air", "UV", "Pollen", "Weather"],
+        "additionalProperties": false
+      },
+      "CoverageText": {
+        "allOf": [{ "$ref": "#/components/schemas/PresentableText" }, { "pattern": "^For (your home area|the place you typed|.+ \\(Census internal point\\)):" }]
+      },
+      "ForecastSnapshot": {
+        "description": "The ForecastSnapshot type (WeekSources.tsx:11) as the server sends it. changedMessage is never sent (F19).",
+        "type": "object",
+        "properties": {
+          "periods": { "type": "array", "maxItems": 3, "items": { "$ref": "#/components/schemas/ForecastPeriod" } },
+          "issuedAt": { "$ref": "#/components/schemas/UtcInstant", "description": "F17: the model run's initialisation time with provider data; the answer time in an empty snapshot." },
+          "expiresAt": { "$ref": "#/components/schemas/UtcInstant", "description": "F18. At or after it the screen shows the expired notice with Refresh forecast and refuses to save a forecast-based period." },
+          "zone": { "type": "string", "minLength": 1, "description": "An IANA zone Intl accepts: the gazetteer place's own, or the home's as Open-Meteo resolved it; America/New_York in an empty snapshot." },
+          "source": { "allOf": [{ "$ref": "#/components/schemas/PresentableText" }], "description": "F16: the providers that contributed, and the place (\"for your home area\" or the place's label); in an empty snapshot, that no forecast was made." },
+          "version": { "type": "string", "pattern": "^fc1-[0-9a-f]{16}$", "description": "F19: a content hash." },
+          "horizonStart": { "$ref": "#/components/schemas/LocalDate" },
+          "horizonEnd": { "$ref": "#/components/schemas/LocalDate" },
+          "warningStatus": { "allOf": [{ "$ref": "#/components/schemas/PresentableText" }], "description": "F7: the NWS alerts active for the point as of the lookup, in the zone, or the frontend's own fallback \"Warnings unavailable. Check the official site.\" when NWS did not answer or no lookup was made." },
+          "coverage": { "$ref": "#/components/schemas/Coverage" }
+        },
+        "required": ["periods", "issuedAt", "expiresAt", "zone", "source", "version", "horizonStart", "horizonEnd", "warningStatus", "coverage"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
