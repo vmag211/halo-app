@@ -1,0 +1,83 @@
+{
+ "source": {
+  "notes": "Editorially maintained list of official North Carolina resources. Each page was fetched on the retrieval date (HTTP 200) and hashed; quoted text was checked against it. These links are not submission services, appointments, eligibility approvals or price quotes.",
+  "inputs": {
+   "extension": {
+    "url": "https://www.ces.ncsu.edu/local-county-center/",
+    "retrieved": "2026-10-20",
+    "sha256": "482ad75e6f88926be0c93c39ec505ce18708fa2d2940b7fc7ea6643dd74d1579",
+    "bytes": 100839
+   },
+   "soil": {
+    "url": "https://www.ncagr.gov/Divisions/Agronomic-Services/soil-testing",
+    "retrieved": "2026-10-20",
+    "sha256": "9cdcfadc3c12116e38ae66cd12e04652c207dc17cede6cc1e33991f68a9de622",
+    "bytes": 55940
+   },
+   "labs": {
+    "url": "https://www.deq.nc.gov/about/divisions/water-resources/drinking-water/drinking-water-laboratories",
+    "retrieved": "2026-10-20",
+    "sha256": "aee7ad4ec59fdb872640763a3c0d0ca02d339667fdc5dfdb5d03850530a62186",
+    "bytes": 80570
+   }
+  },
+  "dropped": "USDA NRCS conservation activity pages (national, and the page refused the build host on the retrieval date)."
+ },
+ "version": "nc-growers-2026-10-20",
+ "resources": [
+  {
+   "id": "nc-extension-county-centers",
+   "title": "Find a county Extension contact",
+   "concern": "Questions and site context",
+   "region": "North Carolina",
+   "matrix": "Site questions and referral",
+   "scope": "NC State Extension lists a center for each county. A contact-discovery pathway: service availability and individual expertise need confirming with the center.",
+   "documents": [
+    "Write the question you want answered",
+    "Describe the site and irrigation source if known",
+    "List any existing test report and its date"
+   ],
+   "qualifications": "Confirm appointment availability and qualifications with the county center.",
+   "cost": "Unknown. Ask the county center.",
+   "deadline": "No deadline verified.",
+   "url": "https://www.ces.ncsu.edu/local-county-center/",
+   "revision": 1
+  },
+  {
+   "id": "ncda-soil-testing",
+   "title": "NCDA&CS routine soil testing",
+   "concern": "Soil fertility",
+   "region": "North Carolina",
+   "matrix": "Soil, fertility service",
+   "scope": "Routine soil fertility testing by the NC Department of Agriculture and Consumer Services Agronomic Division. It is not a general contaminant screen or a crop-safety certificate.",
+   "documents": [
+    "Confirm that fertility is your testing purpose",
+    "Read the current sampling and submission instructions on the NCDA&CS page",
+    "Record your site label and intended question"
+   ],
+   "qualifications": "Contaminant analytes and methods are not established by a fertility test listing.",
+   "cost": "NCDA&CS states: \"Effective March 2, 2026, sample fees for NC Growers will follow this schedule.\" The amount is not copied here; check the current NC grower fee schedule.",
+   "deadline": "Current seasonal timing not verified. Check the NCDA&CS page.",
+   "url": "https://www.ncagr.gov/Divisions/Agronomic-Services/soil-testing",
+   "revision": 1
+  },
+  {
+   "id": "nc-deq-drinking-water-labs",
+   "title": "Certified drinking-water laboratories",
+   "concern": "Water testing",
+   "region": "North Carolina",
+   "matrix": "Drinking water; exact analyte and method to confirm",
+   "scope": "NC DEQ: \"Drinking water analyses must be performed by a laboratory certified by the North Carolina State Laboratory of Public Health.\" A laboratory list is a starting point, not a booking.",
+   "documents": [
+    "Name the water source and the requested analyte",
+    "Ask the laboratory to confirm method and certification scope",
+    "Obtain the laboratory's containers, handling and delivery instructions"
+   ],
+   "qualifications": "NC DEQ notes: \"Laboratories are certified to conduct a certain number of tests but may not be certified to conduct every test required of a water system.\" No laboratory has been selected or verified here.",
+   "cost": "Quote needed from the selected laboratory.",
+   "deadline": "Ask about hold time and delivery before collecting.",
+   "url": "https://www.deq.nc.gov/about/divisions/water-resources/drinking-water/drinking-water-laboratories",
+   "revision": 1
+  }
+ ]
+}
