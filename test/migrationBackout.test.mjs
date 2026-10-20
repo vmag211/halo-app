@@ -3,6 +3,7 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0025   undoes 0025 (daily maxima, the recorder's state, its functions and the final guard)
  *   backout-0024   undoes 0024 (the privacy clear, fingerprint, counts, purge and probe, the privacy guard)
  *   backout-0023   undoes 0023 (a household's tasks, the read and commit functions, the ledger guard)
  *   backout-0022   undoes 0022 (a household's saved discovery area)
@@ -120,7 +121,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0024', 'backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0025', 'backout-0024', 'backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -781,6 +782,138 @@ test('the read-only profiles check before 0024 returns no rows, and names a colu
   // It is the same list the migration's own verification column uses.
   const list = (text) => text.match(/column_name not in \(([^)]*)\)/)[1].replace(/\s+/g, ' ').trim();
   assert.equal(list(check), list(migration(24).sql.replace(/\n--\s*/g, '\n')));
+});
+
+// ---- 0025: two tables, one index, five functions and a trigger on its own
+// table. It needs only 0016, so it is backed out here over 0024 (picking up
+// where the 0024 tests leave the database, at 0024 reapplied) and again over
+// 0023 alone. What is lost is every recorded daily maximum and
+// recording_from; 0024's clear keeps working without the table.
+
+const OBJECTS_0025 = {
+  tables: ['daily_maxima', 'daily_maxima_recorder'],
+  functions: [
+    'daily_maxima_schema_version()',
+    'begin_daily_maxima_run(date)',
+    'record_daily_maxima(jsonb)',
+    'finish_daily_maxima_run(jsonb)',
+    'guard_final_daily_maximum()',
+  ],
+};
+const MAXIMA_CLEAR_OP = '00000000-0000-4000-8000-00000000a025';
+let audit25;
+
+async function objects0025(runner = db) {
+  const has = async (sql) => (await runner.query(`select (${sql}) as present`)).rows[0].present;
+  const present = {};
+  for (const table of OBJECTS_0025.tables) present[table] = await has(`to_regclass('public.${table}') is not null`);
+  for (const fn of OBJECTS_0025.functions) present[fn] = await has(`to_regprocedure('public.${fn}') is not null`);
+  present.trigger = await has(`exists (select 1 from pg_trigger where tgname = 'daily_maxima_final_guard')`);
+  present.index = await has(`to_regclass('public.daily_maxima_owner_context_date') is not null`);
+  return present;
+}
+const all = (present, value) => Object.fromEntries(Object.keys(present).map((name) => [name, value]));
+
+/** One recorded Air day at alice's current home (0016 created it from her located profile). */
+async function recordAliceDay(runner, localDate) {
+  const { rows: [home] } = await runner.query(`select id from public.home_contexts where profile_id = $1 and effective_to is null`, [ALICE]);
+  await runner.query(`select public.begin_daily_maxima_run('2026-10-01')`);
+  const row = {
+    profile_id: ALICE, home_context_id: home.id, local_date: localDate, factor: 'air', value: 51, unit: 'AQI',
+    source_code: 'open_meteo_cams', method_version: 'daily-max-v1', time_zone: 'America/New_York',
+    hours_expected: 24, hours_observed: 24, retrieved_at: '2026-10-21T12:00:00Z',
+  };
+  const { rows: [{ out }] } = await runner.query(`select public.record_daily_maxima($1::jsonb) as out`, [JSON.stringify([row])]);
+  return out;
+}
+
+/** Clear all for alice, inside a transaction that is rolled back: the 0024 clear, whatever 0025's state. */
+async function aliceClearAll() {
+  return db.pg.transaction(async (tx) => {
+    await tx.query(`insert into public.operations (operation_id, profile_id, domain, kind) values ($1, $2, 'privacy', 'privacy.clear.all')`, [MAXIMA_CLEAR_OP, ALICE]);
+    const { rows: [{ counts }] } = await tx.query(`select public.privacy_counts($1, 'all') as counts`, [ALICE]);
+    const { rows: [{ out }] } = await tx.query(
+      `select public.clear_household_records($1, $2, 'all', public.privacy_fingerprint($1, array['profiles', 'home_contexts',
+         'household_bands', 'symptom_logs', 'notification_prefs', 'push_subscriptions', 'profile_preferences', 'explore_areas',
+         'household_actions', 'household_action_preferences', 'luna_conversations', 'luna_turns'])) as out`,
+      [ALICE, MAXIMA_CLEAR_OP],
+    );
+    await tx.rollback();
+    return { counts, out };
+  });
+}
+
+test('0025 applies on top of 0024 and adds exactly its two tables, index, five functions and the final guard', async () => {
+  await db.applyMigration(migration(25));
+  audit25 = await runAudit(db);
+  const present = await objects0025();
+  assert.deepEqual(present, all(present, true));
+  // Something to lose: one recorded day at alice's home.
+  assert.deepEqual(await recordAliceDay(db, '2026-10-20'), { inserted: 1, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
+  // With 0025 in place, clear all counts the maxima and removes them.
+  const { counts, out } = await aliceClearAll();
+  assert.equal(Number(counts.daily_maxima), 1);
+  assert.equal(out.receipt.status, 'succeeded');
+});
+
+test('backing out 0025 removes everything it added and leaves the 0001..0024 schema exactly, 0024 included', async () => {
+  await db.exec(docBlock('backout-0025'));
+
+  const present = await objects0025();
+  assert.deepEqual(present, all(present, false));
+  const kept24 = await objects0024();
+  assert.deepEqual(kept24, all(kept24, true), '0024 stays whole');
+  const kept23 = await objects0023();
+  assert.deepEqual(kept23, all(kept23, true), '0023 stays whole');
+  assert.deepEqual((await db.query(`select score from public.daily_scores where profile_id = $1`, [ALICE])).rows, [{ score: 61 }]);
+  assert.equal(await exists(`exists (select 1 from public.home_contexts where profile_id = '${ALICE}')`), true, 'the home stays');
+  // 0024's clear keeps working without the table, and counts none.
+  const { counts, out } = await aliceClearAll();
+  assert.equal(Number(counts.daily_maxima), 0);
+  assert.equal(out.receipt.status, 'succeeded');
+  assert.deepEqual(await runAudit(db), audit24);
+});
+
+test('backing out 0025 is safe to run twice', async () => {
+  await db.exec(docBlock('backout-0025'));
+  assert.deepEqual(await runAudit(db), audit24);
+});
+
+test('the 0025 back-out drops the probe first and the trigger function last, and matches the migration file', () => {
+  const statements = docBlock('backout-0025').split(';').map((part) => part.trim()).filter(Boolean);
+  assert.equal(statements[0], 'drop function if exists public.daily_maxima_schema_version()');
+  assert.equal(statements.at(-1), 'drop function if exists public.guard_final_daily_maximum()');
+  const fileBlock = migration(25).sql.split('<!-- backout-0025 -->')[1].split('\n')
+    .filter((line) => /^-- drop /.test(line)).map((line) => line.replace(/^-- /, '')).join('\n');
+  assert.equal(fileBlock, docBlock('backout-0025').trim(), 'the migration\'s copy of the block and YOUR_TODO.md\'s agree');
+});
+
+test('after the back-out, 0025 applies again and gives exactly the schema one pass gives, empty and guarded', async () => {
+  await db.applyMigration(migration(25));
+  assert.deepEqual(await runAudit(db), audit25);
+  // Reapplied empty: the recorded day and recording_from really were deleted.
+  for (const table of OBJECTS_0025.tables) {
+    assert.deepEqual((await db.query(`select count(*)::int as n from public.${table}`)).rows, [{ n: 0 }], table);
+  }
+  // The guard is back: a recorded value cannot be rewritten.
+  assert.deepEqual(await recordAliceDay(db, '2026-10-22'), { inserted: 1, updated: 0, kept: 0, skipped: 0, refused: 0, refusedRules: {} });
+  await assert.rejects(db.query(`update public.daily_maxima set value = 1 where profile_id = $1`, [ALICE]), /HALO_DAILY_MAXIMUM_FINAL/);
+});
+
+test('0025 over 0023 alone (0024 pending, as on production) backs out to exactly the 0001..0023 schema', async () => {
+  const db23 = await createDb({ upTo: 23 });
+  try {
+    const before = await runAudit(db23);
+    await db23.applyMigration(migration(25));
+    const present = await objects0025(db23);
+    assert.deepEqual(present, all(present, true));
+    await db23.exec(docBlock('backout-0025'));
+    const gone = await objects0025(db23);
+    assert.deepEqual(gone, all(gone, false));
+    assert.deepEqual(await runAudit(db23), before);
+  } finally {
+    await db23.close();
+  }
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.

@@ -28,13 +28,14 @@ import { pgError } from './helpers/fakeTable.mjs';
 import {
   ENDPOINT,
   actionId,
+  contextId,
   entryId,
   lunaRunId,
   markersOf,
   seedHouseholds,
 } from './helpers/isolationSeed.mjs';
 import { createDb } from './db/pgliteHarness.mjs';
-import { OWNED_ROW, lunaId } from './db/ownedRows.mjs';
+import { OWNED_ROW, homeContextId, lunaId } from './db/ownedRows.mjs';
 import {
   CLEAR_PREVIEW_BUCKETS,
   EXPORT_COPY,
@@ -42,6 +43,7 @@ import {
   EXPORT_MAX_RESPONSE_BYTES,
   EXPORT_MIME,
   EXPORT_ORDER,
+  EXPORT_PAGE_KEYS,
   EXPORT_PAGE_SIZE,
   buildClearPreview,
   buildExportDocument,
@@ -49,6 +51,8 @@ import {
   exportFileName,
   exportPreview,
   exportResponseBytes,
+  keyAfter,
+  pageKeyFor,
   privacyLimitKey,
 } from '../lib/privacyExport.js';
 import {
@@ -594,6 +598,193 @@ test('a row written or deleted between pages never repeats or loses a row that w
   assert.deepEqual(dates, [...dates].sort());
 });
 
+// daily_maxima (0025) has no id: it pages on its composite primary key.
+
+const HOME_A = contextId('alice', 1); // alice's current home in the isolation seed
+const HOME_B = contextId('alice', 2);
+const HOME_C = contextId('alice', 3);
+/** A value per home and factor, so an exported row (which carries no home) still says which row it is. */
+const MAXIMUM_VALUE = { air: { [HOME_A]: 10, [HOME_B]: 20, [HOME_C]: 30 }, uv: { [HOME_A]: 1.5, [HOME_B]: 2.5, [HOME_C]: 3.5 } };
+
+const maximum = (owner, home, localDate, factor) => ({
+  profile_id: owner, home_context_id: home, local_date: localDate, factor, value: MAXIMUM_VALUE[factor][home],
+  unit: factor === 'air' ? 'AQI' : 'UV index', source_code: factor === 'air' ? 'open_meteo_cams' : 'open_meteo_forecast',
+  station_id: null, method_version: 'daily-max-v1', time_zone: 'America/New_York', hours_expected: 24, hours_observed: 24,
+  missing_code: null, retrieved_at: '2026-01-02T12:00:00Z',
+});
+
+const maximumDay = (i) => new Date(Date.UTC(2023, 0, 2) + i * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * `days` days of Air and UV maxima at each of alice's two homes, plus one
+ * lone earlier Air row, so no page boundary (400 or 1,000 rows) falls between
+ * two dates. Seeded newest first and, within a day, home B before A and UV
+ * before Air, so only the composite ORDER BY puts them in key order.
+ */
+function manyMaxima(days) {
+  return (seeded, ids) => {
+    seeded.daily_maxima = seeded.daily_maxima.filter((row) => row.profile_id !== ids.alice.id);
+    for (let i = days - 1; i >= 0; i -= 1) {
+      for (const home of [HOME_B, HOME_A]) {
+        for (const factor of ['uv', 'air']) seeded.daily_maxima.push(maximum(ids.alice.id, home, maximumDay(i), factor));
+      }
+    }
+    seeded.daily_maxima.push(maximum(ids.alice.id, HOME_A, '2023-01-01', 'air'));
+  };
+}
+
+/** An exported (or stored) maximum's identity: day, factor and the value that names its home. */
+const maximumIdentity = (row) => `${row.local_date}|${row.factor}|${row.value}`;
+
+/** Alice's stored maxima in file order (local_date, factor, home_context_id), sorted here independently of the builder. */
+function storedMaxima(db, alice) {
+  const key = (row) => [row.local_date, row.factor, row.home_context_id];
+  return db.rows('daily_maxima').filter((row) => row.profile_id === alice.id).sort((a, b) => {
+    const [x, y] = [key(a), key(b)];
+    for (let at = 0; at < x.length; at += 1) if (x[at] !== y[at]) return x[at] < y[at] ? -1 : 1;
+    return 0;
+  });
+}
+
+for (const maxRows of [Infinity, 1000, 400]) {
+  test(`daily_maxima: 1,205 maxima over two homes export every row once, in file order (PostgREST max_rows ${maxRows})`, async () => {
+    const { db, alice } = world({ adjust: manyMaxima(301) });
+    db.setMaxRows(maxRows);
+    const stored = storedMaxima(db, alice);
+    assert.equal(stored.length, 1205);
+    assert.equal(new Set(stored.map(maximumIdentity)).size, 1205);
+    assert.deepEqual(new Set(stored.map((row) => row.home_context_id)), new Set([HOME_A, HOME_B]));
+    const built = await build(db, alice, ['home'], false);
+    const rows = built.document.home.daily_maxima;
+    assert.deepEqual(rows.map(maximumIdentity), stored.map(maximumIdentity));
+    assert.equal(built.document.manifest.counts.home.daily_maxima, 1205);
+    const pages = db.queryLog.filter((query) => query.table === 'daily_maxima');
+    assert.equal(pages.length, Math.ceil(1205 / Math.min(maxRows, EXPORT_PAGE_SIZE)));
+    // Every page after the first is the row comparison (a keyset page), never an offset.
+    for (const page of pages.slice(1)) assert.ok(page.filters.some((filter) => filter.type === 'or'), JSON.stringify(page.filters));
+  });
+}
+
+test('daily_maxima: a row written or deleted between pages never repeats or loses a row that was there before (N1, composite keyset)', async () => {
+  const { db, alice } = world({ adjust: manyMaxima(301) });
+  const before = storedMaxima(db, alice).map(maximumIdentity);
+  // The first page (1,000 rows) is the lone row, 249 whole days, then 3 rows of maximumDay(249):
+  // it ends inside that day, on (maximumDay(249), uv, home A).
+  const cursorDay = maximumDay(249);
+  const pages = betweenPages(db, 'daily_maxima', async (realFrom) => {
+    // A third home's maxima land on the cursor's day, one key before the cursor and one after;
+    // and two maxima already read are deleted, one on the cursor's own day. Offset paging would
+    // shift every later row back and skip (maximumDay(249), uv, home B).
+    db.seed('daily_maxima', [maximum(alice.id, HOME_C, cursorDay, 'air'), maximum(alice.id, HOME_C, cursorDay, 'uv')]);
+    for (const [day, home] of [[cursorDay, HOME_A], [maximumDay(10), HOME_B]]) {
+      const { error } = await realFrom('daily_maxima').delete().eq('home_context_id', home).eq('local_date', day).eq('factor', 'air');
+      assert.equal(error, null);
+    }
+  });
+  const built = await build(db, alice, ['home'], false);
+  assert.equal(pages(), 2);
+  const rows = built.document.home.daily_maxima.map(maximumIdentity);
+  const seen = new Map();
+  for (const identity of rows) seen.set(identity, (seen.get(identity) ?? 0) + 1);
+  for (const identity of before) assert.equal(seen.get(identity), 1, `${identity} appears ${seen.get(identity) ?? 0} times`);
+  assert.equal(seen.get(`${cursorDay}|uv|${MAXIMUM_VALUE.uv[HOME_C]}`), 1, 'the row written after the cursor is read once');
+  assert.equal(built.document.manifest.counts.home.daily_maxima, rows.length);
+  assert.ok(rows.every((identity) => seen.get(identity) === 1));
+  const days = built.document.home.daily_maxima.map((row) => row.local_date);
+  assert.deepEqual(days, [...days].sort());
+});
+
+test('keyAfter spells (k1, k2, k3) > (v1, v2, v3) as a PostgREST logic tree, every value quoted and escaped', async () => {
+  assert.equal(keyAfter(['day'], ['2026-01-02']), 'day.gt."2026-01-02"');
+  assert.equal(
+    keyAfter(['a', 'b', 'c'], ['1', 'x,y.z', 'q"\\']),
+    'a.gt."1",and(a.eq."1",b.gt."x,y.z"),and(a.eq."1",b.eq."x,y.z",c.gt."q\\"\\\\")',
+  );
+  // Against the fake's PostgREST parsing: values holding reserved characters still compare as one value.
+  const rows = [['1', 'x,y.z', 'p'], ['1', 'x,y.z', 'q"\\'], ['1', 'x,y.z', 'r'], ['1', 'x,z', 'a'], ['0', 'zz', 'z'], ['2', 'a', 'a']]
+    .map(([a, b, c], id) => ({ id, a, b, c }));
+  const db = createFakeSupabase({ tables: { keyed: { primaryKey: ['a', 'b', 'c'] } }, seed: { keyed: rows } });
+  const { data } = await db.from('keyed').select('id').or(keyAfter(['a', 'b', 'c'], ['1', 'x,y.z', 'q"\\'])).order('id');
+  assert.deepEqual(data.map((row) => row.id), [2, 3, 5]);
+});
+
+/** Wraps `table`'s query builders so `change(builder)` can alter one before it runs. */
+function alterBuilders(db, table, change) {
+  const realFrom = db.from;
+  db.from = (name) => {
+    const builder = realFrom(name);
+    if (name === table) change(builder);
+    return builder;
+  };
+}
+
+test('a composite page that does not advance fails the build rather than looping or repeating rows', async () => {
+  const { db, alice } = world({ adjust: manyMaxima(301) });
+  db.setMaxRows(400);
+  // A server that ignored the row comparison would answer the first page again and again.
+  alterBuilders(db, 'daily_maxima', (builder) => { builder.or = () => builder; });
+  await assert.rejects(build(db, alice, ['home'], false), /daily_maxima paging did not advance/);
+});
+
+test('a composite page key column answered empty fails the build: the next page could not start after it', async () => {
+  const { db, alice } = world({ adjust: manyMaxima(301) });
+  db.setMaxRows(400);
+  alterBuilders(db, 'daily_maxima', (builder) => {
+    const realThen = builder.then.bind(builder);
+    builder.then = (resolve, reject) => realThen((answer) => resolve({
+      ...answer, data: answer.data?.map((stored) => Object.fromEntries(Object.entries(stored).filter(([column]) => column !== 'home_context_id'))) ?? null,
+    }), reject);
+  });
+  await assert.rejects(build(db, alice, ['home'], false), /daily_maxima paging did not advance/);
+});
+
+test('a single-column page that does not advance fails the build too', async () => {
+  const { db, alice } = world({ adjust: manyReadings(2500) });
+  db.setMaxRows(400);
+  alterBuilders(db, 'daily_scores', (builder) => { builder.gt = () => builder; });
+  await assert.rejects(build(db, alice, ['home'], false), /daily_scores paging did not advance/);
+});
+
+test('a single-column page key pages exactly as before (one gt, one order); a composite one with the row comparison and one order per column', async () => {
+  const { db, alice } = world({ adjust: (seeded, ids) => { manyReadings(1500)(seeded, ids); manyMaxima(301)(seeded, ids); } });
+  const calls = { daily_scores: [], daily_maxima: [] };
+  for (const table of Object.keys(calls)) {
+    alterBuilders(db, table, (builder) => {
+      const query = [];
+      calls[table].push(query);
+      for (const method of ['select', 'eq', 'gt', 'or', 'order', 'limit']) {
+        const real = builder[method].bind(builder);
+        builder[method] = (...args) => { query.push([method, ...args]); return real(...args); };
+      }
+    });
+  }
+  await build(db, alice, ['home'], false);
+  for (const table of Object.keys(calls)) assert.equal(calls[table].length, 2, table);
+  const partColumns = (table) => exportParts(['home'], false).find((part) => part.table === table).columns;
+  const read = (table) => [...new Set([...partColumns(table), ...EXPORT_ORDER[table]])].join(', ');
+  const scores = storedScoresById(db, alice);
+  assert.deepEqual(calls.daily_scores[1], [
+    ['select', read('daily_scores'), { count: 'exact' }],
+    ['eq', 'profile_id', alice.id],
+    ['gt', 'id', scores[EXPORT_PAGE_SIZE - 1].id],
+    ['order', 'id', { ascending: true }],
+    ['limit', EXPORT_PAGE_SIZE],
+  ]);
+  const cursor = storedMaxima(db, alice)[EXPORT_PAGE_SIZE - 1];
+  assert.deepEqual(calls.daily_maxima[1], [
+    ['select', read('daily_maxima'), { count: 'exact' }],
+    ['eq', 'profile_id', alice.id],
+    ['or', keyAfter(['local_date', 'factor', 'home_context_id'], [cursor.local_date, cursor.factor, cursor.home_context_id])],
+    ['order', 'local_date', { ascending: true }],
+    ['order', 'factor', { ascending: true }],
+    ['order', 'home_context_id', { ascending: true }],
+    ['limit', EXPORT_PAGE_SIZE],
+  ]);
+});
+
+/** Alice's stored readings in page-key (id) order. */
+const storedScoresById = (db, alice) => db.rows('daily_scores').filter((row) => row.profile_id === alice.id).sort((a, b) => (a.id < b.id ? -1 : 1));
+
 test('an answer without an exact count fails the build rather than guessing from a short page (N2)', async () => {
   const { db, alice } = world({ adjust: manyReadings(2500) });
   db.setMaxRows(400);
@@ -763,7 +954,7 @@ after(async () => {
   await pg?.close();
 });
 
-test('every table the export pages has an order whose last column is, with the owner, a unique key of the migrated schema', async () => {
+test('every table the export pages has a page key (its order\'s last column, or a declared composite key) that is, with the owner, a unique key of the migrated schema', async () => {
   const paged = new Set(exportParts(ALL_GROUPS, true)
     .filter((part) => !part.countAs && !part.countOnly && part.table !== 'auth.users')
     .map((part) => part.table));
@@ -776,15 +967,42 @@ test('every table the export pages has an order whose last column is, with the o
       join pg_attribute a on a.attrelid = c.oid and a.attnum = any(i.indkey)
      where i.indisunique and i.indpred is null
      group by c.relname, i.indexrelid`);
+  // A composite page key is declared only for a table the export pages.
+  for (const table of Object.keys(EXPORT_PAGE_KEYS)) assert.ok(Object.hasOwn(EXPORT_ORDER, table), `${table} has a page key but no order`);
+  assert.ok(Object.hasOwn(EXPORT_PAGE_KEYS, 'daily_maxima'), 'daily_maxima (0025) has no id, so it needs its composite key');
   for (const [table, order] of Object.entries(EXPORT_ORDER)) {
     const owner = PRIVACY_INVENTORY[table].owner;
-    // The page key alone (the last column), with the owner, must be unique: keyset pages compare only it.
-    const scope = new Set([order[order.length - 1], owner]);
-    const unique = rows.filter((row) => row.table_name === table).some((row) => row.columns.every((column) => scope.has(column)));
-    assert.ok(unique, `${table}: ordering by ${order.join(', ')} within one household is not a unique page key`);
     const { rows: columns } = await pg.query(
-      `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`, [table]);
+      `select column_name, is_nullable from information_schema.columns where table_schema = 'public' and table_name = $1`, [table]);
     for (const column of order) assert.ok(columns.some((row) => row.column_name === column), `${table}.${column} does not exist`);
+    const indexes = rows.filter((row) => row.table_name === table);
+    if (!Object.hasOwn(EXPORT_PAGE_KEYS, table)) {
+      // The page key alone (the last column), with the owner, must be unique: keyset pages compare only it.
+      assert.deepEqual(pageKeyFor(table), [order[order.length - 1]]);
+      const scope = new Set([order[order.length - 1], owner]);
+      const unique = indexes.some((row) => row.columns.every((column) => scope.has(column)));
+      assert.ok(unique, `${table}: ordering by ${order.join(', ')} within one household is not a unique page key`);
+      continue;
+    }
+    // A composite page key: the row comparison is exact only if the key, with the owner, is EXACTLY
+    // the columns of one unique index (no column missing, none extra), each NOT NULL, so no row's
+    // comparison is unknown. It is only declared where one column cannot do it.
+    const keys = pageKeyFor(table);
+    assert.deepEqual(keys, EXPORT_PAGE_KEYS[table]);
+    assert.ok(keys.length > 1 && new Set(keys).size === keys.length, `${table}: a composite page key names distinct columns`);
+    const scope = new Set([...keys, owner]);
+    const exact = indexes.some((row) => {
+      const index = new Set([...row.columns, owner]);
+      return index.size === scope.size && [...scope].every((column) => index.has(column));
+    });
+    assert.ok(exact, `${table}: the page key ${keys.join(', ')} with ${owner} is not exactly a unique key`);
+    for (const column of keys) {
+      const found = columns.find((row) => row.column_name === column);
+      assert.ok(found, `${table}.${column} does not exist`);
+      assert.equal(found.is_nullable, 'NO', `${table}.${column} may be null, so the row comparison could be unknown`);
+    }
+    const lastAlone = new Set([order[order.length - 1], owner]);
+    assert.ok(!indexes.some((row) => row.columns.every((column) => lastAlone.has(column))), `${table}: one column would do; declare no composite key`);
   }
 });
 
@@ -793,16 +1011,49 @@ test('every table the export pages has an order whose last column is, with the o
  * role, answering as PostgREST does (rows through json_build_object, a
  * Postgres error as {code, message}). Anything else throws.
  */
-function pgliteClient(db, { email = 'owner@example.test' } = {}) {
+function pgliteClient(db, { email = 'owner@example.test', maxRows = Infinity } = {}) {
   const ident = (name) => {
     const trimmed = String(name).trim();
     assert.match(trimmed, /^[a-z_][a-z0-9_]*$/);
     return `"${trimmed}"`;
   };
+  const LOGIC_OPS = { eq: '=', gt: '>' };
+  /** Commas outside parentheses and double quotes (a quoted value may hold either). */
+  const splitTree = (text) => {
+    const parts = [];
+    let depth = 0;
+    let quoted = false;
+    let current = '';
+    for (let at = 0; at < text.length; at += 1) {
+      const char = text[at];
+      if (quoted && char === '\\') { current += char + text[at + 1]; at += 1; continue; }
+      if (char === '"') quoted = !quoted;
+      else if (!quoted && char === '(') depth += 1;
+      else if (!quoted && char === ')') depth -= 1;
+      if (!quoted && depth === 0 && char === ',') { parts.push(current); current = ''; } else current += char;
+    }
+    parts.push(current);
+    return parts;
+  };
+  /**
+   * A PostgREST logic tree as SQL, as PostgREST reads one: `column.op.value`
+   * terms and `and(...)`/`or(...)` groups, a double-quoted value unquoted with
+   * its backslash escapes removed. Only eq and gt are needed; anything else throws.
+   */
+  const logicTree = (text, joiner, param) => `(${splitTree(text).map((term) => {
+    const group = /^(and|or)\((.*)\)$/s.exec(term);
+    if (group) return logicTree(group[2], group[1], param);
+    const match = /^([a-z_][a-z0-9_]*)\.(eq|gt)\.(.*)$/s.exec(term);
+    assert.ok(match, `pgliteClient: logic tree term "${term}" is not modelled`);
+    const quoted = /^"((?:[^"\\]|\\.)*)"$/s.exec(match[3]);
+    const value = quoted ? quoted[1].replace(/\\(.)/gs, '$1') : match[3];
+    return `${ident(match[1])} ${LOGIC_OPS[match[2]]} ${param(value)}`;
+  }).join(` ${joiner} `)})`;
   return {
     from(table) {
       const state = { columns: null, head: false, count: null, where: [], params: [], orders: [], offset: 0, limit: null };
-      const add = (sql, value) => { state.params.push(value); state.where.push(sql.replace('?', `$${state.params.length}`)); return builder; };
+      const param = (value) => { state.params.push(value); return `$${state.params.length}`; };
+      const add = (sql, value) => { state.where.push(sql.replace('?', param(value))); return builder; };
       const builder = {
         select(columns, { count = null, head = false } = {}) {
           state.columns = String(columns).split(',').map(ident);
@@ -814,6 +1065,7 @@ function pgliteClient(db, { email = 'owner@example.test' } = {}) {
         gt: (column, value) => add(`${ident(column)} > ?`, value),
         neq: (column, value) => add(`${ident(column)} <> ?`, value),
         in: (column, values) => add(`${ident(column)} = any(?)`, values),
+        or(tree) { state.where.push(logicTree(tree, 'or', param)); return builder; },
         order(column, { ascending = true } = {}) { state.orders.push(`${ident(column)} ${ascending ? 'asc' : 'desc'}`); return builder; },
         limit(count) { state.limit = count; return builder; },
         then(resolve, reject) { return run().then(resolve, reject); },
@@ -828,7 +1080,9 @@ function pgliteClient(db, { email = 'owner@example.test' } = {}) {
             if (state.head) return { data: null, count, error: null };
             const fields = state.columns.map((column) => `'${column.slice(1, -1)}', ${column}`).join(', ');
             const order = state.orders.length ? ` order by ${state.orders.join(', ')}` : '';
-            const page = state.limit === null ? '' : ` limit ${state.limit} offset ${state.offset}`;
+            // PostgREST's max_rows caps what a select returns, whatever it asked for; the count is still exact.
+            const cap = Math.min(state.limit ?? Infinity, maxRows);
+            const page = cap === Infinity ? '' : ` limit ${cap} offset ${state.offset}`;
             const { rows } = await tx.query(`select json_build_object(${fields}) as row from public.${ident(table)}${where}${order}${page}`, state.params);
             return { data: rows.map((row) => row.row), count, error: null };
           });
@@ -859,6 +1113,8 @@ const SEED_PLAN = [
   ['explore_areas', [0]],
   ['household_actions', [0, 1]],
   ['household_action_preferences', [0, 1]],
+  // 0025: two days at the current home and one at the earlier home (below), after home_contexts.
+  ['daily_maxima', [0, 1, 2]],
 ];
 
 test('on real Postgres: every allowlisted column, filter and order runs, and every seeded row of the household is exported', async () => {
@@ -881,6 +1137,7 @@ test('on real Postgres: every allowlisted column, filter and order runs, and eve
         const row = OWNED_ROW[table](who, n);
         if (table === 'alerts' && n === 1) row.type = 'season_summary';
         if (table === 'luna_runs') Object.assign(row, { status: 'completed', settled_at: '2026-09-10T00:00:00Z' });
+        if (table === 'daily_maxima' && n === 2) row.home_context_id = homeContextId(who, 1);
         await insert(table, row);
       }
     }
@@ -907,11 +1164,91 @@ test('on real Postgres: every allowlisted column, filter and order runs, and eve
   assert.equal(counts.tasks.household_action_preferences, await counted('household_action_preferences'));
   assert.equal(counts.preferences.push_subscriptions, await counted('push_subscriptions'));
   assert.ok(counts.home.daily_scores >= 2 && counts.tasks.household_action_preferences === 2);
+  // 0025: every maximum of both homes, in file order, the allowlist only (no home, station or coverage).
+  assert.equal(counts.home.daily_maxima, await counted('daily_maxima'));
+  assert.equal(counts.home.daily_maxima, 3);
+  assert.deepEqual(built.document.home.daily_maxima.map((row) => [row.local_date, row.value]), [['2026-09-10', 40], ['2026-09-11', 41], ['2026-09-12', 42]]);
+  for (const row of built.document.home.daily_maxima) {
+    assert.deepEqual(Object.keys(row).sort(), [...PRIVACY_INVENTORY.daily_maxima.export.parts[0].base].sort());
+  }
   assert.equal(built.document.home.profiles[0].lat, 35.409);
   assert.equal(built.document.home.profiles[0].tenure, 'owner');
   const keys = allKeys(built.document);
   for (const denied of DENIED_KEYS) assert.ok(!keys.has(denied), denied);
   assert.ok(!built.file.text.includes(other) && !built.file.text.includes(owner));
+});
+
+test('on real Postgres: daily_maxima pages on its composite key at max_rows 5, two homes, every row once in file order, a row written between pages included once', async () => {
+  const owner = 'e3000000-0000-4000-8000-0000000000e3';
+  const other = 'e4000000-0000-4000-8000-0000000000e4';
+  await pg.exec(`insert into auth.users (id, is_anonymous) values ('${owner}', false), ('${other}', false) on conflict do nothing`);
+  const insert = (row) => pg.asService((tx) => tx.query(
+    `insert into public.daily_maxima (${Object.keys(row).map((c) => `"${c}"`).join(', ')}) values (${Object.keys(row).map((_, at) => `$${at + 1}`).join(', ')})`,
+    Object.values(row),
+  ), { commit: true });
+  // 7 days x 2 factors x 2 homes = 28 rows a household; 4 a day, so pages of 5 end inside a day.
+  // The value names the row (day, factor, home), as the export carries no home.
+  const valueOf = (day, factor, home) => day * 10 + (factor === 'uv' ? 2 : 0) + home;
+  const row = (who, day, factor, home) => ({
+    ...OWNED_ROW.daily_maxima(who, 0), home_context_id: homeContextId(who, home), local_date: `2026-08-0${day}`, factor,
+    value: valueOf(day, factor, home), unit: factor === 'air' ? 'AQI' : 'UV index',
+    source_code: factor === 'air' ? 'open_meteo_cams' : 'open_meteo_forecast',
+  });
+  for (const who of [owner, other]) {
+    for (const n of [0, 1]) {
+      const home = OWNED_ROW.home_contexts(who, n);
+      await pg.asService((tx) => tx.query(
+        `insert into public.home_contexts (${Object.keys(home).map((c) => `"${c}"`).join(', ')}) values (${Object.keys(home).map((_, at) => `$${at + 1}`).join(', ')})`,
+        Object.values(home).map((value) => (value && typeof value === 'object' && !Array.isArray(value) ? JSON.stringify(value) : value)),
+      ), { commit: true });
+    }
+    // Inserted newest day first, home 1 before home 0 and UV before Air: only ORDER BY sorts them.
+    // Two of the owner's rows are held back, to be written between pages.
+    for (let day = 7; day >= 1; day -= 1) {
+      for (const home of [1, 0]) {
+        for (const factor of ['uv', 'air']) {
+          const late = who === owner && home === 1 && factor === 'uv' && (day === 1 || day === 5);
+          if (!late) await insert(row(who, day, factor, home));
+        }
+      }
+    }
+  }
+  assert.ok(homeContextId(owner, 0) < homeContextId(owner, 1));
+  const expected = [];
+  for (let day = 1; day <= 7; day += 1) for (const factor of ['air', 'uv']) for (const home of [0, 1]) expected.push(valueOf(day, factor, home));
+
+  // Page one (5 rows) is day 1's air 0, air 1, uv 0, then day 2's air 0 and air 1; the cursor is
+  // (day 2, air, home 1). Between pages one and two: (day 1, uv, home 1) is written BEFORE the
+  // cursor and (day 5, uv, home 1) after it, and (day 1, air, home 0), already read, is deleted.
+  const client = pgliteClient(pg, { maxRows: 5 });
+  const realFrom = client.from;
+  let pages = 0;
+  client.from = (table) => {
+    const builder = realFrom(table);
+    if (table !== 'daily_maxima') return builder;
+    const realThen = builder.then;
+    builder.then = (resolve, reject) => realThen(async (answer) => {
+      pages += 1;
+      if (pages === 1) {
+        await insert(row(owner, 1, 'uv', 1));
+        await insert(row(owner, 5, 'uv', 1));
+        await pg.asService((tx) => tx.query(
+          `delete from public.daily_maxima where profile_id = $1 and local_date = '2026-08-01' and factor = 'air' and home_context_id = $2`,
+          [owner, homeContextId(owner, 0)],
+        ), { commit: true });
+      }
+      return resolve(answer);
+    }, reject);
+    return builder;
+  };
+  const built = await buildExportDocument(client, { profileId: owner, groups: ['home'], privateText: false, now: NOW });
+  // 26 rows to start; after page one, 21 of them remain after the cursor, plus the one written after it.
+  assert.equal(pages, 1 + Math.ceil(22 / 5));
+  const values = built.document.home.daily_maxima.map((exported) => exported.value);
+  // Every row there before the export is there exactly once (the deleted one was read first), the row
+  // written after the cursor once, the one written before it not at all; in file order. No other household.
+  assert.deepEqual(values, expected.filter((value) => value !== valueOf(1, 'uv', 1)));
+  assert.equal(built.document.manifest.counts.home.daily_maxima, 27);
 });
 
 // ---------------------------------------------------------------------------
@@ -946,8 +1283,11 @@ test('the all preview: every counted table in a bucket, an unknown one under oth
   const sql = readFileSync(new URL('../supabase/migrations/0024_privacy_clear.sql', import.meta.url), 'utf8');
   const countsAll = sql.slice(sql.indexOf('create or replace function public.privacy_counts'));
   const body = countsAll.slice(0, countsAll.indexOf('$$;'));
-  const named = [...body.matchAll(/^\s*'([a-z_]+)', \(select count/gm)].map((match) => match[1]);
-  assert.ok(named.length >= 18, `found ${named.length} counted tables in 0024`);
+  // A count is a subquery, or (daily_maxima, 0025 optional) a variable counted above the object.
+  const named = [...body.matchAll(/^\s*'([a-z_]+)', (?:\(select count|[a-z_]+\s*$)/gm)].map((match) => match[1]);
+  assert.ok(named.length >= 19, `found ${named.length} counted tables in 0024`);
+  assert.ok(named.includes('daily_maxima'));
+  assert.equal(CLEAR_PREVIEW_BUCKETS.daily_maxima, 'home');
   for (const table of named) assert.ok(Object.hasOwn(CLEAR_PREVIEW_BUCKETS, table), `${table} has no preview bucket`);
   assert.throws(() => buildClearPreview({ scope: 'export', counts }));
 });

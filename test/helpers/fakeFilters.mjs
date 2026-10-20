@@ -121,6 +121,10 @@ function parseOperand(op, text) {
   if (op === 'in') {
     return splitTopLevel(text.replace(/^\(|\)$/g, '')).map((item) => item.trim().replace(/^"|"$/g, ''));
   }
+  // PostgREST: a value holding a reserved character (`,` `.` `:` `(` `)`) is
+  // double-quoted, with `\` escaping the next character inside the quotes.
+  const quoted = /^"((?:[^"\\]|\\.)*)"$/s.exec(text);
+  if (quoted) return quoted[1].replace(/\\(.)/gs, '$1');
   return text;
 }
 

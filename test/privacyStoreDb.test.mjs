@@ -122,7 +122,8 @@ test('every privacyStore wrapper succeeds against the real 0024 functions, calle
 
     assert.deepEqual(await privacyCounts(client, { profileId: ALICE, scope: 'journal' }), { symptom_logs: 1, alerts: 1 });
     const all = await privacyCounts(client, { profileId: ALICE, scope: 'all' });
-    assert.equal(Object.keys(all).length, 18);
+    assert.equal(Object.keys(all).length, 19); // daily_maxima included (0025)
+    assert.equal(all.daily_maxima, 0);
     assert.equal(all.profiles, 1);
     assert.equal(all.operations, 1);
 

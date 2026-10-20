@@ -179,7 +179,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], daily_maxima: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -215,6 +215,17 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       match_method: 'mapbox_geocode_arcgis_point', onboard_request_id, backfill_state: 'complete',
       effective_from: `${day(30)}T12:00:00Z`, effective_to: null, closed_reason: null,
     });
+    // Migration 0025: three recorded days at the current home, Air and UV.
+    // Alice's home is measured (an AirNow station), bob's modeled, and each
+    // household's values differ from the other's, so no cascade or isolation
+    // check on the table can pass vacuously.
+    for (let n = 1; n <= 3; n += 1) {
+      const recorded = { profile_id: id, home_context_id: contextId(who, 1), local_date: day(n), method_version: 'daily-max-v1', time_zone: 'America/New_York', hours_expected: 24, hours_observed: 24, retrieved_at: `${day(n - 1)}T12:00:00Z` };
+      rows.daily_maxima.push(
+        { ...recorded, factor: 'air', value: isAlice ? 30 + n : 150 + n, unit: 'AQI', ...(isAlice ? { source_code: 'airnow_station', station_id: '370250004' } : { source_code: 'open_meteo_cams', station_id: null }), missing_code: null },
+        { ...recorded, factor: 'uv', value: isAlice ? 3 : 9.5, unit: 'UV index', source_code: 'open_meteo_forecast', station_id: null, missing_code: null },
+      );
+    }
     rows.push_subscriptions.push({ profile_id: id, endpoint: ENDPOINT[who], p256dh: `${upper}-P256DH-MARKER`, auth: `${upper}-AUTH-MARKER` });
     // One settled operation each (migration 0017), so the ledger is never
     // empty for either household and a cascade or isolation check on it cannot
