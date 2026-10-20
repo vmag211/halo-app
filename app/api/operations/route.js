@@ -24,6 +24,7 @@ import {
   attachmentsUnavailable,
   isAttachmentsUnavailable,
 } from '@/lib/attachmentStore';
+import { SUMMARY_DOMAIN, isSummaryUnavailable, recordedReceipt, summaryUnavailable } from '@/lib/summaryStore';
 
 // A reader, but a privacy export reconcile rebuilds the household's whole
 // file (B07 P9), as the POST that first built it may (60 s); under the
@@ -195,6 +196,23 @@ export async function GET(request) {
         if (isAttachmentsUnavailable(err)) return attachmentsUnavailable(requestId);
         throw err;
       }
+    } else if (operation.domain === SUMMARY_DOMAIN) {
+      // B15 Ruling S15-11, every status: the stored receipt holds the summary
+      // id or a reason code only, so a succeeded prepare is answered with the
+      // snapshot saved then, read now (`validSummaryReceipt` needs it,
+      // summary-service.ts:16), or `failed` `gone` once it has been cleared;
+      // a failure with its sentence; a pending one with the in-flight
+      // sentence. `cancelled`, which no summary writer sets, is answered
+      // `failed` (Ruling S15-3): the client never settles a cancelled
+      // receipt and would stay locked. Behind the `summaries` flag.
+      if (!featureEnabled('summaries') || !featureEnabled('workspace')) return summaryUnavailable(requestId);
+      try {
+        result = await recordedReceipt(supabaseAdmin, userId, { status: operation.status, result: operation.result });
+        status = result.status;
+      } catch (err) {
+        if (isSummaryUnavailable(err)) return summaryUnavailable(requestId);
+        throw err;
+      }
     } else if (operation.status === 'succeeded') {
       if (operation.domain === ACTIONS_DOMAIN) {
         if (!featureEnabled('tasks')) return actionsUnavailable(requestId);
@@ -245,7 +263,8 @@ export async function GET(request) {
     // fits the 4,000,000-byte cap (B07 P8); with no file the body is unchanged.
     const answer = withExportFile(body, file);
     // A body carrying the household's export is never cached anywhere.
-    return NextResponse.json(answer, { headers: answer === body ? headers : { ...headers, 'Cache-Control': 'no-store' } });
+    // A saved summary's reconcile carries the household's private report (B15), so it is never cached either.
+    return NextResponse.json(answer, { headers: answer === body && operation.domain !== SUMMARY_DOMAIN ? headers : { ...headers, 'Cache-Control': 'no-store' } });
   } catch (err) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);

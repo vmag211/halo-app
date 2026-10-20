@@ -1119,6 +1119,8 @@ const SEED_PLAN = [
   ['household_workspace_records', [0, 1]],
   // 0028: an observation photo and a note photo, one in each export group.
   ['household_attachments', [0, 1]],
+  // 0029: two saved summaries, in the home group.
+  ['household_summaries', [0, 1]],
 ];
 
 test('on real Postgres: every allowlisted column, filter and order runs, and every seeded row of the household is exported', async () => {

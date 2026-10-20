@@ -50,6 +50,7 @@ const OWNED_TABLES = {
   daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
   household_workspace_records: 'profile_id', // 0026
   household_attachments: 'profile_id', // 0028
+  household_summaries: 'profile_id', // 0029
 };
 
 /**
@@ -83,6 +84,7 @@ const OWNER_DIRECT_ACCESS = {
   daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
   household_workspace_records: [], // 0026: no policy at all. Free text a person typed; read and written only through the 0026 functions, which only the service role may execute.
   household_attachments: [],      // 0028: no policy at all. Private file records; read and written only through the 0028 functions, which only the service role may execute.
+  household_summaries: [],        // 0029: no policy at all. Saved private reports; read and written only through the 0029 functions, which only the service role may execute.
 };
 
 /**
@@ -108,6 +110,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
   'household_workspace_records', // 0026: the Homeguard workspace; read and written only through the 0026 functions, called by the service role
   'household_attachments', // 0028: private file records; read and written only through the 0028 functions, called by the service role
+  'household_summaries', // 0029: saved household summaries; read and written only through the 0029 functions, called by the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -177,6 +180,15 @@ const PUBLIC_FUNCTIONS = {
   delete_record_attachments: 'trigger',           // 0028: a deleted record's files go with it
   queue_attachment_object: 'trigger',             // 0028: every deleted file queues its storage object
   clear_attachments_with_privacy_clear: 'trigger', // 0028: clear all removes the files in the clear's own transaction
+  household_summary_json: 'service_role',         // 0029: a saved summary row as the client's SummarySnapshot, called inside the 0029 functions
+  read_household_summaries: 'service_role',       // 0029: the household's archive list
+  read_household_summary: 'service_role',         // 0029: one saved summary of a household
+  household_summary_usage: 'service_role',        // 0029: how many summaries a household has saved, the early limit answer
+  commit_household_summary: 'service_role',       // 0029: a summary and its ledger settle in one transaction
+  summary_privacy_counts: 'service_role',         // 0029: what clear all removes from the summaries, for inspect's count
+  guard_household_summary_update: 'trigger',      // 0029: a saved summary is never changed
+  guard_settled_summary_operation: 'trigger',     // 0029: a settled 'summary' operation keeps its status
+  clear_summaries_with_privacy_clear: 'trigger',  // 0029: clear all removes the summaries in the clear's own transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -233,6 +245,7 @@ const PROBE_COLUMN = {
   daily_maxima: 'value',
   household_workspace_records: 'record',
   household_attachments: 'name',
+  household_summaries: 'title',
   attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
