@@ -1044,6 +1044,20 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **every household's saved summaries are deleted for good**, because the table goes. Ledger rows in domain `summary` stay; they hold a summary id or a reason code and a status only. Nothing else is touched.
 
+### 2.21 Apply 0030 (Explore project idea sets, B16)
+
+**Written, applied nowhere yet.** Needs 0017; `projects.start` also needs **0026** (apply 2.17 first). One new table and six functions, plus one trigger on `public.operations` that makes **privacy clear all delete the household's idea sets inside the clear's own transaction**. Nothing existing is read or rewritten. No model or paid service is involved: idea sets are a deterministic selection from the sourced library `lib/data/exploreProjectLibrary.json` (B16 plan, `docs/backend/plans/b16-explore-projects.md`).
+
+**Applying this does not turn projects on.** The routes stay behind `HALO_FEATURE_PROJECTS` (and `projects.start` needs `HALO_FEATURE_WORKSPACE`), off by default, until you confirm the B16 decisions.
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0030_project_generations.sql`, or `docs/backend/apply/apply-0030.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run `docs/backend/apply/verify-0030.sql`: **one row, all six columns true**. If `no_client_access` is false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+
+#### If you need to back out 0030
+
+The project routes go back to answering "unavailable". Paste and run the `backout-0030` block at the end of `supabase/migrations/0030_project_generations.sql` (uncommented; safe to run twice), then `notify pgrst, 'reload schema';`. Every household's saved idea sets are deleted; workspace project records already started stay.
+
 ### 2.22 Apply 0031 (outreach drafts, B17: prepared copies, never sent)
 
 **Written, applied nowhere yet.** Needs 0017 only; it does not need 0018 to 0030 (a draft that includes saved notes checks them against 0026's table, so notes work once 0026 is applied too). Quiet: one new table and six functions, plus two triggers on `public.operations`, each taking a brief SHARE ROW EXCLUSIVE on that table as it is created (a ledger claim at that moment waits for it). Nothing existing is read or rewritten.
