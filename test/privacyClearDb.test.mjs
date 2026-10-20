@@ -78,6 +78,7 @@ const CLEAR_ALL = {
   household_action_preferences: 'delete',
   household_action_state: 'delete',
   daily_maxima: 'delete', // 0025: deleted before home_contexts when present, and counted (B08 E23)
+  household_workspace_records: 'delete', // 0026: deleted by its trigger on the clear's own settle, counted by workspace_privacy_counts (B11 W8)
 };
 const CLEAR_JOURNAL = {
   ...Object.fromEntries(Object.keys(CLEAR_ALL).map((table) => [table, 'keep'])),
@@ -123,6 +124,7 @@ const VARIANTS = {
   household_actions: [0, 1, 2],
   household_action_preferences: [0, 1],
   daily_maxima: [0, 1],
+  household_workspace_records: [0, 1, 2],
 };
 
 const contextId = (owner, n) => `${owner.slice(0, 24)}00000000c${n}0${n}`.slice(0, 36);
@@ -443,7 +445,12 @@ test('clear all: every owned table is placed, alice ends in the inventory\'s sta
 
 test('clear all: privacy_counts read before the claim is exactly what the clear removes, and removed is their sum', async () => {
   await scenario(async (tx) => {
-    const predicted = (await tx.query(`select public.privacy_counts($1, 'all') as c`, [ALICE])).rows[0].c;
+    // What the inspect route counts (lib/privacyStore.js privacyCounts): 0024's
+    // counts plus 0026's workspace count (B11 Ruling W8).
+    const predicted = {
+      ...(await tx.query(`select public.privacy_counts($1, 'all') as c`, [ALICE])).rows[0].c,
+      ...(await tx.query(`select public.workspace_privacy_counts($1) as c`, [ALICE])).rows[0].c,
+    };
     const before = await counts(tx, ALICE);
     await claim(tx);
     const out = await clear(tx);
@@ -457,7 +464,11 @@ test('clear all: privacy_counts read before the claim is exactly what the clear 
     }
     assert.deepEqual(Object.keys(predicted).sort(), Object.keys(observed).sort());
     for (const [table, n] of Object.entries(observed)) assert.equal(Number(predicted[table]), n, table);
-    assert.equal(Number(out.removed), Object.values(observed).reduce((sum, n) => sum + n, 0));
+    // 0024's `removed` counts its own deletes; the workspace rows go in 0026's
+    // trigger on the settle, inside the same transaction, so they are not in it.
+    const workspaceRows = observed.household_workspace_records;
+    assert.ok(workspaceRows >= 3, 'the seed has workspace rows to remove');
+    assert.equal(Number(out.removed), Object.values(observed).reduce((sum, n) => sum + n, 0) - workspaceRows);
   });
 });
 

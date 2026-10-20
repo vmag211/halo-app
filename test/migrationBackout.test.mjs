@@ -3,6 +3,7 @@
  * database, run exactly as Vibhav would paste them, on a local in-memory PGlite
  * database (test/db/pgliteHarness.mjs):
  *
+ *   backout-0026   undoes 0026 (the Homeguard workspace, its read and commit functions, the ledger guard and the clear trigger)
  *   backout-0025   undoes 0025 (daily maxima, the recorder's state, its functions and the final guard)
  *   backout-0024   undoes 0024 (the privacy clear, fingerprint, counts, purge and probe, the privacy guard)
  *   backout-0023   undoes 0023 (a household's tasks, the read and commit functions, the ledger guard)
@@ -121,7 +122,7 @@ async function checkConstraints() {
 const exists = async (sql) => (await db.query(`select (${sql}) as present`)).rows[0].present;
 
 test('the blocks are in YOUR_TODO.md, each after its marker', () => {
-  for (const name of ['backout-0025', 'backout-0024', 'backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
+  for (const name of ['backout-0026', 'backout-0025', 'backout-0024', 'backout-0023', 'backout-0022', 'backout-0021', 'backout-0020', 'backout-0019', 'backout-0018', 'backout-0017', 'backout-0016', 'backout-0015', 'remedy-ucmr5']) assert.ok(docBlock(name).trim().length > 0, name);
 });
 
 test('the ucmr5 remedy turns an open table into public read only, and is safe to run twice', async () => {
@@ -914,6 +915,89 @@ test('0025 over 0023 alone (0024 pending, as on production) backs out to exactly
   } finally {
     await db23.close();
   }
+});
+
+// ---- 0026: one table, one index, five functions and two triggers on operations
+
+const OBJECTS_0026 = {
+  tables: ['household_workspace_records'],
+  functions: [
+    'read_household_workspace(uuid, text[])',
+    'commit_household_workspace(uuid, uuid, jsonb)',
+    'workspace_privacy_counts(uuid)',
+    'guard_settled_workspace_operation()',
+    'clear_workspace_with_privacy_clear()',
+  ],
+  triggers: ['operations_workspace_settled_guard', 'operations_privacy_clear_workspace'],
+};
+let audit26;
+
+async function objects0026(runner = db) {
+  const has = async (sql) => (await runner.query(`select (${sql}) as present`)).rows[0].present;
+  const present = {};
+  for (const table of OBJECTS_0026.tables) present[table] = await has(`to_regclass('public.${table}') is not null`);
+  for (const fn of OBJECTS_0026.functions) present[fn] = await has(`to_regprocedure('public.${fn}') is not null`);
+  for (const trigger of OBJECTS_0026.triggers) present[trigger] = await has(`exists (select 1 from pg_trigger where tgname = '${trigger}')`);
+  return present;
+}
+
+/** One stored record for alice, committed through the real function. */
+async function storeAliceRecord(runner = db) {
+  const op = crypto.randomUUID();
+  await runner.query(`insert into public.operations (operation_id, profile_id, domain, kind, status) values ($1, $2, 'workspace', 'workspace.write', 'pending')`, [op, ALICE]);
+  await runner.query(`select public.commit_household_workspace($1, $2, $3::jsonb)`, [ALICE, op, JSON.stringify({ upserts: [{ collection: 'tests', id: `t-${op}`, expectedRevision: null, record: { id: `t-${op}`, title: 'A test', revision: 0 } }], collections: ['tests'] })]);
+}
+
+test('0026 applies on top of 0025 and adds exactly its table, five functions and two triggers', async () => {
+  await db.applyMigration(migration(26));
+  audit26 = await runAudit(db);
+  const present = await objects0026();
+  assert.deepEqual(present, all(present, true));
+  await storeAliceRecord();
+  // With 0026 in place, clear all removes the workspace too (inside the clear, rolled back here).
+  const left = await db.pg.transaction(async (tx) => {
+    await tx.query(`insert into public.operations (operation_id, profile_id, domain, kind) values ($1, $2, 'privacy', 'privacy.clear.all')`, [MAXIMA_CLEAR_OP, ALICE]);
+    await tx.query(
+      `select public.clear_household_records($1, $2, 'all', public.privacy_fingerprint($1, array['profiles', 'home_contexts',
+         'household_bands', 'symptom_logs', 'notification_prefs', 'push_subscriptions', 'profile_preferences', 'explore_areas',
+         'household_actions', 'household_action_preferences', 'luna_conversations', 'luna_turns']))`,
+      [ALICE, MAXIMA_CLEAR_OP],
+    );
+    const { rows } = await tx.query(`select count(*)::int as n from public.household_workspace_records`);
+    await tx.rollback();
+    return rows;
+  });
+  assert.deepEqual(left, [{ n: 0 }]);
+});
+
+test('backing out 0026 removes everything it added and leaves the 0001..0025 schema exactly, and is safe to run twice', async () => {
+  await storeAliceRecord();
+  await db.exec(docBlock('backout-0026'));
+  const present = await objects0026();
+  assert.deepEqual(present, all(present, false));
+  const kept24 = await objects0024();
+  assert.deepEqual(kept24, all(kept24, true), '0024 stays whole');
+  assert.deepEqual(await runAudit(db), audit25);
+  await db.exec(docBlock('backout-0026'));
+  assert.deepEqual(await runAudit(db), audit25);
+  // 0024's clear keeps working without the workspace.
+  const { out } = await aliceClearAll();
+  assert.equal(out.receipt.status, 'succeeded');
+});
+
+test('the 0026 back-out drops the triggers first and the table last, and matches the migration file', () => {
+  const statements = docBlock('backout-0026').split(';').map((part) => part.trim()).filter(Boolean);
+  assert.equal(statements[0], 'drop trigger if exists operations_privacy_clear_workspace on public.operations');
+  assert.equal(statements.at(-1), 'drop table if exists public.household_workspace_records');
+  const fileBlock = migration(26).sql.split('<!-- backout-0026 -->')[1].split('\n')
+    .filter((line) => /^-- drop /.test(line)).map((line) => line.replace(/^-- /, '')).join('\n');
+  assert.equal(fileBlock, docBlock('backout-0026').trim(), 'the migration\'s copy of the block and YOUR_TODO.md\'s agree');
+});
+
+test('after the back-out, 0026 applies again and gives exactly the schema one pass gives, empty', async () => {
+  await db.applyMigration(migration(26));
+  assert.deepEqual(await runAudit(db), audit26);
+  assert.deepEqual((await db.query(`select count(*)::int as n from public.household_workspace_records`)).rows, [{ n: 0 }]);
 });
 
 // ---- remedy-truncate: the privilege row level security does not govern.

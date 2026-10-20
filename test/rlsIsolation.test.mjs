@@ -48,6 +48,7 @@ const OWNED_TABLES = {
   household_action_preferences: 'profile_id', // 0023
   household_action_state: 'profile_id', // 0023
   daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
+  household_workspace_records: 'profile_id', // 0026
 };
 
 /**
@@ -79,6 +80,7 @@ const OWNER_DIRECT_ACCESS = {
   household_action_preferences: [], // 0023: no policy at all. Read and written only inside the two 0023 functions, called by the service role.
   household_action_state: [],     // 0023: no policy at all. The commit version is internal and never leaves the server.
   daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
+  household_workspace_records: [], // 0026: no policy at all. Free text a person typed; read and written only through the 0026 functions, which only the service role may execute.
 };
 
 /**
@@ -102,6 +104,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'household_action_preferences', // 0023: the same two functions only
   'household_action_state', // 0023: the internal commit version, never emitted
   'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
+  'household_workspace_records', // 0026: the Homeguard workspace; read and written only through the 0026 functions, called by the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -140,6 +143,11 @@ const PUBLIC_FUNCTIONS = {
   record_daily_maxima: 'service_role',            // 0025: one batch of daily maxima, pending rows only rewritten
   finish_daily_maxima_run: 'service_role',        // 0025: the last run's time and counts
   guard_final_daily_maximum: 'trigger',           // 0025: a recorded value or a final missing day is never rewritten
+  read_household_workspace: 'service_role',       // 0026: the workspace collections, one consistent read
+  commit_household_workspace: 'service_role',     // 0026: a workspace command and its ledger settle in one transaction
+  workspace_privacy_counts: 'service_role',       // 0026: what clear all removes from the workspace, for inspect's count
+  guard_settled_workspace_operation: 'trigger',   // 0026: a settled 'workspace' operation keeps its status
+  clear_workspace_with_privacy_clear: 'trigger',  // 0026: clear all removes the workspace in the clear's own transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -188,6 +196,7 @@ const PROBE_COLUMN = {
   household_action_preferences: 'value',
   household_action_state: 'version',
   daily_maxima: 'value',
+  household_workspace_records: 'record',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

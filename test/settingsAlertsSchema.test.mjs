@@ -650,10 +650,10 @@ test('running 0021 again changes nothing', async () => {
       [[PREFERENCES, 'alerts', 'profiles']],
     );
     // Rulings S11 to S13 and S15: the save function, the ledger guard and the eight triggers,
-    // created once whatever the runs. The 0023 and 0024 guards on operations are not 0021's, so they are left out.
+    // created once whatever the runs. The 0023, 0024 and 0026 triggers on operations are not 0021's, so they are left out.
     const { rows: triggers } = await db.query(
       `select tgrelid::regclass::text as on_table, tgname, pg_get_triggerdef(oid) as definition from pg_trigger
-        where not tgisinternal and tgrelid = any($1::regclass[]) and tgname not in ('operations_actions_settled_guard', 'operations_privacy_settled_guard') order by tgname`,
+        where not tgisinternal and tgrelid = any($1::regclass[]) and tgname not in ('operations_actions_settled_guard', 'operations_privacy_settled_guard', 'operations_workspace_settled_guard', 'operations_privacy_clear_workspace') order by tgname`,
       [[`public.${PREFERENCES}`, 'public.profiles', 'public.notification_prefs', 'public.household_bands', 'public.operations']],
     );
     const { rows: functions } = await db.query(

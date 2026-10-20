@@ -834,6 +834,39 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **every recorded daily maximum is deleted for good**, and `recording_from` with it, because both tables go. The days already recorded cannot be recorded again (no backfill), so a back-out leaves a permanent gap in the history from the first recorded day to the reapply. Nothing else is touched: 0024's clear keeps working (it reads this table only when it exists), and `daily_scores`, `home_contexts` and everything 0016 to 0024 created stay as they are.
 
+### 2.17 Apply 0026 (the Homeguard workspace: tests, home care, kitchen, fish notes, gardens and Explore records)
+
+**Written, applied nowhere yet.** Needs 0016 and 0017, which production has; it does not need 0023, 0024 or 0025 and may go before or after any of them. Quiet, like 2.11: one new table, one index and five functions, plus two triggers on `public.operations`, each taking a brief SHARE ROW EXCLUSIVE on that table as it is created (a ledger claim or settle at that moment waits for it). Nothing existing is read or rewritten.
+
+What it is for (B11 plan, `docs/backend/plans/b11-homeguard-workspace.md`): Homeguard and Explore load and save a household's own records through `GET /api/frontend/workspace` and `POST /api/frontend/workspace/commands`. One table, `public.household_workspace_records`, holds every record of fourteen collections as the app's own row check accepted it; a commit function writes each change at its exact revision and settles its own ledger row in the same transaction, a guard keeps a settled `workspace` row from being turned `failed`, and a second trigger makes **privacy clear all delete the household's workspace inside the clear's own transaction** (0024 resets the profile rather than deleting it, so the profile cascade would not). The week journal, home-change history and private files are not stored.
+
+**Applying this does not turn the workspace on.** The routes stay behind `HALO_FEATURE_WORKSPACE`, off by default, until you confirm the retention (B11 Ruling W1, proposed: kept until the person deletes the record, clears all, or deletes the account, as for tasks).
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0026_household_workspace.sql`, or `docs/backend/apply/apply-0026.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run the verification query (the comment at the end of the file, or `docs/backend/apply/verify-0026.sql`): **one row, all seven columns true** (`rls_on`, `no_policies`, `no_client_access`, `functions_service_role_only`, `functions_invoker_pinned`, `triggers_on`, `five_checks`). `no_client_access` false is the one that matters: stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+
+#### If you need to back out 0026
+
+The workspace routes go back to answering "unavailable", exactly as before. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0026 -->
+
+```sql
+drop trigger if exists operations_privacy_clear_workspace on public.operations;
+drop trigger if exists operations_workspace_settled_guard on public.operations;
+drop function if exists public.clear_workspace_with_privacy_clear();
+drop function if exists public.guard_settled_workspace_operation();
+drop function if exists public.workspace_privacy_counts(uuid);
+drop function if exists public.commit_household_workspace(uuid, uuid, jsonb);
+drop function if exists public.read_household_workspace(uuid, text[]);
+drop table if exists public.household_workspace_records;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: **every household's workspace records are deleted for good**, because the table goes. Ledger rows in domain `workspace` stay; they hold collection names, record ids, revisions and statuses only. Nothing else is touched.
+
 
 ### 2.16 Turn privacy on: `HALO_PRIVACY_REVIEW_KEY` (B07)
 
@@ -950,7 +983,7 @@ From B07 (privacy). File and line references are to this tree (the frontend as m
 
 33. **(F1) After clear all, go to onboarding.** `accept` (`components/production/ProductionPrivacy.tsx:23`) refreshes the workspace and tasks and clears drafts, but stays on Settings. The next app load does go to onboarding, because `GET /api/profile` now answers `onboarded: false`. Vibhav's decision D-P1 intends the person to go back through onboarding, so navigating there after "Your records were cleared." would match it.
 34. **(F4) The two Clear Journal counts differ.** The production panel shows the server's count (symptom logs and season summaries, `ProductionPrivacy.tsx:26`); the review build counts `weekJournal` (`components/expanded/SettingsPrivacy.tsx:34`). Week journal check-ins are not stored on the server yet, and the review says so. Consistent in production; noted so the two do not drift.
-35. **(C11) The workspace `clear-private` command is a second clearing path.** `components/homeguard/HomeWorkspaceState.tsx:270` sends a `clear-private` command through `workspace.execute`, which has no server route yet. When `workspace.execute` gets a server route, that command must go through `privacy.clear` or be refused, so two paths never clear the same records differently.
+35. **(C11) The workspace `clear-private` command is a second clearing path.** `components/homeguard/HomeWorkspaceState.tsx:270` sends a `clear-private` command through `workspace.execute`, which has no server route yet. When `workspace.execute` gets a server route, that command must go through `privacy.clear` or be refused, so two paths never clear the same records differently. **Done in B11 (server side):** `POST /api/frontend/workspace/commands` refuses `clear-private` before any claim with "Use the privacy review in Settings to clear records. Nothing was deleted." (Ruling W9), and privacy clear all now also removes the workspace records (0026, Ruling W8). For Yogi, still: the provider's `clearPrivate` could be removed from the production path entirely.
 36. **A too-large export says only "Check the highlighted information and try again."** An export whose file would pass 4,000,000 bytes is refused at review with a 422 `export_too_large` (message "This export is too large to download at once. Choose fewer groups and try again."), which the runtime maps to its generic validation sentence and highlights nothing. Showing the server's message, or a sentence of your own for `export_too_large`, would tell the person what to do.
 
 From B12 (public evidence reads: `fish.read`, `water.read`, `growers.search`, `food.search`). Plan: `docs/backend/plans/b12-public-evidence.md`. None of these blocks the backend.
