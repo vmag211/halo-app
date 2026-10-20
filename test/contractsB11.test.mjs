@@ -461,7 +461,10 @@ test('the contract\'s collections, refusals, sentences and limits are exactly th
     assert.equal(rule.then.properties.code.const, refusal.code, `${reason}: code`);
     assert.equal(rule.then.properties.message.const, refusal.message, `${reason}: message`);
   }
-  assert.deepEqual(schemas.WorkspaceOperationRefused.properties.reason.enum, [...store.STORED_REFUSALS]);
+  assert.deepEqual(schemas.WorkspaceOperationRefused.properties.reason.enum, [...store.STORED_REFUSALS, 'changed_elsewhere']);
+  const elsewhere = schemas.WorkspaceOperationRefused.allOf.find((item) => item.if.properties.reason.const === 'changed_elsewhere');
+  assert.deepEqual([elsewhere.then.properties.code.const, elsewhere.then.properties.message.const], [REFUSALS.changed_elsewhere.code, REFUSALS.changed_elsewhere.message]);
+  assert.equal(store.STORED_REFUSALS.includes('changed_elsewhere'), false, 'it is computed on read, never stored');
   // The unavailable collections' load sentences, the disabled sentence, the reconcile sentences.
   const unavailable = schemas.WorkspaceSnapshot.oneOf.find((item) => item.properties.availability.const === 'unavailable');
   assert.deepEqual(unavailable.properties.message.enum, Object.values(UNSTORED_COLLECTIONS).map((item) => item.load));
@@ -1369,7 +1372,7 @@ test('edge: another household\'s record ids, links, homes and operation ids are 
   assert.equal((await load(w, 'tests', { as: 'bob' })).body.pendingOperations.length, 1);
 });
 
-test('edge: a refusal replays as the same refusal after the data changed; a success replays as the current rows, which the client cannot always confirm', async (t) => {
+test('edge: a refusal replays as the same refusal after the data changed; a success replays as the current rows, or as changed_elsewhere when its effect was undone, which the client settles', async (t) => {
   muteConsoleError(t);
   const w = await world();
   const existing = test1(w);
@@ -1394,21 +1397,78 @@ test('edge: a refusal replays as the same refusal after the data changed; a succ
   // A different operation id for the same command now succeeds.
   assert.equal((await execute(w, write('foodQuestions', question.record), {})).body.status, 'succeeded');
 
-  // A success replays as what is stored NOW (Ruling W5). If the record has since been removed elsewhere the
-  // receipt no longer shows it, so the client's own coverage check refuses the reconcile and Homeguard stays
-  // locked on the operation until the page reloads. Documented here, not endorsed.
+  // A success replays as what is stored NOW (Ruling W5). If its effect has since been undone on another device
+  // (the saved record deleted, or the removed one added again) the client cannot settle a succeeded receipt:
+  // the ledger holds no record content (Ruling W15). It is answered `failed` / changed_elsewhere instead, which
+  // the client resolves, so Homeguard ends unlocked on both the reconcile and a command replay.
   const lost = await world();
-  let lose = true;
-  const ws = await loaded(lost, 'alice', { lose: (pathname) => pathname === COMMANDS && lose && !(lose = false) });
+  let lose = null;
+  const ws = await loaded(lost, 'alice', { lose: (pathname) => pathname === COMMANDS && lose !== null && lose(pathname) });
+  const loseOnce = () => { let spent = false; lose = () => !spent && (spent = true); };
+  const settled = REFUSALS.changed_elsewhere;
+
+  // A create whose answer was lost, then the record deleted on another device.
+  loseOnce();
   assert.equal(await ws.write('tests', test1(lost, { id: 'gone-later' })), false);
   const [operationId] = ws.state.operationIds;
+  assert.deepEqual(lockedIds(ws), [operationId]);
   const other = await loaded(lost);
   assert.equal(await other.remove('tests', 'gone-later', 1), true);
   const current = await (await lost.reconcile(operationId)).json();
-  assert.deepEqual([current.status, current.changes.tests], ['succeeded', []], 'the reconcile is honest: it succeeded, and the record is gone');
+  assert.deepEqual([current.status, current.reason, current.code, current.changes, current.unresolvedOperations], ['failed', 'changed_elsewhere', 'conflict', {}, []]);
+  assert.equal((await lost.ledgerRow(operationId)).status, 'succeeded', 'the ledger still says succeeded');
   assert.equal(await ws.reconcile(operationId), false);
-  assert.equal(ws.state.message, 'The saved response could not be read. Check its status before trying another change.');
-  assert.deepEqual(lockedIds(ws), [operationId], 'still locked');
+  assert.equal(ws.state.message, settled.message);
+  assert.deepEqual(lockedIds(ws), [], 'unlocked');
+  assert.equal(ws.canMutate(), true);
+  assert.deepEqual(ws.records.tests, [], 'and the collection holds no ghost of the deleted record');
+  assert.equal(await ws.write('tests', test1(lost, { id: 'again' })), true, 'and the next save works');
+  assert.deepEqual(ws.records.tests.map((row) => row.id), ['again']);
+  assert.deepEqual((await loaded(lost)).records.tests.map((row) => row.id), ['again'], 'a reload agrees');
+
+  // An update whose answer was lost, then the record deleted: the row A still shows is stale, and saving it is
+  // an ordinary conflict, not a lock.
+  loseOnce();
+  assert.equal(await ws.write('tests', { ...ws.records.tests[0], provider: 'County lab' }), false);
+  const updateId = ws.state.operationIds.at(-1);
+  assert.equal(await (await loaded(lost)).remove('tests', 'again', 2), true);
+  assert.equal(await ws.reconcile(updateId), false);
+  assert.deepEqual([ws.state.message, lockedIds(ws)], [settled.message, []]);
+  assert.equal(await ws.write('tests', { ...ws.records.tests[0], provider: 'Again' }), false);
+  assert.equal(ws.state.message, REFUSALS.stale_revision.message);
+  assert.deepEqual(lockedIds(ws), []);
+
+  // A remove whose answer was lost, then the same id added again on another device.
+  assert.equal(await ws.write('tests', test1(lost, { id: 'back' })), true);
+  loseOnce();
+  assert.equal(await ws.remove('tests', 'back', 1), false);
+  const removeId = ws.state.operationIds.at(-1);
+  assert.equal(await (await loaded(lost)).write('tests', test1(lost, { id: 'back', title: 'Added again' })), true);
+  assert.equal(await ws.reconcile(removeId), false);
+  assert.deepEqual([ws.state.message, lockedIds(ws)], [settled.message, []]);
+
+  // Still the current rows while the effect stands (a newer revision of the record is still the saved record).
+  loseOnce();
+  assert.equal(await ws.write('tests', test1(lost, { id: 'kept' })), false);
+  const keptId = ws.state.operationIds.at(-1);
+  const editor = await loaded(lost);
+  assert.equal(await editor.write('tests', { ...editor.records.tests.find((row) => row.id === 'kept'), title: 'Edited elsewhere' }), true);
+  assert.equal(await ws.reconcile(keptId), true);
+  assert.deepEqual(ws.records.tests.filter((row) => row.id === 'kept').map((row) => [row.revision, row.title]), [[2, 'Edited elsewhere']]);
+  assert.deepEqual(lockedIds(ws), []);
+
+  // The commands route's replay of the same succeeded save answers the same, through the real client.
+  const w2 = await world();
+  const saved = write('tests', test1(w2, { id: 'replayed' }));
+  assert.equal((await execute(w2, saved, {})).body.status, 'succeeded');
+  assert.equal(await (await loaded(w2)).remove('tests', 'replayed', 1), true);
+  const { body: replay } = await execute(w2, saved, { fixture: 'workspaceExecute-refused-changed-elsewhere' });
+  assert.deepEqual([replay.status, replay.code, replay.reason, replay.changes, replay.message], ['failed', 'conflict', 'changed_elsewhere', {}, settled.message]);
+  const { body: gone } = await reconcile(w2, saved, { fixture: 'operationsRead-workspace-changed-elsewhere' });
+  assert.deepEqual([gone.status, gone.reason, gone.changes, gone.unresolvedOperations], ['failed', 'changed_elsewhere', {}, []]);
+  assert.equal(await rowCount(w2, 'tests'), 0, 'the replay recreated nothing');
+  // Another household's view of the same id is untouched by all of this.
+  assert.equal((await w2.reconcile(saved.operationId, { as: 'bob' })).status, 404);
 });
 
 test('edge: a change that lands between the route\'s read and the commit is refused by the commit function itself, with the same stored reasons and sentences', async (t) => {

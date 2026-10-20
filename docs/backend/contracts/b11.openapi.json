@@ -341,7 +341,7 @@
         "operationId": "operationsRead",
         "x-halo-operation": "operations.read",
         "summary": "What happened to a Homeguard save",
-        "description": "The B11 half of GET /api/operations: domain workspace (the reconcile of a save, adapters.ts:30, and of an operation the load listed as pending). Other domains are documented by their own packages and replay as stored. EVERY status carries changes (the adapter refuses a receipt without it): a succeeded operation is answered with the CURRENT rows of the collections it touched, every other status with changes: {} and a sentence (Ruling W5). Behind the workspace flag like the rest of the workspace: a 503 while it is off for an operation this household has; the lookup comes first, so an id this household does not have is a 404 even then. Another household's operation id is a 404, with nothing said about whose it is. The canonical fields (operationId, domain, kind, status, created_at) are written after the stored receipt, so a frozen receipt can never override the status computed now, which is the only place a stale pending becomes unknown.",
+        "description": "The B11 half of GET /api/operations: domain workspace (the reconcile of a save, adapters.ts:30, and of an operation the load listed as pending). Other domains are documented by their own packages and replay as stored. EVERY status carries changes (the adapter refuses a receipt without it): a succeeded operation is answered with the CURRENT rows of the collections it touched, every other status with changes: {} and a sentence (Ruling W5). Behind the workspace flag like the rest of the workspace: a 503 while it is off for an operation this household has; the lookup comes first, so an id this household does not have is a 404 even then. Another household's operation id is a 404, with nothing said about whose it is. The canonical fields (operationId, domain, kind, status, created_at) are written after the stored receipt, so a frozen receipt can never override the status computed now, which is the only place a stale pending becomes unknown. ONE EXCEPTION to the ledger status (Ruling W15): a succeeded save whose record was since deleted on another device (or whose removed record is back) is answered status failed, reason changed_elsewhere, changes {}, so the client settles it and unlocks.",
         "parameters": [
           {
             "name": "operationId",
@@ -3310,7 +3310,7 @@
         "additionalProperties": false
       },
       "WorkspaceReceiptRefused": {
-        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference and limit are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7).",
+        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference and limit are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7). changed_elsewhere (Ruling W15) is the one reason that is computed, never stored: a REPLAY of a save that succeeded finds the record it saved gone (deleted on another device since), or a record it removed back. The ledger keeps no record content, so no succeeded receipt could show the saved record, and the client would stay locked on one it cannot settle; this failed receipt resolves the operation instead, with a sentence that tells the person to reload.",
         "type": "object",
         "properties": {
           "operationId": {
@@ -3339,7 +3339,8 @@
               "attachments_unavailable",
               "clear_unsupported",
               "week_journal_unavailable",
-              "home_transitions_unavailable"
+              "home_transitions_unavailable",
+              "changed_elsewhere"
             ]
           },
           "message": {
@@ -3553,6 +3554,28 @@
                 }
               }
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "changed_elsewhere"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "That change was saved, but the record has since changed on another device. Your draft is kept. Reload to see your current records."
+                }
+              }
+            }
           }
         ]
       },
@@ -3743,7 +3766,7 @@
         "additionalProperties": false
       },
       "WorkspaceOperationRefused": {
-        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference or limit): the stored reason, with the code and sentence that reason names and changes: {}.",
+        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference or limit): the stored reason, with the code and sentence that reason names and changes: {}. Also changed_elsewhere (Ruling W15), computed on read and never stored: the ledger says succeeded, but the record the save wrote was since deleted on another device (or a record it removed is back). The ledger keeps no record content, so no succeeded receipt could show the saved record and the client would stay locked; status is therefore answered failed (the one case where it differs from the ledger), with the sentence to reload.",
         "type": "object",
         "properties": {
           "operationId": {
@@ -3771,7 +3794,8 @@
               "stale_revision",
               "notes_changed",
               "invalid_reference",
-              "limit"
+              "limit",
+              "changed_elsewhere"
             ]
           },
           "unresolvedOperations": {
@@ -3889,6 +3913,28 @@
                 },
                 "message": {
                   "const": "This collection has reached its storage limit. Nothing was saved."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "changed_elsewhere"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "That change was saved, but the record has since changed on another device. Your draft is kept. Reload to see your current records."
                 }
               }
             }

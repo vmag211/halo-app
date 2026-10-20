@@ -38,6 +38,7 @@ Collections wired (stored, loaded, written, deleted): `tests`, `assets`, `observ
 - **W12, revisions and ids.** The server assigns revisions: 1 on create, stored + 1 on update. A create of an id that exists, or an update or remove at a revision that is not the stored one, is `failed` code `conflict` with the client's "This record changed." sentence; nothing is written. Record ids are 1 to 200 characters with no control characters; they are app-generated (`test-<uuid>`, `food-question-...`) and are the only record data in a ledger receipt.
 - **W13, project guides stored as sent (proposed, Vibhav to confirm).** There is no project-generation service yet, so `exploreProjects.guide` is stored as the household's own copy after the client's structural check; provenance is not verified.
 - **W14, one save at a time.** A command whose household already has an unsettled `workspace` operation is still accepted (the client locks itself); the commit function's per-record revision checks keep concurrent saves honest.
+- **W15, an undone success settles (proposed, Vibhav to confirm).** A reconcile or command replay of a succeeded save whose receipt effect is gone (the saved record deleted elsewhere, or the removed one added again) is answered `failed` / `changed_elsewhere` / `conflict`, `changes: {}`, never stored, because the client settles a succeeded write only with its row present (home-service.ts:80) and the ledger holds no content to repeat. The ledger status stays `succeeded`.
 
 ## Answers
 
