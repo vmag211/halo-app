@@ -192,6 +192,16 @@ export function callForecast(h, { as = 'alice', date = FORECAST_DATE, place = ''
   return h.call('/api/forecast', 'GET', { as, url: `/api/forecast${params}`, headers });
 }
 
+/**
+ * Makes the two Open-Meteo grids disagree (gfs013 six hours ahead), so the adapter answers
+ * run_unknown and the route serves the last confirmed forecast, if any (ruling F18-S).
+ */
+export function gridsDisagree(w) {
+  for (const field of ['last_run_initialisation_time', 'last_run_availability_time', 'last_run_modification_time']) {
+    w.meta013[field] = FIXTURES.meta013[field] + 6 * 3600;
+  }
+}
+
 /** Captures every console line for one test (and keeps the test output quiet). */
 export function captureLogs(t) {
   const lines = [];

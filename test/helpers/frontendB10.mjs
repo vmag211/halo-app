@@ -18,9 +18,24 @@
  *   line, the empty-state message, the Air, UV and Pollen cells, the coverage
  *   cells, the Horizon, Expiry and Official notices rows).
  *
- * Written by B10 Task 7 (every snapshot body is run through it); Task 9 adds
- * the rest of the screen (validate, nextMeta, the task reason) and the
- * runtime-level contract suite.
+ * Written by B10 Task 7 (every snapshot body is run through it). Task 9 adds,
+ * for test/contractsB10.test.mjs:
+ *
+ * - `components/expanded/WeekOutdoors.tsx:33` (validate, the save check and
+ *   its forecast branches), verbatim as the body of `outdoorValidate`;
+ * - `components/expanded/WeekOutdoors.tsx:36-38` (nextMeta with `time` and
+ *   `zone`, the save options, and the task `reason`), verbatim as the body of
+ *   `outdoorCommitTail`, with `:WeekMeta` and one `!` removed;
+ * - `components/production/ProductionContext.tsx:9,14` (useProductionResource:
+ *   the input's JSON round trip, then data or serviceMessage(error)), as
+ *   `resourceRead`;
+ * - fragments of `WeekOutdoors.tsx:44,45` (the loading and error row with
+ *   Retry forecast, the Issued line, the Refresh forecast and changed notices,
+ *   the check-again date), as `forecastNotices` and `checkAgainDate`.
+ *
+ * Those are recorded in `TRANSCRIPTIONS_T9` and `FRAGMENTS_T9`, checked by the
+ * drift tests in test/contractsB10.test.mjs (Task 7's lists, and the test
+ * that counts them, are unchanged).
  *
  * `TRANSCRIPTIONS` records each source line and the exact annotations removed;
  * `FRAGMENTS` records text that must appear, character for character, both in
@@ -70,6 +85,50 @@ export function forecastScreenText(live,p){
  const expiry=(live.data?.expiresAt??'Unavailable');
  const notices=live.data?.warningStatus??'Warnings unavailable. Check the official site.';
  return {sourceName,issued,cells,coverage,horizon,expiry,notices};
+}
+
+/** Line 33, verbatim: the save check. Its free names are the component's locals and imports. */
+export function outdoorValidate({placeReview,blocked,navigator,draft,validActionDate,today,expired,live,copy,needsReview}){
+ function validate(){if(placeReview)return 'Choose and confirm a planning area of 100 characters or fewer. The full organizer address stays in Opportunity context.';if(blocked||!navigator.onLine)return 'Could not save. Your plan is kept.';if(!draft.activity.trim()||!draft.date||!validActionDate(draft.date)||draft.date<today||!Number.isInteger(draft.duration)||draft.duration<15||draft.duration>480)return 'Add an activity, a current or future date, and 15 to 480 minutes.';if(expired||live.data&&Date.parse(live.data.expiresAt)<=Date.now())return copy.forecastExpired;if(needsReview)return copy.forecastChanged;return '';}
+ return validate();
+}
+
+/**
+ * Lines 36 to 38, verbatim: what a save sends. `nextMeta` (the B06 task meta, with the period's
+ * start as `time` in `forecastZone`), the save options and the task `reason`; `state` is the
+ * My Week store (addActions or reviseAction), passed in.
+ */
+export async function outdoorCommitTail({emptyWeekMeta,metas,draft,currentPeriod,periodTime,forecastZone,today,existing,change,live,state,sourceName}){
+  const nextMeta={...emptyWeekMeta,...metas[draft.key],duration:draft.duration,estimateSet:true,time:currentPeriod?periodTime(currentPeriod.start):'',zone:forecastZone,note:`${draft.place||'Place not specified'}. ${draft.period}. Preparation checked: ${(draft.preparation??[]).join('; ')||'None'}. Watch: ${draft.watch?'requested, not activated':'off'}. Household context: ${draft.group||'general'}.`,history:[...(metas[draft.key]?.history??[]),`${today}: Outdoor plan ${existing?'updated after review':'saved'}. ${currentPeriod?.version??'No forecast'}.`]};
+  const options={metadata:{[draft.key]:nextMeta},expectedMetadata:existing?{[draft.key]:change.signature}:undefined,preferences:{outdoorPlan:{key:draft.key,place:draft.place,period:draft.period,watchRequested:draft.watch,forecastVersion:live.data?.version??null,forecastIssuedAt:live.data?.issuedAt??null,forecastExpiresAt:live.data?.expiresAt??null}}};
+  const saved=existing?!!change&&await state?.reviseAction(change.id,change.revision,{title:change.title,date:change.date,state:change.state},options):await state?.addActions([{key:draft.key,title:draft.activity.trim().slice(0,160),origin:'Outdoors',reason:currentPeriod?`Outdoor plan. Forecast ${currentPeriod.version}, ${sourceName}. Review conditions before going.`:'Forecast unavailable. Recheck official conditions before going.'}],draft.date,options);
+ return {nextMeta,options,saved};
+}
+
+/**
+ * components/production/ProductionContext.tsx:9,14: how useProductionResource turns one
+ * runtime.request into the read the hook returns (signature round trip, data or the
+ * service's own sentence). The abort, scope and attempt bookkeeping are left out.
+ */
+export async function resourceRead(runtime,operation,input,serviceMessage){
+ const signature=JSON.stringify(input);
+ let state;
+ await runtime.request(operation,signature===undefined?undefined:JSON.parse(signature),{signal:new AbortController().signal}).then(data=>{state={data,loading:false,error:null};},error=>{state={data:null,loading:false,error:serviceMessage(error)};});
+ return {...state,production:true,retry:()=>{}};
+}
+
+/** Line 44: the loading and error row above the periods, and the notices shown with periods. */
+export function forecastNotices(live,{forecastZone,expired,changed,needsReview,copy}){
+ const status=live.production&&(live.loading||live.error)?{loading:live.loading?'Loading forecast':null,message:live.loading?null:live.error,retry:!!live.error&&'Retry forecast'}:null;
+ const issuedLine=`Times in ${forecastZone}. Issued ${live.production?live.data?.issuedAt:''}.`;
+ const expiredNotice=expired?{message:copy.forecastExpired,control:'Refresh forecast'}:null;
+ const changedNotice=changed?{message:copy.forecastChanged,detail:live.production?live.data?.changedMessage:null,control:needsReview?'I reviewed these changes':'Changes reviewed'}:null;
+ return {status,issuedLine,expiredNotice,changedNotice};
+}
+
+/** Line 45: the check-again date offered under a date past the horizon. */
+export function checkAgainDate(far,draft,dayAdd){
+ return far?(draft.checkDate||dayAdd(draft.date,-2)):null;
 }
 
 // ------------------------------------------------------- the drift record
@@ -124,4 +183,33 @@ export const FRAGMENTS = Object.freeze([
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "(live.data?`${live.data.horizonStart} through ${live.data.horizonEnd}`:'Unavailable')" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "(live.data?.expiresAt??'Unavailable')" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "live.data?.warningStatus??'Warnings unavailable. Check the official site.'" },
+]);
+
+/** Task 9's whole-line transcriptions, in the same form as TRANSCRIPTIONS (checked in test/contractsB10.test.mjs). */
+export const TRANSCRIPTIONS_T9 = Object.freeze([
+  { fn: outdoorValidate, file: 'components/expanded/WeekOutdoors.tsx', line: 33, lines: 1, body: true, strip: [] },
+  {
+    fn: outdoorCommitTail,
+    file: 'components/expanded/WeekOutdoors.tsx',
+    line: 36,
+    lines: 3,
+    body: true,
+    strip: [['const nextMeta:WeekMeta=', 'const nextMeta='], ['change!.signature', 'change.signature']],
+  },
+]);
+
+/** Task 9's fragments, in the same form as FRAGMENTS. */
+export const FRAGMENTS_T9 = Object.freeze([
+  { fn: resourceRead, file: 'components/production/ProductionContext.tsx', line: 9, text: 'signature=JSON.stringify(input)' },
+  { fn: resourceRead, file: 'components/production/ProductionContext.tsx', line: 14, text: 'signature===undefined?undefined:JSON.parse(signature),{signal:' },
+  { fn: resourceRead, file: 'components/production/ProductionContext.tsx', line: 14, text: 'data:null,loading:false,error:serviceMessage(error)' },
+  { fn: resourceRead, file: 'components/production/ProductionContext.tsx', line: 14, text: 'data,loading:false,error:null' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production&&(live.loading||live.error)' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Loading forecast', source: '<HaloLoading label="Loading forecast" />' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Retry forecast', source: '{live.error&&<button className="mw-text" type="button" onClick={live.retry}>Retry forecast</button>}' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Times in ', source: '<p className="mw-muted">Times in {forecastZone}. Issued {live.production?live.data?.issuedAt:' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Refresh forecast', source: "{expired&&<div className=\"we-notice\" role=\"status\"><p>{copy.forecastExpired}</p><button className=\"mw-text\" type=\"button\" onClick={()=>{if(live.production)live.retry();else setReview({...review,forecast:'current'});setAcknowledged('');}}>Refresh forecast</button></div>}" },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production?live.data?.changedMessage:', source: "{changed&&<div className=\"we-notice\" role=\"status\"><p>{copy.forecastChanged}</p><p>{live.production?live.data?.changedMessage:" },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: "needsReview?'I reviewed these changes':'Changes reviewed'" },
+  { fn: checkAgainDate, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: 'draft.checkDate||dayAdd(draft.date,-2)', source: '{far&&<label>Check again on<DateInput todayDate={today} value={draft.checkDate||dayAdd(draft.date,-2)}' },
 ]);

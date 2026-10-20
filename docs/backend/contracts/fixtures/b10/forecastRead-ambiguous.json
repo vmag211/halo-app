@@ -1,0 +1,21 @@
+{
+  "operationId": "forecastRead",
+  "status": 200,
+  "body": {
+    "periods": [],
+    "issuedAt": "2026-10-19T20:07:00.000Z",
+    "expiresAt": "2026-10-20T20:07:00.000Z",
+    "zone": "America/New_York",
+    "source": "No forecast was made for the place you typed.",
+    "version": "fc1-1261fda71d56d14e",
+    "horizonStart": "2026-10-19",
+    "horizonEnd": "2026-10-25",
+    "warningStatus": "Warnings unavailable. Check the official site.",
+    "coverage": {
+      "Air": "For the place you typed: No forecast was made. This matches more than one North Carolina place: Fairview (Buncombe County), NC and Fairview (Union County), NC. Add the county or a ZIP code.",
+      "UV": "For the place you typed: No forecast was made. This matches more than one North Carolina place: Fairview (Buncombe County), NC and Fairview (Union County), NC. Add the county or a ZIP code.",
+      "Pollen": "For the place you typed: No forecast was made. This matches more than one North Carolina place: Fairview (Buncombe County), NC and Fairview (Union County), NC. Add the county or a ZIP code.",
+      "Weather": "For the place you typed: No forecast was made. This matches more than one North Carolina place: Fairview (Buncombe County), NC and Fairview (Union County), NC. Add the county or a ZIP code."
+    }
+  }
+}

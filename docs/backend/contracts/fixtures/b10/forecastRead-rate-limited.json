@@ -1,0 +1,12 @@
+{
+  "operationId": "forecastRead",
+  "status": 429,
+  "body": {
+    "error": "Too many forecast requests from this household. Try again in a few minutes.",
+    "code": "rate_limited",
+    "message": "Too many forecast requests from this household. Try again in a few minutes.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b10-contract-0001"
+  }
+}

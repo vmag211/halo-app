@@ -1,0 +1,18 @@
+{
+  "operationId": "forecastRead",
+  "status": 400,
+  "body": {
+    "error": "Use a real date in YYYY-MM-DD form.",
+    "code": "validation_failed",
+    "message": "Use a real date in YYYY-MM-DD form.",
+    "field_errors": [
+      {
+        "field": "date",
+        "code": "invalid_date",
+        "message": "Use a real date in YYYY-MM-DD form."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b10-contract-0001"
+  }
+}
