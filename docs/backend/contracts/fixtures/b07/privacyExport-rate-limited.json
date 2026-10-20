@@ -1,0 +1,12 @@
+{
+  "operationId": "privacyExport",
+  "status": 429,
+  "body": {
+    "error": "Too many privacy requests. Please try again later.",
+    "code": "rate_limited",
+    "message": "Too many privacy requests. Please try again later.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b07-contract-0001"
+  }
+}

@@ -12,8 +12,8 @@ import {
 } from '@/lib/operations';
 import { featureEnabled } from '@/lib/features';
 import { ACTIONS_DOMAIN, actionsUnavailable, isActionsUnavailable, liveActionsSnapshot } from '@/lib/actionsStore';
-import { PRIVACY_DOMAIN } from '@/lib/privacyStore';
-import { PRIVACY_EXPORT_KIND, privacyLimitKey, rebuildExportFile, withExportFile, withinRebuildWindow } from '@/lib/privacyExport';
+import { PRIVACY_DOMAIN, PRIVACY_KINDS } from '@/lib/privacyStore';
+import { privacyLimitKey, rebuildExportFile, withExportFile, withinRebuildWindow } from '@/lib/privacyExport';
 import { privacyReviewKey } from '@/lib/privacyToken';
 import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
 
@@ -175,7 +175,7 @@ export async function GET(request) {
         // it spends the privacy budget inspect and export share (P17,
         // fail-open), and with no review key it is skipped: the key is the
         // switch (P18), and it switches off this ten-minute tail too.
-        if (operation.kind === PRIVACY_EXPORT_KIND && privacyReviewKey() && withinRebuildWindow(operation.createdAt)) {
+        if (operation.kind === PRIVACY_KINDS.export && privacyReviewKey() && withinRebuildWindow(operation.createdAt)) {
           const allowed = await checkLimit(privacyLimiter, privacyLimitKey(userId), { fallback: true, label: 'privacy limiter' });
           if (!allowed) return apiError({ status: 429, code: ERROR_CODES.RATE_LIMITED, message: PRIVACY_LIMITED_MESSAGE, requestId });
           file = await rebuildExportFile(supabaseAdmin, { profileId: userId, selection: result.selection, createdAt: operation.createdAt });

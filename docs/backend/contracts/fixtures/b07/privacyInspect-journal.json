@@ -1,0 +1,27 @@
+{
+  "operationId": "privacyInspect",
+  "status": 200,
+  "body": {
+    "reviewToken": "review-token",
+    "expiresAt": "2099-01-01T00:10:00.000Z",
+    "count": 2,
+    "preview": {
+      "scope": "journal",
+      "remove": {
+        "journal": 2
+      },
+      "keep": [
+        "Everything outside the journal: your home, readings, alerts, tasks, settings and Luna conversation.",
+        "Your sign-in, so this device stays signed in.",
+        "A short receipt of this request, with none of your records in it, kept for 24 hours."
+      ],
+      "notStored": [
+        "Week journal check-ins are not stored on the server yet, so nothing is removed for them."
+      ],
+      "limits": [
+        "Copies you already downloaded cannot be recalled.",
+        "Server backups and records held by service providers are outside this deletion."
+      ]
+    }
+  }
+}

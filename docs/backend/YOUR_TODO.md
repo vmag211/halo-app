@@ -737,7 +737,7 @@ What it is for: the Settings privacy panel's two clears and the checks behind it
 - `privacy_schema_version`: lets the privacy status check tell whether 0024 is applied.
 - A guard on `public.operations`: once a privacy request's ledger row says `succeeded` or `failed`, its status can no longer change, so a clear whose answer is lost on the way back can never be recorded as "not applied" after the records were deleted. Every other kind of operation is unaffected.
 
-**Applying this does not turn privacy on.** The privacy routes are later B07 tasks, and they stay unavailable until the review key is set, which a later task documents. Nothing calls these functions until then.
+**Applying this does not turn privacy on.** The four privacy routes are built (B07 Tasks 3 to 6), and they stay unavailable until the review key is set (2.16). Nothing calls these functions until then.
 
 1. **Before applying, run this read-only check against production.** It lists any profile column the clear's reset does not name, because the reconstructed baseline may not know every column the deployed table has. **Expect no rows.** If it returns any, stop and send Claude the column names: the reset must name every one before 0024 is applied, or clear all would leave that column's value behind.
 
@@ -835,6 +835,26 @@ Then run `notify pgrst, 'reload schema';`.
 What this does NOT restore or undo: **every recorded daily maximum is deleted for good**, and `recording_from` with it, because both tables go. The days already recorded cannot be recorded again (no backfill), so a back-out leaves a permanent gap in the history from the first recorded day to the reapply. Nothing else is touched: 0024's clear keeps working (it reads this table only when it exists), and `daily_scores`, `home_contexts` and everything 0016 to 0024 created stay as they are.
 
 
+### 2.16 Turn privacy on: `HALO_PRIVACY_REVIEW_KEY` (B07)
+
+**Pending for you: 0024 and 0025 are both written and applied nowhere** (2.14 and 2.15). Privacy needs 0024 and the key below; 0025 is independent of it (B08's daily maxima), and the clear handles it whichever is applied first.
+
+The key is the switch (B07 Ruling P18): there is no capability flag. While it is unset, or shorter than 32 characters, every privacy route answers "unavailable" and the Settings privacy panel says "Privacy requests are unavailable." That is the honest off state, and it is the state today. It signs the short-lived review a person opens before an export or a clear (ten minutes, stored nowhere).
+
+1. **Generate a key** of 32 or more random characters, for example with `openssl rand -base64 48`. Never reuse `HALO_RECOVERY_TOKEN_KEY`: a separate key means rotating one never voids the other.
+2. **Set it server side only**, in Vercel, as a Sensitive variable named `HALO_PRIVACY_REVIEW_KEY`. Never `NEXT_PUBLIC_`: a key in the browser lets anyone mint reviews. Redeploy after setting it.
+3. **Add an empty placeholder line** `HALO_PRIVACY_REVIEW_KEY=` to `.env.example` yourself. Claude does not open `.env*` files.
+4. **Rotating it** only voids reviews younger than ten minutes: anyone mid-review is asked to review again. Nothing stored depends on it.
+
+**Order (plan Open question 4): clear all is irreversible and nothing has been driven through a browser yet.**
+
+1. Apply 0024 on staging (2.14, including its pre-apply profiles check).
+2. Set the key on staging only.
+3. One browser pass on staging: open Settings, Privacy; review and download an export (with and without private text); Clear Journal; then clear all on a throwaway household, typing DELETE, and check that the app goes back through onboarding and that Settings still opens.
+4. Only then apply 0024 on production and set the key there.
+
+**Decisions this leaves with you** (the B07 plan's Open questions, `docs/backend/plans/b07-privacy.md`): how long review tokens, export rebuilds and privacy receipts are kept (proposed ten minutes, ten minutes and 24 hours, the shortest the contract allows, D-P3); whether recovery challenges survive clear all (proposed yes); whether language resets to English on clear all (proposed yes); the 4,000,000-byte export cap and the limit of 30 privacy reviews and exports per household per hour; the in-flight cron residual F2 (accept, or add a "cleared at" marker); `home_risks` columns (re-run the read-only `docs/backend/baseline-audit.sql` and send the column list); and that the export carries the confirmed email only. None of them blocks setting the key on staging.
+
 ---
 
 ## Part 3. Decisions only you can make
@@ -925,6 +945,13 @@ From B10 (the outdoor planner's forecast, `forecast.read`). File and line refere
 30. **(Open question 5) Contract additions you may want, all additive.** An "Air, daily" label so AirNow's one daily number can be shown in the periods (today it is in Air coverage and the tradeoff text, and `air` is always `null`); a `place: {id, label}` field so the place need not live inside `source` and coverage; and confirmation that the horizon fields are date-only, inclusive and local to `zone` (F12).
 31. **(Open question 6) Units.** Temperatures are °F with °C in parentheses (F14). The preview fixture used °C (`lib/frontend/week-evidence-preview.ts:58`), and there is no units preference.
 32. **(Open question 7) Period windows and ambiguous names.** Morning is 08:00 to 12:00, Afternoon 12:00 to 17:00 and Evening 17:00 to 21:00, local (F13). "Columbus" resolves to the town rather than the county (F1). Both are product choices stated in coverage, not hidden; say if you want either changed.
+
+From B07 (privacy). File and line references are to this tree (the frontend as merged at `1253025`, ref `5ac06f6`). The contract is `docs/backend/contracts/b07.openapi.json`, with fixtures under `docs/backend/contracts/fixtures/b07/`. None of these blocks the backend, and the panel says "Privacy requests are unavailable." until the review key is set.
+
+33. **(F1) After clear all, go to onboarding.** `accept` (`components/production/ProductionPrivacy.tsx:23`) refreshes the workspace and tasks and clears drafts, but stays on Settings. The next app load does go to onboarding, because `GET /api/profile` now answers `onboarded: false`. Vibhav's decision D-P1 intends the person to go back through onboarding, so navigating there after "Your records were cleared." would match it.
+34. **(F4) The two Clear Journal counts differ.** The production panel shows the server's count (symptom logs and season summaries, `ProductionPrivacy.tsx:26`); the review build counts `weekJournal` (`components/expanded/SettingsPrivacy.tsx:34`). Week journal check-ins are not stored on the server yet, and the review says so. Consistent in production; noted so the two do not drift.
+35. **(C11) The workspace `clear-private` command is a second clearing path.** `components/homeguard/HomeWorkspaceState.tsx:270` sends a `clear-private` command through `workspace.execute`, which has no server route yet. When `workspace.execute` gets a server route, that command must go through `privacy.clear` or be refused, so two paths never clear the same records differently.
+36. **A too-large export says only "Check the highlighted information and try again."** An export whose file would pass 4,000,000 bytes is refused at review with a 422 `export_too_large` (message "This export is too large to download at once. Choose fewer groups and try again."), which the runtime maps to its generic validation sentence and highlights nothing. Showing the server's message, or a sentence of your own for `export_too_large`, would tell the person what to do.
 
 ## Part 5. Small follow-ups that are NOT scheduled (decide if you want them)
 

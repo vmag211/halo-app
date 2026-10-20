@@ -1,0 +1,58 @@
+{
+  "operationId": "privacyInspect",
+  "status": 200,
+  "body": {
+    "reviewToken": "review-token",
+    "expiresAt": "2099-01-01T00:10:00.000Z",
+    "count": 1,
+    "preview": {
+      "manifest": {
+        "schemaVersion": 1,
+        "records": 1,
+        "counts": {
+          "tasks": {
+            "household_actions": 1,
+            "household_action_preferences": 0
+          }
+        },
+        "omitted": [
+          {
+            "table": "household_action_state",
+            "reason": "An internal save counter that is never shown (B06 Ruling H10)."
+          },
+          {
+            "table": "operations",
+            "reason": "The request ledger is internal bookkeeping, not a household record (D-P2)."
+          },
+          {
+            "table": "recovery_challenges",
+            "reason": "Account recovery proof material is never exported (D-P2)."
+          }
+        ],
+        "warnings": []
+      },
+      "fields": {
+        "tasks": {
+          "household_actions": [
+            "id",
+            "action_key",
+            "title",
+            "reason",
+            "origin",
+            "due_date",
+            "state",
+            "revision",
+            "meta",
+            "created_at",
+            "updated_at"
+          ],
+          "household_action_preferences": [
+            "pref_key",
+            "value",
+            "updated_at"
+          ]
+        }
+      }
+    }
+  }
+}

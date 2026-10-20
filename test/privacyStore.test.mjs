@@ -263,3 +263,52 @@ test('the domain is privacy, and the module has no em dash, no select and no log
   assert.ok(!/console\./.test(source));
   assert.ok(!/\.select\(/.test(source));
 });
+
+// ---------------------------------------------------------------------------
+// Task 7: the helpers folded into this module (kinds, log codes, the opening)
+// ---------------------------------------------------------------------------
+
+const { PRIVACY_KINDS, loggableCode, openPrivacy, privacyScopeOfKind } = await import('../lib/privacyStore.js');
+
+test('loggableCode keeps only a short code: never a message, a long or odd code, or a non-string', () => {
+  assert.equal(loggableCode({ code: 'PGRST202', message: 'Could not find public.privacy_schema_version for profile a11ce' }), 'PGRST202');
+  assert.equal(loggableCode({ code: 'XX000' }), 'XX000');
+  for (const err of [
+    { message: 'relation "operations" for 00000000-0000-4000-8000-00000000000a' },
+    { code: 'a'.repeat(17) },
+    { code: 'HALO 0024: 35.409,-80.581' },
+    { code: 42 },
+    null,
+    undefined,
+    'a bare string error',
+  ]) assert.equal(loggableCode(err), 'unexpected', JSON.stringify(err));
+});
+
+test('PRIVACY_KINDS and privacyScopeOfKind are one table, both ways', () => {
+  assert.ok(Object.isFrozen(PRIVACY_KINDS));
+  for (const [scope, kind] of Object.entries(PRIVACY_KINDS)) assert.equal(privacyScopeOfKind(kind), scope);
+  for (const kind of ['privacy.clear', 'toString', '__proto__', '', null]) assert.equal(privacyScopeOfKind(kind), null);
+});
+
+test('openPrivacy checks the key before asking the database, then the 0024 probe', async () => {
+  const saved = process.env.HALO_PRIVACY_REVIEW_KEY;
+  const calls = [];
+  const db = (answer) => ({ rpc: async (name) => { calls.push(name); return answer; } });
+  try {
+    delete process.env.HALO_PRIVACY_REVIEW_KEY;
+    assert.equal(await openPrivacy(db({ data: 1, error: null })), null);
+    process.env.HALO_PRIVACY_REVIEW_KEY = 'short';
+    assert.equal(await openPrivacy(db({ data: 1, error: null })), null);
+    assert.deepEqual(calls, [], 'no key: nothing is asked of the database');
+    const key = 'privacy-review-key-for-tests-only-0123456789';
+    process.env.HALO_PRIVACY_REVIEW_KEY = key;
+    assert.equal(await openPrivacy(db({ data: 1, error: null })), key);
+    assert.equal(await openPrivacy(db({ data: null, error: { code: 'PGRST202', message: 'missing' } })), null, 'before 0024');
+    assert.equal(await openPrivacy(db({ data: 2, error: null })), null, 'another 0024 version');
+    await assert.rejects(openPrivacy(db({ data: null, error: { code: 'XX000', message: 'boom' } })), (err) => err.code === 'XX000', 'any other failure propagates');
+    assert.equal(calls.length, 4, 'one probe per call with a key');
+  } finally {
+    if (saved === undefined) delete process.env.HALO_PRIVACY_REVIEW_KEY;
+    else process.env.HALO_PRIVACY_REVIEW_KEY = saved;
+  }
+});

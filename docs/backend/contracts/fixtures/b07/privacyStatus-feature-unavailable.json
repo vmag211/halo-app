@@ -1,0 +1,12 @@
+{
+  "operationId": "privacyStatus",
+  "status": 503,
+  "body": {
+    "error": "Privacy requests are not available yet. Nothing was changed.",
+    "code": "feature_unavailable",
+    "message": "Privacy requests are not available yet. Nothing was changed.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b07-contract-0001"
+  }
+}
