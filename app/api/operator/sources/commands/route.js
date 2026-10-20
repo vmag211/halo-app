@@ -118,7 +118,7 @@ function bodyErrors(body) {
     operationId.ok ? null : { field: 'operationId', code: operationId.code, message: operationId.message },
     SOURCE_IDS.includes(body.sourceId) ? null : field('sourceId', 'source'),
     positiveInt(body.sourceRevision) ? null : field('sourceRevision', 'revision'),
-    typeof body.target === 'string' && body.target.length <= 200 && !/[\u0000-\u001F]/.test(body.target) ? null : field('target', 'target'),
+    typeof body.target === 'string' && body.target.length <= 200 && !/[\u0000-\u001F]/.test(body.target) && !LONE_SURROGATE.test(body.target) ? null : field('target', 'target'),
     SOURCE_DECISIONS.includes(body.decision) ? null : field('decision', 'decision'),
     validReason(body.reason) ? null : field('reason', 'reason'),
     typeof body.recordedAt === 'string' && body.recordedAt.length <= 40 && Number.isFinite(Date.parse(body.recordedAt)) ? null : field('recordedAt', 'recordedAt'),
