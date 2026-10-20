@@ -28,7 +28,9 @@
 -- A VERIFICATION COVERS EXACTLY WHAT IS SERVED (section 4): any change to a
 -- served column that does not also set a new verified_at clears verified_by
 -- and verified_at, so the row stops being served until a person checks it
--- again. Every change raises revision by one.
+-- again. Every change raises revision by one. So recording a cancellation
+-- (or full, or postponed) must set verified_at = now() in the same UPDATE, or
+-- the detail stops answering for that listing (YOUR_TODO.md 2.23).
 --
 -- Errors the triggers raise, SQLSTATE P0001 with exactly this message and a
 -- DETAIL naming the column (never a value):
@@ -49,9 +51,11 @@
 -- 1. Shape checks, immutable, used by the CHECK constraints
 -- ---------------------------------------------------------------------------
 
--- One served sentence: present, not blank, bounded, no control character, no
--- em dash (AGENTS.md: none in app-facing text), and no <placeholder> left
--- from the YOUR_TODO.md 2.23 template, so the template cannot be run unedited.
+-- One served sentence: present, bounded, at least one character that is not
+-- whitespace as JavaScript's trim() counts it (tab, line breaks, no-break and
+-- the other Unicode spaces), no control character, no em dash (AGENTS.md:
+-- none in app-facing text), and no <placeholder> left from the YOUR_TODO.md
+-- 2.23 template, so the template cannot be run unedited.
 create or replace function public.participation_text_ok(p_value text, p_max integer)
 returns boolean
 language sql
@@ -59,13 +63,19 @@ immutable
 security invoker
 set search_path = public
 as $$
-  select p_value is not null and char_length(btrim(p_value)) >= 1 and char_length(p_value) <= p_max
+  select p_value is not null and char_length(p_value) <= p_max
+     and p_value ~ ('[^ ' || chr(9) || chr(10) || chr(13) || chr(160) || chr(5760) || chr(8192) || '-' || chr(8202)
+                    || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288) || chr(65279) || ']')
      and p_value !~ '[\x01-\x08\x0b\x0c\x0e-\x1f]' and strpos(p_value, U&'\2014') = 0
      and p_value !~ '<[^>]*>';
 $$;
 
--- An official https address with no user name or password in it (the
--- client's safeSourceUrl), at most 2000 characters.
+-- An official https address (the client's safeSourceUrl, made stricter so a
+-- row the database accepts is never one the client refuses): a host name of
+-- dot-separated labels ending in a letter top-level domain (no IP address, no
+-- port, no user name or password), then printable ASCII only (no space, no
+-- control character, no em dash; anything else is percent-encoded), at most
+-- 2000 characters.
 create or replace function public.participation_url_ok(p_value text)
 returns boolean
 language sql
@@ -74,7 +84,7 @@ security invoker
 set search_path = public
 as $$
   select p_value is not null and char_length(p_value) <= 2000
-     and p_value ~ '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][^[:space:]]*)?$';
+     and p_value ~ '^https://([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}([/?#][!-~]*)?$';
 $$;
 
 -- A list of short served sentences: 1 to p_items entries, each p_max at most.
@@ -261,7 +271,11 @@ create table if not exists public.participation_opportunities (
            and artwork in ('tree', 'cleanup', 'garden')
            and status in ('listed', 'cancelled', 'full', 'postponed')),
   constraint participation_opportunities_kind_check
-    check ((kind = 'scheduled' and starts_at is not null and ends_at is not null and ends_at > starts_at)
+    -- Whole minutes, before the year 9999: the served instants are whole
+    -- seconds with a four-digit year, and the client needs end after start.
+    check ((kind = 'scheduled' and starts_at is not null and ends_at is not null and ends_at > starts_at
+            and mod(extract(epoch from starts_at), 60) = 0 and mod(extract(epoch from ends_at), 60) = 0
+            and ends_at < timestamptz '9999-01-01 00:00:00+00')
            or (kind = 'rolling' and starts_at is null and ends_at is null and venue_local_date is null)),
   constraint participation_opportunities_zone_check
     check ((venue_timezone_basis is null or (venue_timezone_basis in ('source', 'inferred') and venue_timezone is not null))
