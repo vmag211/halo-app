@@ -109,6 +109,20 @@ test('a database failure is a 500 whose log carries the code only', async (t) =>
   assert.equal(p.calls.length, 0);
 });
 
+test('a whole-batch refusal is logged by its refusal code only, and the run still finishes', async (t) => {
+  const { h } = harness({ seed: 1, rpcs: false });
+  h.db.registerRpc('begin_daily_maxima_run', ({ p_first_day: first }) => first, { args: ['p_first_day'] });
+  h.db.registerRpc('record_daily_maxima', () => { throw rpcError('P0001', 'HALO_INVALID_INPUT', 'a row names a home context of another household'); }, { args: ['p_rows'] });
+  h.db.registerRpc('finish_daily_maxima_run', () => '2026-10-20T12:00:01Z', { args: ['p_counts'] });
+  const errors = t.mock.method(console, 'error', () => {});
+  const res = await call(t, h);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).failedBatches, 1);
+  const logged = errors.mock.calls.map((c) => c.arguments.join(' ')).join('\n');
+  assert.match(logged, /HALO_INVALID_INPUT/);
+  assert.ok(!logged.includes('another household'));
+});
+
 test('the route exports maxDuration 60, documents the E5 fallback, and vercel.json schedules it at 12:00 UTC', () => {
   const source = readFileSync(path.join(REPO_ROOT, ROUTE), 'utf8');
   assert.match(source, /^export const maxDuration = 60;$/m);

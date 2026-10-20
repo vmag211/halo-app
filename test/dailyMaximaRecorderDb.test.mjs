@@ -365,3 +365,46 @@ test('1,200 current contexts are all reached across keyset pages', async (t) => 
   const { rows } = await db.query('select count(distinct home_context_id)::int as n from public.daily_maxima');
   assert.equal(rows[0].n, 1200);
 });
+
+// ---- Found by the Task 3 test pass ----
+
+test('a measured home stays measured when its only sourced rows were pending and then finalized with no answer (E8)', async (t) => {
+  const a = await household(1, { from: '2026-10-17T12:00:00Z' });
+  const FAR = { code: '371830014', lat: RALEIGH.lat, lng: RALEIGH.lng };
+  const p = providers({ stations: [NEAR_STATION, FAR] });
+  // First run: the near station covers 12 of 24 hours, so both days are pending measured rows.
+  p.set({ drop: (ms, kind, s) => kind === 'airnow' && s.code === NEAR_STATION.code && Math.floor(ms / 3600000) % 2 === 0 });
+  await run(t, p, '2026-10-20T12:00:00Z');
+  assert.ok((await rowsOf(a.context)).filter((r) => r.factor === 'air').every((r) => r.source_code === 'airnow_station' && r.missing_code === 'pending'));
+  // Runs missed; then the near station is silent while AirNow answers for another station.
+  p.set({ drop: (ms, kind, s) => kind === 'airnow' && s.code === NEAR_STATION.code });
+  await run(t, p, '2026-10-26T12:00:00Z');
+  p.reset();
+  await run(t, p, '2026-10-27T12:00:00Z');
+  const air = (await rowsOf(a.context)).filter((r) => r.factor === 'air');
+  assert.ok(air.every((r) => r.source_code !== 'open_meteo_cams'), JSON.stringify(air.map((r) => [r.date, r.source_code])));
+  assert.equal(p.count('air_quality'), 0);
+  const d18 = air.find((r) => r.date === '2026-10-18');
+  assert.deepEqual([d18.source_code, d18.station_id, d18.missing_code], ['airnow_station', NEAR_STATION.code, 'unavailable']);
+});
+
+test('an Open-Meteo answer whose window hours are all null is a provider failure: three runs end unavailable, not Source gap', async (t) => {
+  const a = await household(1, { point: RALEIGH });
+  const p = providers({ stations: [NEAR_STATION], forecast: 'nulls', airQuality: 'nulls' });
+  t.mock.method(console, 'error', () => {});
+  for (const at of ['2026-10-20T12:00:00Z', '2026-10-21T12:00:00Z', '2026-10-22T12:00:00Z']) await run(t, p, at);
+  const d19 = (await rowsOf(a.context)).filter((r) => r.date === '2026-10-19');
+  assert.deepEqual(d19.map((r) => [r.factor, r.missing_code]), [['air', 'unavailable'], ['uv', 'unavailable']]);
+});
+
+test('an AirNow answer in a changed shape is a provider failure, so an undecided home is not fixed as modeled', async (t) => {
+  const a = await household(1);
+  const p = providers({ stations: [NEAR_STATION], reshape: (row) => ({ ...row, Latitude: String(row.Latitude), Longitude: String(row.Longitude) }) });
+  t.mock.method(console, 'error', () => {});
+  const { body } = await run(t, p, '2026-10-20T12:00:00Z');
+  assert.equal(body.airnowFailed, 1);
+  assert.equal(p.count('air_quality'), 0);
+  assert.ok((await rowsOf(a.context)).filter((r) => r.factor === 'air').every((r) => r.source_code === null));
+  p.set({ reshape: (row) => ({ ...row, Parameter: undefined }) });
+  assert.equal((await run(t, p, '2026-10-20T12:00:00Z')).body.airnowFailed, 1);
+});

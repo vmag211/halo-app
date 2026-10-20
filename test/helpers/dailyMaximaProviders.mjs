@@ -9,9 +9,10 @@
  * Options, each changeable between runs (p.set({...})):
  *   stations     AirNow sites: {code, lat, lng, params: ['OZONE','PM2.5'], aqi: (instantMs) => n}
  *   airnow       'ok' | 'http_500' | 'empty' | 'object' (a 200 with an error object)
- *   forecast     'ok' | 'http_500' | 'foreign' (times that fall on no requested day)
+ *   forecast     'ok' | 'http_500' | 'foreign' (times that fall on no requested day) | 'nulls' (every value null)
  *   airQuality   the same, for air-quality-api
  *   drop         (instantMs, kind) => true to leave that hour out (kind 'airnow', 'uv_index', 'us_aqi')
+ *   reshape      (row) => row, applied to each AirNow row (to change the answer's shape)
  *   onCall       async ({host, url}) => void, before answering (to change the world mid-run)
  */
 export const ALLOWED_HOSTS = Object.freeze(['www.airnowapi.org', 'api.open-meteo.com', 'air-quality-api.open-meteo.com']);
@@ -22,7 +23,7 @@ export const aqiAt = (ms) => 30 + (Math.floor(ms / HOUR) % 17); // 30 to 46
 export const uvAt = (ms) => (Math.floor(ms / HOUR) % 24) / 2; // 0 to 11.5
 
 export function providers(initial = {}) {
-  const options = { stations: [], airnow: 'ok', forecast: 'ok', airQuality: 'ok', drop: () => false, onCall: null, ...initial };
+  const options = { stations: [], airnow: 'ok', forecast: 'ok', airQuality: 'ok', drop: () => false, reshape: (row) => row, onCall: null, ...initial };
   const calls = [];
 
   const airnow = (url) => {
@@ -44,7 +45,7 @@ export function providers(initial = {}) {
         }
       }
     }
-    return Response.json(rows);
+    return Response.json(rows.map(options.reshape));
   };
 
   const openMeteo = (url, mode, field) => {
@@ -59,7 +60,7 @@ export function providers(initial = {}) {
     for (let i = 0; i < (past + forecastDays) * 24; i += 1) {
       const t = start + i * HOUR;
       time.push(t / 1000);
-      values.push(options.drop(t, field) ? null : field === 'uv_index' ? uvAt(t) : aqiAt(t));
+      values.push(mode === 'nulls' || options.drop(t, field) ? null : field === 'uv_index' ? uvAt(t) : aqiAt(t));
     }
     return Response.json({ latitude: 1, longitude: 1, utc_offset_seconds: 0, timezone: 'GMT', hourly: { time, [field]: values } });
   };
