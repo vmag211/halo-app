@@ -67,6 +67,9 @@ import {
 
 export const maxDuration = 60;
 
+/** PostgreSQL's unique violation. */
+const UNIQUE_VIOLATION = '23505';
+
 const conflict = (message, requestId, reason) =>
   apiError({ status: 409, code: ERROR_CODES.CONFLICT, message, retryable: false, requestId, extra: { reason } });
 const unprocessable = (message, requestId, reason) =>
@@ -181,7 +184,16 @@ export async function POST(request) {
         // (a clear all deletes settled rows): nothing was checked, so nothing is saved.
         if (!draft) return { status: 'failed', reason: 'not_applied', unresolvedOperations: [] };
         try {
-          const committed = await saveDraft(supabaseAdmin, { profileId: userId, operationId, draft });
+          let committed;
+          try {
+            committed = await saveDraft(supabaseAdmin, { profileId: userId, operationId, draft });
+          } catch (error) {
+            // Another prepare for the same recipient created the draft first (unique household and
+            // key). The save rolled back whole, so nothing was written and this operation is still
+            // pending: run it again, and it finds that draft and keeps or revises it.
+            if (error?.code !== UNIQUE_VIOLATION) throw error;
+            committed = await saveDraft(supabaseAdmin, { profileId: userId, operationId, draft });
+          }
           fresh = committed.draft;
           return committed.receipt;
         } catch (error) {
