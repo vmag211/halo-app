@@ -5,17 +5,17 @@ import { readJsonBody, parseUuid } from '@/lib/validate';
 import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
 import { fingerprintTables } from '@/lib/privacyInventory';
-import { privacyReviewKey, readReviewSelection, verifyReviewToken } from '@/lib/privacyToken';
+import { readReviewSelection, verifyReviewToken } from '@/lib/privacyToken';
 import {
   PRIVACY_DOMAIN,
+  PRIVACY_KINDS,
   isPrivacyUnavailable,
+  openPrivacy,
   privacyFingerprint,
   privacyUnavailable,
-  probePrivacySchema,
 } from '@/lib/privacyStore';
 import {
   EXPORT_MAX_RESPONSE_BYTES,
-  PRIVACY_EXPORT_KIND,
   buildExportDocument,
   privacyLimitKey,
   rebuildExportFile,
@@ -229,10 +229,8 @@ export async function POST(request) {
     if (claimed.scope !== scope) return badField('scope', 'scope_mismatch', MESSAGES.scopeMismatch, requestId);
 
     // Availability before any claim (P11): the key, then 0024 (which asserts 0017).
-    const reviewKey = privacyReviewKey();
+    const reviewKey = await openPrivacy(supabaseAdmin);
     if (!reviewKey) return privacyUnavailable(requestId);
-    const probe = await probePrivacySchema(supabaseAdmin);
-    if (!probe.available) return privacyUnavailable(requestId);
 
     // One budget with inspect (P17): each is a full read of the household. Fail-open.
     const allowed = await checkLimit(privacyLimiter, privacyLimitKey(userId), { fallback: true, label: 'privacy limiter' });
@@ -258,7 +256,7 @@ export async function POST(request) {
         operationId: operationId.value,
         profileId: userId,
         domain: PRIVACY_DOMAIN,
-        kind: PRIVACY_EXPORT_KIND,
+        kind: PRIVACY_KINDS.export,
         input: { reviewToken, scope },
       },
       async () => {

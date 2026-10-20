@@ -14,7 +14,7 @@ import { fetchHistory, UNLINKED_HOME } from '@/lib/journalHistory';
 import { pushConfigured, sendAlertPushes } from '@/lib/push';
 import { buildAndStoreAll } from '@/lib/mapBuild';
 import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
-import { purgeAllPrivacyReceipts } from '@/lib/privacyStore';
+import { loggableCode, purgeAllPrivacyReceipts } from '@/lib/privacyStore';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -265,8 +265,7 @@ async function runDaily(request) {
 
     // Privacy receipt retention for every household (P10), once per run, never fatal.
     const privacyReceiptsPurged = await purgeAllPrivacyReceipts(supabaseAdmin).catch((err) => {
-      const code = typeof err?.code === 'string' && /^[A-Za-z0-9_]{1,16}$/.test(err.code) ? err.code : 'unexpected';
-      console.error('Daily job: the privacy receipt purge failed; the run goes on:', code);
+      console.error('Daily job: the privacy receipt purge failed; the run goes on:', loggableCode(err));
       return null;
     });
 

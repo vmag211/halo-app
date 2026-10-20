@@ -4,7 +4,7 @@ import { ERROR_CODES, apiError, requestIdFor, validationError, internalError, lo
 import { readCurrentHomeContext } from '@/lib/homeContextRpc';
 import { localDate } from '@/lib/localDate';
 import { MAX_SPAN_DAYS, buildHistorySnapshot, firstFullDay, isCalendarDate } from '@/lib/dailyMaxima';
-import { readEvidenceRows, readRecordingFrom } from '@/lib/dailyMaximaStore';
+import { isDailyMaximaUnavailable, probeDailyMaximaSchema, readEvidenceRows, readRecordingFrom } from '@/lib/dailyMaximaStore';
 
 /**
  * GET /api/evidence?kind=history&from=YYYY-MM-DD&to=YYYY-MM-DD (operation `evidence.read`,
@@ -28,7 +28,8 @@ import { readEvidenceRows, readRecordingFrom } from '@/lib/dailyMaximaStore';
  *   `history`; `from` and `to` are real calendar dates, `from <= to`, at most 92 days
  *   inclusive. A `to` after today is accepted (its dates are null rows). Anything else is a 400
  *   with field_errors, before any database read.
- * E19. 401 without a session. 0025 not applied (the probe daily_maxima_schema_version, or a
+ * E19. 401 without a session. 0025 not applied (lib/dailyMaximaStore.js probeDailyMaximaSchema
+ *   and isDailyMaximaUnavailable: the probe daily_maxima_schema_version, or a
  *   table it made, missing: PGRST202, 42883, PGRST205, 42P01) is a non-retryable 503
  *   `feature_unavailable`. Any other database error is the house 500. The body has no
  *   top-level `data` key. No outbound network call is made. `X-Request-Id` on every answer,
@@ -39,10 +40,6 @@ import { readEvidenceRows, readRecordingFrom } from '@/lib/dailyMaximaStore';
  */
 
 const QUERY_KEYS = Object.freeze(['kind', 'from', 'to']);
-/** The probe's answer for the 0025 this route was written against. */
-const SCHEMA_VERSION = 1;
-/** "Not there yet": the function (PostgREST, Postgres), then a table (PostgREST, Postgres). */
-const UNAVAILABLE_CODES = new Set(['PGRST202', '42883', 'PGRST205', '42P01']);
 const NO_STORE = 'private, no-store';
 const DAY_MS = 86_400_000;
 
@@ -99,8 +96,6 @@ function parseQuery(searchParams) {
   return { ok: true, value: { from, to } };
 }
 
-const isUnavailable = (error) => !!error && UNAVAILABLE_CODES.has(error.code);
-
 function unavailable(requestId) {
   return apiError({
     status: 503,
@@ -109,18 +104,6 @@ function unavailable(requestId) {
     retryable: false,
     requestId,
   });
-}
-
-/** True when 0025 is applied at this route's version; false when it is not; throws otherwise. */
-async function schemaAvailable() {
-  const { data, error } = await supabaseAdmin.rpc('daily_maxima_schema_version');
-  if (error && isUnavailable(error)) return false;
-  if (error) {
-    const failure = new Error('daily maxima probe failed');
-    failure.code = typeof error.code === 'string' ? error.code : null;
-    throw failure;
-  }
-  return data === SCHEMA_VERSION;
 }
 
 export async function GET(request) {
@@ -132,7 +115,7 @@ export async function GET(request) {
     if (!parsed.ok) return validationError(parsed.fieldErrors, requestId);
     const { from, to } = parsed.value;
 
-    if (!(await schemaAvailable())) return unavailable(requestId);
+    if (!(await probeDailyMaximaSchema(supabaseAdmin)).available) return unavailable(requestId);
 
     const today = localDate();
     const current = await readCurrentHomeContext(supabaseAdmin, userId);
@@ -149,7 +132,7 @@ export async function GET(request) {
           readRecordingFrom(supabaseAdmin),
         ]);
       } catch (error) {
-        if (isUnavailable(error)) return unavailable(requestId);
+        if (isDailyMaximaUnavailable(error)) return unavailable(requestId);
         throw error;
       }
       snapshot = buildHistorySnapshot({

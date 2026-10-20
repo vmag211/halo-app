@@ -1,0 +1,21 @@
+{
+  "operationId": "forecastRead",
+  "status": 200,
+  "body": {
+    "periods": [],
+    "issuedAt": "2026-10-19T20:07:00.000Z",
+    "expiresAt": "2026-10-20T20:07:00.000Z",
+    "zone": "America/New_York",
+    "source": "No forecast was made for your home area.",
+    "version": "fc1-395845050903f26b",
+    "horizonStart": "2026-10-19",
+    "horizonEnd": "2026-10-25",
+    "warningStatus": "Warnings unavailable. Check the official site.",
+    "coverage": {
+      "Air": "For your home area: No forecast was made. No home location is saved. Finish setup, or type a North Carolina city, county or ZIP code.",
+      "UV": "For your home area: No forecast was made. No home location is saved. Finish setup, or type a North Carolina city, county or ZIP code.",
+      "Pollen": "For your home area: No forecast was made. No home location is saved. Finish setup, or type a North Carolina city, county or ZIP code.",
+      "Weather": "For your home area: No forecast was made. No home location is saved. Finish setup, or type a North Carolina city, county or ZIP code."
+    }
+  }
+}

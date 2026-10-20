@@ -64,7 +64,8 @@ begin;
 -- source_code. A home never mixes the two in one series: once a home context
 -- has a row with a source for a factor and method version, every other row
 -- with a source for that home, factor and version must name the same source,
--- or record_daily_maxima refuses with HALO_SOURCE_KIND_FIXED. A CHECK pairs
+-- or record_daily_maxima refuses that row alone and counts it under the rule
+-- source_kind_fixed (the rest of the batch is written). A CHECK pairs
 -- each source with its factor, and requires a station code exactly for a
 -- measured (AirNow station) row.
 --

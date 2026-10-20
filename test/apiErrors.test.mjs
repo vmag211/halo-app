@@ -334,3 +334,16 @@ second ${key}`), { code: 'ECONNRESET' })), 'Error ECONNRESET: first line');
   assert.equal(loggableUpstashError(`a string with ${key}`), '(not an error object)');
   assert.equal(loggableUpstashError(null), '(not an error object)');
 });
+
+test('loggableUpstashError never throws: a throwing getter or a refusing Proxy is a fixed sentence (B10 N6)', () => {
+  const key = 'halo:forecast:v1:open-meteo:12.34,-56.78:2026102414';
+  for (const field of ['name', 'code', 'message']) {
+    const err = new Error(`boom ${key}`);
+    Object.defineProperty(err, field, { get() { throw new Error(`getter ${key}`); } });
+    assert.equal(loggableUpstashError(err), '(unreadable error object)', field);
+  }
+  const proxy = new Proxy({}, { get() { throw new Error(key); } });
+  assert.equal(loggableUpstashError(proxy), '(unreadable error object)');
+  // A plain object with readable fields is still read as before.
+  assert.equal(loggableUpstashError({ name: 'UpstashError', message: `ERR x, command was: ["get","${key}"]` }), 'UpstashError: ERR x');
+});
