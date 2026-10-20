@@ -1,0 +1,41 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 409,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "tests",
+    "record": {
+      "id": "test-reaped",
+      "title": "Kitchen tap",
+      "revision": 0,
+      "purpose": "Check the kitchen tap",
+      "contextId": "0b110000-0000-4000-8000-000000000002",
+      "medium": "water",
+      "provider": "",
+      "sampleLabel": "",
+      "method": "",
+      "reviewReason": "",
+      "kind": "water",
+      "status": "draft",
+      "plannedDate": "",
+      "collectionStart": "",
+      "collectionEnd": "",
+      "expectedDate": "",
+      "rows": [],
+      "review": "not_received",
+      "archived": false,
+      "history": []
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "error": "That earlier save did not finish, so nothing was saved. Reload before trying again.",
+    "code": "conflict",
+    "message": "That earlier save did not finish, so nothing was saved. Reload before trying again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b11-contract-0001",
+    "reason": "abandoned"
+  }
+}

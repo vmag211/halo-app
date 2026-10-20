@@ -1,0 +1,77 @@
+{
+  "operationId": "operationsRead",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "tests",
+    "record": {
+      "id": "test-kitchen-tap",
+      "title": "Kitchen tap",
+      "revision": 0,
+      "purpose": "Check the kitchen tap",
+      "contextId": "0b110000-0000-4000-8000-000000000002",
+      "medium": "water",
+      "provider": "",
+      "sampleLabel": "",
+      "method": "",
+      "reviewReason": "",
+      "kind": "water",
+      "status": "draft",
+      "plannedDate": "",
+      "collectionStart": "",
+      "collectionEnd": "",
+      "expectedDate": "",
+      "rows": [],
+      "review": "not_received",
+      "archived": false,
+      "history": []
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "status": "succeeded",
+    "removed": [],
+    "affected": [
+      {
+        "id": "test-kitchen-tap",
+        "revision": 1,
+        "collection": "tests"
+      }
+    ],
+    "collections": [
+      "tests"
+    ],
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "unresolvedOperations": [],
+    "changes": {
+      "tests": [
+        {
+          "id": "test-kitchen-tap",
+          "kind": "water",
+          "rows": [],
+          "title": "Kitchen tap",
+          "medium": "water",
+          "method": "",
+          "review": "not_received",
+          "status": "draft",
+          "history": [],
+          "purpose": "Check the kitchen tap",
+          "archived": false,
+          "provider": "",
+          "revision": 1,
+          "contextId": "0b110000-0000-4000-8000-000000000002",
+          "plannedDate": "",
+          "sampleLabel": "",
+          "expectedDate": "",
+          "reviewReason": "",
+          "collectionEnd": "",
+          "collectionStart": ""
+        }
+      ]
+    },
+    "domain": "workspace",
+    "kind": "workspace.write",
+    "created_at": "2026-10-20T12:00:00.000Z"
+  }
+}

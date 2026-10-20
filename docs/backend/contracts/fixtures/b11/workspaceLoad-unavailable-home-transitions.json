@@ -1,0 +1,19 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 200,
+  "request": {
+    "collection": "homeTransitions"
+  },
+  "body": {
+    "records": [],
+    "availability": "unavailable",
+    "complete": false,
+    "message": "Past home changes are kept with your account and are not listed here yet.",
+    "pendingOperations": [
+      {
+        "operationId": "0b110000-0000-4000-8000-000000000001",
+        "domain": "workspace"
+      }
+    ]
+  }
+}

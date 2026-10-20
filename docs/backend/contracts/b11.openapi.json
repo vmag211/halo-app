@@ -1,0 +1,4006 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B11 Homeguard workspace backend contract",
+    "version": "b11-1",
+    "description": "The two operations B11 built for Homeguard and the B11 half of operations.read: workspace.load (GET /api/frontend/workspace), workspace.execute (POST /api/frontend/workspace/commands) and the workspace domain of GET /api/operations. Response schemas mirror the frontend's own validators on origin/codex/october15-review-refinement (home-service.ts, home-records.ts, explore-service.ts, adapters.ts), which refuse a whole payload or a whole collection on one wrong field; where a rule is not JSON Schema the conformance test runs the client's own compiled module instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key. Dropped, and absent here: weekJournal and homeTransitions storage (Rulings W2, W3: answered unavailable), private files (W4), the clear-private command (W9: refused), a collection revision (W6) and the attachments routes. Nothing here is a deployment or approval claim: the workspace capability is off by default and stays off until a retention period for the records is approved (Ruling W1), and migration 0026 is applied nowhere."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/frontend/workspace": {
+      "get": {
+        "operationId": "workspaceLoad",
+        "x-halo-operation": "workspace.load",
+        "summary": "Load one Homeguard collection",
+        "description": "One owned collection, complete, as HomeCollectionSnapshot. The provider preloads all sixteen on mount (HomeWorkspaceState.tsx:36); fourteen are stored and two are answered unavailable. ORDER: session; the collection parameter; the workspace flag; the household's pending workspace operations (read BEFORE the rows, the B06 H32 order); the rows. Identity only from the verified token. Flag off, or migration 0026 or 0017 not applied: the non-retryable 503, never an empty list that may be false. A stored row the client would refuse is returned unchanged and logged by count only (the transcription test makes that impossible by construction). No top-level data key (runtime.ts:149-153 would unwrap it).",
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "query",
+            "required": true,
+            "description": "One of the sixteen collections the provider loads. Missing or unknown is a 400 naming the field.",
+            "schema": {
+              "enum": [
+                "tests",
+                "assets",
+                "observations",
+                "gardens",
+                "usage",
+                "pantryItems",
+                "foodQuestions",
+                "fishNotes",
+                "foodFollows",
+                "growerInquiries",
+                "homeTransitions",
+                "exploreNotes",
+                "exploreOutcomes",
+                "exploreProjects",
+                "exploreEngagements",
+                "weekJournal"
+              ]
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: records keep the home they were made for (contract :510), and a home-owned record names it in homeContextId. A foreign or unknown value changes nothing."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The collection, ready or empty; or unavailable for weekJournal and homeTransitions. Every answer carries pendingOperations.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "collection missing or not one of the sixteen (validation_failed, field collection).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. A database error reading the pending list or the rows. Only the error code and message are logged, with the request id, never a database detail or hint (which can quote a record) and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: the workspace capability is off (the default; nothing is read), or migration 0026 or 0017 is not applied. Or the retryable auth outage (auth_unavailable, with Retry-After). The client shows its unavailable sentence as the collection's error either way.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/frontend/workspace/commands": {
+      "post": {
+        "operationId": "workspaceExecute",
+        "x-halo-operation": "workspace.execute",
+        "summary": "Save one change to a Homeguard collection",
+        "description": "A write, a remove, a batch note removal, or a clear-private (always refused). ORDER: session; body (at most 1,000,000 bytes); operation id and Idempotency-Key (the same id); the workspace flag (off: a 200 disabled receipt); the command (parseWorkspaceCommand), whose own refusals are 200 failed receipts recorded nowhere; If-Match; the nesting-depth check; a read of the touched collections (which proves 0026 and 0017); then the ledger claim (domain workspace, kind workspace.write | workspace.remove | workspace.remove-notes). Inside the claim the command is planned against the rows, and one database function, commit_household_workspace, checks references, applies every upsert and delete at its expected revision, settles this operation's own ledger row succeeded and returns the touched collections read in its transaction. So a record exists if and only if its operation is succeeded; 0026's settled-row guard keeps a lost response from turning that into failed. The ledger stores collection names, ids and revisions only, never a title, note or value (Ruling W5), and unresolvedOperations: []. A 500 inside the commit reaches this client as \"not confirmed\" and it reconciles through GET /api/operations?domain=workspace. maxDuration is 60 seconds, under the ledger's 120 second staleness window.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The client's own operation id (runtime.ts:134), a UUID, the same id as the body's operationId. Trimmed and lowercased. Missing, not a UUID, or a different id is a 400 with no ledger row. The ledger is the only idempotency mechanism."
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The adapter sends the expected revision of a write or remove that has one (adapters.ts:29). When present it must equal the body's expectedRevision (a create, or remove-notes, accepts no If-Match); otherwise a 400 precondition_mismatch naming If-Match, decided before the ledger claim. The check that matters is the body's expectedRevision, tested again inside the commit."
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: records keep the home they were made for (contract :510), and a home-owned record names it in homeContextId. A foreign or unknown value changes nothing."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A receipt: succeeded with the canonical rows; failed with a reason (a refusal; see WorkspaceReceiptRefused); or failed with the disabled sentence and no reason while the capability is off (Ruling W1). A replay answers the same body for a refusal and the current rows for a success.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unreadable body (bad_request) or a field that failed a rule (validation_failed): the operation id; the Idempotency-Key (missing, not a UUID, or a different id); If-Match; an unknown kind or collection; a bad record id, expectedRevision, recordId or selection; a record that is not an object; or a value nested deeper than the ledger can hash. Decided before the ledger claim: nothing is recorded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A terminal refusal of a replay, with reason operation_mismatch, abandoned, not_applied or unrecognized_receipt (see ConflictEnvelope). The client shows its conflict sentence with no lock.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 1,000,000 bytes (payload_too_large; Ruling W7). The client maps it to failed, not a lock.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. A database error inside the commit, which may or may not have landed. Only the error code and message are logged, with the request id, never a database detail or hint (which can quote a record) and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: migration 0026 or 0017 is not applied (decided before the claim, because the read that proves them comes first; if only commit_household_workspace is missing, the claim already exists and settles failed, and a replay of that id is the 409 not_applied; with the capability off the answer is the 200 disabled receipt instead). Or the retryable auth outage (auth_unavailable, with Retry-After). Or upstream_unavailable, retryable: a replay met a ledger row still pending. This client reads every 5xx on this mutation as an unknown outcome and locks Homeguard on the operation until its status is checked.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations": {
+      "get": {
+        "operationId": "operationsRead",
+        "x-halo-operation": "operations.read",
+        "summary": "What happened to a Homeguard save",
+        "description": "The B11 half of GET /api/operations: domain workspace (the reconcile of a save, adapters.ts:30, and of an operation the load listed as pending). Other domains are documented by their own packages and replay as stored. EVERY status carries changes (the adapter refuses a receipt without it): a succeeded operation is answered with the CURRENT rows of the collections it touched, every other status with changes: {} and a sentence (Ruling W5). Behind the workspace flag like the rest of the workspace: a 503 while it is off for an operation this household has; the lookup comes first, so an id this household does not have is a 404 even then. Another household's operation id is a 404, with nothing said about whose it is. The canonical fields (operationId, domain, kind, status, created_at) are written after the stored receipt, so a frozen receipt can never override the status computed now, which is the only place a stale pending becomes unknown.",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "query",
+            "required": true,
+            "description": "The operation to read, a UUID.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "description": "workspace for the operations documented here. Any other ledger domain is accepted by the route and documented elsewhere; recovery is refused (it has no owner).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The operation, in one of four shapes (see WorkspaceOperationRead).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceOperationRead"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "operationId not a UUID, or a domain that is not readable here (validation_failed).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "This household has no such operation in this domain (not_found). Not the same as failed. A save whose request never reached the server is a 404, which the client keeps as a lock until a reload.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. A database error reading the operation or the current rows. Only the error code and message are logged, with the request id, never a database detail or hint (which can quote a record) and nothing is returned but the envelope.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: the workspace capability is off, or migration 0026 or 0017 is not applied. Or the retryable auth outage (auth_unavailable, with Retry-After).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence. Strict here, because a field that leaked a database message or another household's id would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "UnavailableEnvelope": {
+        "description": "A 503 from a B11 route. feature_unavailable is not retryable: the workspace capability is off (Ruling W1, the default), or migration 0026 or 0017 is not applied. auth_unavailable is the retryable auth outage. upstream_unavailable is the retryable in-flight answer of the commands route: a replay met a ledger row still pending (or unknown), so its outcome is not known yet. The client maps every 5xx on a mutation to unknown_outcome and locks Homeguard on that operation, and every 5xx on a read to unavailable (runtime.ts:144).",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "feature_unavailable",
+              "auth_unavailable",
+              "upstream_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "code": {
+              "const": "feature_unavailable"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "retryable": {
+              "const": false
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "retryable": {
+              "const": true
+            }
+          }
+        }
+      },
+      "ReadUnavailableEnvelope": {
+        "description": "A 503 from a B11 read: feature_unavailable (not retryable) or the auth outage (retryable). A read never claims an operation, so it is never in flight.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnavailableEnvelope"
+          },
+          {
+            "properties": {
+              "code": {
+                "enum": [
+                  "feature_unavailable",
+                  "auth_unavailable"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ConflictEnvelope": {
+        "description": "A terminal 409 from the commands route. code is always conflict and retryable false; the client maps it to conflict and clears without a lock (runtime.ts:144). reason: operation_mismatch (this operation id was already used with a different body, or by another household); on a replay of an earlier attempt, abandoned (the ledger reaped it, {status: failed, reason: abandoned}) or not_applied (it settled failed with no receipt, an in-process throw); unrecognized_receipt (its stored receipt is one this route never writes; logged without content and never replayed). A stale record revision is NOT a 409: it is a 200 failed receipt with reason stale_revision.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "const": "conflict"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "operation_mismatch",
+              "abandoned",
+              "not_applied",
+              "unrecognized_receipt"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "OperationId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "ProjectGuide": {
+        "description": "A project guide as the client's validProjectGuide accepts it (explore-service.ts:17-28). Stored as the household's own copy after that structural check; provenance is not verified (Ruling W13). Every step's sourceIds name sources of this guide, and step ids are unique (the test checks both with the client's own function).",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "effort": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "cost": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "suitability": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "completion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "followup": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "cause": {
+            "enum": [
+              "Water",
+              "Habitats",
+              "Community",
+              "Energy",
+              "Air"
+            ]
+          },
+          "scene": {
+            "enum": [
+              "river",
+              "trail",
+              "garden",
+              "bee",
+              "tree",
+              "soil",
+              "water",
+              "compost",
+              "food",
+              "moisture",
+              "solar",
+              "cleanup"
+            ]
+          },
+          "icon": {
+            "enum": [
+              "plant",
+              "bee",
+              "cleanup",
+              "sun",
+              "water",
+              "air"
+            ]
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "maxItems": 100
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "maxItems": 100,
+            "minItems": 1
+          },
+          "sources": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 40,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                },
+                "publisher": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                },
+                "checked": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "publisher",
+                "checked",
+                "url"
+              ]
+            }
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "instructions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "maxItems": 40,
+                  "minItems": 1
+                },
+                "checkpoint": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "sourceIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "maxItems": 40,
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "instructions",
+                "checkpoint",
+                "sourceIds"
+              ]
+            }
+          },
+          "buildPlan": {
+            "type": "object",
+            "description": "Optional; checked by the client function."
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "title",
+          "description",
+          "purpose",
+          "effort",
+          "cost",
+          "scope",
+          "suitability",
+          "completion",
+          "followup",
+          "cause",
+          "scene",
+          "icon",
+          "materials",
+          "constraints",
+          "sources",
+          "steps"
+        ]
+      },
+      "NoteHandoff": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "preparedAt": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "sourceRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "place": {
+                "type": "boolean"
+              },
+              "evidence": {
+                "type": "boolean"
+              },
+              "photo": {
+                "const": false
+              }
+            },
+            "required": [
+              "place",
+              "evidence",
+              "photo"
+            ]
+          },
+          "exports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "copied",
+                    "download-requested",
+                    "share-completed",
+                    "print-opened"
+                  ]
+                },
+                "at": {
+                  "type": "string",
+                  "description": "An empty string, or an instant the client can parse (ISO 8601)."
+                }
+              },
+              "required": [
+                "kind",
+                "at"
+              ]
+            },
+            "maxItems": 2000
+          }
+        },
+        "required": [
+          "id",
+          "preparedAt",
+          "body",
+          "sourceRevision",
+          "scope"
+        ]
+      },
+      "Record_tests": {
+        "description": "A stored tests row, exactly as the client's validProductionRecord('tests') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "contextId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30000
+          },
+          "medium": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "provider": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "sampleLabel": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "method": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reviewReason": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "kind": {
+            "enum": [
+              "water",
+              "radon",
+              "lead",
+              "soil"
+            ]
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "arranged",
+              "sampled",
+              "awaiting",
+              "recorded",
+              "followup"
+            ]
+          },
+          "plannedDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "collectionStart": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "collectionEnd": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "expectedDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "analyte": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "originalValue": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "originalUnit": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "limit": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "limitUnit": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "basis": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "reportReference": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "reportDate": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "qualifier": {
+                  "enum": [
+                    "measured",
+                    "less_than",
+                    "non_detect",
+                    "zero",
+                    "absent",
+                    "unknown"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "analyte",
+                "originalValue",
+                "originalUnit",
+                "limit",
+                "limitUnit",
+                "basis",
+                "reportReference",
+                "reportDate",
+                "qualifier"
+              ]
+            },
+            "maxItems": 500
+          },
+          "review": {
+            "enum": [
+              "not_received",
+              "unreviewed",
+              "needs_clarification",
+              "user_confirmed"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483646
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "analyte": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "originalValue": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "originalUnit": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "limit": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "limitUnit": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "basis": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "reportReference": {
+                        "type": "string",
+                        "maxLength": 30000
+                      },
+                      "reportDate": {
+                        "type": "string",
+                        "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                        "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                      },
+                      "qualifier": {
+                        "enum": [
+                          "measured",
+                          "less_than",
+                          "non_detect",
+                          "zero",
+                          "absent",
+                          "unknown"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "analyte",
+                      "originalValue",
+                      "originalUnit",
+                      "limit",
+                      "limitUnit",
+                      "basis",
+                      "reportReference",
+                      "reportDate",
+                      "qualifier"
+                    ]
+                  },
+                  "maxItems": 500
+                },
+                "review": {
+                  "enum": [
+                    "not_received",
+                    "unreviewed",
+                    "needs_clarification",
+                    "user_confirmed"
+                  ]
+                }
+              },
+              "required": [
+                "date",
+                "reason",
+                "revision",
+                "rows",
+                "review"
+              ]
+            },
+            "maxItems": 2000
+          },
+          "contextSnapshot": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 30000
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483646
+              },
+              "irrigation": {
+                "type": "string",
+                "maxLength": 30000
+              }
+            },
+            "required": [
+              "label"
+            ]
+          },
+          "attachments": {
+            "type": "array",
+            "maxItems": 0,
+            "description": "Always absent or empty in this release: a test with a private file is refused (Ruling W4)."
+          },
+          "arrangedByUser": {
+            "type": "boolean"
+          },
+          "awaitingRecorded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "purpose",
+          "contextId",
+          "medium",
+          "provider",
+          "sampleLabel",
+          "method",
+          "reviewReason",
+          "kind",
+          "status",
+          "plannedDate",
+          "collectionStart",
+          "collectionEnd",
+          "expectedDate",
+          "rows",
+          "review",
+          "archived",
+          "history"
+        ]
+      },
+      "Record_assets": {
+        "description": "A stored assets row, exactly as the client's validProductionRecord('assets') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required: the home this record was made for."
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "testId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "factor": {
+            "enum": [
+              "air",
+              "uv",
+              "pollen",
+              "mold",
+              "pfas",
+              "radon",
+              "lead"
+            ]
+          },
+          "basis": {
+            "enum": [
+              "user",
+              "manufacturer",
+              "reviewed"
+            ]
+          },
+          "policy": {
+            "enum": [
+              "calendar",
+              "completion"
+            ]
+          },
+          "unit": {
+            "enum": [
+              "days",
+              "months"
+            ]
+          },
+          "interval": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "replaced"
+            ]
+          },
+          "installed": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "serviced": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "nextDue": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "calendarAnchor": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "endDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "lastCompleted": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "snoozedUntil": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "kind": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "due": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 30000
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "date",
+                "due",
+                "note"
+              ]
+            },
+            "maxItems": 2000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "homeContextId",
+          "model",
+          "instructions",
+          "testId",
+          "factor",
+          "basis",
+          "policy",
+          "unit",
+          "interval",
+          "status",
+          "installed",
+          "serviced",
+          "nextDue",
+          "calendarAnchor",
+          "endDate",
+          "lastCompleted",
+          "snoozedUntil",
+          "history"
+        ]
+      },
+      "Record_observations": {
+        "description": "A stored observations row, exactly as the client's validProductionRecord('observations') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required: the home this record was made for."
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "room": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reading": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "photoName": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "assetId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "testId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "kind": {
+            "enum": [
+              "dampness",
+              "leak",
+              "condensation",
+              "humidity",
+              "other"
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "description": "An empty string, or an instant the client can parse (ISO 8601)."
+          },
+          "photoData": {
+            "const": ""
+          },
+          "photoAttachmentId": {
+            "const": "",
+            "description": "Always empty in this release (Ruling W4)."
+          },
+          "photoAttachmentRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "photoMetadataRemoved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "homeContextId",
+          "timezone",
+          "room",
+          "reading",
+          "unit",
+          "source",
+          "note",
+          "photoName",
+          "assetId",
+          "testId",
+          "kind",
+          "observedAt",
+          "photoData"
+        ]
+      },
+      "Record_gardens": {
+        "description": "A stored gardens row, exactly as the client's validProductionRecord('gardens') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required: the home this record was made for."
+          },
+          "setup": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "county": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "irrigation": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "soil": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "concern": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "questions": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "householdSourceConfirmed": {
+            "type": "boolean"
+          },
+          "testIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 30000
+            },
+            "maxItems": 2000
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "irrigation": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "soil": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483646
+                }
+              },
+              "required": [
+                "date",
+                "irrigation",
+                "soil",
+                "revision"
+              ]
+            },
+            "maxItems": 2000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "homeContextId",
+          "setup",
+          "county",
+          "irrigation",
+          "soil",
+          "concern",
+          "questions",
+          "householdSourceConfirmed",
+          "testIds",
+          "history"
+        ]
+      },
+      "Record_usage": {
+        "description": "A stored usage row, exactly as the client's validProductionRecord('usage') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required: the home this record was made for."
+          },
+          "site": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "meter": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "quantity": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "kind": {
+            "enum": [
+              "interval",
+              "meter"
+            ]
+          },
+          "basis": {
+            "enum": [
+              "measured",
+              "estimated",
+              "user-reported"
+            ]
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "end": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "quantity": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "unit": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "start": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "original": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "meter": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "quantity": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "unit": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "start": {
+                      "type": "string",
+                      "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                      "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                    },
+                    "end": {
+                      "type": "string",
+                      "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                      "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                    },
+                    "source": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "note": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "kind": {
+                      "enum": [
+                        "interval",
+                        "meter"
+                      ]
+                    },
+                    "reset": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "site",
+                    "meter",
+                    "quantity",
+                    "unit",
+                    "start",
+                    "end",
+                    "source",
+                    "note",
+                    "kind",
+                    "reset"
+                  ]
+                }
+              },
+              "required": [
+                "date",
+                "quantity",
+                "unit",
+                "start",
+                "end",
+                "reason"
+              ]
+            },
+            "maxItems": 2000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "homeContextId",
+          "site",
+          "meter",
+          "quantity",
+          "unit",
+          "source",
+          "note",
+          "kind",
+          "basis",
+          "start",
+          "end",
+          "reset",
+          "history"
+        ]
+      },
+      "Record_pantryItems": {
+        "description": "A stored pantryItems row, exactly as the client's validProductionRecord('pantryItems') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required: the home this record was made for."
+          },
+          "guideId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "An empty string, or an instant the client can parse (ISO 8601)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "An empty string, or an instant the client can parse (ISO 8601)."
+          },
+          "guideRevision": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "origin": {
+            "enum": [
+              "store",
+              "homegrown",
+              "caught",
+              "unknown"
+            ]
+          },
+          "foodId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "storage": {
+            "enum": [
+              "fridge",
+              "pantry",
+              "freezer"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "homeContextId",
+          "guideId",
+          "question",
+          "createdAt",
+          "updatedAt",
+          "guideRevision",
+          "origin"
+        ]
+      },
+      "Record_foodQuestions": {
+        "description": "A stored foodQuestions row, exactly as the client's validProductionRecord('foodQuestions') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "evidenceId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reportId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 30000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "evidenceId",
+          "question",
+          "reportId",
+          "note"
+        ]
+      },
+      "Record_fishNotes": {
+        "description": "A stored fishNotes row, exactly as the client's validProductionRecord('fishNotes') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "waterbody": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "species": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "quantity": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "advisoryId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "kind": {
+            "enum": [
+              "catch",
+              "consumption"
+            ]
+          },
+          "advisoryRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483646
+                },
+                "original": {
+                  "type": "object",
+                  "properties": {
+                    "waterbody": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "species": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "quantity": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "unit": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "note": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "advisoryId": {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    "date": {
+                      "type": "string",
+                      "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                      "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                    }
+                  },
+                  "required": [
+                    "waterbody",
+                    "species",
+                    "quantity",
+                    "unit",
+                    "note",
+                    "timezone",
+                    "advisoryId",
+                    "date"
+                  ]
+                }
+              },
+              "required": [
+                "date",
+                "revision",
+                "original"
+              ]
+            },
+            "maxItems": 2000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "timezone",
+          "waterbody",
+          "species",
+          "quantity",
+          "unit",
+          "note",
+          "advisoryId",
+          "date",
+          "kind",
+          "advisoryRevision"
+        ]
+      },
+      "Record_foodFollows": {
+        "description": "A stored foodFollows row, exactly as the client's validProductionRecord('foodFollows') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "targetId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "kind": {
+            "enum": [
+              "fish",
+              "food",
+              "water",
+              "resource"
+            ]
+          },
+          "sourceRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "following": {
+            "type": "boolean"
+          },
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "targetId",
+          "kind",
+          "sourceRevision",
+          "following",
+          "saved"
+        ]
+      },
+      "Record_growerInquiries": {
+        "description": "A stored growerInquiries row, exactly as the client's validProductionRecord('growerInquiries') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "resourceId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "siteId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "testId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "questions": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "state": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "response": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "checklist": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 30000
+            },
+            "maxItems": 2000
+          },
+          "contactDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "followUpDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "resourceId",
+          "siteId",
+          "testId",
+          "questions",
+          "state",
+          "reference",
+          "response",
+          "checklist",
+          "contactDate",
+          "followUpDate"
+        ]
+      },
+      "Record_exploreNotes": {
+        "description": "A stored exploreNotes row, exactly as the client's validProductionRecord('exploreNotes') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "kind": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "place": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "observedAt": {
+            "type": "string",
+            "description": "An empty string, or an instant the client can parse (ISO 8601)."
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "prepared",
+              "form-opened",
+              "reported"
+            ]
+          },
+          "noteType": {
+            "enum": [
+              "Observation",
+              "Question",
+              "Idea",
+              "Conversation"
+            ]
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "recordId": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "layer": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "scope": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "observedAt": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "description": "An empty string, or an instant the client can parse (ISO 8601)."
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "recordId",
+                "title",
+                "layer",
+                "scope",
+                "observedAt"
+              ]
+            },
+            "maxItems": 100
+          },
+          "photo": false,
+          "photoAttachment": false,
+          "handoff": {
+            "$ref": "#/components/schemas/NoteHandoff"
+          },
+          "handoffHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoteHandoff"
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "kind",
+          "timezone",
+          "place",
+          "description",
+          "reference",
+          "observedAt",
+          "status"
+        ]
+      },
+      "Record_exploreOutcomes": {
+        "description": "A stored exploreOutcomes row, exactly as the client's validProductionRecord('exploreOutcomes') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "result": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "nextStep": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "followupDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "status": {
+            "enum": [
+              "Open",
+              "Working on it",
+              "Waiting for a response",
+              "Result recorded",
+              "Closed without a result"
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "result": {
+                  "type": "string",
+                  "maxLength": 30000
+                }
+              },
+              "required": [
+                "status",
+                "date",
+                "result"
+              ]
+            },
+            "maxItems": 2000
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "goal",
+          "result",
+          "reference",
+          "nextStep",
+          "date",
+          "followupDate",
+          "status",
+          "history"
+        ]
+      },
+      "Record_exploreProjects": {
+        "description": "A stored exploreProjects row, exactly as the client's validProductionRecord('exploreProjects') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "outcome": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "guideId": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "guideVersion": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reviewDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "status": {
+            "enum": [
+              "Active",
+              "Paused",
+              "Completed"
+            ]
+          },
+          "stepNotes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 30000
+            },
+            "description": "Keys are step ids of the stored guide."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 30000
+                }
+              },
+              "required": [
+                "status",
+                "note"
+              ]
+            },
+            "maxItems": 2000
+          },
+          "guide": {
+            "$ref": "#/components/schemas/ProjectGuide"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "goal",
+          "outcome",
+          "guideId",
+          "guideVersion",
+          "reviewDate",
+          "status",
+          "stepNotes",
+          "history",
+          "guide"
+        ]
+      },
+      "Record_exploreEngagements": {
+        "description": "A stored exploreEngagements row, exactly as the client's validProductionRecord('exploreEngagements') accepts it (home-records.ts). Unknown future fields are allowed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "organizer": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "cause": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 30000,
+            "description": "Empty, or an https URL with no credentials."
+          },
+          "place": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "hours": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "preparation": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "outcome": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "statusDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "followupDate": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "status": {
+            "enum": [
+              "Considering",
+              "Contacted",
+              "Confirmed by me",
+              "Participated",
+              "Follow-up",
+              "Closed"
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "maxLength": 30000
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+                  "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 30000
+                }
+              },
+              "required": [
+                "status",
+                "date",
+                "note"
+              ]
+            },
+            "maxItems": 2000
+          },
+          "participatedOn": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "organizer",
+          "cause",
+          "url",
+          "place",
+          "hours",
+          "preparation",
+          "outcome",
+          "reference",
+          "date",
+          "statusDate",
+          "followupDate",
+          "status",
+          "history"
+        ]
+      },
+      "Record": {
+        "description": "One stored row of any collection. The load of a named collection is held to that collection's Record_<name> schema by the conformance suite (a query parameter cannot select a schema in OpenAPI).",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Record_tests"
+          },
+          {
+            "$ref": "#/components/schemas/Record_assets"
+          },
+          {
+            "$ref": "#/components/schemas/Record_observations"
+          },
+          {
+            "$ref": "#/components/schemas/Record_gardens"
+          },
+          {
+            "$ref": "#/components/schemas/Record_usage"
+          },
+          {
+            "$ref": "#/components/schemas/Record_pantryItems"
+          },
+          {
+            "$ref": "#/components/schemas/Record_foodQuestions"
+          },
+          {
+            "$ref": "#/components/schemas/Record_fishNotes"
+          },
+          {
+            "$ref": "#/components/schemas/Record_foodFollows"
+          },
+          {
+            "$ref": "#/components/schemas/Record_growerInquiries"
+          },
+          {
+            "$ref": "#/components/schemas/Record_exploreNotes"
+          },
+          {
+            "$ref": "#/components/schemas/Record_exploreOutcomes"
+          },
+          {
+            "$ref": "#/components/schemas/Record_exploreProjects"
+          },
+          {
+            "$ref": "#/components/schemas/Record_exploreEngagements"
+          }
+        ]
+      },
+      "Changes": {
+        "description": "A complete canonical replacement of each collection a command touched, never client-computed (home-service.ts:23). A write names its collection; a remove its collection (a removed note also names exploreOutcomes); remove-notes names exploreNotes and exploreOutcomes. The client refuses the whole receipt unless every key matches ^[a-zA-Z][a-zA-Z0-9]{0,79}$ and every list is valid with unique ids (validHomeChanges). Only the fourteen stored collections ever appear.",
+        "type": "object",
+        "properties": {
+          "tests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_tests"
+            },
+            "maxItems": 1000
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_assets"
+            },
+            "maxItems": 1000
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_observations"
+            },
+            "maxItems": 1000
+          },
+          "gardens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_gardens"
+            },
+            "maxItems": 1000
+          },
+          "usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_usage"
+            },
+            "maxItems": 1000
+          },
+          "pantryItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_pantryItems"
+            },
+            "maxItems": 1000
+          },
+          "foodQuestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_foodQuestions"
+            },
+            "maxItems": 1000
+          },
+          "fishNotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_fishNotes"
+            },
+            "maxItems": 1000
+          },
+          "foodFollows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_foodFollows"
+            },
+            "maxItems": 1000
+          },
+          "growerInquiries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_growerInquiries"
+            },
+            "maxItems": 1000
+          },
+          "exploreNotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_exploreNotes"
+            },
+            "maxItems": 1000
+          },
+          "exploreOutcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_exploreOutcomes"
+            },
+            "maxItems": 1000
+          },
+          "exploreProjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_exploreProjects"
+            },
+            "maxItems": 1000
+          },
+          "exploreEngagements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_exploreEngagements"
+            },
+            "maxItems": 1000
+          }
+        },
+        "additionalProperties": false
+      },
+      "NoChanges": {
+        "description": "A failed or open receipt carries changes: {}. The adapter throws on a receipt without it (adapters.ts:15), for EVERY status.",
+        "type": "object",
+        "maxProperties": 0
+      },
+      "PendingOperations": {
+        "description": "The household's genuinely unsettled workspace operations, oldest first, at most 100 (Ruling W14 and MAX_PENDING). Read BEFORE the rows, so an operation missing from the list is already in the rows. The client treats each as a lock until it checks its status (HomeWorkspaceState.tsx:109-111).",
+        "type": "array",
+        "maxItems": 100,
+        "items": {
+          "type": "object",
+          "properties": {
+            "operationId": {
+              "$ref": "#/components/schemas/OperationId"
+            },
+            "domain": {
+              "const": "workspace"
+            }
+          },
+          "required": [
+            "operationId",
+            "domain"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "WorkspaceSnapshot": {
+        "description": "GET /api/frontend/workspace: one owned collection, complete. The adapter refuses the whole load unless records pass validHomeRecords and pendingOperations is an array (adapters.ts:28); the provider then discards the collection for one row validProductionCollection refuses (HomeWorkspaceState.tsx:107). No revision (Ruling W6) and no nextCursor: the collection is complete (at most 1,000 records). records are the caller's own, oldest first.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "records": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": {
+                  "$ref": "#/components/schemas/Record"
+                }
+              },
+              "availability": {
+                "const": "ready"
+              },
+              "complete": {
+                "const": true
+              },
+              "pendingOperations": {
+                "$ref": "#/components/schemas/PendingOperations"
+              }
+            },
+            "required": [
+              "records",
+              "availability",
+              "complete",
+              "pendingOperations"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "records": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "availability": {
+                "const": "empty"
+              },
+              "complete": {
+                "const": true
+              },
+              "pendingOperations": {
+                "$ref": "#/components/schemas/PendingOperations"
+              }
+            },
+            "required": [
+              "records",
+              "availability",
+              "complete",
+              "pendingOperations"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "weekJournal (Ruling W2) and homeTransitions (Ruling W3): never stored. The provider records pendingOperations BEFORE it throws message as the collection's error, so the lock still applies.",
+            "type": "object",
+            "properties": {
+              "records": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "availability": {
+                "const": "unavailable"
+              },
+              "complete": {
+                "const": false
+              },
+              "message": {
+                "enum": [
+                  "Week journal check-ins are not stored on the server yet.",
+                  "Past home changes are kept with your account and are not listed here yet."
+                ]
+              },
+              "pendingOperations": {
+                "$ref": "#/components/schemas/PendingOperations"
+              }
+            },
+            "required": [
+              "records",
+              "availability",
+              "complete",
+              "message",
+              "pendingOperations"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "WorkspaceWrite": {
+        "description": "Create (expectedRevision null; the client sends revision 0) or update (expectedRevision the stored revision) one record. The server assigns the revision: 1 on create, stored + 1 on update (Ruling W12); a sent record revision is ignored. The record must pass the client's own row check for the collection, with its resulting revision, or the answer is a 200 failed invalid_record receipt. An unchanged reference is not re-checked; one the write adds or changes must name the caller's own record (Ruling W10). Collections weekJournal and homeTransitions are refused (W2, W3). A test with attachments, an observation with photoAttachmentId or a note with photoAttachment is refused (W4). collectionRevision is accepted and ignored (W6).",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "kind": {
+            "const": "write"
+          },
+          "collection": {
+            "enum": [
+              "tests",
+              "assets",
+              "observations",
+              "gardens",
+              "usage",
+              "pantryItems",
+              "foodQuestions",
+              "fishNotes",
+              "foodFollows",
+              "growerInquiries",
+              "homeTransitions",
+              "exploreNotes",
+              "exploreOutcomes",
+              "exploreProjects",
+              "exploreEngagements",
+              "weekJournal"
+            ]
+          },
+          "record": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "No control character (U+0000 to U+001F, U+007F to U+009F, U+2028, U+2029) and no lone UTF-16 surrogate: that is a 400 invalid_id."
+              },
+              "title": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ]
+          },
+          "expectedRevision": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483646
+              }
+            ]
+          },
+          "collectionRevision": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "kind",
+          "collection",
+          "record",
+          "expectedRevision"
+        ]
+      },
+      "WorkspaceRemove": {
+        "description": "Delete one record at its reviewed revision. Removing an exploreNotes record also removes its case exploreOutcomes/note-case:<id> in the same commit (Ruling W11); both collections are returned. Another link is left alone, so deleting a test leaves an observation's testId dangling (Ruling W10).",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "kind": {
+            "const": "remove"
+          },
+          "collection": {
+            "enum": [
+              "tests",
+              "assets",
+              "observations",
+              "gardens",
+              "usage",
+              "pantryItems",
+              "foodQuestions",
+              "fishNotes",
+              "foodFollows",
+              "growerInquiries",
+              "homeTransitions",
+              "exploreNotes",
+              "exploreOutcomes",
+              "exploreProjects",
+              "exploreEngagements",
+              "weekJournal"
+            ]
+          },
+          "recordId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "No control character (U+0000 to U+001F, U+007F to U+009F, U+2028, U+2029) and no lone UTF-16 surrogate: that is a 400 invalid_id."
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "collectionRevision": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "kind",
+          "collection",
+          "recordId",
+          "expectedRevision"
+        ]
+      },
+      "WorkspaceRemoveNotes": {
+        "description": "Delete between 1 and 100 different notes, each at its reviewed revision, with their own cases, in one commit. One note that changed refuses the whole selection with notes_changed.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "kind": {
+            "const": "remove-notes"
+          },
+          "selection": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "No control character (U+0000 to U+001F, U+007F to U+009F, U+2028, U+2029) and no lone UTF-16 surrogate, and no two items with the same id: that is a 400 invalid_selection."
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483646
+                }
+              },
+              "required": [
+                "id",
+                "revision"
+              ]
+            }
+          }
+        },
+        "required": [
+          "operationId",
+          "kind",
+          "selection"
+        ]
+      },
+      "WorkspaceClearPrivate": {
+        "description": "Always refused before any ledger claim (Ruling W9): a 200 failed receipt with reason clear_unsupported. There is one clearing path, the privacy review in Settings (privacy.clear).",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "kind": {
+            "const": "clear-private"
+          },
+          "scope": {
+            "enum": [
+              "journal",
+              "all"
+            ]
+          },
+          "expectedFingerprint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "kind"
+        ]
+      },
+      "WorkspaceCommand": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WorkspaceWrite"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceRemove"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceRemoveNotes"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceClearPrivate"
+          }
+        ]
+      },
+      "WorkspaceReceiptSucceeded": {
+        "description": "The command took effect. The client accepts it only when changes passes validHomeChanges AND covers the command (homeReceiptCoversCommand): a write returns its record at a revision above expectedRevision ?? 0; a remove returns the collection without the id; remove-notes returns exploreNotes without any selected id. A replay of a succeeded operation answers the CURRENT rows of the collections it touched, which may be newer than the original answer.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "status": {
+            "const": "succeeded"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/Changes",
+            "minProperties": 1
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceReceiptRefused": {
+        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference and limit are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7).",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/NoChanges"
+          },
+          "code": {
+            "enum": [
+              "conflict",
+              "validation",
+              "unavailable"
+            ]
+          },
+          "reason": {
+            "enum": [
+              "stale_revision",
+              "notes_changed",
+              "invalid_reference",
+              "limit",
+              "invalid_record",
+              "attachments_unavailable",
+              "clear_unsupported",
+              "week_journal_unavailable",
+              "home_transitions_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "changes",
+          "code",
+          "reason",
+          "message"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "stale_revision"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "This record changed. Your draft is kept. Review the latest version before saving."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "notes_changed"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "The selected notes changed. Nothing was removed. Review the selection again."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "invalid_reference"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "A linked record or home is no longer available. Your draft is kept. Review the links before saving."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "limit"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "This collection has reached its storage limit. Nothing was saved."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "invalid_record"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "Some details of this record could not be saved. Your draft is kept."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "attachments_unavailable"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "unavailable"
+                },
+                "message": {
+                  "const": "Private files are not available yet. Nothing was saved."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "clear_unsupported"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "unavailable"
+                },
+                "message": {
+                  "const": "Use the privacy review in Settings to clear records. Nothing was deleted."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "week_journal_unavailable"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "unavailable"
+                },
+                "message": {
+                  "const": "Week journal check-ins are not saved on the server yet. Nothing was saved."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "home_transitions_unavailable"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "unavailable"
+                },
+                "message": {
+                  "const": "Home changes are saved through your account settings. Nothing was saved here."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "WorkspaceReceiptDisabled": {
+        "description": "The workspace capability is off (Ruling W1, the default). A 200 failed receipt with no reason and code unavailable, not a 5xx, which this client would read as an unknown outcome and lock on. Nothing is read or claimed.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/NoChanges"
+          },
+          "code": {
+            "const": "unavailable"
+          },
+          "message": {
+            "const": "Saving Homeguard records is not available yet. Nothing was saved."
+          }
+        },
+        "required": [
+          "operationId",
+          "status",
+          "changes",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceReceipt": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WorkspaceReceiptSucceeded"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceReceiptRefused"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceReceiptDisabled"
+          }
+        ]
+      },
+      "WorkspaceOperationSucceeded": {
+        "description": "A succeeded save. The stored receipt (collection names, ids and revisions only, never a title or note, with unresolvedOperations: [] as every stored receipt) plus changes: the CURRENT rows of the collections it touched, read now (Ruling W5). Only while the workspace flag is on. affected lists the upserted records at their revisions; removed lists each deleted {collection, id}, including a note's case whether or not one existed.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "domain": {
+            "const": "workspace"
+          },
+          "kind": {
+            "enum": [
+              "workspace.write",
+              "workspace.remove",
+              "workspace.remove-notes"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "const": "succeeded"
+          },
+          "collections": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "tests",
+                "assets",
+                "observations",
+                "gardens",
+                "usage",
+                "pantryItems",
+                "foodQuestions",
+                "fishNotes",
+                "foodFollows",
+                "growerInquiries",
+                "exploreNotes",
+                "exploreOutcomes",
+                "exploreProjects",
+                "exploreEngagements"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "affected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "collection": {
+                  "enum": [
+                    "tests",
+                    "assets",
+                    "observations",
+                    "gardens",
+                    "usage",
+                    "pantryItems",
+                    "foodQuestions",
+                    "fishNotes",
+                    "foodFollows",
+                    "growerInquiries",
+                    "exploreNotes",
+                    "exploreOutcomes",
+                    "exploreProjects",
+                    "exploreEngagements"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483646
+                }
+              },
+              "required": [
+                "collection",
+                "id",
+                "revision"
+              ]
+            },
+            "maxItems": 2000
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "collection": {
+                  "enum": [
+                    "tests",
+                    "assets",
+                    "observations",
+                    "gardens",
+                    "usage",
+                    "pantryItems",
+                    "foodQuestions",
+                    "fishNotes",
+                    "foodFollows",
+                    "growerInquiries",
+                    "exploreNotes",
+                    "exploreOutcomes",
+                    "exploreProjects",
+                    "exploreEngagements"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "collection",
+                "id"
+              ]
+            },
+            "maxItems": 2000
+          },
+          "unresolvedOperations": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "changes": {
+            "$ref": "#/components/schemas/Changes",
+            "minProperties": 1
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at",
+          "collections",
+          "affected",
+          "removed",
+          "unresolvedOperations",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceOperationRefused": {
+        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference or limit): the stored reason, with the code and sentence that reason names and changes: {}.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "domain": {
+            "const": "workspace"
+          },
+          "kind": {
+            "enum": [
+              "workspace.write",
+              "workspace.remove",
+              "workspace.remove-notes"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "reason": {
+            "enum": [
+              "stale_revision",
+              "notes_changed",
+              "invalid_reference",
+              "limit"
+            ]
+          },
+          "unresolvedOperations": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "changes": {
+            "$ref": "#/components/schemas/NoChanges"
+          },
+          "code": {
+            "enum": [
+              "conflict",
+              "validation"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at",
+          "reason",
+          "unresolvedOperations",
+          "changes",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "stale_revision"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "This record changed. Your draft is kept. Review the latest version before saving."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "notes_changed"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "The selected notes changed. Nothing was removed. Review the selection again."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "invalid_reference"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "A linked record or home is no longer available. Your draft is kept. Review the links before saving."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "limit"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "This collection has reached its storage limit. Nothing was saved."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "WorkspaceOperationIncomplete": {
+        "description": "A save that did not finish and saved nothing: the ledger reaped it (reason abandoned) or an in-process throw settled it failed with no receipt. changes: {} and a sentence that tells the person to reload. A pending row older than its two minute window is reaped by its own reconcile and answered this way.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "domain": {
+            "const": "workspace"
+          },
+          "kind": {
+            "enum": [
+              "workspace.write",
+              "workspace.remove",
+              "workspace.remove-notes"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "const": "failed"
+          },
+          "reason": {
+            "const": "abandoned"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/NoChanges"
+          },
+          "message": {
+            "const": "That earlier save did not finish, so nothing was saved. Reload before trying again."
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at",
+          "changes",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceOperationOpen": {
+        "description": "Not settled: pending (still running), or unknown, which only happens when the reaper itself failed on a row past its two minute window (it is normally reaped by this very read and answered as WorkspaceOperationIncomplete). Honestly not confirmed; the client keeps its lock. changes: {} and a sentence.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "domain": {
+            "const": "workspace"
+          },
+          "kind": {
+            "enum": [
+              "workspace.write",
+              "workspace.remove",
+              "workspace.remove-notes"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "unknown"
+            ]
+          },
+          "changes": {
+            "$ref": "#/components/schemas/NoChanges"
+          },
+          "message": {
+            "const": "That save is still being processed. Check its status again before making another change."
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at",
+          "changes",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceOperationRead": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WorkspaceOperationSucceeded"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceOperationRefused"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceOperationIncomplete"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceOperationOpen"
+          }
+        ]
+      }
+    }
+  }
+}

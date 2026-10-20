@@ -1,0 +1,19 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "remove",
+    "collection": "homeTransitions",
+    "recordId": "transition-1",
+    "expectedRevision": 3
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "unavailable",
+    "reason": "home_transitions_unavailable",
+    "message": "Home changes are saved through your account settings. Nothing was saved here."
+  }
+}

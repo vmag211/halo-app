@@ -1,0 +1,23 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "weekJournal",
+    "record": {
+      "id": "journal-1",
+      "title": "Check-in",
+      "revision": 0
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "unavailable",
+    "reason": "week_journal_unavailable",
+    "message": "Week journal check-ins are not saved on the server yet. Nothing was saved."
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "remove-notes",
+    "selection": [
+      {
+        "id": "note-1",
+        "revision": 1
+      },
+      {
+        "id": "note-2",
+        "revision": 1
+      }
+    ]
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "succeeded",
+    "changes": {
+      "exploreNotes": [
+        {
+          "id": "note-3",
+          "kind": "Observation",
+          "place": "",
+          "title": "Note note-3",
+          "status": "draft",
+          "revision": 1,
+          "timezone": "America/New_York",
+          "reference": "",
+          "observedAt": "2026-10-10T12:00:00Z",
+          "description": "Foam on the creek"
+        }
+      ],
+      "exploreOutcomes": [
+        {
+          "id": "outcome-keep",
+          "date": "2026-10-10",
+          "goal": "Report it",
+          "title": "Keep",
+          "result": "",
+          "status": "Open",
+          "history": [],
+          "nextStep": "",
+          "revision": 1,
+          "reference": "",
+          "followupDate": ""
+        }
+      ]
+    }
+  }
+}

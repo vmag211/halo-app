@@ -1,0 +1,69 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 200,
+  "request": {
+    "collection": "exploreProjects"
+  },
+  "body": {
+    "records": [
+      {
+        "id": "project-rain-garden",
+        "goal": "Rain garden",
+        "guide": {
+          "id": "g1",
+          "cost": "c",
+          "icon": "plant",
+          "cause": "Water",
+          "scene": "garden",
+          "scope": "s",
+          "steps": [
+            {
+              "id": "step-1",
+              "title": "Dig",
+              "sourceIds": [
+                "s1"
+              ],
+              "checkpoint": "",
+              "instructions": [
+                "Dig a basin."
+              ]
+            }
+          ],
+          "title": "Rain garden",
+          "effort": "e",
+          "purpose": "p",
+          "sources": [
+            {
+              "id": "s1",
+              "url": "https://example.test/guide",
+              "title": "Guide",
+              "checked": "2026-10-01",
+              "publisher": "NCSU"
+            }
+          ],
+          "version": "v1",
+          "followup": "f",
+          "materials": [],
+          "completion": "c",
+          "constraints": [
+            "yard"
+          ],
+          "description": "d",
+          "suitability": "s"
+        },
+        "title": "Rain garden",
+        "status": "Active",
+        "guideId": "g1",
+        "history": [],
+        "outcome": "",
+        "revision": 1,
+        "stepNotes": {},
+        "reviewDate": "",
+        "guideVersion": "v1"
+      }
+    ],
+    "availability": "ready",
+    "complete": true,
+    "pendingOperations": []
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 413,
+  "body": {
+    "error": "That request is too large.",
+    "code": "payload_too_large",
+    "message": "That request is too large.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b11-contract-0001"
+  }
+}
