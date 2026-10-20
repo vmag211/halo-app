@@ -126,6 +126,10 @@ test('the transcribed validator rejects what the client rejects, and accepts the
 test('the helper hands the suites the real readingLabel and analyzeHistory, and they run on the snapshot', () => {
   assert.equal(readingLabel, real.readingLabel);
   assert.equal(analyzeHistory, real.analyzeHistory);
+  // The helper and the real function are now one, so pin what the real one must say.
+  assert.deepEqual([1, 2, 3, 4].map((value) => readingLabel({ factor: 'Pollen', value, unit: '' })), ['Low', 'Moderate', 'High', 'Unknown category']);
+  assert.equal(readingLabel({ factor: 'Air', value: 42, unit: 'AQI' }), '42 AQI');
+  assert.equal(readingLabel(undefined), 'Unavailable');
   const snap = goodSnapshot();
   for (const row of [...snap.rows.slice(0, 8), ...snap.rows.slice(-8), undefined]) {
     assert.equal(readingLabel(row), real.readingLabel(row));
