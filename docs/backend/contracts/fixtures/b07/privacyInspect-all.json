@@ -1,0 +1,36 @@
+{
+  "operationId": "privacyInspect",
+  "status": 200,
+  "body": {
+    "reviewToken": "review-token",
+    "expiresAt": "2099-01-01T00:10:00.000Z",
+    "count": 20,
+    "preview": {
+      "scope": "all",
+      "remove": {
+        "tasks": 3,
+        "home": 6,
+        "explore": 1,
+        "journal": 1,
+        "conversation": 3,
+        "preferences": 3,
+        "alerts": 2,
+        "requests": 1
+      },
+      "keep": [
+        "Your sign-in, so this device stays signed in.",
+        "A short receipt of this request, with none of your records in it, kept for 24 hours."
+      ],
+      "after": [
+        "You will set up your home again, as on first use."
+      ],
+      "notStored": [
+        "Week journal check-ins are not stored on the server yet, so nothing is removed for them."
+      ],
+      "limits": [
+        "Copies you already downloaded cannot be recalled.",
+        "Server backups and records held by service providers are outside this deletion."
+      ]
+    }
+  }
+}

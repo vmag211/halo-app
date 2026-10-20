@@ -1,0 +1,13 @@
+{
+  "operationId": "privacyExport",
+  "status": 200,
+  "body": {
+    "operationId": "0b070000-0000-4000-8000-000000000001",
+    "status": "succeeded",
+    "file": {
+      "name": "halo-export-2026-10-19.json",
+      "mime": "application/json",
+      "text": "{\n  \"format\": \"halo-export-v1\",\n  \"generatedAt\": \"2026-10-19T12:00:00.000Z\",\n  \"scope\": \"export\",\n  \"groups\": [\n    \"tasks\"\n  ],\n  \"privateText\": false,\n  \"exactLocation\": \"excluded\",\n  \"manifest\": {\n    \"schemaVersion\": 1,\n    \"records\": 1,\n    \"counts\": {\n      \"tasks\": {\n        \"household_actions\": 1,\n        \"household_action_preferences\": 0\n      }\n    },\n    \"omitted\": [\n      {\n        \"table\": \"household_action_state\",\n        \"reason\": \"An internal save counter that is never shown (B06 Ruling H10).\"\n      },\n      {\n        \"table\": \"operations\",\n        \"reason\": \"The request ledger is internal bookkeeping, not a household record (D-P2).\"\n      },\n      {\n        \"table\": \"recovery_challenges\",\n        \"reason\": \"Account recovery proof material is never exported (D-P2).\"\n      }\n    ],\n    \"warnings\": []\n  },\n  \"tasks\": {\n    \"household_actions\": [\n      {\n        \"id\": \"0b070000-0000-4000-8000-000000000002\",\n        \"action_key\": \"test-task-0\",\n        \"title\": \"Test task\",\n        \"reason\": \"Test\",\n        \"origin\": \"test\",\n        \"due_date\": null,\n        \"state\": \"saved\",\n        \"revision\": 1,\n        \"meta\": null,\n        \"created_at\": \"2026-10-19T12:00:00.000Z\",\n        \"updated_at\": \"2026-10-19T12:00:00.000Z\"\n      }\n    ],\n    \"household_action_preferences\": []\n  }\n}"
+    }
+  }
+}

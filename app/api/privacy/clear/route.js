@@ -4,16 +4,17 @@ import { apiError, internalError, loggableError, requestIdFor, validationError, 
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
 import { CLEAR_SCOPES, fingerprintTables } from '@/lib/privacyInventory';
-import { privacyReviewKey, readReviewSelection, verifyReviewToken } from '@/lib/privacyToken';
+import { readReviewSelection, verifyReviewToken } from '@/lib/privacyToken';
 import {
   PRIVACY_DOMAIN,
+  PRIVACY_KINDS,
   PRIVACY_REFUSALS,
   clearHouseholdRecords,
   isPrivacyUnavailable,
+  openPrivacy,
   privacyFingerprint,
   privacyRefusal,
   privacyUnavailable,
-  probePrivacySchema,
 } from '@/lib/privacyStore';
 
 /**
@@ -211,10 +212,8 @@ export async function POST(request) {
     if (claimed.scope !== scope) return badField('scope', 'scope_mismatch', MESSAGES.scopeMismatch, requestId);
 
     // Availability before any claim (P11): the key, then 0024 (which asserts 0017).
-    const reviewKey = privacyReviewKey();
+    const reviewKey = await openPrivacy(supabaseAdmin);
     if (!reviewKey) return privacyUnavailable(requestId);
-    const probe = await probePrivacySchema(supabaseAdmin);
-    if (!probe.available) return privacyUnavailable(requestId);
 
     // The fingerprint of the scope's tables now. A clear's tables depend on its
     // scope alone, so the token's groups (empty, trap P-3) play no part.
@@ -234,7 +233,7 @@ export async function POST(request) {
         operationId: operationId.value,
         profileId: userId,
         domain: PRIVACY_DOMAIN,
-        kind: `privacy.clear.${scope}`,
+        kind: PRIVACY_KINDS[scope],
         input: { reviewToken, scope },
       },
       async () => {

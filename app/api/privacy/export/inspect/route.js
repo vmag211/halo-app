@@ -4,13 +4,13 @@ import { apiError, internalError, loggableError, requestIdFor, validationError, 
 import { readJsonBody } from '@/lib/validate';
 import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
 import { EXPORT_GROUPS, PRIVACY_SCOPES, fingerprintTables } from '@/lib/privacyInventory';
-import { mintReviewToken, privacyReviewKey } from '@/lib/privacyToken';
+import { mintReviewToken } from '@/lib/privacyToken';
 import {
   isPrivacyUnavailable,
+  openPrivacy,
   privacyCounts,
   privacyFingerprint,
   privacyUnavailable,
-  probePrivacySchema,
 } from '@/lib/privacyStore';
 import {
   EXPORT_TOO_LARGE,
@@ -110,10 +110,8 @@ export async function POST(request) {
   try {
     const { userId } = await requireUser(request);
 
-    const key = privacyReviewKey();
+    const key = await openPrivacy(supabaseAdmin);
     if (!key) return privacyUnavailable(requestId);
-    const probe = await probePrivacySchema(supabaseAdmin);
-    if (!probe.available) return privacyUnavailable(requestId);
 
     const allowed = await checkLimit(privacyLimiter, privacyLimitKey(userId), { fallback: true, label: 'privacy limiter' });
     if (!allowed) return apiError({ status: 429, code: ERROR_CODES.RATE_LIMITED, message: LIMITED_MESSAGE, requestId });

@@ -2,8 +2,14 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { requestIdFor, internalError, loggableError } from '@/lib/apiErrors';
 import { isOperationsUnavailable, listUnresolvedOperations } from '@/lib/operations';
-import { privacyReviewKey } from '@/lib/privacyToken';
-import { PRIVACY_DOMAIN, privacyUnavailable, probePrivacySchema, purgePrivacyReceipts } from '@/lib/privacyStore';
+import {
+  PRIVACY_DOMAIN,
+  loggableCode,
+  openPrivacy,
+  privacyScopeOfKind,
+  privacyUnavailable,
+  purgePrivacyReceipts,
+} from '@/lib/privacyStore';
 
 /**
  * GET /api/privacy/status  (registry `privacy.status`, runtime.ts:86)
@@ -52,20 +58,12 @@ export const maxDuration = 60;
 /** The client takes the first entry as its lock; 100 bounds the body (P14). */
 const MAX_UNRESOLVED = 100;
 
-/** The ledger kinds the privacy routes write, and the scope the client knows each by (P14). */
-const SCOPE_BY_KIND = Object.freeze({
-  'privacy.export': 'export',
-  'privacy.clear.journal': 'journal',
-  'privacy.clear.all': 'all',
-});
-
 /** Deletes this household's settled privacy receipts older than 24 hours; never fatal (P10). */
 async function purgeOwnReceipts(profileId) {
   try {
     await purgePrivacyReceipts(supabaseAdmin, { profileId });
   } catch (err) {
-    const code = typeof err?.code === 'string' && /^[A-Za-z0-9_]{1,16}$/.test(err.code) ? err.code : 'unexpected';
-    console.error('Privacy status: the receipt purge failed; the read goes on:', code);
+    console.error('Privacy status: the receipt purge failed; the read goes on:', loggableCode(err));
   }
 }
 
@@ -85,7 +83,7 @@ async function withScopes(profileId, ids) {
   for (const operationId of ids) {
     if (!kinds.has(operationId)) continue; // gone between the two reads
     const kind = kinds.get(operationId);
-    const scope = Object.hasOwn(SCOPE_BY_KIND, kind) ? SCOPE_BY_KIND[kind] : null;
+    const scope = privacyScopeOfKind(kind);
     if (scope) listed.push({ operationId, scope });
     else unmapped.push(kind);
   }
@@ -101,9 +99,7 @@ export async function GET(request) {
   const headers = { 'X-Request-Id': requestId };
   try {
     const { userId } = await requireUser(request);
-    if (!privacyReviewKey()) return privacyUnavailable(requestId);
-    const probe = await probePrivacySchema(supabaseAdmin);
-    if (!probe.available) return privacyUnavailable(requestId);
+    if (!(await openPrivacy(supabaseAdmin))) return privacyUnavailable(requestId);
 
     await purgeOwnReceipts(userId);
     const unresolved = await listUnresolvedOperations(supabaseAdmin, { profileId: userId, domains: [PRIVACY_DOMAIN] });

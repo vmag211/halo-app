@@ -1,3 +1,102 @@
+# B07 checkpoint: privacy (status, inspect, export, clear)
+
+Date: 2026-10-20. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b07-privacy.md`. Contract digest, rulings and reviews: `.superpowers/sdd/b07-privacy-forecast/` (gitignored scratch).
+
+The B06, B04, B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **Privacy is not live anywhere.** Migration 0024 is applied nowhere and `HALO_PRIVACY_REVIEW_KEY` is set in no environment, so every privacy route answers "unavailable" and the panel says "Privacy requests are unavailable." `docs/backend/STATE.md` is not updated by this task; the controller regenerates it.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **The key is the switch, and it is off.** There is no capability flag (Ruling P18): privacy reduces data and collects none. Until the key is set the panel's honest off state stands. Vibhav sets it on staging, does one browser pass of the clear, and only then sets it in production (`YOUR_TODO.md` 2.16, plan Open question 4).
+2. **Clear all is not account deletion** (D-P1). It deletes every household-owned record (home, home history, household answers and settings included) and resets the profile, so the household goes back through onboarding. The login, the recovery challenges and the clear's own receipt survive. `DELETE /api/account` stays the identity-deletion path.
+3. **The export file is stored nowhere** (P8, P9). It travels inline in the receipt. A lost answer is rebuilt from the stored selection and the current rows within ten minutes; after that the receipt answers without the file and the panel keeps its lock until a reload. The ledger holds group names and a boolean, never content.
+4. **Clear Journal does not clear the week journal** (P13). Week journal check-ins have no server storage yet. Clear Journal removes symptom logs and season summaries, and the review says the week journal is not stored on the server.
+5. **"B07" is the backend's numbering.** The spec calls export and deletion B12. Forecast (`forecast.read`) was split out as B10.
+
+## Where B07 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0024: clear, fingerprint, counts, purge, probe, freeze trigger | Merged (`7f1a321`; merge `66e7c26`), fix round merge `3961a00` |
+| 2. `lib/privacyInventory.js`, `lib/privacyToken.js`, `lib/privacyStore.js` | Merged (`8ecdd82`; merge `ddc902d`), fix round merge `3961a00` |
+| 3. `GET /api/privacy/status` and the receipt purge | Merged (`5e640d6`, `d6d7ba2`, `1aabc33`; merge `09a04ec`) |
+| 4. The export builder and `POST /api/privacy/export/inspect` | Merged (`f3735ec`, `081ccd4`; merge `37788d5`) |
+| 6. `POST /api/privacy/clear` | Merged (`8bacd49`, `68c8bf1`, `75c2a3e`; merge `08da745`) |
+| 5. `POST /api/privacy/exports` and the export reconcile overlay | Merged (`dea0c5a`, `36cc1c9`; merge `d201fe0`) |
+| 7. Contracts, conformance, docs, tracker, checkpoint | This section, on `cc1a185` |
+
+Every task before 7 had an independent review; each review is in the scratch folder. From 2026-10-20 there is no separate reviewer: Task 7 was exercised by one test subagent (below). Nothing is merged to main.
+
+## What was built
+
+- **Migration 0024** (functions and a trigger, no table): `clear_household_records` performs both clears and settles its own ledger row in one transaction (P3); `privacy_fingerprint` and `privacy_counts` back the review; `purge_privacy_receipts` deletes settled privacy receipts after 24 hours; `privacy_schema_version` is the availability probe; `operations_privacy_settled_guard` freezes a settled privacy row's status (P16). All service-role only.
+- **`lib/privacyInventory.js`** places every owned table for export (a group and two column tiers, or an exclusion with a reason) and for both clears, and two structural tests fail when a new owned table is not placed (P2, P12). **`lib/privacyToken.js`** mints and verifies the stateless review token (P6). **`lib/privacyStore.js`** wraps the 0024 functions and now also holds, since Task 7, the one table of privacy ledger kinds (`PRIVACY_KINDS`, which the export and clear routes write and `privacy.status` maps back to a scope), the log-code filter (`loggableCode`) and the routes' shared opening (`openPrivacy`: the key, then the 0024 probe). This folds the Task 3 and Task 5 review carries; no behaviour changed.
+- **The four routes** and the privacy branch of `GET /api/operations`, as the plan's Tasks 3 to 6 describe them.
+- **`docs/backend/contracts/b07.openapi.json`**, version `b07-1`, with 56 fixtures under `fixtures/b07/`, and **`test/contractsB07.test.mjs`** (79 tests), described in `docs/backend/contracts/README.md`. It runs every route on PGlite with the real 0024 functions and the household tables read straight from PGlite (`test/db/pgliteSelect.mjs` gained `neq`, `gt`, `in` and a counted head select for the export builder), and hands every answer to the panel's whole consumption logic, transcribed in `test/helpers/frontendB07.mjs` from `ProductionPrivacy.tsx:18-25` and `SettingsWorkspace.tsx:52`, with a drift test and a negative control per transcribed function. The Task 5 and Task 6 carries are in it: both export success shapes (with and without `file`), a clear's success carrying `scope`, one PGlite inspect-to-export run, and a real pending export and a real pending clear listed by `privacy.status` with their scope.
+- **Docs:** every row of `docs/backend/privacy-and-retention.md` now gives its export group and tier (or why it is never exported) and what each clear does, with a new section on the review, the file, the receipts and their retention, and residuals F2 and F3. `YOUR_TODO.md` gained 2.16 (the key steps, the staging-first order, 0024 and 0025 pending) and Part 4 items 26 to 29 for Yogi (F1, F4, C11 and the too-large export message). The tracker gained the B07 rows.
+
+## Rulings
+
+P1 to P18 are in the plan. The ones that most shape behaviour:
+
+- **P3: a deletion exists if and only if its operation is `succeeded`.** One database function deletes, resets and settles its own row, so every `failed` (a refusal, an in-process throw, a reap) means nothing was deleted, and the client's "The request was not applied. Your data is unchanged." is true. P16's freeze trigger keeps a committed clear whose answer was lost from being recorded as failed.
+- **P6: the review token binds the household, scope, selection and a fingerprint** of the records the person's own actions write, signed with its own key. Server-written rows (daily scores, alerts, runs) are counted and removed but not bound, so a background refresh never refuses a clear.
+- **P8 and P9: the file travels inline, is never stored, and is rebuilt only within ten minutes.**
+- **P10 (D-P3, proposed): ten minutes for the token and the rebuild, 24 hours for receipts**, the shortest the contract allows.
+- **P11: availability is reported by `privacy.status`**, never first discovered by a mutation.
+- **P15: refusal taxonomy.** Malformed is a 400 before the claim; a stale or foreign token is a 409 before the claim; the function's refusals after the claim are 200 `failed`; a reaped row before the function is a 500 that reconciles to `failed`.
+
+## Migration 0024
+
+**Written, merged, and applied nowhere.** It needs 0023 and refuses to apply without the tables it uses. Its pre-apply profiles column check, apply steps, five-column verification and tested back-out block (`<!-- backout-0024 -->`) are in `YOUR_TODO.md` 2.14. **0024 and 0025 are both pending for Vibhav**; they are independent, and the clear handles 0025's table whichever is applied first. Applying 0024 turns nothing on: the key does (2.16).
+
+## Verification
+
+Gate on `cc1a185` plus Task 7:
+
+- `node --test test/*.test.mjs`: **4,529 passed, 0 failed, 0 skipped, 0 todo**.
+- B07 suites: `contractsB07` 79 (new) and `privacyStore` 19 (3 new: `loggableCode`, `PRIVACY_KINDS` both ways, `openPrivacy` key before probe); every other privacy suite passes unchanged, with no test weakened or removed.
+- `npm run typecheck`: clean.
+- `npm run lint`: **0 errors and the 6 pre-existing warnings**.
+- `git diff --check`: clean.
+
+**Test subagent** (one, per the 2026-10-20 rule). It ran the suites (79 and 342 pass) and mutated a scratch copy: bare ids from `privacy.status`, a clear receipt without `scope`, a wrong clear kind, a changed `PRIVACY_KINDS` entry, an export without `file`, `confirm` accepted as a body key, the rebuild limiter bypassed and the status probe skipped were each caught by `contractsB07`; the rebuild window ignored, a rebuild without the key and `openPrivacy` mis-ordered were caught by the route suites. It found one gap, `loggableCode` returning a message unnoticed by every suite, now pinned in `privacyStore`; and suggested the contract suite own the before-0024 503, now asserted on the status read and all three mutations with nothing claimed. It found no defect and no U+2014 or personal email in the diff.
+
+Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped and blocked, and why
+
+- **Dropped:** `forecast.read` (split out as B10); CSV exports (nothing asks for one, and a multi-table export has no honest single CSV shape); a stored export artifact (the contract delivers the file inline, C12); clearing the frontend workspace collections on the server (they have no storage).
+- **Blocked:** account deletion through this panel (it is not account deletion); export of `home_risks` fields (count only until its deployed columns are audited); devices and sessions, attachments, jobs and remote session cleanup (none exist).
+
+## Open questions for Vibhav
+
+The plan lists eleven. The ones that need an answer before or soon after the key is set:
+
+1. **D-P3 retention:** ten minutes for reviews and rebuilds, 24 hours for receipts. Confirm, or name longer periods.
+2. **Recovery challenges survive clear all** (proposed), as login material.
+3. **Language resets to English on clear all** (proposed), because D-P1 removes settings.
+4. **Turn the clear on only after one browser pass on staging.** Clear all is irreversible.
+5. **`home_risks` columns:** re-run the read-only audit and send the list, or confirm the table is unused.
+6. **The 4,000,000-byte export cap** and the limit of 30 privacy reviews and exports per household per hour.
+7. **Residual F2:** accept one in-flight cron alert after a clear, or add a "cleared at" marker.
+8. **Apply 0024** after its pre-apply check returns no rows.
+
+## Known limits and deferred minors
+
+- **PGlite cannot show true concurrency** (one connection). F3, a deadlock between a clear and a concurrent My Week commit, is reasoned from the SQL.
+- **PGlite answers timestamps in the session's zone** (for example `-05:00`), where PostgREST answers UTC. Both are ISO 8601 with an offset; the fixtures fix every instant, so this changes nothing a client reads.
+- **The too-large export message is not shown.** The runtime maps the 422 to its generic validation sentence (`YOUR_TODO.md` Part 4 item 29).
+- **After clear all the panel stays on Settings** until the next app load sends the person to onboarding (F1, Part 4 item 26).
+- **Fixtures are regenerated, not hand-edited.** After a deliberate contract change, run `node test/contractsB07.test.mjs --write-b07-fixtures` and review the diff.
+
+## Next
+
+1. Merge Task 7 onto `vmag211/backend`. The controller then regenerates `STATE.md`: four more operations answer (unavailable until the key is set), the new key sits under known risks beside `HALO_RECOVERY_TOKEN_KEY`, and 0024 is pending.
+2. Vibhav: apply 0024 on staging, set the key there, one browser pass, then production (`YOUR_TODO.md` 2.14 and 2.16).
+3. Give Yogi `YOUR_TODO.md` Part 4 items 26 to 29 and the B07 contract.
+
+---
+
 # B06 checkpoint: My Week (tasks, their planning details, and the week strip)
 
 Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b06-home-actions-week.md`. Contract digest and rulings: `.superpowers/sdd/b06-home-actions-week/` (`contract-digest.md`, `progress.md`, the task reviews; gitignored scratch).

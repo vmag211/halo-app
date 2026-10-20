@@ -1,0 +1,18 @@
+{
+  "operationId": "privacyInspect",
+  "status": 400,
+  "body": {
+    "error": "Choose at least one group to export.",
+    "code": "validation_failed",
+    "message": "Choose at least one group to export.",
+    "field_errors": [
+      {
+        "field": "groups",
+        "code": "required",
+        "message": "Choose at least one group to export."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b07-contract-0001"
+  }
+}
