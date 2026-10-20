@@ -61,16 +61,21 @@ const MAX_PREVIOUS = 15;
 
 const bad = (field, code, message) => ({ field, code, message });
 
+// A lone surrogate survives JSON.parse but cannot be stored in jsonb or text: the insert would fail as a 500,
+// which the client reads as "not confirmed". It is a malformed request, so it is refused before any claim.
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+const unstorable = (text, options) => hasControlCharacters(text, options) || LONE_SURROGATE.test(text);
+
 function parseBody(body) {
   const errors = [];
   for (const key of Object.keys(body)) if (!BODY_KEYS.includes(key)) errors.push(bad(key, 'unknown_field', `Only ${BODY_KEYS.join(', ')} can be sent.`));
   const { contextKey, constraints, request, interpret, previousIdeaIds } = body;
-  if (typeof contextKey !== 'string' || !contextKey || contextKey.length > 500 || hasControlCharacters(contextKey)) errors.push(bad('contextKey', 'invalid_context', 'The context key is not valid.'));
+  if (typeof contextKey !== 'string' || !contextKey || contextKey.length > 500 || unstorable(contextKey)) errors.push(bad('contextKey', 'invalid_context', 'The context key is not valid.'));
   if (!validProjectConstraints(constraints)) errors.push(bad('constraints', 'invalid_constraints', 'Choose a space, group, time, budget and number of ideas.'));
-  if (typeof request !== 'string' || request.length > MAX_REQUEST || hasControlCharacters(request, { allowNewlines: true })) errors.push(bad('request', 'invalid_request', `Describe your interest in ${MAX_REQUEST} characters or fewer.`));
+  if (typeof request !== 'string' || request.length > MAX_REQUEST || unstorable(request, { allowNewlines: true })) errors.push(bad('request', 'invalid_request', `Describe your interest in ${MAX_REQUEST} characters or fewer.`));
   if (typeof interpret !== 'boolean') errors.push(bad('interpret', 'invalid_boolean', 'interpret must be true or false.'));
   if (!Array.isArray(previousIdeaIds) || previousIdeaIds.length > MAX_PREVIOUS
-    || !previousIdeaIds.every((id) => typeof id === 'string' && id.length >= 1 && id.length <= 200 && !hasControlCharacters(id))) {
+    || !previousIdeaIds.every((id) => typeof id === 'string' && id.length >= 1 && id.length <= 200 && !unstorable(id))) {
     errors.push(bad('previousIdeaIds', 'invalid_ids', `Send at most ${MAX_PREVIOUS} idea ids.`));
   }
   if (errors.length) return { ok: false, errors };
@@ -94,7 +99,11 @@ export async function POST(request) {
     const parsed = parseBody(body.value);
     if (!parsed.ok) return validationError(parsed.errors, requestId);
     const input = parsed.value;
-    const answer = (result) => NextResponse.json(result, { headers });
+    // A completed set keeps the key it was made for (the client adopts it only
+    // for its own); a settled non-completed row for this id (a cancellation
+    // recorded by another call) is answered in this caller's key, because the
+    // client compares the key before it reads the status.
+    const answer = (result) => NextResponse.json(result.status === 'completed' ? result : { ...result, contextKey: input.contextKey }, { headers });
     const refused = (message) => answer(terminalResult(id, input.contextKey, 'failed', message));
 
     // Off by default (Ruling J2): nothing read, nothing claimed.

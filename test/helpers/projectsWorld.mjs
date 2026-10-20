@@ -91,8 +91,12 @@ export async function createWorld(db, { env = ON, missing = [], homes = true, on
   const ids = { alice, bob };
   const scopeKey = (who) => `${ids[who]}:${home[who]}:1`;
 
-  /** The frontend's own runtime, fetching through the route harness. */
-  function runtime(who = 'alice', { lose = () => false, env: callEnv, contextRevision = 1 } = {}) {
+  /**
+   * The frontend's own runtime, fetching through the route harness. `homeless`:
+   * the client after a reload, when GET /api/profile told it no home
+   * (ProductionApp.tsx:41-42), so its scopeKey is `<id>:none:0`.
+   */
+  function runtime(who = 'alice', { lose = () => false, env: callEnv, contextRevision = 1, homeless = false } = {}) {
     const fetcher = async (path, init) => {
       const url = new URL(path, 'http://halo.test');
       const response = await h.call(url.pathname, init.method, { as: who, url: `${url.pathname}${url.search}`, headers: init.headers, rawBody: init.body, env: callEnv });
@@ -100,7 +104,7 @@ export async function createWorld(db, { env = ON, missing = [], homes = true, on
       return response;
     };
     return createProductionRuntime({
-      identityId: ids[who], homeContextId: home[who], contextRevision,
+      identityId: ids[who], homeContextId: homeless ? null : home[who], contextRevision: homeless ? undefined : contextRevision,
       credential: async () => ({ identityId: ids[who], accessToken: h.identities[who].token }), fetcher,
     });
   }

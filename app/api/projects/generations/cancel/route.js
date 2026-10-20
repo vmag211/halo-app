@@ -8,6 +8,7 @@ import {
   PROJECTS_DOMAIN,
   PROJECT_COPY,
   cancelOperationId,
+  clientContextKey,
   contextKeyFor,
   currentHome,
   isProjectsUnavailable,
@@ -76,7 +77,7 @@ export async function POST(request) {
     // Off by default (Ruling J2): nothing read, nothing written.
     const uuid = parseUuid(id.value);
     if (!featureEnabled('projects') || !uuid.ok) return cancelled();
-    contextKey = contextKeyFor(userId, (await currentHome(supabaseAdmin, userId)).context);
+    contextKey = clientContextKey(request, userId, await currentHome(supabaseAdmin, userId));
 
     let row;
     try {

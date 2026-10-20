@@ -143,6 +143,29 @@ test('a request for an earlier home is refused as settled, for another identity 
   assert.deepEqual(await w.generations(), []);
 });
 
+test('a client never told its home (GET /api/profile carries none) is served for the current home, restores its set, and ends a wait on an unknown id', async () => {
+  const w = await createWorld(db);
+  const ui = fe.projectGeneration(w.runtime('alice', { homeless: true }));
+  await ui.regenerate();
+  assert.equal(ui.message, '12 ideas ready.');
+  assert.equal(ui.batch.contextKey, `${w.ids.alice}:none:0`);
+  assert.equal(ui.evidence.find((item) => item.id === 'home:water-source').value, 'Public water system', 'the current home is used');
+  const again = fe.projectGeneration(w.runtime('alice', { homeless: true }));
+  await again.load();
+  assert.deepEqual(again.batch, ui.batch);
+  // Retry of an attempt whose request never arrived: the check answers in the key this client holds, so the wait ends.
+  again.state.pending = { id: crypto.randomUUID(), constraints: again.batch.constraints, request: '', interpret: false };
+  await again.retry();
+  assert.equal(again.state.pending, null);
+  assert.equal(again.message, PROJECT_COPY.notFound);
+  // The same for a client that does know its home.
+  const known = fe.projectGeneration(w.runtime());
+  known.state.pending = { id: crypto.randomUUID(), constraints: again.batch.constraints, request: '', interpret: false };
+  await known.retry();
+  assert.equal(known.state.pending, null);
+  assert.equal(known.message, PROJECT_COPY.notFound);
+});
+
 test('the same request id twice answers the same set, and a different body under it is the 409', async () => {
   const w = await createWorld(db);
   const key = crypto.randomUUID();
@@ -185,7 +208,7 @@ test('status: a check never starts a generation; an id never seen ends the wait,
   const unknown = await (await w.get(ROUTES.status, { id: crypto.randomUUID() })).json();
   assert.equal(unknown.status, 'failed');
   assert.equal(unknown.message, PROJECT_COPY.notFound);
-  assert.equal(unknown.contextKey, w.scopeKey('alice'));
+  assert.equal(unknown.contextKey, `${w.ids.alice}:none:0`, 'no home header: the key of a client that names no home');
   assert.deepEqual(await w.generations(), []);
 
   // The generate answer is lost: the client keeps the attempt, and Retry checks the same id.

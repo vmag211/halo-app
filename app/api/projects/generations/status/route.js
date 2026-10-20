@@ -7,7 +7,7 @@ import { isOperationsUnavailable, readOperation } from '@/lib/operations';
 import {
   PROJECTS_DOMAIN,
   PROJECT_COPY,
-  contextKeyFor,
+  clientContextKey,
   currentHome,
   isProjectsUnavailable,
   projectsUnavailable,
@@ -31,7 +31,8 @@ import {
  * Never a 404: the client keeps its attempt parked on any error. Another
  * household's id gets the identical answer and nothing of theirs is read.
  * Every answer carries the context key: the row's own, or for a row that does
- * not exist, this household's current one (the client compares it first).
+ * not exist, the one the calling client holds (clientContextKey: the client
+ * compares it before the status).
  *
  * Flag `projects` off, or 0030 missing: the non-retryable 503.
  */
@@ -54,7 +55,7 @@ export async function GET(request) {
     if (row) return NextResponse.json(row.result, { headers });
 
     const home = await currentHome(supabaseAdmin, userId);
-    const contextKey = contextKeyFor(userId, home.context);
+    const contextKey = clientContextKey(request, userId, home);
     const operation = uuid.ok ? await readOperation(supabaseAdmin, { operationId: uuid.value, profileId: userId, domain: PROJECTS_DOMAIN }) : null;
     if (operation && (operation.status === 'pending' || operation.status === 'unknown')) {
       return NextResponse.json(terminalResult(raw.value, contextKey, 'queued', undefined), { headers });
