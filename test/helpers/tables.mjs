@@ -31,6 +31,11 @@ const nextSeq = () => (turnSeq += 1);
 /** Stands in for source_ops_audit.id, a 0027 identity column. */
 let auditSeq = 0;
 const nextAuditId = () => (auditSeq += 1);
+/** Stand in for the 0033 identity columns of the public water copies and runs. */
+let snapshotSeq = 0;
+const nextSnapshotId = () => (snapshotSeq += 1);
+let runSeq = 0;
+const nextRunId = () => (runSeq += 1);
 
 export const HALO_TABLES = {
   // auth.users -> profiles (0001) cascades; profiles.id is the owner id.
@@ -319,6 +324,9 @@ export const HALO_TABLES = {
   // column and no foreign key, so an account's deletion cascade cannot take
   // the queue with it (B14 Ruling A9).
   attachment_object_sweep: { primaryKey: 'object_path', defaults: { due_at: now, created_at: now } },
+  // 0033: public water copies and the import's runs (B19). Public data: no owner column.
+  public_evidence_snapshots: { primaryKey: 'id', defaults: { id: nextSnapshotId, retrieved_at: now } },
+  public_evidence_runs: { primaryKey: 'id', defaults: { id: nextRunId, ran_at: now } },
 };
 
 /** The declarations for just these tables (throws on a name that is not declared). */

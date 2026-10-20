@@ -9,3 +9,5 @@
 *.pdf binary
 *.tar.gz binary
 *.zip binary
+# Recorded public source downloads (B19 parser tests): byte-for-byte, so their sha256 matches the data file headers.
+/test/fixtures/public-evidence/** -text -whitespace

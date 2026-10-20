@@ -36,7 +36,10 @@ the branch as of the night run: `docs/backend/STATE.md`.
 5. **Deploy the backend branch** `vmag211/backend`. Migrations missing or flags off answer "unavailable",
    so the order against step 1 does not break anything. Afterwards trigger one daily cron run while ArcGIS
    is healthy (the geography check in the same "Known live risks" entry), and do the staging check in 1.4.
-6. **Capture the AirNow forecast documentation** (Part 3 item 10): the forecast web service docs (endpoint,
+6. **B19 (2026-10-20 night run): also apply 0033** with `docs/backend/apply/apply-0033.sql` and
+   `verify-0033.sql` (section 2.23). It needs no other pending migration. The weekly public water import
+   stays off until you set `HALO_FEATURE_PUBLIC_IMPORT` (B19 decision 1).
+7. **Capture the AirNow forecast documentation** (Part 3 item 10): the forecast web service docs (endpoint,
    parameters, response fields) and one real North Carolina response, so B10 Task 5 can be built.
 
 ---
@@ -1096,6 +1099,39 @@ drop table if exists public.outreach_drafts;
 Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **every household's outreach drafts are deleted for good**. Ledger rows in domain `outreach` stay; they hold draft ids, revisions and statuses only. Nothing was ever sent, so nothing outside HALO is affected. Nothing else is touched.
+
+### 2.23 Apply 0033 (weekly public water import, B19)
+
+**Written, applied nowhere yet.** Needs nothing newer than the baseline; it does not need 0024 to 0032 and may go before or after them. Quiet: two new tables and one function, no existing table read or touched.
+
+What it is for (B19 plan, `docs/backend/plans/b19-public-evidence-refresh.md`): the water and conservation screen (`water.read`) has served a copy of the U.S. Drought Monitor county figures and the NC DWR conservation status table bundled by hand on 2026-10-20. The weekly import (`GET /api/cron/public-evidence`, Thursdays 18:00 UTC in `vercel.json`) fetches both, checks them strictly (all 100 counties on every weekly map, the table's own totals, real dates, sane row counts) and stores a dated copy only when the check passes. A failed or partial fetch stores nothing and keeps the last good copy; the run is recorded with a reason code and counts only. `water.read` serves the newest stored copy of each source, or the bundled copy, and its answer always says which, with the retrieval date. Fish advisories are not imported: their text needs a person's review.
+
+**Applying this does not turn the import on.** Until `HALO_FEATURE_PUBLIC_IMPORT=on`, the cron answers a non-retryable 503 and fetches nothing, and `water.read` keeps serving the bundled copy. Turn it on only after you confirm automated reuse of the NC DWR table (spec DS-113, B19 decision 1).
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0033_public_evidence_snapshots.sql`, or `docs/backend/apply/apply-0033.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run `docs/backend/apply/verify-0033.sql`: **one row, `all_migrations_ok` true, five checks**. If `no_client_access` or `function_service_role_only` is false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+4. When you turn the import on: set `HALO_FEATURE_PUBLIC_IMPORT=on`, redeploy, then call the cron once by hand (`curl -H "Authorization: Bearer $CRON_SECRET" https://<your deployment>/api/cron/public-evidence`) and expect `{"ok":true,"results":[...]}` with both sources `stored`. Read the runs back (counts and codes only):
+
+   ```
+   select source, ran_at, outcome, reason, row_count from public.public_evidence_runs order by id desc limit 4;
+   ```
+
+#### If you need to back out 0033
+
+`water.read` goes back to the bundled copy, exactly as before; the import answers a non-retryable 503 and fetches nothing; the operations screen stops listing the two sources. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0033 -->
+
+```sql
+drop function if exists public.record_public_evidence_run(jsonb);
+drop table if exists public.public_evidence_runs;
+drop table if exists public.public_evidence_snapshots;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every stored copy and every run row is deleted. The bundled file in `lib/data/` is untouched, so the screen loses only the newer dates. Nothing else is touched.
 
 ---
 

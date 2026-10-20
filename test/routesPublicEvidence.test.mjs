@@ -39,13 +39,20 @@ function harness(options = {}) {
     ...options,
   });
   h.touched = [];
-  h.db.from = (name) => { h.touched.push(`from:${name}`); throw new Error('the database was read'); };
+  const fakeFrom = h.db.from;
+  // water.read reads 0033's public copies (B19) and nothing else; here 0033 is not applied, so the
+  // fake answers PGRST205 and the bundled file is served. Every other table still throws.
+  h.db.from = (name) => {
+    h.touched.push(`from:${name}`);
+    if (name === 'public_evidence_snapshots') return fakeFrom(name);
+    throw new Error('the database was read');
+  };
   h.db.rpc = async (name) => { h.touched.push(`rpc:${name}`); throw new Error('the database was called'); };
   return h;
 }
 const get = (h, path, query = '', { as = 'alice', headers } = {}) => h.call(path, 'GET', { as, url: `${path}${query}`, headers });
 const nothingTouched = (h) => {
-  assert.deepEqual(h.touched, [], 'no table and no RPC');
+  assert.deepEqual(h.touched.filter((name) => name !== 'from:public_evidence_snapshots'), [], 'no table but the public copies of 0033, and no RPC');
   assert.deepEqual(h.blockedFetches, [], 'no fetch');
 };
 

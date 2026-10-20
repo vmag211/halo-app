@@ -53,6 +53,8 @@ These tables have no household owner column or user-submitted free text. Their t
 | `public.water_snapshots` | Utility PWSID fingerprints for change detection | Daily job overwrites per utility; operator admin |
 | `public.map_layers` | Prebuilt public geographic layers and metadata | Daily job replaces layer payload; operator admin |
 | `public.daily_maxima_recorder` | One row of recorder state (0025): `recording_from`, the first day the recorder recorded, set once and never moved, and the last run's time and counts (counts only, never a coordinate, an id or provider text). No household data | Written only by the recorder's own functions; dropped by the 0025 back-out |
+| `public.public_evidence_snapshots` | Dated copies of two public sources water.read serves (0033, B19): U.S. Drought Monitor county area shares and the NC DWR water system conservation statuses, with the source's own date, HALO's retrieval time, a row count and the sha256 of the bytes parsed. Public information, the same for every household; no account, home or household value | The weekly import (`/api/cron/public-evidence`) keeps the newest 8 copies per source and removes older ones; dropped by the 0033 back-out |
+| `public.public_evidence_runs` | One row per source per import run (0033, B19): when it ran, stored or failed, a fixed reason code and a row count. Never a URL, a body, a value or error text. No household data | The import keeps the newest 200 runs per source; dropped by the 0033 back-out |
 
 ## Staff access and audit (B13), not household data
 
