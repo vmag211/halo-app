@@ -180,7 +180,7 @@ test('fish: every species a site advisory lists is matchable at its water, and t
   const byWater = Map.groupBy(siteRules, (rule) => rule.waterbody);
   for (const [water, rules] of byWater) {
     const species = new Set(rules.map((rule) => rule.species));
-    const label = /^Listed species: (.*?)\. (?:The species field|Pollutants of concern)/.exec(rules[0].condition)[1];
+    const label = /^Listed species: (.*?)\. (?:The species field|Shown for every species|Pollutants of concern)/.exec(rules[0].condition)[1];
     const tokens = label.replace(/^and\s+/i, '').split(/\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+/i).map((token) => token.trim()).filter(Boolean);
     for (const token of tokens) {
       const wanted = /^all$/i.test(token) ? 'All fish' : token.replace(/blue gill/i, 'Bluegill').replace(/stripped/i, 'Striped');

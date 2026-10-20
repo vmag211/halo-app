@@ -953,6 +953,10 @@ From B07 (privacy). File and line references are to this tree (the frontend as m
 35. **(C11) The workspace `clear-private` command is a second clearing path.** `components/homeguard/HomeWorkspaceState.tsx:270` sends a `clear-private` command through `workspace.execute`, which has no server route yet. When `workspace.execute` gets a server route, that command must go through `privacy.clear` or be refused, so two paths never clear the same records differently.
 36. **A too-large export says only "Check the highlighted information and try again."** An export whose file would pass 4,000,000 bytes is refused at review with a 422 `export_too_large` (message "This export is too large to download at once. Choose fewer groups and try again."), which the runtime maps to its generic validation sentence and highlights nothing. Showing the server's message, or a sentence of your own for `export_too_large`, would tell the person what to do.
 
+From B12 (public evidence reads: `fish.read`, `water.read`, `growers.search`, `food.search`). Plan: `docs/backend/plans/b12-public-evidence.md`. None of these blocks the backend.
+
+37. **"I cannot identify the species" should show every advisory at the chosen water.** `matchFishRules` returns `[]` for `species === 'unknown'` (`components/homeguard/FoodFish.tsx:23`), so a person who cannot name the fish sees "Species is unresolved." even at a water whose advisory says do not eat any fish (Little Brier Creek, Brier Creek) or whose advice is withheld pending review. Showing every rule whose `waterbody` is the chosen water (and every statewide rule listing it in `waterbodyIds`) for that choice would surface them; the backend already serves one rule per species, so de-duplicate by title.
+
 ## Part 5. Small follow-ups that are NOT scheduled (decide if you want them)
 
 - Revoke the leftover TRUNCATE, REFERENCES and TRIGGER rights from anon and authenticated on the four tables. They are not reachable through the Supabase API today, so this is defense in depth.

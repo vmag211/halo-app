@@ -192,12 +192,14 @@ function buildFish() {
       : complete ? advisory
         : 'Recommendation withheld. The NC DHHS data service stores this advisory\'s text cut off mid-sentence, so HALO does not show part of it. Open the official advisory for the complete advice.';
     const tokens = speciesTokens(speciesLabel);
-    const allFish = tokens.includes('All fish') || /\ball other fish\b/i.test(advisory);
+    // A withheld row (cut off or contradictory) matches every species at its water: the cut text
+    // may name more species than the species field does (coordinator ruling, 2026-10-20).
+    const allFish = tokens.includes('All fish') || /\ball other fish\b/i.test(advisory) || status.startsWith('Review required');
     const base = {
       kind: 'Waterbody-specific', waterbody: id, status,
       date: `NC DHHS data service updated ${serviceUpdated}`,
       extent: clean(row.Site), pollutant, wording,
-      condition: `Listed species: ${speciesLabel}.${speciesNote} Pollutants of concern: ${pollutant}. Confirm species, audience and extent in the official advisory. Separate advisories are read together; their limits are not added.`,
+      condition: `Listed species: ${speciesLabel}.${speciesNote}${status.startsWith('Review required') ? ' Shown for every species at this water, because the complete advisory may name more species than this record lists.' : ''} Pollutants of concern: ${pollutant}. Confirm species, audience and extent in the official advisory. Separate advisories are read together; their limits are not added.`,
       previous: FIRST_REVISION_NOTE, url,
       title: `${title}: ${speciesLabel}`,
     };
@@ -252,7 +254,7 @@ function buildFish() {
       });
     }
   }
-  const allSpecies = [...new Set(rules.map((rule) => rule.species))].filter((name) => name !== 'All fish').sort();
+  const allSpecies = [...new Set([...rules.map((rule) => rule.species), 'All fish'])].sort();
   for (const { base, id, listed } of allSpeciesRules) {
     for (const species of allSpecies) if (!listed.has(species)) rules.push({ ...base, id: `${id}--${slug(species)}`, species });
   }

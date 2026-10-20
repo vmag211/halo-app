@@ -149,6 +149,26 @@ test('fish: "do not eat any fish" waters and generic catfish match every relevan
   assert.ok(blue.some((r) => r.kind === 'Statewide'), 'with the statewide wild catfish rule');
 });
 
+test('fish: a withheld advisory matches every species at its water, since the cut text may name more', async () => {
+  const w = world();
+  const { data } = await read(w, 'fish-catalogue', {}, 'validFishCatalogue');
+  const screen = fe.fishScreen(data);
+  const withheld = [...new Set(data.rules.filter((r) => r.status.startsWith('Review required') && r.waterbody !== 'statewide').map((r) => r.waterbody))];
+  assert.equal(withheld.length, 28, 'the 27 cut-off rows and Falls Reservoir');
+  for (const waterbody of withheld) {
+    for (const species of data.species) {
+      const site = screen.view({ query: '', waterbody, species, audience: 'unknown' }).matches.filter((r) => r.waterbody === waterbody);
+      assert.equal(site.length, 1, `${waterbody} has its withheld advisory for ${species}`);
+      assert.match(site[0].wording, /^Recommendation withheld\./);
+      assert.match(site[0].condition, /Shown for every species at this water/);
+    }
+  }
+  const bluegill = screen.view({ query: '', waterbody: 'nc-albemarle-sound', species: 'Bluegill', audience: 'unknown' }).matches;
+  assert.deepEqual(bluegill.map((r) => r.title), ['Albemarle Sound: catfish and carp'], 'an unlisted species sees the withheld advisory and its official link, not "No verified advisory"');
+  const crabtree = screen.view({ query: '', waterbody: 'nc-neuse-river', species: 'Bluegill', audience: 'unknown' }).matches;
+  assert.deepEqual(crabtree, [], 'a complete advisory still matches only the species it names');
+});
+
 test('water: a county\'s drought distribution and a utility status render as dated regional records', async () => {
   const w = world();
   const result = await read(w, 'water-stewardship', {}, 'validWaterStewardship');
