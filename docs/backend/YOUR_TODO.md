@@ -7,12 +7,14 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 Do these in order. The detail for each lives in the section named; this list does not repeat it. State of
 the branch as of the night run: `docs/backend/STATE.md`.
 
-1. **Apply the six pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029.** For each, paste
-   `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste `docs/backend/apply/verify-00NN.sql`
-   and check the one row says every column is true (anything false: stop and send the row). Then run
-   `notify pgrst, 'reload schema';`. Sections 2.14 (0024), 2.15 (0025), 2.17 (0026), 2.18 (0027) and 2.19
-   (0028) and 2.20 (0029) hold the reason, the quiet-time note and the tested back-out block for each. 0028
-   and 0029 need 0017 and 0026 first. Applying a migration turns nothing on.
+1. **Apply the eight pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029, 0030, 0031.** For
+   each, paste `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste
+   `docs/backend/apply/verify-00NN.sql` and check the one row says every column is true (anything false:
+   stop and send the row). Then run `notify pgrst, 'reload schema';`. Sections 2.14 (0024), 2.15 (0025),
+   2.17 (0026), 2.18 (0027), 2.19 (0028), 2.20 (0029), 2.21 (0030) and 2.22 (0031) hold the reason, the
+   quiet-time note and the tested back-out block for each. 0028 and 0029 need 0017 and 0026 first; 0030
+   and 0031 need 0017 (0030's project start and 0031's notes also read 0026). Applying a migration turns
+   nothing on.
 2. **Set the environment variables** (server side, Sensitive, then redeploy; names only, never a value in
    the repository):
    - `HALO_PRIVACY_REVIEW_KEY`, the only switch for privacy (2.16).
@@ -22,7 +24,10 @@ the branch as of the night run: `docs/backend/STATE.md`.
      workspace, 2.17), and `HALO_FEATURE_ATTACHMENTS` (private photos, 2.19) **only after
      `npm install sharp@0.35.5` is committed**, because `sharp` is not yet in `package.json`, and only with
      `HALO_FEATURE_WORKSPACE` also on. `HALO_FEATURE_SUMMARIES` (saved summaries, 2.20) also needs
-     `HALO_FEATURE_WORKSPACE` on.
+     `HALO_FEATURE_WORKSPACE` on. `HALO_FEATURE_PROJECTS` (Explore project ideas from a sourced library, no
+     generative AI, 2.21) needs `HALO_FEATURE_WORKSPACE` on only to start a project. `HALO_FEATURE_OUTREACH`
+     (prepared outreach copies that are never sent, 2.22) stands alone. Each of the three waits on the
+     decisions in its plan (`STATE.md`, "Decisions only Vibhav can make").
 3. **Grant yourself the operator role** with the SQL in 2.18 step 4 (after 0027). Until you do, the
    operations screen shows the denied snapshot.
 4. **Merge the geo hotfix PR to main**: `vmag211/hotfix-geo-outage` (`50ae6cb`), so main stops overwriting
