@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/daily", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/daily", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/daily-maxima", "schedule": "0 12 * * *" }
   ]
 }

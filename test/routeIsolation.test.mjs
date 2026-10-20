@@ -35,6 +35,8 @@ const ROUTE_COVERAGE = {
   'POST /api/assistant': 'flows: the model prompt carries only the caller\'s context and no journal notes',
   'GET /api/cron/daily': 'flows: secret required; bands, dedupe, prefs, season summary and provider requests per household',
   'POST /api/cron/daily': 'flows: shares the GET handler; secret required (checked here), run covered through GET',
+  'GET /api/cron/daily-maxima': 'dailyMaximaRecorder, dailyMaximaRecorderDb: secret required and nothing read without it; every row is filed under the context it was computed for and that context\'s own household (the real record_daily_maxima refuses another owner), a moved household\'s earlier home and move day get nothing, a deleted context costs only its own rows; no session, header or query input selects a household',
+  'POST /api/cron/daily-maxima': 'dailyMaximaRecorder: shares the GET handler; secret required (checked there), run covered through GET',
   'GET /api/daily-score': 'isolation: read matrix, 403 for a foreign profile_id; flows: cache miss, own-row write, provider requests',
   'GET /api/district': 'isolation: read matrix; routesMapPublic: with no Authorization header the read is the stored view only, reads no profiles row and carries no household_county, and any Authorization header is checked as before',
   'GET /api/health': 'isolation: read matrix (no household data)',
