@@ -10,6 +10,8 @@ import {
   cached,
   peekCached,
   hourKey,
+  lastConfirmedKey,
+  storeCached,
   _resetForecastCache,
   _forecastMemorySize,
   ENVELOPE_VERSION,
@@ -485,4 +487,41 @@ test('with no store given and no Upstash configured, the cache is memory only an
   assert.deepEqual(attempts, []);
   assert.equal((await withSandbox({ fetch: blockedFetch(attempts) }, () => cached(KEY, { ttlSeconds: 7200, now: () => T0 }, produce))).source, 'memory');
   assert.deepEqual(attempts, []);
+});
+
+// --- the last confirmed forecast (ruling F18-S, Task 8) -----------------------
+
+test('lastConfirmedKey: the hour-free layout, two decimals, the same in every hour', () => {
+  assert.equal(lastConfirmedKey('open-meteo', CHARLOTTE), 'halo:forecast:v1:open-meteo:35.23,-80.84:last');
+  assert.equal(lastConfirmedKey('open-meteo', { lat: 35.2271, lng: -80.8431 }), lastConfirmedKey('open-meteo', { lat: 35.2349, lng: -80.8389 }));
+  assert.throws(() => lastConfirmedKey('Open Meteo', CHARLOTTE), TypeError);
+  assert.throws(() => lastConfirmedKey('open-meteo', { lat: 91, lng: 0 }), TypeError);
+});
+
+test('storeCached writes a good value to memory and the store, and peekCached reads it back across instances', async () => {
+  const store = fakeStore();
+  const key = lastConfirmedKey('open-meteo', CHARLOTTE);
+  const options = { ttlSeconds: 9 * 3600, now: () => T0, store };
+  assert.equal(await storeCached(key, options, GOOD), true);
+  assert.deepEqual(store.calls.find(([op]) => op === 'set'), ['set', key, { ex: 9 * 3600 }]);
+  assert.deepEqual((await peekCached(key, options)).result, GOOD);
+  _resetForecastCache(); // another instance
+  const fromStore = await peekCached(key, options);
+  assert.equal(fromStore.source, 'store');
+  assert.deepEqual(fromStore.result, GOOD);
+  // Past its lifetime it is gone.
+  assert.equal(await peekCached(key, { ...options, now: () => T0 + 9 * 3600 * 1000 }), null);
+});
+
+test('storeCached refuses anything not ok: true, and any key but a lastConfirmedKey', async () => {
+  const store = fakeStore();
+  const key = lastConfirmedKey('open-meteo', CHARLOTTE);
+  const options = { ttlSeconds: 3600, now: () => T0, store };
+  for (const value of [{ ok: false, reason: 'run_unknown' }, { hours: [] }, null]) {
+    assert.equal(await storeCached(key, options, value), false);
+  }
+  assert.equal(store.data.size, 0, 'nothing written');
+  assert.equal(await peekCached(key, { ...options, store: null }), null);
+  await assert.rejects(storeCached(KEY, options, GOOD), TypeError, 'an hour key is filled only through cached');
+  await assert.rejects(storeCached('halo:forecast:v1:open-meteo:Charlotte:last', options, GOOD), TypeError);
 });
