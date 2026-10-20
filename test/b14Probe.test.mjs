@@ -401,6 +401,28 @@ test('deleting an account queues every file object and keeps the queue; the priv
   assert.deepEqual(Object.keys(part.withheld).sort(), ['attachment_id', 'object_path', 'operation_id']);
 });
 
+test('removal locks the record that holds a file before the file, the order a workspace write and its link trigger use (no deadlock between a removal and a save)', async () => {
+  const definition = (await db.query(`select pg_get_functiondef('public.remove_household_attachment(uuid,uuid,uuid,integer)'::regprocedure) as sql`)).rows[0].sql;
+  const recordLock = definition.search(/from public\.household_workspace_records r\s+where r\.profile_id = p_profile_id and r\.collection = stored\.collection[^;]*for no key update/);
+  const fileLock = definition.search(/from public\.household_attachments a\s+where a\.attachment_id = p_attachment_id and a\.profile_id = p_profile_id\s+for update/);
+  assert.ok(recordLock > 0 && fileLock > 0, 'both locks are present');
+  assert.ok(recordLock < fileLock, 'the record is locked first');
+
+  // And it still removes: a linked report, and a staged file whose record does not exist.
+  const w = await createWorld(db);
+  const image = await jpeg();
+  const staged = await (await upload(w, image, { fields: { recordId: 'obs-never-saved' } })).json();
+  const gone = await (await w.remove({ id: staged.id, revision: 1, operationId: crypto.randomUUID() })).json();
+  assert.equal(gone.status, 'succeeded');
+  assert.deepEqual(await w.files(), []);
+  const record = sampleRecord('tests', { homeContextId: w.home.alice, rows: [] });
+  assert.equal((await (await w.command(workspaceBody({ kind: 'write', collection: 'tests', record, expectedRevision: null }))).json()).status, 'succeeded');
+  const report = await (await w.upload({ file: { blob: new Blob([image]), name: 'r.jpg' }, collection: 'tests', recordId: record.id, metadataRemoved: 'false', reviewed: 'true', operationId: crypto.randomUUID() })).json();
+  const removed = await (await w.remove({ id: report.id, revision: 1, operationId: crypto.randomUUID() })).json();
+  assert.equal(removed.status, 'succeeded');
+  assert.deepEqual((await w.rows('alice', 'tests'))[0].record.attachments, []);
+});
+
 // ------------------------------------------------------------ database limits
 
 test('a decodable PNG wider than the table\'s 100,000 pixel check is a clean 422, never a 500 after the bytes were stored', async (t) => {

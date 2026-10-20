@@ -450,6 +450,18 @@ begin
   if not found then
     raise exception 'HALO_OPERATION_NOT_PENDING' using errcode = 'P0001';
   end if;
+  -- Lock order: the record that holds the file, then the file. A workspace
+  -- write locks its record first and its link trigger then locks the files it
+  -- names, so taking the file first here could deadlock with that write. The
+  -- record lock is the one a plain UPDATE takes (it does not block another
+  -- commit's key share on the same record). A staged file may have no record.
+  select * into stored from public.household_attachments a
+   where a.attachment_id = p_attachment_id and a.profile_id = p_profile_id;
+  if found then
+    perform 1 from public.household_workspace_records r
+     where r.profile_id = p_profile_id and r.collection = stored.collection and r.record_id = stored.record_id
+       for no key update;
+  end if;
   select * into stored from public.household_attachments a
    where a.attachment_id = p_attachment_id and a.profile_id = p_profile_id
      for update;
