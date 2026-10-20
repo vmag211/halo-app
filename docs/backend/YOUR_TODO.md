@@ -2,6 +2,39 @@
 
 Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passed. Production has NOT been migrated yet.
 
+## Morning checklist (2026-10-20)
+
+Do these in order. The detail for each lives in the section named; this list does not repeat it. State of
+the branch as of the night run: `docs/backend/STATE.md`.
+
+1. **Apply the five pending migrations, in order: 0024, 0025, 0026, 0027, 0028.** For each, paste
+   `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste `docs/backend/apply/verify-00NN.sql`
+   and check the one row says every column is true (anything false: stop and send the row). Then run
+   `notify pgrst, 'reload schema';`. Sections 2.14 (0024), 2.15 (0025), 2.17 (0026), 2.18 (0027) and 2.19
+   (0028) hold the reason, the quiet-time note and the tested back-out block for each. 0028 needs 0017 and
+   0026 first. Applying a migration turns nothing on.
+2. **Set the environment variables** (server side, Sensitive, then redeploy; names only, never a value in
+   the repository):
+   - `HALO_PRIVACY_REVIEW_KEY`, the only switch for privacy (2.16).
+   - `NWS_CONTACT`, before the forecast goes live (Part 3 item 8).
+   - Feature flags only if you want the feature on now: `HALO_FEATURE_TASKS` (My Week, 2.12),
+     `HALO_FEATURE_LUNA` (with the two model ids, 2.13 step 3), `HALO_FEATURE_WORKSPACE` (Homeguard
+     workspace, 2.17), and `HALO_FEATURE_ATTACHMENTS` (private photos, 2.19) **only after
+     `npm install sharp@0.35.5` is committed**, because `sharp` is not yet in `package.json`, and only with
+     `HALO_FEATURE_WORKSPACE` also on.
+3. **Grant yourself the operator role** with the SQL in 2.18 step 4 (after 0027). Until you do, the
+   operations screen shows the denied snapshot.
+4. **Merge the geo hotfix PR to main**: `vmag211/hotfix-geo-outage` (`50ae6cb`), so main stops overwriting
+   good water and district rows during an ArcGIS outage (`STATE.md`, "Known live risks"). Open the PR from
+   that branch if one is not open.
+5. **Deploy the backend branch** `vmag211/backend`. Migrations missing or flags off answer "unavailable",
+   so the order against step 1 does not break anything. Afterwards trigger one daily cron run while ArcGIS
+   is healthy (the geography check in the same "Known live risks" entry), and do the staging check in 1.4.
+6. **Capture the AirNow forecast documentation** (Part 3 item 10): the forecast web service docs (endpoint,
+   parameters, response fields) and one real North Carolina response, so B10 Task 5 can be built.
+
+---
+
 **2026-10-17 progress:**
 
 - **1.1 audit: done.** Findings in `docs/backend/baseline-audit.deployed.json`. `ucmr5_utilities` is healthy (RLS on, one public SELECT policy), so the guarded remedy was NOT needed and was NOT run. The remedy's policy name was wrong and has been corrected here and in the baseline. Production is **PostgreSQL 17.6**, not the 18 the test suite runs on.
