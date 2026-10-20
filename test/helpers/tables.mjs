@@ -255,6 +255,14 @@ export const HALO_TABLES = {
     defaults: { created_at: now, updated_at: now },
   },
 
+  // 0026 (B11 plan): a household's Homeguard workspace records, one row per
+  // collection and record id, written only through commit_household_workspace.
+  household_workspace_records: {
+    primaryKey: ['profile_id', 'collection', 'record_id'],
+    ownerColumn: 'profile_id',
+    defaults: { revision: 1, created_at: now, updated_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },

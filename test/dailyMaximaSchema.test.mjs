@@ -156,6 +156,8 @@ test('0025 applied over 0023 and then 0024 gives exactly the schema of applying 
   try {
     await reversed.applyMigration(MIGRATION);
     await reversed.applyMigration(PRIVACY);
+    // Every later migration (0026 on) in order, so the comparison stays with the full schema.
+    for (const later of listMigrations().filter((migration) => migration.number > 25)) await reversed.applyMigration(later);
     assert.deepEqual(await runAudit(reversed), await runAudit(db));
   } finally {
     await reversed.close();

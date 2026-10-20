@@ -106,6 +106,14 @@ export const OWNED_ROW = {
     hours_observed: 24,
     retrieved_at: '2026-09-20T12:00:00Z',
   }),
+  // 0026: a workspace record; `n` varies the record id, which is in the key.
+  household_workspace_records: (owner, n) => ({
+    profile_id: owner,
+    collection: n % 2 === 0 ? 'tests' : 'exploreNotes',
+    record_id: `test-record-${n}`,
+    revision: 1,
+    record: { id: `test-record-${n}`, title: 'Test record', revision: 1 },
+  }),
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,

@@ -16,6 +16,7 @@ import { PRIVACY_DOMAIN, PRIVACY_KINDS } from '@/lib/privacyStore';
 import { privacyLimitKey, rebuildExportFile, withExportFile, withinRebuildWindow } from '@/lib/privacyExport';
 import { privacyReviewKey } from '@/lib/privacyToken';
 import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
+import { WORKSPACE_DOMAIN, isWorkspaceUnavailable, workspaceReconcileResult, workspaceUnavailable } from '@/lib/workspaceStore';
 
 // A reader, but a privacy export reconcile rebuilds the household's whole
 // file (B07 P9), as the POST that first built it may (60 s); under the
@@ -153,7 +154,22 @@ export async function GET(request) {
     // replayed as stored.
     let result = operation.result && typeof operation.result === 'object' ? operation.result : {};
     let file = null;
-    if (operation.status === 'succeeded') {
+    if (operation.domain === WORKSPACE_DOMAIN) {
+      // B11 Ruling W5: every status, not only succeeded. The home adapter
+      // refuses any receipt without `changes` (adapters.ts:15), a failed or
+      // pending one included, so a succeeded workspace operation is answered
+      // with the CURRENT rows of the collections it touched (the ledger keeps
+      // names, ids and revisions only) and every other status with
+      // `changes: {}` and its sentence. Behind the `workspace` flag like the
+      // rest of the workspace (Ruling W1).
+      if (!featureEnabled('workspace')) return workspaceUnavailable(requestId);
+      try {
+        result = await workspaceReconcileResult(supabaseAdmin, userId, operation);
+      } catch (err) {
+        if (isWorkspaceUnavailable(err)) return workspaceUnavailable(requestId);
+        throw err;
+      }
+    } else if (operation.status === 'succeeded') {
       if (operation.domain === ACTIONS_DOMAIN) {
         if (!featureEnabled('tasks')) return actionsUnavailable(requestId);
         try {

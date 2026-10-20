@@ -179,7 +179,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], daily_maxima: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], daily_maxima: [], household_workspace_records: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -226,6 +226,11 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
         { ...recorded, factor: 'uv', value: isAlice ? 3 : 9.5, unit: 'UV index', source_code: 'open_meteo_forecast', station_id: null, missing_code: null },
       );
     }
+    // Migration 0026: a test and an Explore note each, marked per household.
+    rows.household_workspace_records.push(
+      { profile_id: id, collection: 'tests', record_id: `${who}-test-1`, revision: 1, record: { id: `${who}-test-1`, title: `${upper}-TEST-MARKER`, revision: 1 } },
+      { profile_id: id, collection: 'exploreNotes', record_id: `${who}-note-1`, revision: 1, record: { id: `${who}-note-1`, title: `${upper}-NOTE-MARKER`, revision: 1 } },
+    );
     rows.push_subscriptions.push({ profile_id: id, endpoint: ENDPOINT[who], p256dh: `${upper}-P256DH-MARKER`, auth: `${upper}-AUTH-MARKER` });
     // One settled operation each (migration 0017), so the ledger is never
     // empty for either household and a cascade or isolation check on it cannot

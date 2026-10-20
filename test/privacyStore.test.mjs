@@ -90,8 +90,22 @@ test('privacyCounts passes p_profile_id and p_scope, for a clear scope only', as
   assert.deepEqual(client.calls, [{ name: 'privacy_counts', args: { p_profile_id: ALICE, p_scope: 'journal' } }]);
   await privacyCounts(client, { profileId: ALICE, scope: 'all' });
   assert.deepEqual(client.calls[1].args, { p_profile_id: ALICE, p_scope: 'all' });
+  // B11 Ruling W8: clear all also counts the workspace, journal does not.
+  assert.deepEqual(client.calls[2], { name: 'workspace_privacy_counts', args: { p_profile_id: ALICE } });
   await assert.rejects(privacyCounts(client, { profileId: ALICE, scope: 'export' }), /clear scope/);
-  assert.equal(client.calls.length, 2);
+  assert.equal(client.calls.length, 3);
+});
+
+test('privacyCounts for clear all adds the workspace count, and before 0026 counts without it', async () => {
+  const calls = [];
+  const answer = (name) => (name === 'privacy_counts' ? ok({ symptom_logs: 2 }) : ok({ household_workspace_records: 4 }))();
+  const client = { rpc: async (name) => { calls.push(name); return answer(name); } };
+  assert.deepEqual(await privacyCounts(client, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4 });
+  assert.deepEqual(calls, ['privacy_counts', 'workspace_privacy_counts']);
+  const missing = { rpc: async (name) => (name === 'privacy_counts' ? ok({ symptom_logs: 2 })() : { data: null, error: { code: 'PGRST202', message: 'missing' } }) };
+  assert.deepEqual(await privacyCounts(missing, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2 });
+  const broken = { rpc: async (name) => (name === 'privacy_counts' ? ok({ symptom_logs: 2 })() : { data: null, error: { code: '57014', message: 'timeout' } }) };
+  await assert.rejects(privacyCounts(broken, { profileId: ALICE, scope: 'all' }), (error) => error.code === '57014');
 });
 
 test('clearHouseholdRecords passes p_profile_id, p_operation_id, p_scope and p_fingerprint', async () => {
