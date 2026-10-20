@@ -156,7 +156,13 @@ test('0025 applied over 0023 and then 0024 gives exactly the schema of applying 
   try {
     await reversed.applyMigration(MIGRATION);
     await reversed.applyMigration(PRIVACY);
-    assert.deepEqual(await runAudit(reversed), await runAudit(db));
+    // Compared with 0001 to 0025 in order: a later migration (0027) is not part of this question.
+    const inOrder = await createDb({ upTo: 25 });
+    try {
+      assert.deepEqual(await runAudit(reversed), await runAudit(inOrder));
+    } finally {
+      await inOrder.close();
+    }
   } finally {
     await reversed.close();
   }

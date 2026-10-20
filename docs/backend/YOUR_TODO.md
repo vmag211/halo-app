@@ -855,6 +855,42 @@ The key is the switch (B07 Ruling P18): there is no capability flag. While it is
 
 **Decisions this leaves with you** (the B07 plan's Open questions, `docs/backend/plans/b07-privacy.md`): how long review tokens, export rebuilds and privacy receipts are kept (proposed ten minutes, ten minutes and 24 hours, the shortest the contract allows, D-P3); whether recovery challenges survive clear all (proposed yes); whether language resets to English on clear all (proposed yes); the 4,000,000-byte export cap and the limit of 30 privacy reviews and exports per household per hour; the in-flight cron residual F2 (accept, or add a "cleared at" marker); `home_risks` columns (re-run the read-only `docs/backend/baseline-audit.sql` and send the column list); and that the export carries the confirmed email only. None of them blocks setting the key on staging.
 
+### 2.18 Apply 0027 (operator roles and the source operations audit, B13)
+
+**Written, applied nowhere yet.** Needs nothing newer than 0001, so it can go before or after 0026; the routes it serves also need 0017, which production has. Quiet: it creates two new tables, one function and two triggers on its own new table, and has no foreign key, so nothing existing is locked, read or rewritten.
+
+What it is for (B13 plan, `docs/backend/plans/b13-source-operations.md`): the `/operations` screen. `public.operator_roles` says who may open it and as what (`viewer`, `reviewer` or `publisher`); an account with no row, and every anonymous account, is denied. **No route can grant a role: only this SQL editor can.** `public.source_ops_audit` keeps every source decision an operator sends, append-only (a trigger refuses any change or removal, by anyone). Today every decision is refused, because none has a real effect yet, and the refusal is what is audited.
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0027_operator_source_ops.sql` and run it, or paste `docs/backend/apply/apply-0027.sql` (the same file in one transaction). Either is safe to re-run.
+2. Run the verification query (the comment at the end of the file, or `docs/backend/apply/verify-0027.sql`): one row, all five columns true. `no_client_access` false means a browser could read or grant a role: stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+4. Grant yourself the role, with your own auth user id (Authentication, Users, or `select id from auth.users where email = '<your email>';`):
+
+```sql
+insert into public.operator_roles (profile_id, role, granted_by)
+values ('<your auth user id>', 'publisher', 'vibhav')
+on conflict (profile_id) do update
+  set role = excluded.role, granted_at = now(), granted_by = excluded.granted_by;
+```
+
+Remove a role with `delete from public.operator_roles where profile_id = '<auth user id>';`. Until 0027 is applied, the three operator routes answer "unavailable"; nothing else reads these tables.
+
+#### If you need to back out 0027
+
+The operator routes go back to answering "unavailable". Export the audit first if you want it (`select * from public.source_ops_audit order by id;`). In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0027 -->
+
+```sql
+drop table if exists public.source_ops_audit;
+drop table if exists public.operator_roles;
+drop function if exists public.guard_source_ops_audit();
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every role grant and every audit entry is deleted, because both tables go. Nothing else is touched.
+
 ---
 
 ## Part 3. Decisions only you can make

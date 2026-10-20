@@ -58,6 +58,14 @@ export const BUNDLES = Object.freeze([
     verifyFile: 'verify-0025.sql',
     migrations: Object.freeze(['0025_daily_maxima']),
   }),
+  Object.freeze({
+    title: 'migration 0027',
+    checks: 'migration 0027 is',
+    needs: 'Needs 0001 applied first; the operator routes also use 0017. It does not need 0026, and may go before or after it.',
+    bundleFile: 'apply-0027.sql',
+    verifyFile: 'verify-0027.sql',
+    migrations: Object.freeze(['0027_operator_source_ops']),
+  }),
 ]);
 
 /** The 0019 to 0023 bundle under its original names, which test/applyBundle.test.mjs and YOUR_TODO.md 2.13 use. */
