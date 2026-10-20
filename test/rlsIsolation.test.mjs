@@ -136,6 +136,11 @@ const PUBLIC_REFERENCE_TABLES = {
   // holds a household id, so no browser role may read it; no owner column on
   // purpose, so an account's deletion cascade cannot take the queue with it.
   attachment_object_sweep: 'none',
+  // 0032: public participation listings a person writes by hand (B18). No
+  // household data, but served only through the routes, which serve only
+  // verified rows, so no browser role may read them directly.
+  participation_profiles: 'none',
+  participation_opportunities: 'none',
 };
 
 /** Every function in schema public. 'service_role': only the service role may execute it. 'trigger': runs only as a trigger. */
@@ -207,6 +212,19 @@ const PUBLIC_FUNCTIONS = {
   outreach_privacy_counts: 'service_role',        // 0031: what clear all removes from the drafts, for inspect's count
   guard_settled_outreach_operation: 'trigger',    // 0031: a settled 'outreach' operation keeps its status
   clear_outreach_with_privacy_clear: 'trigger',   // 0031: clear all removes the drafts in the clear's own transaction
+  participation_text_ok: 'service_role',          // 0032: a CHECK constraint's shape check
+  participation_url_ok: 'service_role',           // 0032: a CHECK constraint's shape check
+  participation_list_ok: 'service_role',          // 0032: a CHECK constraint's shape check
+  participation_places_ok: 'service_role',        // 0032: a CHECK constraint's shape check
+  participation_steps_ok: 'service_role',         // 0032: a CHECK constraint's shape check
+  participation_sources_ok: 'service_role',       // 0032: a CHECK constraint's shape check
+  participation_listing_guard: 'trigger',         // 0032: revision, and a content change un-verifies
+  participation_opportunity_zone_check: 'trigger', // 0032: the venue zone and date agree
+  participation_opportunity_json: 'service_role', // 0032: an opportunity as the client's shape
+  participation_profile_json: 'service_role',     // 0032: a profile as the client's shape
+  read_participation_opportunities: 'service_role', // 0032: the servable opportunities for an area
+  read_participation_opportunity: 'service_role', // 0032: one verified opportunity by id
+  read_participation_profiles: 'service_role',    // 0032: the servable profiles for an area
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -220,7 +238,19 @@ const newcomerFor = (table) => (table === 'profiles' ? DAVE : CAROL);
 /** A valid row for each reference table; `n` varies the key (seeds use 0, attempts use 1). */
 const REFERENCE_ROW = {
   ucmr5_utilities: (n) => ({ pwsid: `NC999000${n}`, pws_name: 'Test Utility', status: 'measured', contaminants: {} }),
-  volunteer_orgs: (n) => ({ name: `Test Org ${n}`, description: 'Test', url: 'https://example.test' }),
+  // A fixed id, so the 0032 sample rows below can name their organization.
+  volunteer_orgs: (n) => ({ id: `b1800000-0000-4000-8000-00000000000${n}`, name: `Test Org ${n}`, description: 'Test', url: 'https://example.test' }),
+  participation_profiles: (n) => ({
+    id: `test-profile-${n}`, org_id: 'b1800000-0000-4000-8000-000000000000', title: 'Test', organizer: 'Test', interest: 'Cleanup',
+    area: 'Test', served_place_ids: ['us-state:NC'], mission: 'Test', work: 'Test', url: 'https://example.test', source_title: 'Test',
+    effort: 'Test', age: 'Test', cost: 'Test', access: 'Test', steps: [{ title: 'Test', text: 'Test' }], bring: 'Test', followup: 'Test',
+  }),
+  participation_opportunities: (n) => ({
+    id: `test-opportunity-${n}`, org_id: 'b1800000-0000-4000-8000-000000000000', organizer: 'Test', title: 'Test', interest: 'Cleanup',
+    artwork: 'cleanup', kind: 'rolling', time_label: 'Test', area: 'Test', served_place_ids: ['us-state:NC'], venue: 'Test',
+    url: 'https://example.test', summary: 'Test', work: ['Test'], duration: 'Test', cost: 'Test', age: 'Test', access: 'Test',
+    bring: 'Test', join_text: 'Test', safety: 'Test',
+  }),
   learn_content: (n) => ({ topic: `test-${n}`, locale: 'en', what_it_is: 'Test' }),
   assistant_corpus: () => ({ source_label: 'Test', source_url: 'https://example.test', retrieved: '2026-01-01', passage: 'Test' }),
   water_snapshots: (n) => ({ pwsid: `NC999000${n}`, fingerprint: 'test' }),
@@ -269,6 +299,8 @@ const PROBE_COLUMN = {
   attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
+  participation_profiles: 'mission',
+  participation_opportunities: 'summary',
   learn_content: 'what_it_is',
   assistant_corpus: 'passage',
   water_snapshots: 'fingerprint',
