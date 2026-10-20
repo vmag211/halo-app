@@ -31,6 +31,11 @@ const nextSeq = () => (turnSeq += 1);
 /** Stands in for source_ops_audit.id, a 0027 identity column. */
 let auditSeq = 0;
 const nextAuditId = () => (auditSeq += 1);
+/** Stand in for the 0033 identity columns of the public water copies and runs. */
+let snapshotSeq = 0;
+const nextSnapshotId = () => (snapshotSeq += 1);
+let runSeq = 0;
+const nextRunId = () => (runSeq += 1);
 
 export const HALO_TABLES = {
   // auth.users -> profiles (0001) cascades; profiles.id is the owner id.
@@ -323,6 +328,9 @@ export const HALO_TABLES = {
   // each keyed to a volunteer_orgs row. No owner: not household data.
   participation_profiles: { primaryKey: 'id', defaults: { revision: 1, extra_sources: [], created_at: now, updated_at: now } },
   participation_opportunities: { primaryKey: 'id', defaults: { revision: 1, status: 'listed', created_at: now, updated_at: now } },
+  // 0033: public water copies and the import's runs (B19). Public data: no owner column.
+  public_evidence_snapshots: { primaryKey: 'id', defaults: { id: nextSnapshotId, retrieved_at: now } },
+  public_evidence_runs: { primaryKey: 'id', defaults: { id: nextRunId, ran_at: now } },
 };
 
 /** The declarations for just these tables (throws on a name that is not declared). */

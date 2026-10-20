@@ -95,7 +95,7 @@ test('the migration parser still finds the tables it is meant to read', () => {
     'household_project_generations', 'household_summaries', 'household_workspace_records', 'learn_content', 'luna_conversations',
     'luna_runs', 'luna_turns', 'map_layers', 'notification_prefs', 'operations', 'operator_roles', 'outreach_drafts',
     'participation_opportunities', 'participation_profiles', 'profile_preferences',
-    'push_subscriptions', 'recovery_challenges', 'source_ops_audit', 'symptom_logs', 'volunteer_orgs', 'water_snapshots',
+    'public_evidence_runs', 'public_evidence_snapshots', 'push_subscriptions', 'recovery_challenges', 'source_ops_audit', 'symptom_logs', 'volunteer_orgs', 'water_snapshots',
   ]);
 });
 

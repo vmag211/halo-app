@@ -30,7 +30,10 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import counties from '../lib/data/ncCounties.json' with { type: 'json' };
+import {
+  DROUGHT_ISSUER, DROUGHT_STATISTIC, UTILITY_ISSUER, WATER_LICENCE, WUDC_URL,
+  clean, countyRows, createReviser, decode, parseConservationStatus, parseDroughtStatistics,
+} from '../lib/publicWaterSources.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(
@@ -47,7 +50,7 @@ const INPUTS = {
   fishPage: { file: 'fish-page.html', url: 'https://epi.dph.ncdhhs.gov/oee/fish/arcg.html' },
   safeFish: { file: 'safefish.html', url: 'https://epi.dph.ncdhhs.gov/oee/mercury/safefish.html' },
   usdm: { file: 'usdm-nc.json', url: 'https://usdmdataservices.unl.edu/api/CountyStatistics/GetDroughtSeverityStatisticsByAreaPercent?aoi=NC&startdate=9/22/2026&enddate=10/20/2026&statisticsType=2' },
-  wudc: { file: 'wudc.html', url: 'https://www.ncwater.org/WUDC/conservation-status' },
+  wudc: { file: 'wudc.html', url: WUDC_URL },
   extension: { file: 'extension.html', url: 'https://www.ces.ncsu.edu/local-county-center/' },
   soil: { file: 'ncda-soil.html', url: 'https://www.ncagr.gov/Divisions/Agronomic-Services/soil-testing' },
   labs: { file: 'deq-labs.html', url: 'https://www.deq.nc.gov/about/divisions/water-resources/drinking-water/drinking-water-laboratories' },
@@ -67,13 +70,6 @@ const json = (key) => JSON.parse(text(key));
 
 // ------------------------------------------------------------------ helpers
 
-const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'" };
-function decode(value) {
-  return value.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (match, name) => {
-    if (name[0] === '#') return String.fromCodePoint(name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : Number(name.slice(1)));
-    return ENTITIES[name.toLowerCase()] ?? match;
-  });
-}
 /** Page text: block tags become spaces, inline tags vanish, whitespace collapses. */
 function pageText(html) {
   return decode(html
@@ -84,7 +80,6 @@ function pageText(html) {
     .replace(/\s+/g, ' ')
     .trim();
 }
-const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const slug = (value) => clean(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const sentenceCase = (value) => { const v = clean(value).toLowerCase(); return v.charAt(0).toUpperCase() + v.slice(1); };
 function requireIn(haystack, phrase, where) {
@@ -103,16 +98,7 @@ function safeHttps(value, where) {
 
 /** Carries revisions forward from the output already on disk (see REVISIONS above). */
 function reviser(outFile, listOf) {
-  const existing = existsSync(outFile) ? listOf(JSON.parse(readFileSync(outFile, 'utf8'))) : [];
-  const before = new Map(existing.map((row) => [row.id, row]));
-  const strip = (row) => JSON.stringify(Object.fromEntries(Object.entries(row).filter(([key]) => !['revision', 'version', 'previous'].includes(key))));
-  return (row, key = 'revision') => {
-    const old = before.get(row.id);
-    if (!old) return { ...row, [key]: 1, ...('previous' in row ? { previous: row.previous } : {}) };
-    if (strip(old) === strip(row)) return { ...row, [key]: old[key], ...('previous' in row ? { previous: old.previous } : {}) };
-    const next = old[key] + 1;
-    return { ...row, [key]: next, ...('previous' in row ? { previous: `Revision ${old[key]} was superseded when HALO's copy was refreshed on ${RETRIEVED}.` } : {}) };
-  };
+  return createReviser(existsSync(outFile) ? listOf(JSON.parse(readFileSync(outFile, 'utf8'))) : [], RETRIEVED);
 }
 function write(file, value) {
   noEmDash(value, file);
@@ -290,81 +276,24 @@ function buildFish() {
 
 // -------------------------------------------------------------------- water
 
-const DWR_STATUSES = new Set(['Not Restricted', 'Voluntary', 'Mandatory', 'Emergency', 'Rationing']);
+// The parsers and their strict checks live in lib/publicWaterSources.js, shared with the weekly
+// import (B19, lib/publicWaterImport.js), so a hand build and a scheduled one read a download the
+// same way.
 function buildWater() {
-  const fips = new Map(counties.counties.map((county) => [county.geoid, county.name]));
-  if (fips.size !== 100) throw new Error('ncCounties.json: expected 100 counties');
-  const raw = json('usdm');
-  if (!Array.isArray(raw) || raw.length < 100 || raw.length > 5000) throw new Error('usdm: unexpected row count');
-  const releases = [];
-  for (const row of raw) {
-    if (row.state !== 'NC' || !fips.has(row.fips) || row.statisticFormatID !== 2) throw new Error(`usdm: unexpected row ${row.fips}`);
-    const date = String(row.mapDate).slice(0, 10);
-    const validStart = String(row.validStart).slice(0, 10);
-    const validEnd = String(row.validEnd).slice(0, 10);
-    for (const value of [date, validStart, validEnd]) if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('usdm: bad date');
-    const shares = Object.fromEntries(['none', 'd0', 'd1', 'd2', 'd3', 'd4'].map((key) => {
-      const value = Number(row[key]);
-      if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error(`usdm ${row.fips}: bad ${key}`);
-      return [key, value];
-    }));
-    const total = Object.values(shares).reduce((sum, value) => sum + value, 0);
-    if (Math.abs(total - 100) > 0.5) throw new Error(`usdm ${row.fips} ${date}: categories sum to ${total}`);
-    const county = fips.get(row.fips);
-    if (clean(row.county) !== county) throw new Error(`usdm ${row.fips}: county name ${row.county} is not ${county}`);
-    releases.push({
-      id: `usdm-${row.fips}-${date}`, countyId: row.fips, date, ...shares,
-      validStart, validEnd,
-      status: `U.S. Drought Monitor map for ${date}, valid ${validStart} to ${validEnd}`,
-      sourceUrl: 'https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?NC',
-      scope: `Share of ${county} area in each U.S. Drought Monitor category on the weekly map dated ${date} (categorical, not cumulative). A county area distribution, not a reading for one home or garden, and not a watering rule. Map produced by the National Drought Mitigation Center, USDA and NOAA.`,
-    });
-  }
-  releases.sort((a, b) => a.countyId.localeCompare(b.countyId) || b.date.localeCompare(a.date));
-  const countyRows = [...fips].map(([id, title]) => ({ id, title })).sort((a, b) => a.title.localeCompare(b.title));
-  if (new Set(releases.map((r) => r.countyId)).size !== 100) throw new Error('usdm: not every county has a release');
-
-  const html = text('wudc');
-  const summary = Object.fromEntries([...html.matchAll(/class="status-([A-Z])">\s*<div[^>]*>(\d+)<\/div>\s*<div[^>]*>([A-Za-z ]+)<\/div>/g)].map((m) => [m[3].trim(), Number(m[2])]));
-  const totalMatch = /<div style="font-size:24px;">(\d+)<\/div>\s*<div[^>]*>Total Systems<\/div>/.exec(html);
-  if (!totalMatch) throw new Error('wudc: no total');
-  const notices = [];
-  for (const [, body] of html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)) {
-    const cells = [...body.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => clean(decode(m[1].replace(/<[^>]+>/g, ''))));
-    if (cells.length === 0) continue;
-    if (cells.length !== 6) throw new Error('wudc: a row without six cells');
-    const [pwsid, system, county, status, reason, updated] = cells;
-    if (!/^\d{2}-\d{2}-\d{3}$/.test(pwsid)) throw new Error(`wudc: bad PWSID ${pwsid}`);
-    if (!/^[A-Za-z0-9 .,'&()/-]{1,80}$/.test(system) || !/^[A-Za-z ]{2,30}$/.test(county)) throw new Error(`wudc ${pwsid}: bad name`);
-    if (!DWR_STATUSES.has(status)) throw new Error(`wudc ${pwsid}: unknown status ${status}`);
-    if (!/^(?:[A-Za-z /-]{1,40})?$/.test(reason)) throw new Error(`wudc ${pwsid}: bad reason`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(updated)) throw new Error(`wudc ${pwsid}: bad date`);
-    const id = `ncdwr-${pwsid}`;
-    if (notices.some((notice) => notice.id === id)) throw new Error(`wudc: duplicate ${pwsid}`);
-    notices.push({
-      id, title: `${system} (${county} County)`, status, date: `Status last updated ${updated}`,
-      instructions: 'The NC Division of Water Resources listing records this water system\'s conservation status only. Any restrictions, exemptions and dates are set out in the water system\'s own notice.',
-      scope: `${system} public water system, PWSID ${pwsid}, as reported to the NC DEQ Division of Water Resources. Reason recorded: ${reason && reason !== 'N/A' ? reason : 'none given'}. It applies to that system's customers only, not to a county, a private well or a garden. Confirm your provider against a bill.`,
-      sourceUrl: INPUTS.wudc.url,
-    });
-  }
-  if (notices.length !== Number(totalMatch[1])) throw new Error(`wudc: ${notices.length} rows but the page totals ${totalMatch[1]}`);
-  for (const [label, count] of Object.entries(summary)) {
-    if (notices.filter((notice) => notice.status === label).length !== count) throw new Error(`wudc: ${label} count differs from the summary`);
-  }
-  notices.sort((a, b) => a.title.localeCompare(b.title));
-
+  const { releases } = parseDroughtStatistics(json('usdm'));
+  const { notices, summary, total } = parseConservationStatus(text('wudc'));
   const outFile = path.join(ROOT, 'lib/data/ncWaterStewardship.json');
-  const reviseReleases = reviser(outFile, (file) => file.releases);
-  const reviseNotices = reviser(outFile, (file) => file.notices);
+  const existing = existsSync(outFile) ? JSON.parse(readFileSync(outFile, 'utf8')) : {};
+  const reviseReleases = createReviser(existing.releases, RETRIEVED);
+  const reviseNotices = createReviser(existing.notices, RETRIEVED);
   write('lib/data/ncWaterStewardship.json', {
     source: {
-      drought: { issuer: 'U.S. Drought Monitor: National Drought Mitigation Center (University of Nebraska-Lincoln), USDA and NOAA', input: provenance.usdm, statistic: 'Categorical percent of county area (statisticsType=2)' },
-      utility: { issuer: 'NC Department of Environmental Quality, Division of Water Resources, Water Use Data Collection', input: provenance.wudc, summary, total: Number(totalMatch[1]) },
-      licence: 'U.S. Drought Monitor maps and data are public; credit the National Drought Mitigation Center, USDA and NOAA. The NC DWR listing is public information of the State of North Carolina.',
+      drought: { issuer: DROUGHT_ISSUER, input: provenance.usdm, statistic: DROUGHT_STATISTIC },
+      utility: { issuer: UTILITY_ISSUER, input: provenance.wudc, summary, total },
+      licence: WATER_LICENCE,
     },
     version: `nc-water-${RETRIEVED}`,
-    counties: countyRows,
+    counties: countyRows(),
     releases: releases.map((row) => reviseReleases(row)),
     notices: notices.map((row) => reviseNotices(row)),
   });

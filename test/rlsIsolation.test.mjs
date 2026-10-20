@@ -141,6 +141,10 @@ const PUBLIC_REFERENCE_TABLES = {
   // verified rows, so no browser role may read them directly.
   participation_profiles: 'none',
   participation_opportunities: 'none',
+  // 0033: public water copies and the import's runs (B19). Public data, but only the import writes
+  // it and only the server reads it, so no browser role may touch either table.
+  public_evidence_snapshots: 'none',
+  public_evidence_runs: 'none',
 };
 
 /** Every function in schema public. 'service_role': only the service role may execute it. 'trigger': runs only as a trigger. */
@@ -225,6 +229,7 @@ const PUBLIC_FUNCTIONS = {
   read_participation_opportunities: 'service_role', // 0032: the servable opportunities for an area
   read_participation_opportunity: 'service_role', // 0032: one verified opportunity by id
   read_participation_profiles: 'service_role',    // 0032: the servable profiles for an area
+  record_public_evidence_run: 'service_role',     // 0033: one import run's copies and run rows, then the prune
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -263,6 +268,8 @@ const REFERENCE_ROW = {
     operation_id: `b1300000-0000-4000-8000-0000000000a${n}`, actor_profile_id: 'b1300000-0000-4000-8000-000000000000', role: 'reviewer',
     source_id: 'census-places', source_revision: 1, target: 'test', decision: 'approve', reason: 'A test reason.', outcome: 'refused', refusal: 'unsupported',
   }),
+  public_evidence_snapshots: (n) => ({ source: 'usdm-drought', source_date: '2026-10-13', row_count: n + 1, content_sha256: 'a'.repeat(64), body: {} }),
+  public_evidence_runs: (n) => ({ source: 'usdm-drought', outcome: 'failed', reason: 'timeout', row_count: n }),
 };
 
 /**
@@ -308,6 +315,8 @@ const PROBE_COLUMN = {
   daily_maxima_recorder: 'last_run_at',
   operator_roles: 'granted_by',
   source_ops_audit: 'reason',
+  public_evidence_snapshots: 'row_count',
+  public_evidence_runs: 'reason',
 };
 
 const COMMANDS = ['select', 'insert', 'update', 'delete'];

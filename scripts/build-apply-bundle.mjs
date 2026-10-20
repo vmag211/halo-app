@@ -114,6 +114,14 @@ export const BUNDLES = Object.freeze([
     verifyFile: 'verify-0032.sql',
     migrations: Object.freeze(['0032_participation_directory']),
   }),
+  Object.freeze({
+    title: 'migration 0033',
+    checks: 'migration 0033 is',
+    needs: 'Needs nothing newer than the baseline (production has 0001 to 0023). It does not need 0024 to 0032, and may go before or after them.',
+    bundleFile: 'apply-0033.sql',
+    verifyFile: 'verify-0033.sql',
+    migrations: Object.freeze(['0033_public_evidence_snapshots']),
+  }),
 ]);
 
 /** The 0019 to 0023 bundle under its original names, which test/applyBundle.test.mjs and YOUR_TODO.md 2.13 use. */

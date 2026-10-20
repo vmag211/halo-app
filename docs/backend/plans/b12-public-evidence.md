@@ -40,7 +40,7 @@ Signed-in only (the contract's Public "No"), `requireUser` then, for every signe
 - **Food notices (openFDA recalls).** W:2647 and HO-125 gate activation on recorded provider terms, limits and field meaning; keyword search is not distribution matching. Unblocked by Vibhav approving an openFDA acquisition review.
 - **NRCS conservation activities.** The page refused the build host (connection reset twice), and it is national, not NC. Unblocked by a hand link check and an NC office page.
 - **Utility rule text** (watering days, exemptions): not in any state dataset. Unblocked by per-utility notice review.
-- **Freshness.** Drought and utility status are a dated copy; they need the build re-run weekly (or a cron writing to a table, which would need a migration).
+- **Freshness.** Drought and utility status are a dated copy; they need the build re-run weekly (or a cron writing to a table, which would need a migration). B19 builds that cron (migration 0033, `docs/backend/plans/b19-public-evidence-refresh.md`), off until `HALO_FEATURE_PUBLIC_IMPORT` is set.
 
 ## Proposed, Vibhav to confirm
 

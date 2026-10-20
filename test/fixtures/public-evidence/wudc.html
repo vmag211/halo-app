@@ -1,0 +1,2416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>DWR :: Water Use Data Collection</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css"><!-- must come before all other CSS -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Bitter|Fauna+One|Roboto+Slab|Catamaran|Fira+Sans|Muli|Open+Sans|Oswald|Poppins|Roboto|Rubik|Source+Sans+Pro|Julius+Sans+One|Merriweather+Sans|Montserrat+Alternates|Montserrat|Noto+Sans|Quicksand|Raleway|Tenor+Sans&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="/WUDC/css/style.css">
+    <link rel="stylesheet" href="/WUDC/css/topnav.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <!--[if lt IE 9]><script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script><![endif]--><!-- must come after all CSS -->
+</head>
+<body>
+
+    <!--[if lt IE 7]>
+        <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="https://www.whatismybrowser.com/guides/how-to-update-your-browser/auto">upgrade your browser</a> to improve your experience.</p>
+    <![endif]-->
+    
+    <header>
+        <!--<div id="logo"><a href="/" rel="home" title="NC DEQ" id="deq-logo"></a></div>-->
+        <h1 id="site-title"><span>NC DEQ Division of Water Resources</span><br>Water Use Data Collection</h1>
+        <ul id="controls">
+                    <!--<li><a href="/WUDC/login"><i class="material-icons grow50" title="Login" style="vertical-align: middle !important">person</i><span style="font-size:1.5rem;font-variant:small-caps;font-weight:bold;padding-top:10px;display:inline-block">login</span></a></li>-->
+            <li><a href="/WUDC/login" style="font-size:1.8rem;font-family:'Oswald',sans-serif;letter-spacing:0.1em;font-variant:small-caps">login</a></li>
+                </ul>
+        
+        
+
+<!-- begin top nav -->
+<nav id="nav-top">
+<ul>
+<li class="has-child"><a href="">Water System Conservation</a><ul class="sub-menu">
+<li><a href="/WUDC/conservation-status"><i class="material-icons">arrow_forward_ios</i> Water System Conservation Status</a></li>
+<li><a href="/WUDC/water-use-summary"><i class="material-icons">arrow_forward_ios</i> Weekly Water Use</a></li>
+</ul>
+</li>
+<li class="has-child"><a href="">Water Use Reporting Programs</a><ul class="sub-menu">
+<li><a href="/WUDC/app/LWSP/"><i class="material-icons">arrow_forward_ios</i> Local Water Supply Planning</a></li>
+<li><a href="/WUDC/app/LWSP/search.php"><i class="material-icons">arrow_forward_ios</i> Water Shortage Response Plans</a></li>
+<li><a href="/WUDC/app/WWATR/"><i class="material-icons">arrow_forward_ios</i> Water Withdrawal &amp; Transfer Registration</a></li>
+<li><a href="/?page=49"><i class="material-icons">arrow_forward_ios</i> Central Coastal Plain Capacity Use Area</a></li>
+</ul>
+</li>
+</ul>
+</nav>
+<!-- end top nav -->
+
+    </header>
+
+<main>
+<section id="content">
+    
+<style>
+table {border:1px solid #eee}
+table.sortable th {cursor:pointer}
+.sort-asc, .sort-desc {margin-left:3px}
+.status-N {background-color:#3cccb4}
+.status-V {background-color:#ffdf3c}
+.status-M {background-color:#d92b30}
+.status-E {background-color:#ab52b3}
+.status-R {background-color:#c27c30}
+</style>
+
+<!-- for table sorting, adapted from https://stackoverflow.com/questions/3160277/jquery-table-sort -->
+<script type="text/javascript">
+    $(document).ready(function() {
+        $('table.sortable').find('th').append('<span></span>'); // used with getIcon to set up/down arrows
+        $('table.sortable th').click(function(e){
+            var table = $(this).parents('table').eq(0);
+            var column_index = get_column_index(this);
+            var rows = table.find('tbody tr').toArray().sort(comparer(column_index));
+            this.asc = !this.asc;
+            if(!this.asc) {
+                rows = rows.reverse()
+            };
+            for(var i=0; i<rows.length; i++) {
+                table.append(rows[i])
+            };
+            setIcon(e.target, this.asc);
+        })
+    });
+    
+    function comparer(index) {
+        return function(a, b) {
+            var valA = getCellValue(a, index), valB = getCellValue(b, index);
+            return isNumber(valA) && isNumber(valB) ? valA - valB : valA.localeCompare(valB);
+        }
+    }
+    function getCellValue(row, index){ return $(row).children('td').eq(index).html() };
+
+    function isNumber(n) {
+        return !isNaN(parseFloat(n)) && isFinite(n);
+    }
+
+    function get_column_index(element) {
+        var clickedEl = $(element);
+        var myCol = clickedEl.closest("th").index();
+        var myRow = clickedEl.closest("tr").index();
+        var rowspans = $("th[rowspan]");
+        rowspans.each(function () {
+            var rs = $(this);
+            var rsIndex = rs.closest("tr").index();
+            var rsQuantity = parseInt(rs.attr("rowspan"));
+            if (myRow > rsIndex && myRow <= rsIndex + rsQuantity - 1) {
+                myCol++;
+            }
+        });
+        // alert('Row: ' + myRow + ', Column: ' + myCol);
+        return myCol;
+    };
+
+    function setIcon(element, inverse) {
+        var iconSpan = $(element).find('span');
+        if (inverse == true) {
+            $(iconSpan).removeClass();
+            $(iconSpan).addClass('sort-asc');
+            $(iconSpan)[0].innerHTML = "&#9650;" // arrow up
+        } else {
+            $(iconSpan).removeClass();
+            $(iconSpan).addClass('sort-desc');
+            $(iconSpan)[0].innerHTML = "&#9660;" // arrow down 
+        }
+        $(element).siblings().find('span').each(function (i, obj) {
+            $(obj).removeClass();
+            obj.innerHTML = "";
+        });
+    }
+</script>
+
+<h2>Water System Conservation Status</h2>
+
+<div style="display:flex;width:100%;min-height:400px;margin:0;padding:0;text-align:center">
+<iframe style="flex-grow:1;border:none;margin:0;padding:0" title="AGOL" src="https://experience.arcgis.com/experience/18ef543c15be47b4b3711d87c99054ea"></iframe>
+</div>
+
+<div style="margin:20px 0;padding:20px;background-color:#f5f5f5;border:1px solid #ddd;border-radius:5px;">
+<h3 style="margin-top:0;margin-bottom:15px;">Conservation Status Summary</h3>
+<div style="display:flex;flex-wrap:wrap;gap:15px;align-items:center;">
+<div style="padding:10px 20px;border-radius:3px;min-width:120px;text-align:center;" class="status-N">
+<div style="font-weight:bold;font-size:24px;">160</div>
+<div style="font-size:14px;">Not Restricted</div>
+</div>
+<div style="padding:10px 20px;border-radius:3px;min-width:120px;text-align:center;" class="status-V">
+<div style="font-weight:bold;font-size:24px;">54</div>
+<div style="font-size:14px;">Voluntary</div>
+</div>
+<div style="padding:10px 20px;border-radius:3px;min-width:120px;text-align:center;" class="status-M">
+<div style="font-weight:bold;font-size:24px;">63</div>
+<div style="font-size:14px;">Mandatory</div>
+</div>
+<div style="padding:10px 20px;border-radius:3px;min-width:120px;text-align:center;" class="status-E">
+<div style="font-weight:bold;font-size:24px;">0</div>
+<div style="font-size:14px;">Emergency</div>
+</div>
+<div style="padding:10px 20px;border-radius:3px;min-width:120px;text-align:center;" class="status-R">
+<div style="font-weight:bold;font-size:24px;">0</div>
+<div style="font-size:14px;">Rationing</div>
+</div>
+<div style="padding:10px 20px;background-color:#e8e8e8;border:2px solid #999;border-radius:3px;min-width:120px;text-align:center;font-weight:bold;">
+<div style="font-size:24px;">277</div>
+<div style="font-size:14px;">Total Systems</div>
+</div>
+</div>
+</div>
+<table class="sortable">
+<thead>
+<tr>
+<th>PWSID</th>
+<th>Water System<span class="sort-asc">&#9650;</span></th>
+<th>County</th>
+<th>Status</th>
+<th>Reason for Restriction</th>
+<th>Date of Last Update</th>
+</tr>
+</thead>
+<tr>
+<td>03-63-020</td>
+<td>Aberdeen</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-O">N/A</td>
+<td style="text-align:center">2026-08-18</td>
+</tr>
+<tr>
+<td>02-01-035</td>
+<td>Alamance</td>
+<td style="text-align:center">Alamance</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-84-010</td>
+<td>Albemarle</td>
+<td style="text-align:center">Stanly</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-18</td>
+</tr>
+<tr>
+<td>01-02-020</td>
+<td>Alexander County WD</td>
+<td style="text-align:center">Alexander</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>03-43-015</td>
+<td>Angier</td>
+<td style="text-align:center">Harnett</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>03-92-045</td>
+<td>Apex</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-07-29</td>
+</tr>
+<tr>
+<td>01-95-101</td>
+<td>Appalachian State University WTP</td>
+<td style="text-align:center">Watauga</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-17</td>
+</tr>
+<tr>
+<td>02-76-030</td>
+<td>Archdale</td>
+<td style="text-align:center">Randolph</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-76-010</td>
+<td>Asheboro</td>
+<td style="text-align:center">Randolph</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-11-010</td>
+<td>Asheville</td>
+<td style="text-align:center">Buncombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-29</td>
+</tr>
+<tr>
+<td>04-16-035</td>
+<td>Atlantic Beach</td>
+<td style="text-align:center">Carteret</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-92-373</td>
+<td>Bayleaf Master</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-13</td>
+</tr>
+<tr>
+<td>04-07-035</td>
+<td>Beaufort Co (Northside)</td>
+<td style="text-align:center">Beaufort</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-08</td>
+</tr>
+<tr>
+<td>04-07-040</td>
+<td>Beaufort Co (Southside)</td>
+<td style="text-align:center">Beaufort</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-08</td>
+</tr>
+<tr>
+<td>01-95-104</td>
+<td>Beech Mountain</td>
+<td style="text-align:center">Watauga</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-36-015</td>
+<td>Belmont</td>
+<td style="text-align:center">Gaston</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-71-111</td>
+<td>Belvedere</td>
+<td style="text-align:center">Pender</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-07</td>
+</tr>
+<tr>
+<td>03-51-025</td>
+<td>Benson</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-02</td>
+</tr>
+<tr>
+<td>01-11-030</td>
+<td>Biltmore Forest</td>
+<td style="text-align:center">Buncombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-98-035</td>
+<td>Black Creek</td>
+<td style="text-align:center">Wilson</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-22</td>
+</tr>
+<tr>
+<td>01-11-020</td>
+<td>Black Mountain</td>
+<td style="text-align:center">Buncombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-09-060</td>
+<td>Bladen Co WD (East Bladen)</td>
+<td style="text-align:center">Bladen</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-30</td>
+</tr>
+<tr>
+<td>03-09-055</td>
+<td>Bladen Co WD (West Bladen)</td>
+<td style="text-align:center">Bladen</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-30</td>
+</tr>
+<tr>
+<td>01-97-030</td>
+<td>Blue Ridge WA</td>
+<td style="text-align:center">Wilkes</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-20</td>
+</tr>
+<tr>
+<td>04-16-028</td>
+<td>Bogue Banks Water Corp</td>
+<td style="text-align:center">Carteret</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-23-025</td>
+<td>Boiling Springs</td>
+<td style="text-align:center">Cleveland</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-95-010</td>
+<td>Boone</td>
+<td style="text-align:center">Watauga</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-08-12</td>
+</tr>
+<tr>
+<td>01-60-264</td>
+<td>Bradfield Farms S/D</td>
+<td style="text-align:center">Mecklenburg</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-30</td>
+</tr>
+<tr>
+<td>01-12-103</td>
+<td>Brentwood-Highway 64</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>01-12-104</td>
+<td>Brentwood-Jamestown Road</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>01-88-010</td>
+<td>Brevard</td>
+<td style="text-align:center">Transylvania</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-09-17</td>
+</tr>
+<tr>
+<td>01-81-035</td>
+<td>Broad River Water Authority</td>
+<td style="text-align:center">Rutherford</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-28</td>
+</tr>
+<tr>
+<td>03-53-015</td>
+<td>Broadway</td>
+<td style="text-align:center">Lee</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-97-035</td>
+<td>Broadway Water Association. Inc.</td>
+<td style="text-align:center">Wilkes</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-19</td>
+</tr>
+<tr>
+<td>03-26-127</td>
+<td>Brookwood Community</td>
+<td style="text-align:center">Cumberland</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>04-10-045</td>
+<td>Brunswick County</td>
+<td style="text-align:center">Brunswick</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-16</td>
+</tr>
+<tr>
+<td>04-10-070</td>
+<td>Brunswick Regional WSD</td>
+<td style="text-align:center">Brunswick</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-06</td>
+</tr>
+<tr>
+<td>01-87-010</td>
+<td>Bryson City</td>
+<td style="text-align:center">Swain</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-71-010</td>
+<td>Burgaw</td>
+<td style="text-align:center">Pender</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-12-065</td>
+<td>Burke County</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-01-010</td>
+<td>Burlington</td>
+<td style="text-align:center">Alamance</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-00-010</td>
+<td>Burnsville</td>
+<td style="text-align:center">Yancey</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-16</td>
+</tr>
+<tr>
+<td>10-14-001</td>
+<td>Caldwell Co (Addison Lane)</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-14-048</td>
+<td>Caldwell Co (North)</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-14-047</td>
+<td>Caldwell Co (Southeast)</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-14-045</td>
+<td>Caldwell Co (West)</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-31-045</td>
+<td>Calypso</td>
+<td style="text-align:center">Duplin</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>04-67-041</td>
+<td>Camp Lejeune (Hadnot Point)</td>
+<td style="text-align:center">Onslow</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>04-67-043</td>
+<td>Camp Lejeune (Holcomb Blvd)</td>
+<td style="text-align:center">Onslow</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>04-67-042</td>
+<td>Camp Lejeune (New River Air Station)</td>
+<td style="text-align:center">Onslow</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>04-67-046</td>
+<td>Camp Lejeune (Rifle Range)</td>
+<td style="text-align:center">Onslow</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>03-62-030</td>
+<td>Candor</td>
+<td style="text-align:center">Montgomery</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-44-015</td>
+<td>Canton</td>
+<td style="text-align:center">Haywood</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-01-13</td>
+</tr>
+<tr>
+<td>04-65-015</td>
+<td>Carolina Beach</td>
+<td style="text-align:center">New Hanover</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-08</td>
+</tr>
+<tr>
+<td>03-53-101</td>
+<td>Carolina Trace WS</td>
+<td style="text-align:center">Lee</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-92-020</td>
+<td>Cary</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-08-17</td>
+</tr>
+<tr>
+<td>04-24-055</td>
+<td>Cerro Gordo</td>
+<td style="text-align:center">Columbus</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-19</td>
+</tr>
+<tr>
+<td>40-19-010</td>
+<td>Chatham County Asbury Water System</td>
+<td style="text-align:center">Chatham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>03-19-126</td>
+<td>Chatham County North Water System</td>
+<td style="text-align:center">Chatham</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>03-19-050</td>
+<td>Chatham County Southwest Water System</td>
+<td style="text-align:center">Chatham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>04-25-035</td>
+<td>Cherry Point MCAS</td>
+<td style="text-align:center">Craven</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-36-030</td>
+<td>Cherryville</td>
+<td style="text-align:center">Gaston</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-01</td>
+</tr>
+<tr>
+<td>01-80-040</td>
+<td>China Grove</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-21</td>
+</tr>
+<tr>
+<td>04-31-050</td>
+<td>Chinquapin Water Association</td>
+<td style="text-align:center">Duplin</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-18-035</td>
+<td>Claremont</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>03-51-020</td>
+<td>Clayton</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-80-050</td>
+<td>Cleveland</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-22</td>
+</tr>
+<tr>
+<td>01-23-055</td>
+<td>Cleveland County Water</td>
+<td style="text-align:center">Cleveland</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-14</td>
+</tr>
+<tr>
+<td>03-26-332</td>
+<td>Cliffdale West</td>
+<td style="text-align:center">Cumberland</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>03-82-010</td>
+<td>Clinton</td>
+<td style="text-align:center">Sampson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-44-025</td>
+<td>Clyde</td>
+<td style="text-align:center">Haywood</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-27</td>
+</tr>
+<tr>
+<td>03-43-020</td>
+<td>Coats</td>
+<td style="text-align:center">Harnett</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>01-13-010</td>
+<td>Concord</td>
+<td style="text-align:center">Cabarrus</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-15</td>
+</tr>
+<tr>
+<td>01-81-050</td>
+<td>Concord Community WS</td>
+<td style="text-align:center">Rutherford</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-88-104</td>
+<td>Connestee Falls</td>
+<td style="text-align:center">Transylvania</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-14</td>
+</tr>
+<tr>
+<td>01-18-020</td>
+<td>Conover</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>04-27-010</td>
+<td>Currituck Co - Mainland</td>
+<td style="text-align:center">Currituck</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-36-065</td>
+<td>Dallas</td>
+<td style="text-align:center">Gaston</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-85-020</td>
+<td>Danbury</td>
+<td style="text-align:center">Stokes</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-14</td>
+</tr>
+<tr>
+<td>04-28-030</td>
+<td>Dare Co Regional</td>
+<td style="text-align:center">Dare</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-28-035</td>
+<td>Dare Co Rodanthe-Waves-Salvo</td>
+<td style="text-align:center">Dare</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>02-29-025</td>
+<td>Davidson Water</td>
+<td style="text-align:center">Davidson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-13</td>
+</tr>
+<tr>
+<td>02-30-015</td>
+<td>Davie Co</td>
+<td style="text-align:center">Davie</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-14</td>
+</tr>
+<tr>
+<td>02-29-030</td>
+<td>Denton</td>
+<td style="text-align:center">Davidson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-12-045</td>
+<td>Drexel</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-43-010</td>
+<td>Dunn</td>
+<td style="text-align:center">Harnett</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-13</td>
+</tr>
+<tr>
+<td>03-32-010</td>
+<td>Durham</td>
+<td style="text-align:center">Durham</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-05</td>
+</tr>
+<tr>
+<td>40-32-018</td>
+<td>Durham County (Rougemont)</td>
+<td style="text-align:center">Durham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-13</td>
+</tr>
+<tr>
+<td>02-99-025</td>
+<td>East Bend</td>
+<td style="text-align:center">Yadkin</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-08</td>
+</tr>
+<tr>
+<td>50-63-011</td>
+<td>East Moore Water District</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>01-80-060</td>
+<td>East Spencer</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-21</td>
+</tr>
+<tr>
+<td>50-26-027</td>
+<td>Eastover Sanitary District</td>
+<td style="text-align:center">Cumberland</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-79-010</td>
+<td>Eden</td>
+<td style="text-align:center">Rockingham</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-08-04</td>
+</tr>
+<tr>
+<td>04-33-050</td>
+<td>Edgecombe Co WSD</td>
+<td style="text-align:center">Edgecombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-13</td>
+</tr>
+<tr>
+<td>04-70-010</td>
+<td>Elizabeth City</td>
+<td style="text-align:center">Pasquotank</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-81-038</td>
+<td>Ellenboro</td>
+<td style="text-align:center">Rutherford</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-02-015</td>
+<td>Energy United Water</td>
+<td style="text-align:center">Alexander</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-09-28</td>
+</tr>
+<tr>
+<td>04-25-132</td>
+<td>Fairfield Harbour</td>
+<td style="text-align:center">Craven</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-02</td>
+</tr>
+<tr>
+<td>01-50-113</td>
+<td>Fairfield Sapphire</td>
+<td style="text-align:center">Jackson</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-02</td>
+</tr>
+<tr>
+<td>04-31-040</td>
+<td>Faison</td>
+<td style="text-align:center">Duplin</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>01-80-055</td>
+<td>Faith</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-13</td>
+</tr>
+<tr>
+<td>03-26-035</td>
+<td>Falcon</td>
+<td style="text-align:center">Cumberland</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-74-020</td>
+<td>Farmville</td>
+<td style="text-align:center">Pitt</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-26-010</td>
+<td>Fayetteville</td>
+<td style="text-align:center">Cumberland</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-19</td>
+</tr>
+<tr>
+<td>04-25-040</td>
+<td>First Craven Sanitary District</td>
+<td style="text-align:center">Craven</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-08</td>
+</tr>
+<tr>
+<td>03-51-195</td>
+<td>Flowers Plantation</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-13</td>
+</tr>
+<tr>
+<td>01-38-101</td>
+<td>Fontana Dam</td>
+<td style="text-align:center">Graham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-07</td>
+</tr>
+<tr>
+<td>01-81-010</td>
+<td>Forest City</td>
+<td style="text-align:center">Rutherford</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-63-479</td>
+<td>Foxfire Village</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-07</td>
+</tr>
+<tr>
+<td>01-57-010</td>
+<td>Franklin</td>
+<td style="text-align:center">Macon</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-21</td>
+</tr>
+<tr>
+<td>04-96-025</td>
+<td>Fremont</td>
+<td style="text-align:center">Wayne</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-08</td>
+</tr>
+<tr>
+<td>03-92-055</td>
+<td>Fuquay-Varina</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-S">Seasonal</td>
+<td style="text-align:center">2026-08-03</td>
+</tr>
+<tr>
+<td>04-37-020</td>
+<td>Gates Co</td>
+<td style="text-align:center">Gates</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-41-025</td>
+<td>Gibsonville</td>
+<td style="text-align:center">Guilford</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-12</td>
+</tr>
+<tr>
+<td>04-96-010</td>
+<td>Goldsboro</td>
+<td style="text-align:center">Wayne</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-21</td>
+</tr>
+<tr>
+<td>02-01-015</td>
+<td>Graham</td>
+<td style="text-align:center">Alamance</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-03</td>
+</tr>
+<tr>
+<td>01-14-030</td>
+<td>Granite Falls</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>04-40-106</td>
+<td>Greene County RWS</td>
+<td style="text-align:center">Greene</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-01</td>
+</tr>
+<tr>
+<td>02-41-010</td>
+<td>Greensboro</td>
+<td style="text-align:center">Guilford</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-18</td>
+</tr>
+<tr>
+<td>04-74-010</td>
+<td>Greenville Utilities Commission</td>
+<td style="text-align:center">Pitt</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-19</td>
+</tr>
+<tr>
+<td>04-74-035</td>
+<td>Grifton</td>
+<td style="text-align:center">Pitt</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-42-030</td>
+<td>Halifax</td>
+<td style="text-align:center">Halifax</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-21</td>
+</tr>
+<tr>
+<td>02-29-035</td>
+<td>Handy Sanitary District</td>
+<td style="text-align:center">Davidson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-43-045</td>
+<td>Harnett  Regional Water System</td>
+<td style="text-align:center">Harnett</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-13-025</td>
+<td>Harrisburg</td>
+<td style="text-align:center">Cabarrus</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-20</td>
+</tr>
+<tr>
+<td>04-25-015</td>
+<td>Havelock</td>
+<td style="text-align:center">Craven</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-01-020</td>
+<td>Haw River</td>
+<td style="text-align:center">Alamance</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-19</td>
+</tr>
+<tr>
+<td>01-18-010</td>
+<td>Hickory</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>01-18-040</td>
+<td>Hickory Catawba System</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>02-41-020</td>
+<td>High Point</td>
+<td style="text-align:center">Guilford</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-68-015</td>
+<td>Hillsborough</td>
+<td style="text-align:center">Orange</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-42-035</td>
+<td>Hobgood</td>
+<td style="text-align:center">Halifax</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-18</td>
+</tr>
+<tr>
+<td>03-47-025</td>
+<td>Hoke County Regional Water System</td>
+<td style="text-align:center">Hoke</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-07</td>
+</tr>
+<tr>
+<td>03-92-050</td>
+<td>Holly Springs</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-10-02</td>
+</tr>
+<tr>
+<td>04-40-020</td>
+<td>Hookerton</td>
+<td style="text-align:center">Greene</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-26</td>
+</tr>
+<tr>
+<td>01-12-060</td>
+<td>Icard Township WC</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>01-49-025</td>
+<td>Iredell Water Corporation</td>
+<td style="text-align:center">Iredell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-14</td>
+</tr>
+<tr>
+<td>04-66-010</td>
+<td>Jackson</td>
+<td style="text-align:center">Northampton</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-06</td>
+</tr>
+<tr>
+<td>02-41-030</td>
+<td>Jamestown</td>
+<td style="text-align:center">Guilford</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>03-51-070</td>
+<td>Johnston County</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-19</td>
+</tr>
+<tr>
+<td>04-52-020</td>
+<td>Jones County Regional Water System</td>
+<td style="text-align:center">Jones</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-14</td>
+</tr>
+<tr>
+<td>01-44-035</td>
+<td>Junaluska SD</td>
+<td style="text-align:center">Haywood</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-80-065</td>
+<td>Kannapolis</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>03-51-030</td>
+<td>Kenly</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-06-09</td>
+</tr>
+<tr>
+<td>02-91-010</td>
+<td>Kerr Lake Regional Water</td>
+<td style="text-align:center">Vance</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-09-18</td>
+</tr>
+<tr>
+<td>04-65-025</td>
+<td>Kure Beach</td>
+<td style="text-align:center">New Hanover</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-60-156</td>
+<td>Lamplighter South/Danby</td>
+<td style="text-align:center">Mecklenburg</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-28</td>
+</tr>
+<tr>
+<td>01-80-038</td>
+<td>Landis</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>01-14-010</td>
+<td>Lenoir</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>02-29-010</td>
+<td>Lexington</td>
+<td style="text-align:center">Davidson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-14</td>
+</tr>
+<tr>
+<td>02-76-025</td>
+<td>Liberty</td>
+<td style="text-align:center">Randolph</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-43-025</td>
+<td>Lillington</td>
+<td style="text-align:center">Harnett</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-25</td>
+</tr>
+<tr>
+<td>01-55-035</td>
+<td>Lincoln County</td>
+<td style="text-align:center">Lincoln</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-35-015</td>
+<td>Louisburg</td>
+<td style="text-align:center">Franklin</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-06</td>
+</tr>
+<tr>
+<td>03-78-010</td>
+<td>Lumberton</td>
+<td style="text-align:center">Robeson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>02-79-030</td>
+<td>Madison</td>
+<td style="text-align:center">Rockingham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-28-020</td>
+<td>Manteo</td>
+<td style="text-align:center">Dare</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-56-010</td>
+<td>Marion</td>
+<td style="text-align:center">McDowell</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-25</td>
+</tr>
+<tr>
+<td>01-58-010</td>
+<td>Mars Hill</td>
+<td style="text-align:center">Madison</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-09-16</td>
+</tr>
+<tr>
+<td>01-58-015</td>
+<td>Marshall</td>
+<td style="text-align:center">Madison</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-90-015</td>
+<td>Marshville</td>
+<td style="text-align:center">Union</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-78-035</td>
+<td>Maxton</td>
+<td style="text-align:center">Robeson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-79-025</td>
+<td>Mayodan</td>
+<td style="text-align:center">Rockingham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-16</td>
+</tr>
+<tr>
+<td>01-36-045</td>
+<td>McAdenville</td>
+<td style="text-align:center">Gaston</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>10-56-032</td>
+<td>McDowell County (Nebo)</td>
+<td style="text-align:center">McDowell</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>02-01-018</td>
+<td>Mebane</td>
+<td style="text-align:center">Alamance</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-29</td>
+</tr>
+<tr>
+<td>01-90-010</td>
+<td>Monroe</td>
+<td style="text-align:center">Union</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-27</td>
+</tr>
+<tr>
+<td>03-63-153</td>
+<td>Moore County Public Utilities-Addor</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>50-63-021</td>
+<td>Moore County Public Utilities-High Falls</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>03-63-103</td>
+<td>Moore County Public Utilities-Hyland Hills</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>03-63-108</td>
+<td>Moore County Public Utilities-Pinehurst</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>03-63-155</td>
+<td>Moore County Public Utilities-Robbins</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>03-63-045</td>
+<td>Moore County Public Utilities-Vass</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-21</td>
+</tr>
+<tr>
+<td>01-49-015</td>
+<td>Mooresville</td>
+<td style="text-align:center">Iredell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-09-07</td>
+</tr>
+<tr>
+<td>01-12-015</td>
+<td>Morganton</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>03-62-015</td>
+<td>Mount Gilead</td>
+<td style="text-align:center">Montgomery</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-96-015</td>
+<td>Mount Olive</td>
+<td style="text-align:center">Wayne</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-09-30</td>
+</tr>
+<tr>
+<td>01-97-015</td>
+<td>Mulberry Fairplains WA</td>
+<td style="text-align:center">Wilkes</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-28-010</td>
+<td>Nags Head</td>
+<td style="text-align:center">Dare</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-64-020</td>
+<td>Nashville</td>
+<td style="text-align:center">Nash</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-08-01</td>
+</tr>
+<tr>
+<td>60-54-001</td>
+<td>Neuse Regional Water and Sewer Authority</td>
+<td style="text-align:center">Lenoir</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-25-010</td>
+<td>New Bern</td>
+<td style="text-align:center">Craven</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>43-92-224</td>
+<td>New Light Master</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-13</td>
+</tr>
+<tr>
+<td>01-18-015</td>
+<td>Newton</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-82-035</td>
+<td>Newton Grove</td>
+<td style="text-align:center">Sampson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>04-54-025</td>
+<td>North Lenoir Water Corp.</td>
+<td style="text-align:center">Lenoir</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-02</td>
+</tr>
+<tr>
+<td>04-16-197</td>
+<td>North River/ Mill Creek Water System</td>
+<td style="text-align:center">Carteret</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-07</td>
+</tr>
+<tr>
+<td>01-97-010</td>
+<td>North Wilkesboro</td>
+<td style="text-align:center">Wilkes</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-10-020</td>
+<td>Oak Island</td>
+<td style="text-align:center">Brunswick</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-08</td>
+</tr>
+<tr>
+<td>04-10-035</td>
+<td>Ocean Isle Beach</td>
+<td style="text-align:center">Brunswick</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-29</td>
+</tr>
+<tr>
+<td>04-48-020</td>
+<td>Ocracoke Sanitary District</td>
+<td style="text-align:center">Hyde</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-68-010</td>
+<td>Orange Water and Sewer Authority</td>
+<td style="text-align:center">Orange</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-39-010</td>
+<td>Oxford</td>
+<td style="text-align:center">Granville</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-19</td>
+</tr>
+<tr>
+<td>04-69-025</td>
+<td>Pamlico County Water System</td>
+<td style="text-align:center">Pamlico</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>04-70-015</td>
+<td>Pasquotank County</td>
+<td style="text-align:center">Pasquotank</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>60-70-000</td>
+<td>Pasquotank County - RO</td>
+<td style="text-align:center">Pasquotank</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>04-72-025</td>
+<td>Perquimans County</td>
+<td style="text-align:center">Perquimans</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-84-025</td>
+<td>Pfeiffer-North Stanly WA</td>
+<td style="text-align:center">Stanly</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>04-96-030</td>
+<td>Pikeville</td>
+<td style="text-align:center">Wayne</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-19-015</td>
+<td>Pittsboro</td>
+<td style="text-align:center">Chatham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>04-94-010</td>
+<td>Plymouth</td>
+<td style="text-align:center">Washington</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-04-030</td>
+<td>Polkton</td>
+<td style="text-align:center">Anson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-52-015</td>
+<td>Pollocksville</td>
+<td style="text-align:center">Jones</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-33-045</td>
+<td>Princeville</td>
+<td style="text-align:center">Edgecombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-13</td>
+</tr>
+<tr>
+<td>03-47-010</td>
+<td>Raeford</td>
+<td style="text-align:center">Hoke</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>03-92-010</td>
+<td>Raleigh</td>
+<td style="text-align:center">Wake</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-29</td>
+</tr>
+<tr>
+<td>02-76-015</td>
+<td>Randleman</td>
+<td style="text-align:center">Randolph</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>03-78-015</td>
+<td>Red Springs</td>
+<td style="text-align:center">Robeson</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-79-020</td>
+<td>Reidsville</td>
+<td style="text-align:center">Rockingham</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>01-14-035</td>
+<td>Rhodhiss</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-77-109</td>
+<td>Richmond County</td>
+<td style="text-align:center">Richmond</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-25-113</td>
+<td>River Bend</td>
+<td style="text-align:center">Craven</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-29</td>
+</tr>
+<tr>
+<td>04-42-010</td>
+<td>Roanoke Rapids SD</td>
+<td style="text-align:center">Halifax</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-38-010</td>
+<td>Robbinsville</td>
+<td style="text-align:center">Graham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-07-01</td>
+</tr>
+<tr>
+<td>03-77-015</td>
+<td>Rockingham</td>
+<td style="text-align:center">Richmond</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>04-64-010</td>
+<td>Rocky Mount</td>
+<td style="text-align:center">Nash</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-08-01</td>
+</tr>
+<tr>
+<td>03-78-040</td>
+<td>Rowland</td>
+<td style="text-align:center">Robeson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-11</td>
+</tr>
+<tr>
+<td>02-73-010</td>
+<td>Roxboro</td>
+<td style="text-align:center">Person</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-12-055</td>
+<td>Rutherford College</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-06</td>
+</tr>
+<tr>
+<td>01-80-010</td>
+<td>Salisbury</td>
+<td style="text-align:center">Rowan</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-21</td>
+</tr>
+<tr>
+<td>03-53-010</td>
+<td>Sanford</td>
+<td style="text-align:center">Lee</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>01-14-040</td>
+<td>Sawmills</td>
+<td style="text-align:center">Caldwell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-66-035</td>
+<td>Seaboard</td>
+<td style="text-align:center">Northampton</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-04-21</td>
+</tr>
+<tr>
+<td>03-51-015</td>
+<td>Selma</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>40-51-009</td>
+<td>Selma</td>
+<td style="text-align:center">Johnston</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>01-18-151</td>
+<td>Shamrock Park Subdivision - City of Claremont</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>03-19-010</td>
+<td>Siler City</td>
+<td style="text-align:center">Chatham</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-10-15</td>
+</tr>
+<tr>
+<td>04-98-045</td>
+<td>Sims</td>
+<td style="text-align:center">Wilson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-40-010</td>
+<td>Snow Hill</td>
+<td style="text-align:center">Greene</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-29</td>
+</tr>
+<tr>
+<td>04-15-015</td>
+<td>South Camden Water and Sewer District</td>
+<td style="text-align:center">Camden</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-11</td>
+</tr>
+<tr>
+<td>04-40-105</td>
+<td>South Greene WC</td>
+<td style="text-align:center">Greene</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-23</td>
+</tr>
+<tr>
+<td>20-18-004</td>
+<td>Southeastern Catawba Co WD</td>
+<td style="text-align:center">Catawba</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-01</td>
+</tr>
+<tr>
+<td>60-27-001</td>
+<td>Southern Outer Banks Water</td>
+<td style="text-align:center">Currituck</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-96-045</td>
+<td>Southern Wayne SD</td>
+<td style="text-align:center">Wayne</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-61-010</td>
+<td>Spruce Pine</td>
+<td style="text-align:center">Mitchell</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-18</td>
+</tr>
+<tr>
+<td>04-98-025</td>
+<td>Stantonsburg</td>
+<td style="text-align:center">Wilson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-22</td>
+</tr>
+<tr>
+<td>01-49-010</td>
+<td>Statesville</td>
+<td style="text-align:center">Iredell</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-08-18</td>
+</tr>
+<tr>
+<td>02-39-018</td>
+<td>Stovall</td>
+<td style="text-align:center">Granville</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>60-28-002</td>
+<td>Stumpy Point WSD</td>
+<td style="text-align:center">Dare</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-06-107</td>
+<td>Sugar Mountain</td>
+<td style="text-align:center">Avery</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-04</td>
+</tr>
+<tr>
+<td>01-02-010</td>
+<td>Taylorsville</td>
+<td style="text-align:center">Alexander</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-23</td>
+</tr>
+<tr>
+<td>04-65-199</td>
+<td>The Cape Master</td>
+<td style="text-align:center">New Hanover</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-01</td>
+</tr>
+<tr>
+<td>01-49-185</td>
+<td>The Harbour / The Point</td>
+<td style="text-align:center">Iredell</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-16</td>
+</tr>
+<tr>
+<td>02-29-020</td>
+<td>Thomasville</td>
+<td style="text-align:center">Davidson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-18</td>
+</tr>
+<tr>
+<td>01-03-010</td>
+<td>Town of Sparta</td>
+<td style="text-align:center">Alleghany</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-49-030</td>
+<td>Troutman</td>
+<td style="text-align:center">Iredell</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-30</td>
+</tr>
+<tr>
+<td>01-75-010</td>
+<td>Tryon</td>
+<td style="text-align:center">Polk</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-18</td>
+</tr>
+<tr>
+<td>01-50-035</td>
+<td>Tuckaseigee WS Authority</td>
+<td style="text-align:center">Jackson</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-23</td>
+</tr>
+<tr>
+<td>01-36-010</td>
+<td>Two Rivers Utilities/Gastonia</td>
+<td style="text-align:center">Gaston</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-16</td>
+</tr>
+<tr>
+<td>04-89-015</td>
+<td>Tyrrell County Water Department</td>
+<td style="text-align:center">Tyrrell</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>01-90-413</td>
+<td>Union County</td>
+<td style="text-align:center">Union</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-15</td>
+</tr>
+<tr>
+<td>01-12-010</td>
+<td>Valdese</td>
+<td style="text-align:center">Burke</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-40-030</td>
+<td>Walstonburg</td>
+<td style="text-align:center">Greene</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-18</td>
+</tr>
+<tr>
+<td>02-93-015</td>
+<td>Warren County</td>
+<td style="text-align:center">Warren</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-93-010</td>
+<td>Warrenton</td>
+<td style="text-align:center">Warren</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-09-22</td>
+</tr>
+<tr>
+<td>04-07-010</td>
+<td>Washington</td>
+<td style="text-align:center">Beaufort</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-44-010</td>
+<td>Waynesville</td>
+<td style="text-align:center">Haywood</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-03</td>
+</tr>
+<tr>
+<td>01-11-025</td>
+<td>Weaverville</td>
+<td style="text-align:center">Buncombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-42-020</td>
+<td>Weldon</td>
+<td style="text-align:center">Halifax</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-05-010</td>
+<td>West Jefferson</td>
+<td style="text-align:center">Ashe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-22</td>
+</tr>
+<tr>
+<td>01-97-020</td>
+<td>West Wilkes Water Association</td>
+<td style="text-align:center">Wilkes</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-04-20</td>
+</tr>
+<tr>
+<td>01-50-116</td>
+<td>Western Carolina University</td>
+<td style="text-align:center">Jackson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-18</td>
+</tr>
+<tr>
+<td>03-63-112</td>
+<td>Whispering Pines</td>
+<td style="text-align:center">Moore</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-Y">Year-Round</td>
+<td style="text-align:center">2026-05-05</td>
+</tr>
+<tr>
+<td>03-09-030</td>
+<td>White Lake</td>
+<td style="text-align:center">Bladen</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>04-24-010</td>
+<td>Whiteville</td>
+<td style="text-align:center">Columbus</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-17</td>
+</tr>
+<tr>
+<td>01-97-025</td>
+<td>Wilkesboro</td>
+<td style="text-align:center">Wilkes</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-07</td>
+</tr>
+<tr>
+<td>04-59-010</td>
+<td>Williamston</td>
+<td style="text-align:center">Martin</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-14</td>
+</tr>
+<tr>
+<td>04-98-010</td>
+<td>Wilson</td>
+<td style="text-align:center">Wilson</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-08-26</td>
+</tr>
+<tr>
+<td>40-98-014</td>
+<td>Wilson County SEWD</td>
+<td style="text-align:center">Wilson</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-19</td>
+</tr>
+<tr>
+<td>40-98-012</td>
+<td>Wilson County SWWD</td>
+<td style="text-align:center">Wilson</td>
+<td style="text-align:center" class="status-M">Mandatory</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-06-30</td>
+</tr>
+<tr>
+<td>01-90-030</td>
+<td>Wingate</td>
+<td style="text-align:center">Union</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-34-010</td>
+<td>Winston-Salem</td>
+<td style="text-align:center">Forsyth</td>
+<td style="text-align:center" class="status-V">Voluntary</td>
+<td style="text-align:center" class="reason-D">Drought</td>
+<td style="text-align:center">2026-07-08</td>
+</tr>
+<tr>
+<td>04-74-040</td>
+<td>Winterville, Town of</td>
+<td style="text-align:center">Pitt</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>01-11-015</td>
+<td>Woodfin Sanitary Water and Sewer District</td>
+<td style="text-align:center">Buncombe</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>30-99-034</td>
+<td>Yadkin County - East Bend</td>
+<td style="text-align:center">Yadkin</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>30-99-029</td>
+<td>Yadkin County - Hwy 21</td>
+<td style="text-align:center">Yadkin</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-05-04</td>
+</tr>
+<tr>
+<td>02-99-015</td>
+<td>Yadkinville</td>
+<td style="text-align:center">Yadkin</td>
+<td style="text-align:center" class="status-N">Not Restricted</td>
+<td style="text-align:center" ></td>
+<td style="text-align:center">2026-06-26</td>
+</tr>
+</table>
+</section>
+</main>
+
+<!-- begin footer -->
+<footer>
+    <p>DEQ Division of Water Resources &bull;
+    1611 Mail Service Center &bull;
+    Raleigh, NC 27699-1611 &bull;
+    Phone: 919-707-9000 &bull;
+    Fax: 919-733-3558</p>
+    <p><a href="disclaimer">Disclaimer</a> &bull;
+    <a href="//deq.nc.gov/">NCDEQ</a> &bull;
+    <a href="//nc.gov/">NC.gov</a> &bull;
+    &copy; 2026 NC DEQ Division of Water Resources</p>
+</footer>
+<!-- end footer -->
+    
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4d5c80dede3b8d8',t:'MTc5MjQ3NTgwOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
