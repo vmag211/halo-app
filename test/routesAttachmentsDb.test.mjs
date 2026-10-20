@@ -485,4 +485,3 @@ test('privacy clear all deletes the household\'s files and then their objects; b
   w.storage.fail.remove = false;
   assert.deepEqual(await sweepAttachmentObjects(w.h.db, {}), { expired: 0, removed: 1, failed: 0 });
 });
-
