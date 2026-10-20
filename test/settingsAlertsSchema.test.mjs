@@ -653,7 +653,7 @@ test('running 0021 again changes nothing', async () => {
     // created once whatever the runs. The 0023, 0024, 0026, 0028 and 0029 triggers on operations are not 0021's, so they are left out.
     const { rows: triggers } = await db.query(
       `select tgrelid::regclass::text as on_table, tgname, pg_get_triggerdef(oid) as definition from pg_trigger
-        where not tgisinternal and tgrelid = any($1::regclass[]) and tgname not in ('operations_actions_settled_guard', 'operations_privacy_settled_guard', 'operations_workspace_settled_guard', 'operations_privacy_clear_workspace', 'operations_attachments_settled_guard', 'operations_privacy_clear_attachments', 'operations_summary_settled_guard', 'operations_privacy_clear_summaries') order by tgname`,
+        where not tgisinternal and tgrelid = any($1::regclass[]) and tgname not in ('operations_actions_settled_guard', 'operations_privacy_settled_guard', 'operations_workspace_settled_guard', 'operations_privacy_clear_workspace', 'operations_attachments_settled_guard', 'operations_privacy_clear_attachments', 'operations_summary_settled_guard', 'operations_privacy_clear_summaries', 'operations_privacy_clear_project_generations') order by tgname`,
       [[`public.${PREFERENCES}`, 'public.profiles', 'public.notification_prefs', 'public.household_bands', 'public.operations']],
     );
     const { rows: functions } = await db.query(

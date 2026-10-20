@@ -153,6 +153,14 @@ export const OWNED_ROW = {
       omissions: ['Private notes were not included.'],
     };
   },
+  // 0030: a saved idea set; `n` varies the generation id, which is in the key.
+  household_project_generations: (owner, n) => ({
+    profile_id: owner,
+    generation_id: `${createHash('sha256').update(`generation:${owner}:${n}`).digest('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5')}`,
+    context_key: `${owner}:none:0`,
+    status: 'completed',
+    idea_set: { id: 'test', status: 'completed' },
+  }),
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,
