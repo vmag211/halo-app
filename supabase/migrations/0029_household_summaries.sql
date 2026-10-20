@@ -28,9 +28,11 @@
 -- selected records, composes the snapshot in JavaScript and then calls
 -- public.commit_household_summary, which in one statement:
 --
---   1. Locks the profile FOR KEY SHARE (0024's lock order), then the caller's
---      own ledger row, this household's, domain 'summary', still 'pending'.
---      Otherwise HALO_OPERATION_NOT_PENDING.
+--   1. Locks the profile first (0024's lock order), FOR NO KEY UPDATE, so two
+--      prepares of one household commit one after the other and step 4's
+--      count cannot be overshot (another writer's KEY SHARE is not blocked),
+--      then the caller's own ledger row, this household's, domain 'summary',
+--      still 'pending'. Otherwise HALO_OPERATION_NOT_PENDING.
 --   2. Checks the snapshot's home is the household's current home, held FOR
 --      SHARE until the commit (Ruling S15-2). Otherwise HALO_HOME_CHANGED.
 --   3. Checks every manifest record is this household's at exactly its
@@ -354,8 +356,8 @@ begin
     raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'manifest revisions must be whole numbers from 1, each record once';
   end if;
 
-  -- 1. The profile, then this operation's own ledger row.
-  perform 1 from public.profiles p where p.id = p_profile_id for key share;
+  -- 1. The profile (serialising this household's summary commits), then this operation's own ledger row.
+  perform 1 from public.profiles p where p.id = p_profile_id for no key update;
   perform 1 from public.operations o
    where o.operation_id = p_operation_id and o.profile_id = p_profile_id
      and o.domain = 'summary' and o.status = 'pending'

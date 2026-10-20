@@ -263,7 +263,8 @@ export async function GET(request) {
     // fits the 4,000,000-byte cap (B07 P8); with no file the body is unchanged.
     const answer = withExportFile(body, file);
     // A body carrying the household's export is never cached anywhere.
-    return NextResponse.json(answer, { headers: answer === body ? headers : { ...headers, 'Cache-Control': 'no-store' } });
+    // A saved summary's reconcile carries the household's private report (B15), so it is never cached either.
+    return NextResponse.json(answer, { headers: answer === body && operation.domain !== SUMMARY_DOMAIN ? headers : { ...headers, 'Cache-Control': 'no-store' } });
   } catch (err) {
     if (isOperationsUnavailable(err)) return operationsUnavailable(requestId);
     const authResponse = authErrorResponse(err, requestId);

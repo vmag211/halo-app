@@ -154,12 +154,15 @@ export async function POST(request) {
     const { selection, records, homeContextId } = parsed.value;
     const headerHome = (request.headers.get('x-halo-home-context') ?? '').trim() || null;
 
-    // Proves 0029 before the claim: a missing function is the failed receipt, recording nothing.
+    // Proves 0029 before the claim: a missing function is the failed receipt,
+    // recording nothing. Any other failure here is the same answer, logged:
+    // nothing was claimed or saved, and a 5xx would park an id that no
+    // reconcile could ever settle (it was never recorded).
     try {
       await summaryUsage(supabaseAdmin, userId);
     } catch (err) {
-      if (isSummaryUnavailable(err)) return answer(refusalBody('unavailable'));
-      throw err;
+      if (!isSummaryUnavailable(err)) console.error(`summary prepare: the usage check failed before any claim (request ${requestId}):`, loggableError(err));
+      return answer(refusalBody('unavailable'));
     }
 
     let committed = null;
