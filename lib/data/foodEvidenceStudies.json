@@ -1,0 +1,828 @@
+{
+ "source": {
+  "notes": "The reviewed FDA study findings from lib/frontend/food-evidence.ts, copied exactly (a drift test compares them). The FDA files they cite were downloaded and hashed on the retrieval date; their tables were reviewed by the frontend on the reviewedAt date.",
+  "inputs": {
+   "fdaSeafood": {
+    "url": "https://www.fda.gov/media/159570/download",
+    "retrieved": "2026-10-20",
+    "sha256": "68ce913b002c76dd11fe15e1af51533e56f4ff334809dc6274f4febdfec770bd",
+    "bytes": 260662
+   },
+   "fdaTds": {
+    "url": "https://www.fda.gov/media/159751/download",
+    "retrieved": "2026-10-20",
+    "sha256": "7bd1a43ea706715b7f450d2756592fdd403635cd73ea0693505280b2f3e3f985",
+    "bytes": 2809588
+   },
+   "fdaTdsMethods": {
+    "url": "https://www.fda.gov/media/159745/download",
+    "retrieved": "2026-10-20",
+    "sha256": "ba1f8c1ed5a35fe4faef6e48db6c4490d88405739a4480e623fdbc3097e9f1ef",
+    "bytes": 2932818
+   },
+   "fdaPfas": {
+    "url": "https://www.fda.gov/food/process-contaminants-food/testing-food-pfas-and-assessing-dietary-exposure",
+    "retrieved": "2026-10-20",
+    "sha256": "6c2c02bb11def5c65d032ea5f6a707a1e60b060f4c01e910d01ad0fbe1807214",
+    "bytes": 40390
+   }
+  },
+  "blocked": "Food notices (openFDA enforcement reports) are not included until their acquisition review (HALO_BACKEND_WIRING_CURRENT.md, food notices)."
+ },
+ "reviewedAt": "2026-10-03",
+ "revision": "food-evidence-2026-10-03-1",
+ "boundary": "Published findings describe tested foods. Your item stays unmeasured unless a matching food-sample report is available. No study here is a current recall or a personal exposure estimate.",
+ "catalogue": [
+  {
+   "id": "apples",
+   "guideId": "produce"
+  },
+  {
+   "id": "bananas",
+   "guideId": "produce"
+  },
+  {
+   "id": "oranges",
+   "guideId": "produce"
+  },
+  {
+   "id": "strawberries",
+   "guideId": "produce"
+  },
+  {
+   "id": "blueberries",
+   "guideId": "produce"
+  },
+  {
+   "id": "raspberries",
+   "guideId": "produce"
+  },
+  {
+   "id": "blackberries",
+   "guideId": "produce"
+  },
+  {
+   "id": "grapes",
+   "guideId": "produce"
+  },
+  {
+   "id": "peaches",
+   "guideId": "produce"
+  },
+  {
+   "id": "pears",
+   "guideId": "produce"
+  },
+  {
+   "id": "mangoes",
+   "guideId": "produce"
+  },
+  {
+   "id": "pineapple",
+   "guideId": "produce"
+  },
+  {
+   "id": "watermelon",
+   "guideId": "produce"
+  },
+  {
+   "id": "cantaloupe",
+   "guideId": "produce"
+  },
+  {
+   "id": "lemons",
+   "guideId": "produce"
+  },
+  {
+   "id": "limes",
+   "guideId": "produce"
+  },
+  {
+   "id": "avocados",
+   "guideId": "produce"
+  },
+  {
+   "id": "kiwifruit",
+   "guideId": "produce"
+  },
+  {
+   "id": "cherries",
+   "guideId": "produce"
+  },
+  {
+   "id": "plums",
+   "guideId": "produce"
+  },
+  {
+   "id": "grapefruit",
+   "guideId": "produce"
+  },
+  {
+   "id": "tomatoes",
+   "guideId": "produce"
+  },
+  {
+   "id": "spinach",
+   "guideId": "produce"
+  },
+  {
+   "id": "carrots",
+   "guideId": "produce"
+  },
+  {
+   "id": "lettuce",
+   "guideId": "produce"
+  },
+  {
+   "id": "broccoli",
+   "guideId": "produce"
+  },
+  {
+   "id": "cauliflower",
+   "guideId": "produce"
+  },
+  {
+   "id": "kale",
+   "guideId": "produce"
+  },
+  {
+   "id": "cabbage",
+   "guideId": "produce"
+  },
+  {
+   "id": "bell-peppers",
+   "guideId": "produce"
+  },
+  {
+   "id": "cucumbers",
+   "guideId": "produce"
+  },
+  {
+   "id": "zucchini",
+   "guideId": "produce"
+  },
+  {
+   "id": "potatoes",
+   "guideId": "produce"
+  },
+  {
+   "id": "sweet-potatoes",
+   "guideId": "produce"
+  },
+  {
+   "id": "onions",
+   "guideId": "produce"
+  },
+  {
+   "id": "garlic",
+   "guideId": "produce"
+  },
+  {
+   "id": "mushrooms",
+   "guideId": "produce"
+  },
+  {
+   "id": "green-beans",
+   "guideId": "produce"
+  },
+  {
+   "id": "peas",
+   "guideId": "produce"
+  },
+  {
+   "id": "corn",
+   "guideId": "produce"
+  },
+  {
+   "id": "celery",
+   "guideId": "produce"
+  },
+  {
+   "id": "asparagus",
+   "guideId": "produce"
+  },
+  {
+   "id": "beets",
+   "guideId": "produce"
+  },
+  {
+   "id": "eggplant",
+   "guideId": "produce"
+  },
+  {
+   "id": "squash",
+   "guideId": "produce"
+  },
+  {
+   "id": "pumpkin",
+   "guideId": "produce"
+  },
+  {
+   "id": "basil",
+   "guideId": "produce"
+  },
+  {
+   "id": "cilantro",
+   "guideId": "produce"
+  },
+  {
+   "id": "salmon",
+   "guideId": "seafood"
+  },
+  {
+   "id": "tuna",
+   "guideId": "seafood"
+  },
+  {
+   "id": "shrimp",
+   "guideId": "seafood"
+  },
+  {
+   "id": "cod",
+   "guideId": "seafood"
+  },
+  {
+   "id": "tilapia",
+   "guideId": "seafood"
+  },
+  {
+   "id": "pollock",
+   "guideId": "seafood"
+  },
+  {
+   "id": "clams",
+   "guideId": "seafood"
+  },
+  {
+   "id": "mussels",
+   "guideId": "seafood"
+  },
+  {
+   "id": "oysters",
+   "guideId": "seafood"
+  },
+  {
+   "id": "scallops",
+   "guideId": "seafood"
+  },
+  {
+   "id": "crab",
+   "guideId": "seafood"
+  },
+  {
+   "id": "lobster",
+   "guideId": "seafood"
+  },
+  {
+   "id": "catfish",
+   "guideId": "seafood"
+  },
+  {
+   "id": "trout",
+   "guideId": "seafood"
+  },
+  {
+   "id": "bass",
+   "guideId": "seafood"
+  },
+  {
+   "id": "sardines",
+   "guideId": "seafood"
+  },
+  {
+   "id": "canned-tuna",
+   "guideId": "seafood"
+  },
+  {
+   "id": "frozen-fish-fillets",
+   "guideId": "seafood"
+  },
+  {
+   "id": "milk",
+   "guideId": "dairy"
+  },
+  {
+   "id": "yogurt",
+   "guideId": "dairy"
+  },
+  {
+   "id": "cheese",
+   "guideId": "dairy"
+  },
+  {
+   "id": "cheddar",
+   "guideId": "dairy"
+  },
+  {
+   "id": "mozzarella",
+   "guideId": "dairy"
+  },
+  {
+   "id": "cottage-cheese",
+   "guideId": "dairy"
+  },
+  {
+   "id": "cream-cheese",
+   "guideId": "dairy"
+  },
+  {
+   "id": "butter",
+   "guideId": "dairy"
+  },
+  {
+   "id": "cream",
+   "guideId": "dairy"
+  },
+  {
+   "id": "sour-cream",
+   "guideId": "dairy"
+  },
+  {
+   "id": "ice-cream",
+   "guideId": "dairy"
+  },
+  {
+   "id": "kefir",
+   "guideId": "dairy"
+  },
+  {
+   "id": "chicken",
+   "guideId": "meat"
+  },
+  {
+   "id": "turkey",
+   "guideId": "meat"
+  },
+  {
+   "id": "beef",
+   "guideId": "meat"
+  },
+  {
+   "id": "ground-beef",
+   "guideId": "meat"
+  },
+  {
+   "id": "pork",
+   "guideId": "meat"
+  },
+  {
+   "id": "lamb",
+   "guideId": "meat"
+  },
+  {
+   "id": "bacon",
+   "guideId": "meat"
+  },
+  {
+   "id": "sausages",
+   "guideId": "meat"
+  },
+  {
+   "id": "ham",
+   "guideId": "meat"
+  },
+  {
+   "id": "deli-turkey",
+   "guideId": "meat"
+  },
+  {
+   "id": "chicken-nuggets",
+   "guideId": "meat"
+  },
+  {
+   "id": "eggs",
+   "guideId": "pantry"
+  },
+  {
+   "id": "tofu",
+   "guideId": "pantry"
+  },
+  {
+   "id": "tempeh",
+   "guideId": "pantry"
+  },
+  {
+   "id": "white-bread",
+   "guideId": "pantry"
+  },
+  {
+   "id": "whole-wheat-bread",
+   "guideId": "pantry"
+  },
+  {
+   "id": "bagels",
+   "guideId": "pantry"
+  },
+  {
+   "id": "tortillas",
+   "guideId": "pantry"
+  },
+  {
+   "id": "pasta",
+   "guideId": "pantry"
+  },
+  {
+   "id": "macaroni-and-cheese",
+   "guideId": "pantry"
+  },
+  {
+   "id": "rice",
+   "guideId": "pantry"
+  },
+  {
+   "id": "oats",
+   "guideId": "pantry"
+  },
+  {
+   "id": "breakfast-cereal",
+   "guideId": "pantry"
+  },
+  {
+   "id": "flour",
+   "guideId": "pantry"
+  },
+  {
+   "id": "crackers",
+   "guideId": "pantry"
+  },
+  {
+   "id": "quinoa",
+   "guideId": "pantry"
+  },
+  {
+   "id": "lentils",
+   "guideId": "pantry"
+  },
+  {
+   "id": "chickpeas",
+   "guideId": "pantry"
+  },
+  {
+   "id": "black-beans",
+   "guideId": "pantry"
+  },
+  {
+   "id": "kidney-beans",
+   "guideId": "pantry"
+  },
+  {
+   "id": "canned-tomatoes",
+   "guideId": "pantry"
+  },
+  {
+   "id": "peanut-butter",
+   "guideId": "pantry"
+  },
+  {
+   "id": "almond-butter",
+   "guideId": "pantry"
+  },
+  {
+   "id": "peanuts",
+   "guideId": "pantry"
+  },
+  {
+   "id": "almonds",
+   "guideId": "pantry"
+  },
+  {
+   "id": "walnuts",
+   "guideId": "pantry"
+  },
+  {
+   "id": "sunflower-seeds",
+   "guideId": "pantry"
+  },
+  {
+   "id": "olive-oil",
+   "guideId": "pantry"
+  },
+  {
+   "id": "vegetable-oil",
+   "guideId": "pantry"
+  },
+  {
+   "id": "salad-dressing",
+   "guideId": "pantry"
+  },
+  {
+   "id": "mayonnaise",
+   "guideId": "pantry"
+  },
+  {
+   "id": "ketchup",
+   "guideId": "pantry"
+  },
+  {
+   "id": "mustard",
+   "guideId": "pantry"
+  },
+  {
+   "id": "soy-sauce",
+   "guideId": "pantry"
+  },
+  {
+   "id": "sugar",
+   "guideId": "pantry"
+  },
+  {
+   "id": "honey",
+   "guideId": "pantry"
+  },
+  {
+   "id": "maple-syrup",
+   "guideId": "pantry"
+  },
+  {
+   "id": "jam",
+   "guideId": "pantry"
+  },
+  {
+   "id": "cinnamon",
+   "guideId": "pantry"
+  },
+  {
+   "id": "black-pepper",
+   "guideId": "pantry"
+  },
+  {
+   "id": "turmeric",
+   "guideId": "pantry"
+  },
+  {
+   "id": "paprika",
+   "guideId": "pantry"
+  },
+  {
+   "id": "cocoa-powder",
+   "guideId": "pantry"
+  },
+  {
+   "id": "chocolate",
+   "guideId": "pantry"
+  },
+  {
+   "id": "applesauce",
+   "guideId": "pantry"
+  },
+  {
+   "id": "baby-food",
+   "guideId": "pantry"
+  },
+  {
+   "id": "infant-formula",
+   "guideId": "pantry"
+  },
+  {
+   "id": "orange-juice",
+   "guideId": "pantry"
+  },
+  {
+   "id": "apple-juice",
+   "guideId": "pantry"
+  },
+  {
+   "id": "coffee",
+   "guideId": "pantry"
+  },
+  {
+   "id": "tea",
+   "guideId": "pantry"
+  },
+  {
+   "id": "almond-drink",
+   "guideId": "pantry"
+  },
+  {
+   "id": "oat-drink",
+   "guideId": "pantry"
+  },
+  {
+   "id": "soy-drink",
+   "guideId": "pantry"
+  },
+  {
+   "id": "canned-soup",
+   "guideId": "pantry"
+  },
+  {
+   "id": "frozen-pizza",
+   "guideId": "pantry"
+  },
+  {
+   "id": "frozen-vegetables",
+   "guideId": "pantry"
+  },
+  {
+   "id": "frozen-berries",
+   "guideId": "pantry"
+  },
+  {
+   "id": "hummus",
+   "guideId": "pantry"
+  },
+  {
+   "id": "bottled-water",
+   "guideId": "pantry"
+  }
+ ],
+ "studies": [
+  {
+   "id": "fda-seafood-2022-tuna-pfos",
+   "title": "PFOS in sampled packaged tuna",
+   "contaminant": "PFAS",
+   "analyte": "PFOS",
+   "foodIds": [
+    "tuna",
+    "canned-tuna"
+   ],
+   "scope": "food-study",
+   "finding": "Five of ten tuna samples had detectable PFOS, one PFAS compound. The detected results ranged from 50 to 195 ppt. Five were below the method detection limit.",
+   "metrics": [
+    {
+     "label": "Detectable PFOS",
+     "value": "5 of 10",
+     "unit": "samples",
+     "qualifier": "count"
+    },
+    {
+     "label": "Detected range",
+     "value": "50 to 195",
+     "unit": "ppt (ng/kg)",
+     "qualifier": "detected-range"
+    }
+   ],
+   "source": {
+    "title": "FDA 2022 seafood survey",
+    "url": "https://www.fda.gov/media/159570/download",
+    "publishedAt": "July 2022",
+    "sampledAt": "2021-2022",
+    "reviewedAt": "2026-10-03",
+    "methodologyUrl": "https://www.fda.gov/food/process-contaminants-food/testing-food-pfas-and-assessing-dietary-exposure",
+    "locator": "PDF page 1, tuna 1-1 through 1-10, PFOS column"
+   },
+   "scopeDetail": "Retail packaged tuna, including light and albacore varieties. Sample origins were Ecuador, Thailand or not indicated. Counts and detected range are a HALO summary of the ten published rows.",
+   "limitation": "These are historical study samples, not a measurement or estimate of your food. They do not establish that a particular item is safe or unsafe. PFOS is not total PFAS. The five results marked <MDL were below 39 ng/kg, not proven zero.",
+   "nextStep": "For a product notice, compare the exact brand and lot. For self-caught fish, use the relevant waterbody and species advisory instead of a packaged-tuna study.",
+   "sample": {
+    "count": 10,
+    "detects": 5,
+    "nonDetects": 5,
+    "description": "Packaged tuna, cans and one foil pouch",
+    "region": "U.S. retail survey; multiple stated countries of origin",
+    "method": "LC-MS/MS, Instrument 1",
+    "basis": "Original food-mass units: ppt = ng/kg. Wet/dry basis is not separately stated in this table.",
+    "limit": 39,
+    "limitKind": "MDL",
+    "unit": "ng/kg"
+   }
+  },
+  {
+   "id": "fda-seafood-2022-salmon-pfdoa",
+   "title": "PFDoA in sampled Atlantic salmon",
+   "contaminant": "PFAS",
+   "analyte": "PFDoA",
+   "foodIds": [
+    "salmon"
+   ],
+   "scope": "food-study",
+   "finding": "Eight of ten Atlantic salmon samples had detectable PFDoA, one PFAS compound. Detected results ranged from 20 to 45 ppt. Two were below the method detection limit.",
+   "metrics": [
+    {
+     "label": "Detectable PFDoA",
+     "value": "8 of 10",
+     "unit": "samples",
+     "qualifier": "count"
+    },
+    {
+     "label": "Detected range",
+     "value": "20 to 45",
+     "unit": "ppt (ng/kg)",
+     "qualifier": "detected-range"
+    }
+   ],
+   "source": {
+    "title": "FDA 2022 seafood survey",
+    "url": "https://www.fda.gov/media/159570/download",
+    "publishedAt": "July 2022",
+    "sampledAt": "2021-2022",
+    "reviewedAt": "2026-10-03",
+    "methodologyUrl": "https://www.fda.gov/food/process-contaminants-food/testing-food-pfas-and-assessing-dietary-exposure",
+    "locator": "PDF page 2, salmon 1-1 through 1-10, PFDoA column"
+   },
+   "scopeDetail": "Farmed Atlantic salmon bought at retail, with Chile, Norway and Canada listed as origins. Counts and detected range are a HALO summary of the ten published rows.",
+   "limitation": "These are historical study samples, not a measurement or estimate of your food. They do not establish that a particular item is safe or unsafe. PFDoA is not total PFAS. The two results marked <MDL were below 16 ng/kg, not proven zero. This does not describe wild salmon or a particular farm.",
+   "nextStep": "Keep the product origin if you know it. Use the source for its tested sample scope, not as a reason to remove a whole food group.",
+   "sample": {
+    "count": 10,
+    "detects": 8,
+    "nonDetects": 2,
+    "description": "Farmed Atlantic salmon",
+    "region": "U.S. retail survey; Chile, Norway and Canada listed as origins",
+    "method": "LC-MS/MS, Instrument 1",
+    "basis": "Original food-mass units: ppt = ng/kg. Wet/dry basis is not separately stated in this table.",
+    "limit": 16,
+    "limitKind": "MDL",
+    "unit": "ng/kg"
+   }
+  },
+  {
+   "id": "fda-tds-2018-2020-whole-milk-lead",
+   "title": "Lead testing in whole milk",
+   "contaminant": "Lead",
+   "analyte": "Lead (Pb)",
+   "foodIds": [
+    "milk"
+   ],
+   "scope": "food-study",
+   "finding": "All 27 whole-milk samples were reported as not detected for lead. The table gives a reporting limit of 1 ppb.",
+   "metrics": [
+    {
+     "label": "Reported not detected",
+     "value": "27 of 27",
+     "unit": "samples",
+     "qualifier": "not-detected"
+    },
+    {
+     "label": "Reporting limit",
+     "value": "1",
+     "unit": "ppb",
+     "qualifier": "reporting-limit"
+    }
+   ],
+   "source": {
+    "title": "FDA Total Diet Study, FY2018-FY2020",
+    "url": "https://www.fda.gov/media/159751/download",
+    "publishedAt": "July 2022",
+    "sampledAt": "Fiscal years 2018-2020",
+    "reviewedAt": "2026-10-03",
+    "methodologyUrl": "https://www.fda.gov/media/159745/download",
+    "locator": "Supplement PDF page 1, TDS food 1: Milk, whole, fluid; Lead, Pb"
+   },
+   "scopeDetail": "Historical U.S. Total Diet Study composite samples of fluid whole milk. This entry does not represent every type of milk, producer or carton.",
+   "limitation": "These are historical study samples, not a measurement or estimate of your food. They do not establish that a particular item is safe or unsafe. Not detected does not mean zero. A reporting limit is a laboratory reporting boundary, not a food safety limit.",
+   "nextStep": "If you have a question about a specific carton, keep the producer and lot details with that question. Do not transfer a whole-milk finding to infant formula or plant-based drinks.",
+   "sample": {
+    "count": 27,
+    "detects": 0,
+    "nonDetects": 27,
+    "description": "Fluid whole milk, TDS food 1",
+    "region": "U.S. Total Diet Study collections",
+    "method": "EAM 4.7, ICP-MS; report Appendix B, Table 7",
+    "basis": "Original food-mass units: ppb. No wet/dry conversion is applied.",
+    "limit": 1,
+    "limitKind": "reporting-limit",
+    "unit": "ppb"
+   }
+  },
+  {
+   "id": "fda-tds-2018-2020-spinach-lead",
+   "title": "Lead testing in raw spinach",
+   "contaminant": "Lead",
+   "analyte": "Lead (Pb)",
+   "foodIds": [
+    "spinach"
+   ],
+   "scope": "food-study",
+   "finding": "Lead was detected in 21 of 27 raw-spinach samples. Six were reported as not detected. The highest published result was 18 ppb.",
+   "metrics": [
+    {
+     "label": "Detectable lead",
+     "value": "21 of 27",
+     "unit": "samples",
+     "qualifier": "count"
+    },
+    {
+     "label": "Highest sampled result",
+     "value": "18",
+     "unit": "ppb",
+     "qualifier": "maximum"
+    }
+   ],
+   "source": {
+    "title": "FDA Total Diet Study, FY2018-FY2020",
+    "url": "https://www.fda.gov/media/159751/download",
+    "publishedAt": "July 2022",
+    "sampledAt": "Fiscal years 2018-2020",
+    "reviewedAt": "2026-10-03",
+    "methodologyUrl": "https://www.fda.gov/media/159745/download",
+    "locator": "Supplement PDF pages 55-56, TDS food 408: Spinach, raw; Lead, Pb"
+   },
+   "scopeDetail": "Historical U.S. Total Diet Study composite samples of raw spinach. The table reports a 4 ppb reporting limit. The maximum is not a prediction for your spinach.",
+   "limitation": "These are historical study samples, not a measurement or estimate of your food. They do not establish that a particular item is safe or unsafe. These samples cannot describe a local garden, bag or current harvest. Reporting limits are not food safety limits.",
+   "nextStep": "For homegrown spinach, keep growing-site and irrigation questions together in My garden. Soil or water results cannot substitute for a crop test.",
+   "sample": {
+    "count": 27,
+    "detects": 21,
+    "nonDetects": 6,
+    "description": "Raw spinach, TDS food 408",
+    "region": "U.S. Total Diet Study collections",
+    "method": "EAM 4.7, ICP-MS; report Appendix B, Table 7",
+    "basis": "Original food-mass units: ppb. No wet/dry conversion is applied.",
+    "limit": 4,
+    "limitKind": "reporting-limit",
+    "unit": "ppb"
+   }
+  }
+ ]
+}
