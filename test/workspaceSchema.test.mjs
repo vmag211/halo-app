@@ -160,8 +160,8 @@ test('refusals write nothing and leave the ledger row pending: stale revision, e
       const op = await claim(tx, { owner, domain, status });
       assert.equal(refusal(await commit(tx, op, { upserts: [upsert('tests', 't8')], collections: ['tests'] })), 'HALO_OPERATION_NOT_PENDING');
     }
-    // A record over the 300,000-byte backstop is a CHECK violation.
-    const big = await commit(tx, await claim(tx), { upserts: [upsert('tests', 't7', null, { pad: 'x'.repeat(300001) })], collections: ['tests'] });
+    // A record over the 400,000-byte backstop is a CHECK violation.
+    const big = await commit(tx, await claim(tx), { upserts: [upsert('tests', 't7', null, { pad: 'x'.repeat(400001) })], collections: ['tests'] });
     assert.equal(big.ok, false);
     assert.equal(big.error.code, '23514');
   });

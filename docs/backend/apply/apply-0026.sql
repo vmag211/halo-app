@@ -144,10 +144,13 @@ begin
       check (jsonb_typeof(record) = 'object');
   end if;
   -- A backstop for Ruling W7's 262,144-byte record, which the route checks
-  -- first on the JSON it received.
+  -- first on the JSON it received. jsonb prints a space after every ':' and
+  -- ',', so the same record is up to 1.5 times longer as record::text (an
+  -- array of one-character numbers goes from 2 bytes an element to 3):
+  -- 262,144 * 1.5 = 393,216, so the backstop must sit above that.
   if not exists (select 1 from pg_constraint where conname = 'household_workspace_records_size_check') then
     alter table public.household_workspace_records add constraint household_workspace_records_size_check
-      check (octet_length(record::text) <= 300000);
+      check (octet_length(record::text) <= 400000);
   end if;
 end $$;
 
