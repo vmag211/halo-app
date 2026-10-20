@@ -1,0 +1,158 @@
+{
+  "operationId": "evidenceRead",
+  "status": 200,
+  "body": {
+    "rows": [
+      {
+        "date": "2026-05-29",
+        "factor": "Air",
+        "value": null,
+        "unit": "AQI",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Outside the twelve-week history window"
+      },
+      {
+        "date": "2026-05-29",
+        "factor": "UV",
+        "value": null,
+        "unit": "UV index",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Outside the twelve-week history window"
+      },
+      {
+        "date": "2026-05-29",
+        "factor": "Pollen",
+        "value": null,
+        "unit": "category",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Pollen has a daily forecast index, not a daily maximum."
+      },
+      {
+        "date": "2026-05-29",
+        "factor": "Outdoor mold",
+        "value": null,
+        "unit": "category",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "No compatible historical mold series"
+      },
+      {
+        "date": "2026-05-30",
+        "factor": "Air",
+        "value": null,
+        "unit": "AQI",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Outside the twelve-week history window"
+      },
+      {
+        "date": "2026-05-30",
+        "factor": "UV",
+        "value": null,
+        "unit": "UV index",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Outside the twelve-week history window"
+      },
+      {
+        "date": "2026-05-30",
+        "factor": "Pollen",
+        "value": null,
+        "unit": "category",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Pollen has a daily forecast index, not a daily maximum."
+      },
+      {
+        "date": "2026-05-30",
+        "factor": "Outdoor mold",
+        "value": null,
+        "unit": "category",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "No compatible historical mold series"
+      },
+      {
+        "date": "2026-05-31",
+        "factor": "Air",
+        "value": null,
+        "unit": "AQI",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Outside the twelve-week history window"
+      },
+      {
+        "date": "2026-05-31",
+        "factor": "UV",
+        "value": null,
+        "unit": "UV index",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Outside the twelve-week history window"
+      },
+      {
+        "date": "2026-05-31",
+        "factor": "Pollen",
+        "value": null,
+        "unit": "category",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "Pollen has a daily forecast index, not a daily maximum."
+      },
+      {
+        "date": "2026-05-31",
+        "factor": "Outdoor mold",
+        "value": null,
+        "unit": "category",
+        "source": "Not recorded",
+        "issued": "Unknown",
+        "basis": "daily maximum",
+        "context": "a11ce000-0808-4000-8000-000000000001",
+        "version": "daily-max-v1",
+        "missing": "No compatible historical mold series"
+      }
+    ],
+    "comparison": {
+      "context": "a11ce000-0808-4000-8000-000000000001",
+      "basis": "daily maximum",
+      "version": "daily-max-v1"
+    },
+    "complete": true
+  }
+}

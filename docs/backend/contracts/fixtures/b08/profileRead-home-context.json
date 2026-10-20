@@ -1,0 +1,58 @@
+{
+  "operationId": "profileRead",
+  "status": 200,
+  "body": {
+    "onboarded": true,
+    "onboarding_complete": true,
+    "profile": {
+      "county": "Cabarrus County",
+      "state": "NC",
+      "zip": "28025",
+      "pwsid": "NC0113010",
+      "lat": 35.409,
+      "lng": -80.58,
+      "home_year": 1975,
+      "water_source": "utility",
+      "renter_mode": false,
+      "locale": "en",
+      "onboard_request_id": null
+    },
+    "household": {
+      "has_toddler": false,
+      "has_child": false,
+      "has_teen": false,
+      "has_adult": false,
+      "has_senior": false,
+      "has_pregnant": false,
+      "has_respiratory": false
+    },
+    "household_set": false,
+    "home_context": {
+      "id": "a11ce000-0808-4000-8000-000000000001",
+      "sequence": 2,
+      "revision": 3,
+      "origin": "move",
+      "current": true,
+      "location": {
+        "lat": 35.409,
+        "lng": -80.58,
+        "county": "Cabarrus County",
+        "state": "NC"
+      },
+      "pwsid": null,
+      "service_area_status": null,
+      "water_source": "utility",
+      "home_year": null,
+      "match_method": null,
+      "backfill": {
+        "state": "not_started",
+        "from": null,
+        "to": null,
+        "updated_at": null
+      },
+      "effective_from": "2026-06-01T12:00:00+00:00",
+      "effective_to": null,
+      "closed_reason": null
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "operationId": "dailyMaximaRecord",
+  "status": 401,
+  "body": {
+    "error": "Unauthorized"
+  }
+}
