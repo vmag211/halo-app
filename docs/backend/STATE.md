@@ -59,6 +59,8 @@ itself). They are not a substitute for one browser pass. The next integration st
 lazy so `next build` needs no secrets. About 31 Playwright UI tests already fail on the frontend ref alone
 (partly a Sunday week-start hydration bug), so a UI run must be compared against that baseline.
 
+Done 2026-10-20: `next build` needs no secrets (Supabase and Redis clients are built on first use, `lib/lazyClient.js`), and the stage server takes `HALO_STAGE_SUPABASE_URL`, default `http://127.0.0.1:54321`; `test:stage` 37/37 and `test:production` 120/120 pass with no service-role key.
+
 | Package | State |
 | --- | --- |
 | B01 baseline, identity, home context | Complete |

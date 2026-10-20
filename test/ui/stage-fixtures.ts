@@ -6,6 +6,10 @@ export const stageProfile = {
   profile: { county: 'Cabarrus', state: 'NC', lat: 35.4, lng: -80.5, pwsid: null, water_source: 'utility', home_year: 1975 },
   household: { has_toddler: false, has_child: true, has_teen: false, has_adult: true, has_senior: false, has_pregnant: false, has_respiratory: false },
 };
+/** The placeholder Supabase project the stage server builds against (scripts/stage-test-server.mjs reads
+ * the same variable and default). supabase-js keys its stored session by the URL's first host label. */
+export const stageSupabaseUrl = new URL(process.env.HALO_STAGE_SUPABASE_URL || 'http://127.0.0.1:54321');
+const stageSessionKey = `sb-${stageSupabaseUrl.hostname.split('.')[0]}-auth-token`;
 export type StageRequest = { path: string; method: string; body: unknown };
 type Handler = (route: Route, url: URL) => Promise<void>;
 export type StageMockOptions = { assistant?: Handler; overrides?: Record<string, Handler> };
@@ -26,19 +30,21 @@ export async function mockStage(page: Page, options: StageMockOptions = {}) {
     access_token: `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: stageUserId, aud: 'authenticated', role: 'authenticated', iat: now, exp: now + 86400, is_anonymous: true })}.test-signature`,
     refresh_token: 'isolated-test-refresh-token', token_type: 'bearer', expires_in: 86400, expires_at: now + 86400, user,
   };
-  await page.addInitScript(({ session }) => {
-    localStorage.setItem('sb-halo-test-auth-token', JSON.stringify(session));
+  await page.addInitScript(({ session, stageSessionKey }) => {
+    localStorage.setItem(stageSessionKey, JSON.stringify(session));
     Object.assign(window, { turnstile: { render: (_container: unknown, config: { callback: (token: string) => void }) => { queueMicrotask(() => config.callback('isolated-test-captcha')); return 'test-widget'; }, remove: () => {} } });
-  }, { session });
+  }, { session, stageSessionKey });
   await page.route('**/*', async route => {
     const request = route.request(); const url = new URL(request.url());
-    if (url.hostname === 'halo-test.supabase.co' && url.pathname.startsWith('/auth/v1/')) {
+    const isStageSupabase = url.origin === stageSupabaseUrl.origin;
+    if (isStageSupabase && url.pathname.startsWith('/auth/v1/')) {
       if (request.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } }); return; }
       if (['/auth/v1/signup', '/auth/v1/token', '/auth/v1/user'].includes(url.pathname)) {
         await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(url.pathname === '/auth/v1/user' ? user : session) }); return;
       }
     }
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname)) { blocked.push(url.origin + url.pathname); await route.abort('blockedbyclient'); return; }
+    // The placeholder Supabase origin is local, so it is blocked explicitly rather than by host.
+    if (isStageSupabase || !['127.0.0.1', 'localhost'].includes(url.hostname)) { blocked.push(url.origin + url.pathname); await route.abort('blockedbyclient'); return; }
     if (!url.pathname.startsWith('/api/')) { await route.continue(); return; }
     let body: unknown = null;
     try { body = request.postDataJSON(); } catch { /* GET has no body. */ }
