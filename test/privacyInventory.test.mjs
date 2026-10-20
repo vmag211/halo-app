@@ -859,8 +859,8 @@ test('exportParts: without private text, private columns, private-only rows and 
   assert.deepEqual(withPrivate.filter((part) => part.group === 'conversation').map((part) => part.table), ['luna_conversations', 'luna_turns', 'luna_runs']);
   assert.deepEqual(withPrivate.find((part) => part.table === 'household_actions').baseKeys, {});
   assert.equal(withPrivate.filter((part) => part.table === 'household_action_preferences').length, 2);
-  // 0026 (B11): the Explore workspace collections' rows, without their private record.
-  assert.deepEqual(exportParts(['explore'], false).map((part) => part.table), ['explore_areas', 'household_workspace_records']);
+  // 0026 (B11): the Explore workspace collections' rows, without their private record; 0028 (B14): the note photos' metadata.
+  assert.deepEqual(exportParts(['explore'], false).map((part) => part.table), ['explore_areas', 'household_workspace_records', 'household_attachments']);
   assert.throws(() => exportParts(['tasks'], 'yes'), TypeError);
 });
 

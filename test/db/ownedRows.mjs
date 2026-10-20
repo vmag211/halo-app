@@ -8,6 +8,7 @@
  *
  * `n` varies the unique keys: seeds use 0, attempts and extra rows use 1, 2.
  */
+import { createHash } from 'node:crypto';
 
 /** A uuid derived from the owner's, so 0020's parent and child rows can be written without passing ids around. */
 export const lunaId = (owner, suffix) => `${owner.slice(0, 24)}${'0'.repeat(12 - suffix.length)}${suffix}`;
@@ -114,6 +115,27 @@ export const OWNED_ROW = {
     revision: 1,
     record: { id: `test-record-${n}`, title: 'Test record', revision: 1 },
   }),
+  // 0028: a staged private file (never linked, so no workspace write deletes
+  // it); `n` varies the server ids, the object path follows them.
+  household_attachments: (owner, n) => {
+    // Derived from the owner and n, so two households never share an id.
+    const hex = (salt) => createHash('sha256').update(`${salt}:${owner}:${n}`).digest('hex');
+    const uuid = (h) => `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+    const attachmentId = uuid(hex('attachment'));
+    return {
+      attachment_id: attachmentId,
+      profile_id: owner,
+      operation_id: uuid(hex('operation')),
+      collection: n % 2 === 0 ? 'observations' : 'exploreNotes',
+      record_id: `test-attachment-record-${n}`,
+      name: 'Test photo.jpg',
+      mime: 'image/jpeg',
+      bytes: 100 + n,
+      width: 10,
+      height: 10,
+      object_path: `${owner}/${attachmentId}`,
+    };
+  },
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,

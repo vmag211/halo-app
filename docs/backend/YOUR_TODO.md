@@ -924,6 +924,55 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every role grant and every audit entry is deleted, because both tables go. Nothing else is touched.
 
+### 2.19 Apply 0028 (private photo attachments, B14)
+
+**Written, applied nowhere yet.** Needs 0017 and **0026** (apply 2.17 first); it does not need 0024, 0025 or 0027. Quiet: two new tables and seventeen functions, plus two triggers on `public.operations` and two on `public.household_workspace_records`, each taking a brief SHARE ROW EXCLUSIVE on that table as it is created (a ledger claim or a workspace save at that moment waits for it). Nothing existing is read or rewritten. It also creates the **private storage bucket** `household-attachments` (one row in `storage.buckets`, `public = false`, 15 MiB and JPEG/PNG/WebP limits); no storage policy is created, so only the service role reaches its files.
+
+What it is for (B14 plan, `docs/backend/plans/b14-private-attachments.md`): a test report photo, a moisture observation photo or an Explore note photo, uploaded through `POST /api/attachments`. The server decodes and re-encodes every image with `sharp`, so EXIF, GPS and all other metadata are gone before anything is stored, and keeps it private: downloads are owner-checked and never cached. Removing a file, its record, clearing all or deleting the account deletes the file; a trigger queues each storage object and the routes and the daily cron delete them.
+
+**Applying this does not turn attachments on.** The routes stay behind `HALO_FEATURE_ATTACHMENTS` (and need `HALO_FEATURE_WORKSPACE` on too), off by default, until you confirm the B14 decisions (retention, PDF refused, limits).
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0028_household_attachments.sql`, or `docs/backend/apply/apply-0028.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run the verification query (the comment at the end of the file, or `docs/backend/apply/verify-0028.sql`): **one row, all eight columns true**. `no_client_access`, `bucket_private` or `no_bucket_policy` false is the one that matters: stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+4. In Storage, confirm the bucket `household-attachments` shows as private. Do not add a policy to it.
+
+#### If you need to back out 0028
+
+The attachment routes go back to answering "unavailable" and a Homeguard save naming a file is refused again. **First list the stored objects** (`select object_path from public.household_attachments union select object_path from public.attachment_object_sweep;`), because the rows go and the files do not: afterwards empty and delete the bucket in Storage (the bucket, Empty, then Delete). In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0028 -->
+
+```sql
+drop trigger if exists operations_privacy_clear_attachments on public.operations;
+drop trigger if exists operations_attachments_settled_guard on public.operations;
+drop trigger if exists household_workspace_records_delete_attachments on public.household_workspace_records;
+drop trigger if exists household_workspace_records_link_attachments on public.household_workspace_records;
+drop function if exists public.clear_attachments_with_privacy_clear();
+drop function if exists public.guard_settled_attachments_operation();
+drop function if exists public.delete_record_attachments();
+drop function if exists public.link_workspace_attachments();
+drop function if exists public.forget_attachment_objects(text[]);
+drop function if exists public.due_attachment_objects(uuid, integer);
+drop function if exists public.expire_staged_attachments(integer);
+drop function if exists public.attachment_privacy_counts(uuid);
+drop function if exists public.remove_household_attachment(uuid, uuid, uuid, integer);
+drop function if exists public.commit_household_attachment(uuid, uuid, jsonb);
+drop function if exists public.reserve_attachment_object(uuid, uuid, uuid);
+drop function if exists public.check_attachment_references(uuid, text, text, text[]);
+drop function if exists public.household_attachment_usage(uuid, text, text);
+drop function if exists public.read_household_attachment(uuid, uuid);
+drop function if exists public.attachment_storage_state();
+drop function if exists public.household_attachment_json(public.household_attachments);
+drop table if exists public.household_attachments;
+drop function if exists public.queue_attachment_object();
+drop table if exists public.attachment_object_sweep;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: **every household's file records are deleted for good**, and the files stay in the bucket until you delete them as above. Test records keep any `attachments` list they hold, now naming files that no longer exist. Ledger rows in domain `attachments` stay; they hold ids, collection names and statuses only. The bucket row itself is left (drop it in Storage). Nothing else is touched.
+
 ---
 
 ## Part 3. Decisions only you can make

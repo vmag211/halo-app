@@ -1117,6 +1117,8 @@ const SEED_PLAN = [
   ['daily_maxima', [0, 1, 2]],
   // 0026: a tests record and an exploreNotes record, one in each export group.
   ['household_workspace_records', [0, 1]],
+  // 0028: an observation photo and a note photo, one in each export group.
+  ['household_attachments', [0, 1]],
 ];
 
 test('on real Postgres: every allowlisted column, filter and order runs, and every seeded row of the household is exported', async () => {
