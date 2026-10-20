@@ -3310,7 +3310,7 @@
         "additionalProperties": false
       },
       "WorkspaceReceiptRefused": {
-        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference and limit are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7). changed_elsewhere (Ruling W15) is the one reason that is computed, never stored: a REPLAY of a save that succeeded finds the record it saved gone (deleted on another device since), or a record it removed back. The ledger keeps no record content, so no succeeded receipt could show the saved record, and the client would stay locked on one it cannot settle; this failed receipt resolves the operation instead, with a sentence that tells the person to reload.",
+        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference, limit and project_guide_locked are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. project_guide_locked (B16 Ruling J13) refuses an update of an exploreProjects record whose guide, guideId or guideVersion differs from the stored record's: the sourced guide a project was started with is a snapshot, and the person's own fields (status, review date, step notes, history, goal, outcome) still save. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7). changed_elsewhere (Ruling W15) is the one reason that is computed, never stored: a REPLAY of a save that succeeded finds the record it saved gone (deleted on another device since), or a record it removed back. The ledger keeps no record content, so no succeeded receipt could show the saved record, and the client would stay locked on one it cannot settle; this failed receipt resolves the operation instead, with a sentence that tells the person to reload.",
         "type": "object",
         "properties": {
           "operationId": {
@@ -3335,6 +3335,7 @@
               "notes_changed",
               "invalid_reference",
               "limit",
+              "project_guide_locked",
               "invalid_record",
               "attachments_unavailable",
               "clear_unsupported",
@@ -3441,6 +3442,28 @@
                 },
                 "message": {
                   "const": "This collection has reached its storage limit. Nothing was saved."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "project_guide_locked"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "The guide of a started project cannot be changed. Nothing was saved. Your draft is kept. Reload the project, then save your own changes again."
                 }
               }
             }
@@ -3766,7 +3789,7 @@
         "additionalProperties": false
       },
       "WorkspaceOperationRefused": {
-        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference or limit): the stored reason, with the code and sentence that reason names and changes: {}. Also changed_elsewhere (Ruling W15), computed on read and never stored: the ledger says succeeded, but the record the save wrote was since deleted on another device (or a record it removed is back). The ledger keeps no record content, so no succeeded receipt could show the saved record and the client would stay locked; status is therefore answered failed (the one case where it differs from the ledger), with the sentence to reload.",
+        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference, limit or project_guide_locked): the stored reason, with the code and sentence that reason names and changes: {}. Also changed_elsewhere (Ruling W15), computed on read and never stored: the ledger says succeeded, but the record the save wrote was since deleted on another device (or a record it removed is back). The ledger keeps no record content, so no succeeded receipt could show the saved record and the client would stay locked; status is therefore answered failed (the one case where it differs from the ledger), with the sentence to reload.",
         "type": "object",
         "properties": {
           "operationId": {
@@ -3795,6 +3818,7 @@
               "notes_changed",
               "invalid_reference",
               "limit",
+              "project_guide_locked",
               "changed_elsewhere"
             ]
           },
@@ -3913,6 +3937,28 @@
                 },
                 "message": {
                   "const": "This collection has reached its storage limit. Nothing was saved."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "project_guide_locked"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "validation"
+                },
+                "message": {
+                  "const": "The guide of a started project cannot be changed. Nothing was saved. Your draft is kept. Reload the project, then save your own changes again."
                 }
               }
             }

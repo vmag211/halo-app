@@ -780,6 +780,32 @@ test('B11 handler conformance: workspace.execute answers success, every 200 refu
   const { body: duplicate } = await execute(w, write('tests', created), {});
   assert.equal(duplicate.reason, 'stale_revision');
 
+  // B16 Ruling J13: a started project keeps its guide, but the person's own fields still save.
+  const started = write('exploreProjects', sampleRecord('exploreProjects', { id: 'project-rain-garden', title: 'Rain garden' }));
+  started.record.guide.sources[0].url = 'https://example.test/guide';
+  const { body: startedBody } = await execute(w, started, {});
+  const project = startedBody.changes.exploreProjects[0];
+  const progress = write('exploreProjects', { ...project, status: 'Paused', outcome: 'Basin dug', reviewDate: '2026-11-01', stepNotes: { 'step-1': 'Marked the spot' } }, 1);
+  const { body: progressed } = await execute(w, progress, {});
+  assert.deepEqual([progressed.status, progressed.changes.exploreProjects[0].revision, progressed.changes.exploreProjects[0].status], ['succeeded', 2, 'Paused'], 'progress and notes still save');
+  assert.ok(homeReceiptCoversCommand(progress, progressed));
+  const reordered = { ...progressed.changes.exploreProjects[0], guide: Object.fromEntries(Object.entries(progressed.changes.exploreProjects[0].guide).reverse()) };
+  const { body: reorderedBody } = await execute(w, write('exploreProjects', { ...reordered, status: 'Active' }, 2), {});
+  assert.equal(reorderedBody.status, 'succeeded', 'the same guide in another key order is not a change');
+  const locked = write('exploreProjects', { ...reorderedBody.changes.exploreProjects[0], status: 'Completed', guide: { ...project.guide, steps: [{ ...project.guide.steps[0], title: 'Dig somewhere else' }] } }, 3);
+  const { body: lockedBody } = await execute(w, locked, { fixture: 'workspaceExecute-refused-project-guide-locked' });
+  assert.deepEqual([lockedBody.code, lockedBody.reason, lockedBody.changes, lockedBody.message], ['validation', 'project_guide_locked', {}, REFUSALS.project_guide_locked.message]);
+  const storedProject = (await w.rows('alice', 'exploreProjects'))[0];
+  assert.deepEqual([storedProject.revision, storedProject.record.status, storedProject.record.guide.steps[0].title], [3, 'Active', 'Dig'], 'nothing of a refused update was written');
+  const { body: lockedAgain } = await execute(w, locked, {});
+  assert.deepEqual(lockedAgain, lockedBody, 'a replayed refusal is the same body');
+  await reconcile(w, locked, {});
+  for (const over of [{ guideVersion: 'v2', guide: { ...project.guide, version: 'v2' } }, { guideId: 'g2', guide: { ...project.guide, id: 'g2' } }, { guide: { ...project.guide, materials: ['Spade'] } }]) {
+    const { body: refused } = await execute(w, write('exploreProjects', { ...reorderedBody.changes.exploreProjects[0], ...over }, 3), {});
+    assert.equal(refused.reason, 'project_guide_locked', JSON.stringify(Object.keys(over)));
+  }
+  assert.equal((await w.rows('alice', 'exploreProjects'))[0].revision, 3);
+
   // A remove.
   const removal = remove('tests', 'test-kitchen-tap', 2);
   const { body: removed } = await execute(w, removal, { fixture: 'workspaceExecute-remove' });
