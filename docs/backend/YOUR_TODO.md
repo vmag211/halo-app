@@ -1006,6 +1006,40 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **every household's file records are deleted for good**, and the files stay in the bucket until you delete them as above. Test records keep any `attachments` list they hold, now naming files that no longer exist. Ledger rows in domain `attachments` stay; they hold ids, collection names and statuses only. The bucket row itself is left (drop it in Storage). Nothing else is touched.
 
+### 2.22 Apply 0031 (outreach drafts, B17: prepared copies, never sent)
+
+**Written, applied nowhere yet.** Needs 0017 only; it does not need 0018 to 0030 (a draft that includes saved notes checks them against 0026's table, so notes work once 0026 is applied too). Quiet: one new table and six functions, plus two triggers on `public.operations`, each taking a brief SHARE ROW EXCLUSIVE on that table as it is created (a ledger claim at that moment waits for it). Nothing existing is read or rewritten.
+
+What it is for (B17 plan, `docs/backend/plans/b17-outreach-preparation.md`): when a person prepares a question to a public office on the Explore outreach screen, HALO keeps the prepared copy so they can copy it into their own email. **HALO never sends it**: there is no email provider, no Gmail connection and no send attempt anywhere. Clear all and account deletion remove the drafts.
+
+**Applying this does not turn outreach on.** The routes stay behind `HALO_FEATURE_OUTREACH`, off by default, until you confirm the B17 decisions (draft retention above all).
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0031_outreach_drafts.sql`, or `docs/backend/apply/apply-0031.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run the verification query (the comment at the end of the file, or `docs/backend/apply/verify-0031.sql`): **one row, all seven columns true**. `no_client_access` or `functions_service_role_only` false is the one that matters: stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+
+#### If you need to back out 0031
+
+The draft routes go back to answering "unavailable"; contacts, public context and the "not connected" answer keep working. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0031 -->
+
+```sql
+drop trigger if exists operations_privacy_clear_outreach on public.operations;
+drop trigger if exists operations_outreach_settled_guard on public.operations;
+drop function if exists public.clear_outreach_with_privacy_clear();
+drop function if exists public.guard_settled_outreach_operation();
+drop function if exists public.outreach_privacy_counts(uuid);
+drop function if exists public.save_outreach_draft(uuid, uuid, jsonb);
+drop function if exists public.read_outreach_drafts(uuid, uuid);
+drop function if exists public.outreach_draft_json(public.outreach_drafts);
+drop table if exists public.outreach_drafts;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: **every household's outreach drafts are deleted for good**. Ledger rows in domain `outreach` stay; they hold draft ids, revisions and statuses only. Nothing was ever sent, so nothing outside HALO is affected. Nothing else is touched.
+
 ---
 
 ## Part 3. Decisions only you can make

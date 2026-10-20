@@ -50,6 +50,7 @@ const OWNED_TABLES = {
   daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
   household_workspace_records: 'profile_id', // 0026
   household_attachments: 'profile_id', // 0028
+  outreach_drafts: 'profile_id',    // 0031
 };
 
 /**
@@ -83,6 +84,7 @@ const OWNER_DIRECT_ACCESS = {
   daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
   household_workspace_records: [], // 0026: no policy at all. Free text a person typed; read and written only through the 0026 functions, which only the service role may execute.
   household_attachments: [],      // 0028: no policy at all. Private file records; read and written only through the 0028 functions, which only the service role may execute.
+  outreach_drafts: [],            // 0031: no policy at all. A prepared copy a person wrote; read and written only through the 0031 functions, which only the service role may execute.
 };
 
 /**
@@ -108,6 +110,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
   'household_workspace_records', // 0026: the Homeguard workspace; read and written only through the 0026 functions, called by the service role
   'household_attachments', // 0028: private file records; read and written only through the 0028 functions, called by the service role
+  'outreach_drafts', // 0031: outreach drafts; read and written only through the 0031 functions, called by the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -177,6 +180,12 @@ const PUBLIC_FUNCTIONS = {
   delete_record_attachments: 'trigger',           // 0028: a deleted record's files go with it
   queue_attachment_object: 'trigger',             // 0028: every deleted file queues its storage object
   clear_attachments_with_privacy_clear: 'trigger', // 0028: clear all removes the files in the clear's own transaction
+  outreach_draft_json: 'service_role',            // 0031: a draft row as the routes answer it, called inside the 0031 functions
+  read_outreach_drafts: 'service_role',           // 0031: a household's drafts, or one, for history, status and replays
+  save_outreach_draft: 'service_role',            // 0031: a prepare and its ledger settle in one transaction
+  outreach_privacy_counts: 'service_role',        // 0031: what clear all removes from the drafts, for inspect's count
+  guard_settled_outreach_operation: 'trigger',    // 0031: a settled 'outreach' operation keeps its status
+  clear_outreach_with_privacy_clear: 'trigger',   // 0031: clear all removes the drafts in the clear's own transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -233,6 +242,7 @@ const PROBE_COLUMN = {
   daily_maxima: 'value',
   household_workspace_records: 'record',
   household_attachments: 'name',
+  outreach_drafts: 'body',
   attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',

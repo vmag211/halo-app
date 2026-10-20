@@ -179,7 +179,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], daily_maxima: [], household_workspace_records: [], household_attachments: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], daily_maxima: [], household_workspace_records: [], household_attachments: [], outreach_drafts: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -237,6 +237,14 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       attachment_id: fileId, profile_id: id, operation_id: isAlice ? '0be7a000-0000-4000-8000-0000000000a1' : '0be7a000-0000-4000-8000-0000000000b2',
       collection: 'observations', record_id: `${who}-observation-1`, revision: 1, name: `${upper}-PHOTO-MARKER.jpg`, mime: 'image/jpeg',
       bytes: 100, width: 10, height: 10, status: 'ready', metadata_removed: true, object_path: `${id}/${fileId}`, linked: false, linked_at: null,
+    });
+    // Migration 0031: one outreach draft each, its body marked per household.
+    const draftId = isAlice ? '0d4af700-0000-4000-8000-0000000000a1' : '0d4af700-0000-4000-8000-0000000000b2';
+    rows.outreach_drafts.push({
+      draft_id: draftId, profile_id: id, draft_key: `Local office|${who}@example.org`, recipient: 'Local office', topic: 'Drinking water',
+      water: 'Utility', area: null, contact_name: '', to_address: `${who}@example.org`, subject: `${upper}-DRAFT-SUBJECT-MARKER`,
+      body: `${upper}-DRAFT-BODY-MARKER`, notes: [], public_context: null, signature_hash: 'd'.repeat(64), revision: 1,
+      operation_id: isAlice ? '0d4af700-0000-4000-8000-0000000000c1' : '0d4af700-0000-4000-8000-0000000000c2',
     });
     rows.push_subscriptions.push({ profile_id: id, endpoint: ENDPOINT[who], p256dh: `${upper}-P256DH-MARKER`, auth: `${upper}-AUTH-MARKER` });
     // One settled operation each (migration 0017), so the ledger is never
