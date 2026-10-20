@@ -20,6 +20,14 @@ import {
   workspaceRefusal,
   workspaceUnavailable,
 } from '@/lib/workspaceStore';
+import {
+  ATTACHMENT_COLLECTIONS,
+  attachmentReferences,
+  attachmentsEnabled,
+  isAttachmentsUnavailable,
+  referencesAreOwned,
+  sweepAttachmentObjects,
+} from '@/lib/attachmentStore';
 
 /**
  * POST /api/frontend/workspace/commands  (registry `workspace.execute`, runtime.ts:23)
@@ -68,6 +76,17 @@ import {
  *   - a replay still pending: the retryable 503;
  *   - the same id with different input: 409 `operation_mismatch`.
  *
+ * PRIVATE FILES (B14 Ruling A7). With the `attachments` flag on, a write may
+ * name files: before the claim, check_attachment_references must find each
+ * one ready and staged or linked for this collection and record, at its
+ * revision, or the write is refused `invalid_reference` (recorded nowhere);
+ * before 0028 it is refused `attachments_unavailable`, exactly as W4. 0028's
+ * trigger checks again under its locks and links them. A succeeded commit
+ * that may have deleted files (a dropped reference, a removed record) is
+ * followed by a best-effort sweep of the household's queued objects; any
+ * object it misses stays queued for /api/cron/daily. With the flag off, W4
+ * stands.
+ *
  * A database failure inside the commit is a 500, which this client reads as
  * "not confirmed" and reconciles through GET /api/operations. Until 0026 or
  * 0017 is applied: the non-retryable 503, decided before the claim. Log
@@ -105,6 +124,18 @@ function ifMatchProblem(request, command) {
   return expected === null || header.trim() !== String(expected) ? MESSAGES.ifMatch : null;
 }
 
+/** A command that may delete files: any write or remove in a collection that holds them, or remove-notes. */
+const touchesFiles = (command) => command.kind === 'remove-notes' || ATTACHMENT_COLLECTIONS.includes(command.collection);
+
+/** Best effort, never changes the answer: what it cannot delete stays queued for the daily sweep. */
+async function sweepFiles(userId, requestId) {
+  try {
+    await sweepAttachmentObjects(supabaseAdmin, { profileId: userId });
+  } catch (err) {
+    console.error(`workspace commit: the file sweep failed; the objects stay queued (request ${requestId}):`, loggableError(err));
+  }
+}
+
 export async function POST(request) {
   const requestId = requestIdFor(request);
   const headers = { 'X-Request-Id': requestId };
@@ -133,10 +164,23 @@ export async function POST(request) {
       );
     }
 
-    const parsed = parseWorkspaceCommand(body.value);
+    const files = attachmentsEnabled();
+    const parsed = parseWorkspaceCommand(body.value, { attachments: files });
     if (!parsed.ok) return validationError(parsed.fieldErrors, requestId);
     if (parsed.refusal) return NextResponse.json(refusalReceipt(operationId.value, parsed.refusal), { headers });
     const { command } = parsed;
+
+    const references = command.kind === 'write' ? attachmentReferences(command.collection, command.record) : [];
+    if (files && references.length) {
+      let owned;
+      try {
+        owned = await referencesAreOwned(supabaseAdmin, userId, command.collection, command.record.id, references);
+      } catch (err) {
+        if (isAttachmentsUnavailable(err)) return NextResponse.json(refusalReceipt(operationId.value, 'attachments_unavailable'), { headers });
+        throw err;
+      }
+      if (!owned) return NextResponse.json(refusalReceipt(operationId.value, 'invalid_reference'), { headers });
+    }
 
     const ifMatch = ifMatchProblem(request, command);
     if (ifMatch) return validationError([{ field: 'If-Match', code: 'precondition_mismatch', message: ifMatch }], requestId);
@@ -178,6 +222,7 @@ export async function POST(request) {
       return inFlight(requestId);
     }
     if (result.status === 'succeeded') {
+      if (files && !outcome.replayed && touchesFiles(command)) await sweepFiles(userId, requestId);
       const changes = outcome.replayed || !committedChanges
         ? await readWorkspaceCollections(supabaseAdmin, userId, (Array.isArray(result.collections) ? result.collections : []).filter((name) => typeof name === 'string'))
         : committedChanges;

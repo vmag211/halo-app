@@ -16,6 +16,7 @@ import {
   privacyRefusal,
   privacyUnavailable,
 } from '@/lib/privacyStore';
+import { sweepAttachmentObjects } from '@/lib/attachmentStore';
 
 /**
  * POST /api/privacy/clear (`privacy.clear`, B07 plan, Task 6)
@@ -179,6 +180,21 @@ async function answerRecorded({ userId, operationId, reviewToken, scope, request
   return outcomeResponse(operationId, recorded, requestId, headers);
 }
 
+/**
+ * B14 Ruling A9: a clear all deleted the household's private file rows inside
+ * its own transaction (0028's trigger), which queued their storage objects;
+ * a trigger cannot delete a storage object, so they are deleted here, once
+ * the clear has committed. Best effort and silent before 0028: anything left
+ * stays queued for /api/cron/daily, and the answer never changes.
+ */
+async function sweepClearedFiles(userId, requestId) {
+  try {
+    await sweepAttachmentObjects(supabaseAdmin, { profileId: userId, limit: 250 });
+  } catch (err) {
+    console.error(`privacy clear: the private file sweep failed; the objects stay queued (request ${requestId}):`, loggableError(err));
+  }
+}
+
 export async function POST(request) {
   const requestId = requestIdFor(request);
   const headers = { 'X-Request-Id': requestId };
@@ -253,6 +269,7 @@ export async function POST(request) {
       },
     );
 
+    if (scope === 'all' && !outcome.replayed && outcome.result?.status === 'succeeded') await sweepClearedFiles(userId, requestId);
     return outcomeResponse(operationId.value, outcome, requestId, headers);
   } catch (err) {
     if (err?.message === OPERATION_INPUT_MISMATCH) return conflict(MESSAGES.mismatch, requestId, 'operation_mismatch');

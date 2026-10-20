@@ -17,6 +17,13 @@ import { privacyLimitKey, rebuildExportFile, withExportFile, withinRebuildWindow
 import { privacyReviewKey } from '@/lib/privacyToken';
 import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
 import { WORKSPACE_DOMAIN, isWorkspaceUnavailable, workspaceReconcileResult, workspaceUnavailable } from '@/lib/workspaceStore';
+import {
+  ATTACHMENTS_DOMAIN,
+  attachmentReconcileResult,
+  attachmentsEnabled,
+  attachmentsUnavailable,
+  isAttachmentsUnavailable,
+} from '@/lib/attachmentStore';
 
 // A reader, but a privacy export reconcile rebuilds the household's whole
 // file (B07 P9), as the POST that first built it may (60 s); under the
@@ -167,6 +174,19 @@ export async function GET(request) {
         result = await workspaceReconcileResult(supabaseAdmin, userId, operation);
       } catch (err) {
         if (isWorkspaceUnavailable(err)) return workspaceUnavailable(requestId);
+        throw err;
+      }
+    } else if (operation.domain === ATTACHMENTS_DOMAIN) {
+      // B14 Ruling A11, the W5 pattern: every status carries `changes` (the
+      // removal's receipt() and the provider's recovered reconcile require
+      // it); a succeeded one the CURRENT rows of the collections it touched
+      // and, for an upload whose file still exists, its descriptor as
+      // `attachment` (adapters.ts:23). Behind the `attachments` flag.
+      if (!attachmentsEnabled()) return attachmentsUnavailable(requestId);
+      try {
+        result = await attachmentReconcileResult(supabaseAdmin, userId, operation);
+      } catch (err) {
+        if (isAttachmentsUnavailable(err)) return attachmentsUnavailable(requestId);
         throw err;
       }
     } else if (operation.status === 'succeeded') {

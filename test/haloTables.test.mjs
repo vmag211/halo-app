@@ -90,8 +90,9 @@ const normalizePartial = (keys) =>
 test('the migration parser still finds the tables it is meant to read', () => {
   const found = [...parseMigrations()].filter(([, entry]) => entry.created).map(([name]) => name).sort();
   assert.deepEqual(found, [
-    'alerts', 'assistant_corpus', 'daily_maxima', 'daily_maxima_recorder', 'explore_areas', 'home_contexts', 'household_action_preferences',
-    'household_action_state', 'household_actions', 'household_bands', 'household_workspace_records', 'learn_content', 'luna_conversations',
+    'alerts', 'assistant_corpus', 'attachment_object_sweep', 'daily_maxima', 'daily_maxima_recorder', 'explore_areas', 'home_contexts',
+    'household_action_preferences', 'household_action_state', 'household_actions', 'household_attachments', 'household_bands',
+    'household_workspace_records', 'learn_content', 'luna_conversations',
     'luna_runs', 'luna_turns', 'map_layers', 'notification_prefs', 'operations', 'operator_roles', 'profile_preferences',
     'push_subscriptions', 'recovery_challenges', 'source_ops_audit', 'symptom_logs', 'volunteer_orgs', 'water_snapshots',
   ]);
@@ -148,8 +149,8 @@ test('every table the app and libs query is declared, so no test has to re-decla
 test('OWNED_TABLES lists every table with an owner column, and haloTables picks and validates names', () => {
   assert.deepEqual(Object.keys(OWNED_TABLES).sort(), [
     'alerts', 'daily_maxima', 'daily_scores', 'explore_areas', 'home_contexts', 'home_risks', 'household_action_preferences',
-    'household_action_state', 'household_actions', 'household_bands', 'household_workspace_records', 'luna_conversations', 'luna_runs',
-    'luna_turns', 'notification_prefs', 'operations', 'profile_preferences', 'profiles', 'push_subscriptions',
+    'household_action_state', 'household_actions', 'household_attachments', 'household_bands', 'household_workspace_records',
+    'luna_conversations', 'luna_runs', 'luna_turns', 'notification_prefs', 'operations', 'profile_preferences', 'profiles', 'push_subscriptions',
     'recovery_challenges', 'symptom_logs',
   ]);
   assert.equal(OWNED_TABLES.profiles, 'id');

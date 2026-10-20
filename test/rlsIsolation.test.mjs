@@ -49,6 +49,7 @@ const OWNED_TABLES = {
   household_action_state: 'profile_id', // 0023
   daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
   household_workspace_records: 'profile_id', // 0026
+  household_attachments: 'profile_id', // 0028
 };
 
 /**
@@ -81,6 +82,7 @@ const OWNER_DIRECT_ACCESS = {
   household_action_state: [],     // 0023: no policy at all. The commit version is internal and never leaves the server.
   daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
   household_workspace_records: [], // 0026: no policy at all. Free text a person typed; read and written only through the 0026 functions, which only the service role may execute.
+  household_attachments: [],      // 0028: no policy at all. Private file records; read and written only through the 0028 functions, which only the service role may execute.
 };
 
 /**
@@ -105,6 +107,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'household_action_state', // 0023: the internal commit version, never emitted
   'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
   'household_workspace_records', // 0026: the Homeguard workspace; read and written only through the 0026 functions, called by the service role
+  'household_attachments', // 0028: private file records; read and written only through the 0028 functions, called by the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -120,6 +123,10 @@ const PUBLIC_REFERENCE_TABLES = {
   // They hold an operator's account id and the reasons they typed, so no browser role may read them.
   operator_roles: 'none',
   source_ops_audit: 'none',
+  // 0028: storage object paths queued for deletion (B14 Ruling A9). A path
+  // holds a household id, so no browser role may read it; no owner column on
+  // purpose, so an account's deletion cascade cannot take the queue with it.
+  attachment_object_sweep: 'none',
 };
 
 /** Every function in schema public. 'service_role': only the service role may execute it. 'trigger': runs only as a trigger. */
@@ -153,6 +160,23 @@ const PUBLIC_FUNCTIONS = {
   guard_settled_workspace_operation: 'trigger',   // 0026: a settled 'workspace' operation keeps its status
   clear_workspace_with_privacy_clear: 'trigger',  // 0026: clear all removes the workspace in the clear's own transaction
   guard_source_ops_audit: 'trigger',              // 0027: a source operations audit entry is never changed or removed
+  household_attachment_json: 'service_role',      // 0028: a file row as the client's HomeAttachment, called inside the 0028 functions
+  read_household_attachment: 'service_role',      // 0028: one file of a household, for inspect, download and remove
+  household_attachment_usage: 'service_role',     // 0028: a household's file count and bytes, the early limit answer
+  check_attachment_references: 'service_role',    // 0028: the files a workspace write names, the early answer
+  reserve_attachment_object: 'service_role',      // 0028: queues an upload's object path before its bytes are written
+  commit_household_attachment: 'service_role',    // 0028: an upload and its ledger settle in one transaction
+  remove_household_attachment: 'service_role',    // 0028: a removal and its ledger settle in one transaction
+  attachment_privacy_counts: 'service_role',      // 0028: what clear all removes from the files, for inspect's count
+  expire_staged_attachments: 'service_role',      // 0028: staged uploads never linked go after 24 hours
+  due_attachment_objects: 'service_role',         // 0028: queued objects the sweep may delete
+  forget_attachment_objects: 'service_role',      // 0028: drops queue entries the Storage API deleted
+  attachment_storage_state: 'service_role',       // 0028: the verification's view of the private bucket
+  guard_settled_attachments_operation: 'trigger', // 0028: a settled 'attachments' operation keeps its status
+  link_workspace_attachments: 'trigger',          // 0028: a workspace record names only its own ready files, and links them
+  delete_record_attachments: 'trigger',           // 0028: a deleted record's files go with it
+  queue_attachment_object: 'trigger',             // 0028: every deleted file queues its storage object
+  clear_attachments_with_privacy_clear: 'trigger', // 0028: clear all removes the files in the clear's own transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -174,6 +198,7 @@ const REFERENCE_ROW = {
   // One row only: an attempt (n = 1) is refused by privilege before the key is reached.
   daily_maxima_recorder: (n) => ({ singleton: true, recording_from: `2026-09-0${n + 1}` }),
   operator_roles: (n) => ({ profile_id: `b1300000-0000-4000-8000-00000000000${n}`, role: 'viewer', granted_by: 'test' }),
+  attachment_object_sweep: (n) => ({ object_path: `a77ac000-0000-4000-8000-00000000000${n}/a77ac000-0000-4000-8000-0000000000a${n}` }),
   source_ops_audit: (n) => ({
     operation_id: `b1300000-0000-4000-8000-0000000000a${n}`, actor_profile_id: 'b1300000-0000-4000-8000-000000000000', role: 'reviewer',
     source_id: 'census-places', source_revision: 1, target: 'test', decision: 'approve', reason: 'A test reason.', outcome: 'refused', refusal: 'unsupported',
@@ -207,6 +232,8 @@ const PROBE_COLUMN = {
   household_action_state: 'version',
   daily_maxima: 'value',
   household_workspace_records: 'record',
+  household_attachments: 'name',
+  attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
   learn_content: 'what_it_is',

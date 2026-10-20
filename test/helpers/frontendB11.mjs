@@ -19,6 +19,7 @@
  *   :251-256  removeNotes (production branch)
  *   :270-276  clearPrivate (production branch)
  *   :86-96    applyCanonical (collections only)
+ *   :282-283  trackPendingOperation, resolvePendingOperation (B14)
  *
  * Declared seams, none of which changes an outcome a route can cause:
  * - `navigator.onLine` is true, the session is alive and no request is
@@ -171,5 +172,13 @@ export function homeWorkspace(service) {
     clearPrivate,
     reconcile,
     canMutate: () => !state.pending && !locks.size && !unknown.size,
+    // B14 (test/helpers/frontendB14.mjs): the private-file hooks read these.
+    // HomeWorkspaceState.tsx:281-283, the context's service, unknownOperations,
+    // applyCanonical, trackPendingOperation and resolvePendingOperation.
+    service,
+    get unknownOperations() { return state.unknownOperations; },
+    applyCanonical,
+    trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.'),
+    resolvePendingOperation: operationId => { resolved.add(operationId); unknown.delete(operationId); state.unknownOperations = state.unknownOperations.filter(item => item.operationId !== operationId); },
   };
 }

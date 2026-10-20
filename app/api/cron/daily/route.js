@@ -15,6 +15,7 @@ import { pushConfigured, sendAlertPushes } from '@/lib/push';
 import { buildAndStoreAll } from '@/lib/mapBuild';
 import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
 import { loggableCode, purgeAllPrivacyReceipts } from '@/lib/privacyStore';
+import { sweepAttachmentObjects } from '@/lib/attachmentStore';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -269,6 +270,14 @@ async function runDaily(request) {
       return null;
     });
 
+    // Private file objects queued for deletion (B14 Ruling A9): removals, record
+    // deletions, clears, account deletions and staged uploads past 24 hours.
+    // Bounded and never fatal; what is left waits for the next run.
+    const attachmentObjects = await sweepAttachmentObjects(supabaseAdmin, { expire: true, limit: 500 }).catch((err) => {
+      console.error('Daily job: the private file sweep failed; the run goes on:', loggableCode(err));
+      return null;
+    });
+
     let inserted = [];
     if (newAlerts.length) {
       const { data, error } = await supabaseAdmin
@@ -312,6 +321,7 @@ async function runDaily(request) {
       water_geo: await geoSummary,
       map_layers: await mapBuild,
       privacy_receipts_purged: privacyReceiptsPurged,
+      attachment_objects: attachmentObjects,
       ran_at: now.toISOString(),
     });
   } catch (err) {

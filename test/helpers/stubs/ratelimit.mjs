@@ -50,6 +50,7 @@ export const forecastAirNowLimiter = allowAll();
 export const forecastNwsLimiter = allowAll();
 export const forecastHouseholdLimiter = allowAll();
 export const publicEvidenceLimiter = allowAll();
+export const attachmentUploadLimiter = allowAll();
 
 export async function checkLimit(_limiter, key, opts = {}) {
   const { fallback = false, label = 'rate limiter' } = opts;

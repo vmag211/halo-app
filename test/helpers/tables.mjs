@@ -266,6 +266,15 @@ export const HALO_TABLES = {
     defaults: { revision: 1, created_at: now, updated_at: now },
   },
 
+  // 0028 (B14 plan): a household's private files, one row per processed
+  // file, written only through commit_household_attachment.
+  household_attachments: {
+    primaryKey: 'attachment_id',
+    unique: [['operation_id'], ['object_path']],
+    ownerColumn: 'profile_id',
+    defaults: { revision: 1, status: 'ready', metadata_removed: true, linked: false, created_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },
@@ -280,6 +289,10 @@ export const HALO_TABLES = {
   // identity column; granted_at and recorded_at default to now().
   operator_roles: { primaryKey: 'profile_id', defaults: { granted_at: now } },
   source_ops_audit: { primaryKey: 'id', unique: [['operation_id']], defaults: { id: nextAuditId, recorded_at: now } },
+  // 0028: storage object paths queued for deletion; deliberately no owner
+  // column and no foreign key, so an account's deletion cascade cannot take
+  // the queue with it (B14 Ruling A9).
+  attachment_object_sweep: { primaryKey: 'object_path', defaults: { due_at: now, created_at: now } },
 };
 
 /** The declarations for just these tables (throws on a name that is not declared). */

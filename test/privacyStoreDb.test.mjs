@@ -122,9 +122,10 @@ test('every privacyStore wrapper succeeds against the real 0024 functions, calle
 
     assert.deepEqual(await privacyCounts(client, { profileId: ALICE, scope: 'journal' }), { symptom_logs: 1, alerts: 1 });
     const all = await privacyCounts(client, { profileId: ALICE, scope: 'all' });
-    assert.equal(Object.keys(all).length, 20); // daily_maxima included (0025), and the workspace (0026)
+    assert.equal(Object.keys(all).length, 21); // daily_maxima included (0025), the workspace (0026) and the files (0028)
     assert.equal(all.daily_maxima, 0);
     assert.equal(all.household_workspace_records, 0);
+    assert.equal(all.household_attachments, 0);
     assert.equal(all.profiles, 1);
     assert.equal(all.operations, 1);
 
@@ -140,11 +141,11 @@ test('every privacyStore wrapper succeeds against the real 0024 functions, calle
     return client.called;
   });
 
-  // Each callable 0024 function, and 0026's workspace count, is reached by a wrapper.
+  // Each callable 0024 function, 0026's workspace count and 0028's file count, is reached by a wrapper.
   const { rows } = await db.query(
     `select p.proname::text as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = any ($1::text[]) and p.prorettype <> 'trigger'::regtype order by 1`,
-    [['privacy_schema_version', 'privacy_fingerprint', 'privacy_counts', 'clear_household_records', 'purge_privacy_receipts', 'guard_settled_privacy_operation', 'workspace_privacy_counts']],
+    [['privacy_schema_version', 'privacy_fingerprint', 'privacy_counts', 'clear_household_records', 'purge_privacy_receipts', 'guard_settled_privacy_operation', 'workspace_privacy_counts', 'attachment_privacy_counts']],
   );
   assert.deepEqual([...new Set(called)].sort(), rows.map((row) => row.name));
 });
