@@ -50,6 +50,7 @@ const OWNED_TABLES = {
   daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
   household_workspace_records: 'profile_id', // 0026
   household_attachments: 'profile_id', // 0028
+  household_project_generations: 'profile_id', // 0030
 };
 
 /**
@@ -83,6 +84,7 @@ const OWNER_DIRECT_ACCESS = {
   daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
   household_workspace_records: [], // 0026: no policy at all. Free text a person typed; read and written only through the 0026 functions, which only the service role may execute.
   household_attachments: [],      // 0028: no policy at all. Private file records; read and written only through the 0028 functions, which only the service role may execute.
+  household_project_generations: [], // 0030: no policy at all. Saved idea sets with the typed interest; read and written only through the 0030 functions, which only the service role may execute.
 };
 
 /**
@@ -108,6 +110,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
   'household_workspace_records', // 0026: the Homeguard workspace; read and written only through the 0026 functions, called by the service role
   'household_attachments', // 0028: private file records; read and written only through the 0028 functions, called by the service role
+  'household_project_generations', // 0030: saved project idea sets; read and written only through the 0030 functions, called by the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -177,6 +180,12 @@ const PUBLIC_FUNCTIONS = {
   delete_record_attachments: 'trigger',           // 0028: a deleted record's files go with it
   queue_attachment_object: 'trigger',             // 0028: every deleted file queues its storage object
   clear_attachments_with_privacy_clear: 'trigger', // 0028: clear all removes the files in the clear's own transaction
+  project_generation_json: 'service_role',        // 0030: a saved idea set as the routes answer it, called inside the 0030 functions
+  record_project_generation: 'service_role',      // 0030: one request's idea set, kept if its id is already there
+  read_project_generation: 'service_role',        // 0030: one saved idea set by its request id
+  read_current_project_generation: 'service_role', // 0030: the newest completed idea set
+  project_privacy_counts: 'service_role',         // 0030: what clear all removes from the idea sets, for inspect's count
+  clear_project_generations_with_privacy_clear: 'trigger', // 0030: clear all removes the idea sets in the clear's own transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -233,6 +242,7 @@ const PROBE_COLUMN = {
   daily_maxima: 'value',
   household_workspace_records: 'record',
   household_attachments: 'name',
+  household_project_generations: 'idea_set',
   attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',

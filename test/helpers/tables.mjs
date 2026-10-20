@@ -275,6 +275,14 @@ export const HALO_TABLES = {
     defaults: { revision: 1, status: 'ready', metadata_removed: true, linked: false, created_at: now },
   },
 
+  // 0030 (B16 plan): a household's saved project idea sets, one row per
+  // generation request, written only through record_project_generation.
+  household_project_generations: {
+    primaryKey: ['profile_id', 'generation_id'],
+    ownerColumn: 'profile_id',
+    defaults: { created_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },
