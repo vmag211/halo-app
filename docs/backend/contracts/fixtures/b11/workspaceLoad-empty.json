@@ -1,0 +1,13 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 200,
+  "request": {
+    "collection": "tests"
+  },
+  "body": {
+    "records": [],
+    "availability": "empty",
+    "complete": true,
+    "pendingOperations": []
+  }
+}

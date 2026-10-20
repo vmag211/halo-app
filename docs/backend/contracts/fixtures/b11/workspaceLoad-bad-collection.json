@@ -1,0 +1,21 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 400,
+  "request": {
+    "collection": "nope"
+  },
+  "body": {
+    "error": "Choose one of: tests, assets, observations, gardens, usage, pantryItems, foodQuestions, fishNotes, foodFollows, growerInquiries, homeTransitions, exploreNotes, exploreOutcomes, exploreProjects, exploreEngagements, weekJournal.",
+    "code": "validation_failed",
+    "message": "Choose one of: tests, assets, observations, gardens, usage, pantryItems, foodQuestions, fishNotes, foodFollows, growerInquiries, homeTransitions, exploreNotes, exploreOutcomes, exploreProjects, exploreEngagements, weekJournal.",
+    "field_errors": [
+      {
+        "field": "collection",
+        "code": "invalid_option",
+        "message": "Choose one of: tests, assets, observations, gardens, usage, pantryItems, foodQuestions, fishNotes, foodFollows, growerInquiries, homeTransitions, exploreNotes, exploreOutcomes, exploreProjects, exploreEngagements, weekJournal."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b11-contract-0001"
+  }
+}

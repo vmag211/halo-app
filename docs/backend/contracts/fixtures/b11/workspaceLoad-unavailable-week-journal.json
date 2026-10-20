@@ -1,0 +1,19 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 200,
+  "request": {
+    "collection": "weekJournal"
+  },
+  "body": {
+    "records": [],
+    "availability": "unavailable",
+    "complete": false,
+    "message": "Week journal check-ins are not stored on the server yet.",
+    "pendingOperations": [
+      {
+        "operationId": "0b110000-0000-4000-8000-000000000001",
+        "domain": "workspace"
+      }
+    ]
+  }
+}

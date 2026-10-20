@@ -1,0 +1,18 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "remove",
+    "collection": "tests",
+    "recordId": "test-kitchen-tap",
+    "expectedRevision": 2
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "succeeded",
+    "changes": {
+      "tests": []
+    }
+  }
+}

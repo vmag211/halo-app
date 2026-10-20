@@ -1,0 +1,41 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 200,
+  "request": {
+    "collection": "tests"
+  },
+  "body": {
+    "records": [
+      {
+        "id": "test-kitchen-tap",
+        "kind": "water",
+        "rows": [],
+        "title": "Kitchen tap",
+        "medium": "water",
+        "method": "",
+        "review": "not_received",
+        "status": "draft",
+        "history": [],
+        "purpose": "Check the kitchen tap",
+        "archived": false,
+        "provider": "",
+        "revision": 1,
+        "contextId": "0b110000-0000-4000-8000-000000000001",
+        "plannedDate": "",
+        "sampleLabel": "",
+        "expectedDate": "",
+        "reviewReason": "",
+        "collectionEnd": "",
+        "collectionStart": ""
+      }
+    ],
+    "availability": "ready",
+    "complete": true,
+    "pendingOperations": [
+      {
+        "operationId": "0b110000-0000-4000-8000-000000000002",
+        "domain": "workspace"
+      }
+    ]
+  }
+}

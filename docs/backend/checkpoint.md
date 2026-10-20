@@ -1,3 +1,58 @@
+# B11 checkpoint: Homeguard workspace (`workspace.load`, `workspace.execute`, the `workspace` reconcile)
+
+Date: 2026-10-20. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b11-homeguard-workspace.md` (Rulings W1 to W14). Contract: `docs/backend/contracts/b11.openapi.json`, version `b11-1`, with its fixtures and `test/contractsB11.test.mjs`.
+
+The B07, B06, B10, B04, B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **The workspace is not live anywhere.** Migration 0026 is applied nowhere and `HALO_FEATURE_WORKSPACE` is set in no environment, so Homeguard's load answers a 503 and a save answers a 200 `failed` receipt with "Saving Homeguard records is not available yet. Nothing was saved."
+
+## Five things a reader would otherwise assume wrongly
+
+1. **A refused save is a 200, and a 5xx locks Homeguard.** The client keeps its draft and does not lock on a `failed` receipt, so every refusal (`stale_revision`, `notes_changed`, `invalid_reference`, `limit`, `invalid_record`, `attachments_unavailable`, `clear_unsupported`, `week_journal_unavailable`, `home_transitions_unavailable`) is `{status: 'failed', changes: {}, code, reason, message}` with a 200. Any 5xx on a save, including the 503 for a missing migration, is read as an unknown outcome and locks the screen on that operation until its status is checked.
+2. **Fourteen of the sixteen collections are stored.** `weekJournal` (Ruling W2) and `homeTransitions` (W3) are answered `unavailable` with a sentence and the pending list, and a write for either is refused. Neither is an empty list.
+3. **Private files, `clear-private` and project generation are not here.** A record that names a private file is refused (W4). The workspace's `clear-private` command is refused (W9): there is one clearing path, the privacy review in Settings. A project guide is stored as the client sent it (W13); nothing verifies its provenance.
+4. **The server assigns every revision.** 1 on create, one more on update; a sent record revision is ignored, and there is no collection revision (W6). A record's own revision is the only concurrency control, checked again inside the commit function under its locks.
+5. **"B11" is the backend's numbering of this package.** The spec's own B11 rows (HO-091, HO-092, HO-110) are about Luna and are untouched.
+
+## Where B11 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0026, the load and commit functions, the privacy hooks, the three routes, the flag | Merged (`afe9d67`; merge `c16ea6a`), edge-case fix `996138b` |
+| 2. Contract, conformance, tracker, checkpoint | This section. `b11.openapi.json`, `fixtures/b11/` and `test/contractsB11.test.mjs`, on top of `6ed15fa` |
+
+## Verification
+
+`test/contractsB11.test.mjs` runs every operation through the real handlers on PGlite with migration 0026 and the 0017 ledger, and judges each answer by the client's own runtime, adapter and validators. Every fixture is a real handler's answer with the command that led to it, replayed through the client. The per-route suites (`routesWorkspace`, `routesWorkspaceDb`, `workspaceSchema`, `workspaceRecords`) are unchanged. Nothing has run against a real Supabase project.
+
+## Rulings
+
+W1 to W14 are in the plan. The ones that most shape behaviour:
+
+- **W1 (proposed, Vibhav to confirm): the capability is off by default.** The workspace holds free text a person typed and health-adjacent records. Proposed retention: kept until the person deletes the record, clears all or deletes the account.
+- **W5: the reconcile always carries `changes`.** A succeeded operation is answered with the CURRENT rows of the collections it touched (the ledger keeps names, ids and revisions only); every other status carries `changes: {}` and a sentence.
+- **W9: `clear-private` is refused.** It is the second clearing path that YOUR_TODO 35 (C11) asked to avoid.
+- **W12: a stale or duplicate write is a refusal, never a 409.** A 409 is only for a replay of an operation that cannot be answered (`operation_mismatch`, `abandoned`, `not_applied`, `unrecognized_receipt`).
+
+## Open questions for Vibhav
+
+Rulings marked proposed in the plan wait for you: W1 (retention and the flag), W2 and W3 (the journal and home history stay unavailable), W4 (private files later), W6 (no collection revision), W7 (limits: 1,000,000 byte body, 262,144 byte record, 1,000 records and 1,500,000 bytes a collection), W8 (clear all deletes the workspace in the clear's transaction), W10 (references must name the caller's own records) and W13 (guides stored as sent). Applying 0026 does not turn the workspace on (`YOUR_TODO.md` 2.17).
+
+## Known limits and deferred minors
+
+- A save sent after the table has gone missing (a 503 before the claim) is read by the client as an unknown outcome and locks; its status check then finds no operation (a 404) and cannot clear the lock until a reload. A load would have failed first, so this needs the table to disappear between load and save.
+- A stale pending row past its two minute window is reaped by its own reconcile and answered `failed`; the status `unknown` is documented only for a reap that itself failed.
+- A record over 262,144 bytes is refused as `limit` before any claim, and a full collection is refused as `limit` inside the claim; both are the same sentence.
+- A workspace save between a privacy review and its confirm is not detected by the fingerprint (clear all already refuses while any operation is pending).
+- A reconcile of a succeeded save returns the CURRENT rows (Ruling W5). If that record was deleted elsewhere afterwards, the client's coverage check fails and it stays locked with "The saved response could not be read..." until a reload. A test records this.
+- If only `commit_household_workspace` is missing (0026 is one file, so it is not reachable in practice), the commands route has already claimed the operation when it answers the 503; the row settles failed and a replay is a 409 `not_applied`. The route's comment "decided before the claim" holds for the read function only.
+- `GET /api/operations` with the capability off answers 404 for an unknown id and 503 only for a known one, because the lookup runs first. An operation id used by another household answers 409 `operation_mismatch` on the commands route, which reveals only that a random UUID exists.
+
+## Next
+
+1. Answer the open questions, apply 0026 (`YOUR_TODO.md` 2.17), and decide when the flag goes on.
+2. The attachments package (W4) and a journal and home-history decision (W2, W3) are the next B11 follow-ups.
+
+---
+
 # B07 checkpoint: privacy (status, inspect, export, clear)
 
 Date: 2026-10-20. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b07-privacy.md`. Contract digest, rulings and reviews: `.superpowers/sdd/b07-privacy-forecast/` (gitignored scratch).

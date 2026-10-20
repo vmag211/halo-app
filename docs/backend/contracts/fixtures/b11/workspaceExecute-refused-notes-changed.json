@@ -1,0 +1,22 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "remove-notes",
+    "selection": [
+      {
+        "id": "note-3",
+        "revision": 9
+      }
+    ]
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "conflict",
+    "reason": "notes_changed",
+    "message": "The selected notes changed. Nothing was removed. Review the selection again."
+  }
+}
