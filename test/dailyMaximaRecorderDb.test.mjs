@@ -366,6 +366,24 @@ test('1,200 current contexts are all reached across keyset pages', async (t) => 
   assert.equal(rows[0].n, 1200);
 });
 
+test('a home with no state is recorded when its point is inside the padded NC box, and is outside when it is not', async (t) => {
+  const inside = await household(1, { state: null });
+  const away = await household(2, { state: null, point: { lat: 40.7, lng: -74.0 } });
+  const p = providers({ stations: [NEAR_STATION] });
+  const { body } = await run(t, p, '2026-10-20T12:00:00Z');
+  assert.equal(body.outside, 1);
+  assert.equal((await rowsOf(inside.context)).length, 6);
+  assert.deepEqual(await rowsOf(away.context), []);
+});
+
+test('the point budget defaults to 250 (500 Open-Meteo calls, under 600 a minute)', async () => {
+  const { DEFAULT_MAX_POINTS, pointBudget } = await import('../lib/dailyMaximaRecorder.js');
+  assert.equal(DEFAULT_MAX_POINTS, 250);
+  assert.equal(pointBudget(undefined), 250);
+  assert.equal(pointBudget('garbage'), 250);
+  assert.equal(pointBudget('7'), 7);
+});
+
 // ---- Found by the Task 3 test pass ----
 
 test('a measured home stays measured when its only sourced rows were pending and then finalized with no answer (E8)', async (t) => {

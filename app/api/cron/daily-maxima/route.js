@@ -17,6 +17,9 @@ export const maxDuration = 60;
  * current home context. It is a separate cron from /api/cron/daily so a slow ArcGIS or household
  * pass cannot starve it of its 60 seconds, and so a recorder failure cannot cost alerts (E5).
  *
+ * A home's Air kind is fixed by its first recorded Air day (E8, kept as written): a station silent
+ * on that day leaves the home modeled for good, and its rows are marked modeled by their source.
+ *
  * FALLBACK (E5, Open question 8): if the Vercel plan refuses a second cron entry, remove this
  * entry from vercel.json and call `runRecorder({ supabase: supabaseAdmin, deadlineMs })` as the
  * FIRST step of /api/cron/daily, with its own shorter deadline (for example 20 seconds), before
@@ -30,7 +33,7 @@ export const maxDuration = 60;
  *   200  `{ok: true, stopped, ...counts}`: counts only, never an id, a point or a value.
  *        `stopped` is null, 'budget' or 'deadline'.
  *
- * Env: AIRNOW_API_KEY (without it measured Air stays pending), DAILY_MAXIMA_MAX_POINTS (default 400).
+ * Env: AIRNOW_API_KEY (without it measured Air stays pending), DAILY_MAXIMA_MAX_POINTS (default 250).
  */
 export async function GET(request) {
   return record(request);
