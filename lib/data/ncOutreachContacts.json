@@ -1,0 +1,1553 @@
+{
+ "source": {
+  "notes": "Official public offices only, never a named person. Each page was downloaded on the retrieval date (HTTP 200) and hashed; each statewide entry was checked against a phrase in its page. An email appears only where the official page prints an organizational mailbox. These are contact pathways, not confirmation that an office serves a particular address.",
+  "inputs": {
+   "lhd": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "retrieved": "2026-10-20",
+    "sha256": "c80fca675f690a4d46ddeb6ab9ca6937fc87cc93e5692f1142faf016bea5cde9",
+    "bytes": 71681
+   },
+   "extension": {
+    "url": "https://www.ces.ncsu.edu/local-county-center/",
+    "retrieved": "2026-10-20",
+    "sha256": "482ad75e6f88926be0c93c39ec505ce18708fa2d2940b7fc7ea6643dd74d1579",
+    "bytes": 100839
+   },
+   "drinkingWater": {
+    "url": "https://www.deq.nc.gov/about/divisions/water-resources/drinking-water",
+    "retrieved": "2026-10-20",
+    "sha256": "8766f6845f7a8bda47c6e79a39e9d04c291dc650fe9e6e0edf0706bcba210ee9",
+    "bytes": 86569
+   },
+   "airQuality": {
+    "url": "https://www.deq.nc.gov/about/divisions/air-quality",
+    "retrieved": "2026-10-20",
+    "sha256": "dd126803855b3cbd0413066738e97f86285223756db611516ad47321e7f21744",
+    "bytes": 117930
+   },
+   "oee": {
+    "url": "https://epi.dph.ncdhhs.gov/oee/",
+    "retrieved": "2026-10-20",
+    "sha256": "2d532f975f45a28ec6d77405c3036498633e0b845b88ecf74f8e1f37fbed645d",
+    "bytes": 15748
+   },
+   "wellWater": {
+    "url": "https://epi.dph.ncdhhs.gov/oee/programs/wellwater.html",
+    "retrieved": "2026-10-20",
+    "sha256": "cb8de1c93bf52a03a96b08a971efae0bf845436444807f3cfe5d95dcc2f35854",
+    "bytes": 48653
+   },
+   "stateParks": {
+    "url": "https://www.ncparks.gov/",
+    "retrieved": "2026-10-20",
+    "sha256": "1b61fdd803b306d09a2514b067f8824d340a038b9a14323fa56f45dad9044b4e",
+    "bytes": 117453
+   },
+   "legislators": {
+    "url": "https://www.ncleg.gov/FindYourLegislators",
+    "retrieved": "2026-10-20",
+    "sha256": "302a97f084a373b1d59155a25d2a09ddda7342070ad5ed217bd7d7461732369c",
+    "bytes": 84066
+   },
+   "house": {
+    "url": "https://www.house.gov/representatives/find-your-representative",
+    "retrieved": "2026-10-20",
+    "sha256": "2bda57f7e784f5df1f3ab5f04eafd5b7839eab6129aae649a41db6f442f7834c",
+    "bytes": 34315
+   }
+  },
+  "licence": "Public information published by the State of North Carolina, NC State University and the U.S. House of Representatives."
+ },
+ "version": "nc-outreach-2026-10-20",
+ "retrieved": "2026-10-20",
+ "directoryUrl": "https://www.dph.ncdhhs.gov/contact/LHD",
+ "statewide": [
+  {
+   "id": "nc-deq-public-water-supply",
+   "name": "Public Water Supply Section",
+   "role": "State regulator of public water systems",
+   "organization": "NC Department of Environmental Quality, Division of Water Resources",
+   "jurisdiction": "Public water systems in North Carolina.",
+   "reason": "This state office regulates public water systems and investigates complaints. It is not your utility: your utility's own contact is on your water bill or its annual water quality report.",
+   "email": null,
+   "url": "https://www.deq.nc.gov/about/divisions/water-resources/drinking-water",
+   "source": "drinkingWater",
+   "revision": 1
+  },
+  {
+   "id": "nc-deq-air-quality",
+   "name": "Division of Air Quality",
+   "role": "State outdoor air quality monitoring, permits and compliance",
+   "organization": "NC Department of Environmental Quality",
+   "jurisdiction": "Outdoor air quality in North Carolina.",
+   "reason": "This state division monitors outdoor air and enforces air quality rules.",
+   "email": null,
+   "url": "https://www.deq.nc.gov/about/divisions/air-quality",
+   "source": "airQuality",
+   "revision": 1
+  },
+  {
+   "id": "nc-dhhs-oee",
+   "name": "Occupational and Environmental Epidemiology Branch",
+   "role": "State public health guidance on environmental hazards",
+   "organization": "NC Department of Health and Human Services, Division of Public Health",
+   "jurisdiction": "North Carolina.",
+   "reason": "This state branch gives health-based guidance on environmental contaminants and evaluates suspected hazards in local communities.",
+   "email": null,
+   "url": "https://epi.dph.ncdhhs.gov/oee/",
+   "source": "oee",
+   "revision": 1
+  },
+  {
+   "id": "nc-dhhs-private-wells",
+   "name": "Private Well and Health Program",
+   "role": "State guidance on private well testing",
+   "organization": "NC Department of Health and Human Services, Division of Public Health",
+   "jurisdiction": "Private wells in North Carolina.",
+   "reason": "This state program publishes guidance for private well owners on testing their water.",
+   "email": null,
+   "url": "https://epi.dph.ncdhhs.gov/oee/programs/wellwater.html",
+   "source": "wellWater",
+   "revision": 1
+  },
+  {
+   "id": "nc-state-parks",
+   "name": "North Carolina State Parks",
+   "role": "General information office",
+   "organization": "NC Division of Parks and Recreation",
+   "jurisdiction": "State parks in North Carolina.",
+   "reason": "This office answers general questions about state parks. A city or county park has its own managing office.",
+   "email": "state.parks@ncparks.gov",
+   "url": "https://www.ncparks.gov/",
+   "source": "stateParks",
+   "revision": 1
+  },
+  {
+   "id": "ncga-find-your-legislators",
+   "name": "Find your state legislators",
+   "role": "Official lookup of your state senator and state representative",
+   "organization": "North Carolina General Assembly",
+   "jurisdiction": "North Carolina legislative districts.",
+   "reason": "Districts can split a county, so HALO does not guess yours. This official page finds your state legislators and your U.S. House district from your address.",
+   "email": null,
+   "url": "https://www.ncleg.gov/FindYourLegislators",
+   "source": "legislators",
+   "revision": 1
+  },
+  {
+   "id": "us-house-find-your-representative",
+   "name": "Find your U.S. Representative",
+   "role": "Official lookup of your member of the U.S. House",
+   "organization": "U.S. House of Representatives",
+   "jurisdiction": "U.S. congressional districts.",
+   "reason": "Districts can split a county, so HALO does not guess yours. This official page finds your representative from your ZIP code.",
+   "email": null,
+   "url": "https://www.house.gov/representatives/find-your-representative",
+   "source": "house",
+   "revision": 1
+  }
+ ],
+ "counties": [
+  {
+   "id": "37001",
+   "title": "Alamance County",
+   "health": {
+    "url": "https://www.alamance-nc.com/health/",
+    "listedWebsite": "https://www.alamance-nc.com/health/",
+    "phone": "336-227-0101",
+    "office": "319 N. Graham-Hopedale Road, Burlington, NC 27217"
+   },
+   "extension": {
+    "url": "https://alamance.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37003",
+   "title": "Alexander County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.alexanderhealth.org/",
+    "phone": "828-632-9704",
+    "office": "338 1st Ave. S.W, Taylorsville, NC 28681"
+   },
+   "extension": {
+    "url": "https://alexander.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37005",
+   "title": "Alleghany County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.apphealthcare.com/",
+    "phone": "336-372-5641",
+    "office": "157 Health Services Road, Sparta, NC 28675"
+   },
+   "extension": {
+    "url": "https://alleghany.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37007",
+   "title": "Anson County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.co.anson.nc.us/",
+    "phone": "704-694-5188",
+    "office": "110 Ashe St., Wadesboro, NC 28170"
+   },
+   "extension": {
+    "url": "https://anson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37009",
+   "title": "Ashe County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.apphealthcare.com/",
+    "phone": "336-246-9449",
+    "office": "413 McConnell St., Jefferson, NC 28640"
+   },
+   "extension": {
+    "url": "https://ashe.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37011",
+   "title": "Avery County",
+   "health": {
+    "url": "https://toeriverhealth.org/",
+    "listedWebsite": "https://toeriverhealth.org/",
+    "phone": "828-733-6031",
+    "office": "545 Schultz St., Newland, NC 28657"
+   },
+   "extension": {
+    "url": "https://avery.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37013",
+   "title": "Beaufort County",
+   "health": {
+    "url": "https://co.beaufort.nc.us/172/Human-Services",
+    "listedWebsite": "https://co.beaufort.nc.us/172/Human-Services",
+    "phone": "252-946-1902",
+    "office": "1436 Highland Drive, Washington, NC 27889"
+   },
+   "extension": {
+    "url": "https://beaufort.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37015",
+   "title": "Bertie County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-794-5322",
+    "office": "102 Rhodes Ave., Windsor, NC 27983"
+   },
+   "extension": {
+    "url": "https://bertie.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37017",
+   "title": "Bladen County",
+   "health": {
+    "url": "https://bladennc.govoffice3.com/index.asp?SEC=CCE85886-AFAF-418D-8E24-6954750327BA&Type=B_BASIC",
+    "listedWebsite": "https://bladennc.govoffice3.com/index.asp?SEC=CCE85886-AFAF-418D-8E24-6954750327BA&Type=B_BASIC",
+    "phone": "910-862-6900",
+    "office": "300 Mercer Mill Road, Elizabethtown, NC 28337"
+   },
+   "extension": {
+    "url": "https://bladen.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37019",
+   "title": "Brunswick County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.brunswickcountync.gov/health/",
+    "phone": "910-253-2250",
+    "office": "25 Courthouse Drive N.E. (Building A), Bolivia, NC 28422"
+   },
+   "extension": {
+    "url": "https://brunswick.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37021",
+   "title": "Buncombe County",
+   "health": {
+    "url": "https://www.buncombenc.gov/429/Public-Health",
+    "listedWebsite": "https://www.buncombenc.gov/429/Public-Health",
+    "phone": "828-250-5000",
+    "office": "40 Coxe Ave., Asheville, NC 28801 ( clinical services )"
+   },
+   "extension": {
+    "url": "https://buncombe.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37023",
+   "title": "Burke County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.burkenc.org/",
+    "phone": "828-764-9150",
+    "office": "700 E. Parker Road, Morganton, NC 28655"
+   },
+   "extension": {
+    "url": "https://burke.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37025",
+   "title": "Cabarrus County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.cabarrushealth.org/",
+    "phone": "704-920-1000",
+    "office": "300 Mooresville Road, Kannapolis, NC 28081"
+   },
+   "extension": {
+    "url": "https://cabarrus.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37027",
+   "title": "Caldwell County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.caldwellcountync.org/",
+    "phone": "828-426-8400",
+    "office": "2345 Morganton Blvd., Suite B, Lenoir, NC 28645"
+   },
+   "extension": {
+    "url": "https://caldwell.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37029",
+   "title": "Camden County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-338-4460",
+    "office": "160 U.S. 158, Bldg. B, Camden, NC 27921"
+   },
+   "extension": {
+    "url": "https://camden.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37031",
+   "title": "Carteret County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.carteretcountync.gov/738/Health-Department",
+    "phone": "252-728-8550",
+    "office": "3820 Bridges St., Suite A, Beaufort, NC 28557"
+   },
+   "extension": {
+    "url": "https://carteret.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37033",
+   "title": "Caswell County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.caswellnc.us/",
+    "phone": "336-694-9311",
+    "office": "189 County Park Road, Yanceyville, NC 27379"
+   },
+   "extension": {
+    "url": "https://caswell.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37035",
+   "title": "Catawba County",
+   "health": {
+    "url": "https://www.catawbacountync.gov/county-services/public-health/",
+    "listedWebsite": "https://www.catawbacountync.gov/county-services/public-health/",
+    "phone": "828-695-5800",
+    "office": "3070 11th Avenue Drive, S.E, Hickory, NC 28602"
+   },
+   "extension": {
+    "url": "https://catawba.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37037",
+   "title": "Chatham County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.chathamnc.org/",
+    "phone": "919-742-5641",
+    "office": "1000 S. 10th Ave., Siler City, NC 27344 ( clinic )"
+   },
+   "extension": {
+    "url": "https://chatham.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37039",
+   "title": "Cherokee County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.cherokeecounty-nc.gov/210/Health-Department",
+    "phone": "828-837-7486",
+    "office": "228 Hilton St., Murphy, NC 28906"
+   },
+   "extension": {
+    "url": "https://cherokee.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37041",
+   "title": "Chowan County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-482-6003",
+    "office": "202 Hicks St., Edenton, NC 27932"
+   },
+   "extension": {
+    "url": "https://chowan.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37043",
+   "title": "Clay County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.clayhdnc.us/",
+    "phone": "828-389-8052",
+    "office": "345 Courthouse Drive, Hayesville, NC, 28904"
+   },
+   "extension": {
+    "url": "https://clay.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37045",
+   "title": "Cleveland County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://clevelandcounty.com/",
+    "phone": "980-484-5100",
+    "office": "200 S. Post Road, Shelby, NC 28152"
+   },
+   "extension": {
+    "url": "https://cleveland.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37047",
+   "title": "Columbus County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://columbusco.org/",
+    "phone": "910-640-6615",
+    "office": "Miller Building, 304 Jefferson St., Whiteville, NC 28472"
+   },
+   "extension": {
+    "url": "https://columbus.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37049",
+   "title": "Craven County",
+   "health": {
+    "url": "https://www.cravencountync.gov/153/Health",
+    "listedWebsite": "https://www.cravencountync.gov/153/Health",
+    "phone": "252-636-4920",
+    "office": "2818 Neuse Blvd., New Bern, NC 28562"
+   },
+   "extension": {
+    "url": "https://craven.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37051",
+   "title": "Cumberland County",
+   "health": {
+    "url": "https://www.co.cumberland.nc.us/departments/public-health-group/public-health",
+    "listedWebsite": "https://www.co.cumberland.nc.us/departments/public-health-group/public-health",
+    "phone": "910-433-3600",
+    "office": "1235 Ramsey St., Fayetteville, NC 28301"
+   },
+   "extension": {
+    "url": "https://cumberland.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37053",
+   "title": "Currituck County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-232-2271",
+    "office": "2795 Caratoke Highway, Currituck, NC 27929"
+   },
+   "extension": {
+    "url": "https://currituck.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37055",
+   "title": "Dare County",
+   "health": {
+    "url": "https://www.darenc.gov/",
+    "listedWebsite": "https://www.darenc.gov/",
+    "phone": "252-475-5003",
+    "office": "109 Exeter St., Manteo, NC 27954"
+   },
+   "extension": {
+    "url": "https://dare.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37057",
+   "title": "Davidson County",
+   "health": {
+    "url": "https://www.co.davidson.nc.us/200/Health",
+    "listedWebsite": "https://www.co.davidson.nc.us/200/Health",
+    "phone": "336-242-2300",
+    "office": "915 Greensboro St., Lexington, NC 27292"
+   },
+   "extension": {
+    "url": "https://davidson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37059",
+   "title": "Davie County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.daviecountync.gov/96/Health-Department",
+    "phone": "336-753-6750",
+    "office": "210 Hospital St., Mocksville, NC 27028"
+   },
+   "extension": {
+    "url": "https://davie.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37061",
+   "title": "Duplin County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.duplincountync.com/",
+    "phone": "910-296-2130",
+    "office": "340 Seminary St., Kenansville, NC 28349"
+   },
+   "extension": {
+    "url": "https://duplin.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37063",
+   "title": "Durham County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.dconc.gov/",
+    "phone": "919-560-7600",
+    "office": "414 E. Main St., Durham, NC 27701"
+   },
+   "extension": {
+    "url": "https://durham.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37065",
+   "title": "Edgecombe County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.edgecombecountync.gov/departments/health_department/index.php",
+    "phone": "252-641-7511",
+    "office": "122 E. Saint James St, Tarboro, NC 27886"
+   },
+   "extension": {
+    "url": "https://edgecombe.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37067",
+   "title": "Forsyth County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.co.forsyth.nc.us/publichealth/",
+    "phone": "336-703-3100",
+    "office": "799 N. Highland Ave., Winston-Salem, NC 27101"
+   },
+   "extension": {
+    "url": "https://forsyth.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37069",
+   "title": "Franklin County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.franklincountync.us/",
+    "phone": "919-496-2533",
+    "office": "107 Industrial Drive, Louisburg, NC 27549"
+   },
+   "extension": {
+    "url": "https://franklin.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37071",
+   "title": "Gaston County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.gastongov.com/",
+    "phone": "704-853-5000",
+    "office": "991 W. Hudson Blvd., Gastonia, NC 28052"
+   },
+   "extension": {
+    "url": "https://gaston.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37073",
+   "title": "Gates County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-357-1380",
+    "office": "29 Medical Center Road, Gates, NC 27937"
+   },
+   "extension": {
+    "url": "https://gates.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37075",
+   "title": "Graham County",
+   "health": {
+    "url": "https://health.grahamcounty.org/",
+    "listedWebsite": "https://health.grahamcounty.org/",
+    "phone": "828-479-7900",
+    "office": "21 S. Main St., Robbinsville, NC 28771"
+   },
+   "extension": {
+    "url": "https://graham.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37077",
+   "title": "Granville County",
+   "health": {
+    "url": "https://www.gvph.org/",
+    "listedWebsite": "https://www.gvph.org/",
+    "phone": "919-693-2141",
+    "office": "1032 College St., Building B, Oxford, NC 27565"
+   },
+   "extension": {
+    "url": "https://granville.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37079",
+   "title": "Greene County",
+   "health": {
+    "url": "https://greenecountync.gov/",
+    "listedWebsite": "https://greenecountync.gov/",
+    "phone": "252-747-8183",
+    "office": "227 Kingold Blvd., Suite B, Snow Hill, NC 28580"
+   },
+   "extension": {
+    "url": "https://greene.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37081",
+   "title": "Guilford County",
+   "health": {
+    "url": "https://www.guilfordcountync.gov/",
+    "listedWebsite": "https://www.guilfordcountync.gov/",
+    "phone": "336-641-7777",
+    "office": "1203 Maple St., Greensboro, NC 27405"
+   },
+   "extension": {
+    "url": "https://guilford.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37083",
+   "title": "Halifax County",
+   "health": {
+    "url": "https://www.halifaxnc.com/182/Health-Department",
+    "listedWebsite": "https://www.halifaxnc.com/182/Health-Department",
+    "phone": "252-583-5021",
+    "office": "19 N. Dobbs St., Halifax, NC 27839"
+   },
+   "extension": {
+    "url": "https://halifax.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37085",
+   "title": "Harnett County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.harnett.org/health/",
+    "phone": "910-893-7550",
+    "office": "307 Cornelius Harnett Blvd., Lillington, NC 27546"
+   },
+   "extension": {
+    "url": "https://harnett.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37087",
+   "title": "Haywood County",
+   "health": {
+    "url": "https://www.haywoodcountync.gov/",
+    "listedWebsite": "https://www.haywoodcountync.gov/",
+    "phone": "828-452-6675",
+    "office": "157 Paragon Parkway, Suite 800, Clyde, NC 28721"
+   },
+   "extension": {
+    "url": "https://haywood.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37089",
+   "title": "Henderson County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.hendersoncountync.org/health/",
+    "phone": "828-692-4223",
+    "office": "1200 Spartanburg Highway, Suite 100, Hendersonville, NC 28792"
+   },
+   "extension": {
+    "url": "https://henderson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37091",
+   "title": "Hertford County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.hertfordcountync.gov/",
+    "phone": "252-358-7833",
+    "office": "801 N. King St., Winton, NC 27986"
+   },
+   "extension": {
+    "url": "https://hertford.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37093",
+   "title": "Hoke County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.hokecounty.net/index.aspx?NID=181",
+    "phone": "910-875-3717",
+    "office": "683 E. Palmer Road, Raeford, NC 28376"
+   },
+   "extension": {
+    "url": "https://hoke.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37095",
+   "title": "Hyde County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.hydecountync.gov/departments/health_department.php",
+    "phone": "252-926-4399",
+    "office": "1151 Main St., Swan Quarter, NC 27885"
+   },
+   "extension": {
+    "url": "https://hyde.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37097",
+   "title": "Iredell County",
+   "health": {
+    "url": "https://www.co.iredell.nc.us/161/Health-Department",
+    "listedWebsite": "https://www.co.iredell.nc.us/161/Health-Department",
+    "phone": "704-878-5300",
+    "office": "318 Turnersburg Highway, Statesville, NC 28625"
+   },
+   "extension": {
+    "url": "https://iredell.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37099",
+   "title": "Jackson County",
+   "health": {
+    "url": "https://www.jacksonnc.org/165/Department-of-Public-Health",
+    "listedWebsite": "https://www.jacksonnc.org/165/Department-of-Public-Health",
+    "phone": "828-586-8994",
+    "office": "538 Scotts Creek Road, Suite 100, Sylva, NC 28779"
+   },
+   "extension": {
+    "url": "https://jackson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37101",
+   "title": "Johnston County",
+   "health": {
+    "url": "https://www.johnstonnc.gov/health/",
+    "listedWebsite": "https://www.johnstonnc.gov/health/",
+    "phone": "919-989-5200",
+    "office": "517 N. Brightleaf Blvd., Smithfield, NC 27577"
+   },
+   "extension": {
+    "url": "https://johnston.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37103",
+   "title": "Jones County",
+   "health": {
+    "url": "https://www.jonescountync.gov/",
+    "listedWebsite": "https://www.jonescountync.gov/",
+    "phone": "252-448-9111",
+    "office": "418 Highway 58 North, Unit C, Trenton, NC 28585"
+   },
+   "extension": {
+    "url": "https://jones.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37105",
+   "title": "Lee County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://leecountync.gov/",
+    "phone": "919-718-4640",
+    "office": "106 Hillcrest Drive, Sanford, NC 27330"
+   },
+   "extension": {
+    "url": "https://lee.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37107",
+   "title": "Lenoir County",
+   "health": {
+    "url": "https://lenoircountync.gov/health-department/",
+    "listedWebsite": "https://lenoircountync.gov/health-department/",
+    "phone": "252-526-4200",
+    "office": "201 N. McLewean St., Kinston, NC 28502"
+   },
+   "extension": {
+    "url": "https://lenoir.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37109",
+   "title": "Lincoln County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.lincolncounty.org/index.aspx?nid=117",
+    "phone": "704-735-3001",
+    "office": "200 Gamble Drive, Lincolnton, NC 28092"
+   },
+   "extension": {
+    "url": "https://lincoln.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37111",
+   "title": "McDowell County",
+   "health": {
+    "url": "https://www.foothillshd.org/",
+    "listedWebsite": "https://www.foothillshd.org/",
+    "phone": "828-652-6811",
+    "office": "408 Spaulding Road, Marion, NC 28752"
+   },
+   "extension": {
+    "url": "https://mcdowell.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37113",
+   "title": "Macon County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.maconnc.org/health-department.html",
+    "phone": "828-349-2081",
+    "office": "1830 Lakeside Drive, Franklin, NC 28734"
+   },
+   "extension": {
+    "url": "https://macon.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37115",
+   "title": "Madison County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.madisoncountyhealth.org/",
+    "phone": "828-649-3531",
+    "office": "493 Medical Park Drive, Marshall, NC 28753"
+   },
+   "extension": {
+    "url": "https://madison.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37117",
+   "title": "Martin County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://mtwdistricthealth.org/",
+    "phone": "252-793-1619",
+    "office": "210 W. Liberty St., Williamston, NC 27892"
+   },
+   "extension": {
+    "url": "https://martin.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37119",
+   "title": "Mecklenburg County",
+   "health": {
+    "url": "https://health.mecknc.gov/",
+    "listedWebsite": "https://health.mecknc.gov/",
+    "phone": "980-314-9400",
+    "office": "249 Billingsley Road, Charlotte, NC 28211"
+   },
+   "extension": {
+    "url": "https://mecklenburg.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37121",
+   "title": "Mitchell County",
+   "health": {
+    "url": "https://toeriverhealth.org/",
+    "listedWebsite": "https://toeriverhealth.org/",
+    "phone": "828-688-2371",
+    "office": "130 Forest Service Drive, Suite A, Bakersville, NC 28705"
+   },
+   "extension": {
+    "url": "https://mitchell.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37123",
+   "title": "Montgomery County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.montgomerycountync.com/departments/health-department",
+    "phone": "910-572-1393",
+    "office": "217 S. Main St., Troy, NC 27371"
+   },
+   "extension": {
+    "url": "https://montgomery.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37125",
+   "title": "Moore County",
+   "health": {
+    "url": "https://www.moorecountync.gov/health",
+    "listedWebsite": "https://www.moorecountync.gov/health",
+    "phone": "910-947-3300",
+    "office": "705 Pinehurst Ave., Carthage, NC 28327"
+   },
+   "extension": {
+    "url": "https://moore.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37127",
+   "title": "Nash County",
+   "health": {
+    "url": "https://nashcountync.gov/",
+    "listedWebsite": "https://nashcountync.gov/",
+    "phone": "252-459-9819",
+    "office": "214 S. Barnes St., Nashville, NC 27856"
+   },
+   "extension": {
+    "url": "https://nash.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37129",
+   "title": "New Hanover County",
+   "health": {
+    "url": "https://health.nhcgov.com/",
+    "listedWebsite": "https://health.nhcgov.com/",
+    "phone": "910-798-3500",
+    "office": "1650 Greenfield St., Wilmington, NC 28401"
+   },
+   "extension": {
+    "url": "https://newhanover.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37131",
+   "title": "Northampton County",
+   "health": {
+    "url": "https://www.northamptonhd.com/en/",
+    "listedWebsite": "https://www.northamptonhd.com/en/",
+    "phone": "252-534-5841",
+    "office": "9495 N.C. 305 Highway, Jackson, NC 27845"
+   },
+   "extension": {
+    "url": "https://northampton.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37133",
+   "title": "Onslow County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.onslowcountync.gov/149/Health",
+    "phone": "910-347-2154",
+    "office": "612 College St., Jacksonville, NC 28540"
+   },
+   "extension": {
+    "url": "https://onslow.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37135",
+   "title": "Orange County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.orangecountync.gov/",
+    "phone": "919-245-2400",
+    "office": "300 W. Tryon St., Hillsborough, NC 27278"
+   },
+   "extension": {
+    "url": "https://orange.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37137",
+   "title": "Pamlico County",
+   "health": {
+    "url": "https://www.pamlicocounty.org/departments/health_department/index.php",
+    "listedWebsite": "https://www.pamlicocounty.org/departments/health_department/index.php",
+    "phone": "252-745-5111",
+    "office": "203 North St., Bayboro, NC 28515"
+   },
+   "extension": {
+    "url": "https://pamlico.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37139",
+   "title": "Pasquotank County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-338-4400",
+    "office": "711 Roanoke Ave., Elizabeth City, NC 27909"
+   },
+   "extension": {
+    "url": "https://pasquotank.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37141",
+   "title": "Pender County",
+   "health": {
+    "url": "https://pendercountync.gov/196/Health-Department",
+    "listedWebsite": "https://pendercountync.gov/196/Health-Department",
+    "phone": "910-259-1230",
+    "office": "803 S. Walker St., Burgaw, NC 28425"
+   },
+   "extension": {
+    "url": "https://pender.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37143",
+   "title": "Perquimans County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.arhs-nc.org/",
+    "phone": "252-426-2100",
+    "office": "103 ARPDC St., Hertford, NC 27944"
+   },
+   "extension": {
+    "url": "https://perquimans.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37145",
+   "title": "Person County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.personcountync.gov/",
+    "phone": "336-597-2204",
+    "office": "355-A S. Madison Blvd., Roxboro, NC 27573"
+   },
+   "extension": {
+    "url": "https://person.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37147",
+   "title": "Pitt County",
+   "health": {
+    "url": "https://www.pittcountync.gov/229/Public-Health",
+    "listedWebsite": "https://www.pittcountync.gov/229/Public-Health",
+    "phone": "252-902-2300",
+    "office": "201 Government Circle, Greenville, NC 27834"
+   },
+   "extension": {
+    "url": "https://pitt.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37149",
+   "title": "Polk County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://rpmhd.org/",
+    "phone": "828-894-8271",
+    "office": "161 Walker St., Columbus, NC 28722"
+   },
+   "extension": {
+    "url": "https://polk.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37151",
+   "title": "Randolph County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.randolphcountync.gov/",
+    "phone": "336-318-6200",
+    "office": "IRA McDowell Building, 2222B S. Fayetteville St., Asheboro, NC 27205"
+   },
+   "extension": {
+    "url": "https://randolph.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37153",
+   "title": "Richmond County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.richmondnc.com/202/Division-of-Public-Health",
+    "phone": "910-997-8300",
+    "office": "127 Caroline St., Rockingham, NC 28379"
+   },
+   "extension": {
+    "url": "https://richmond.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37155",
+   "title": "Robeson County",
+   "health": {
+    "url": "https://www.co.robeson.nc.us/robeson-health-department",
+    "listedWebsite": "https://www.co.robeson.nc.us/robeson-health-department",
+    "phone": "910-671-3200",
+    "office": "460 Country Club Road, Lumberton, NC 28360"
+   },
+   "extension": {
+    "url": "https://robeson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37157",
+   "title": "Rockingham County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.rockinghamcountypublichealth.org/",
+    "phone": "336-342-8140",
+    "office": "371 N.C. 65, Wentworth, NC 27375"
+   },
+   "extension": {
+    "url": "https://rockingham.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37159",
+   "title": "Rowan County",
+   "health": {
+    "url": "https://www.rowancountync.gov/256/Health-Department",
+    "listedWebsite": "https://www.rowancountync.gov/256/Health-Department",
+    "phone": "704-216-8777",
+    "office": "1811 E. Innes St., Salisbury, NC 28146"
+   },
+   "extension": {
+    "url": "https://rowan.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37161",
+   "title": "Rutherford County",
+   "health": {
+    "url": "https://www.foothillshd.org/",
+    "listedWebsite": "https://www.foothillshd.org/",
+    "phone": "828-287-6100",
+    "office": "221 Callahan Koon Road, Spindale, NC 28160"
+   },
+   "extension": {
+    "url": "https://rutherford.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37163",
+   "title": "Sampson County",
+   "health": {
+    "url": "https://www.sampsoncountync.gov/Government/Departments-A-Z/Health-Department",
+    "listedWebsite": "https://www.sampsoncountync.gov/Government/Departments-A-Z/Health-Department",
+    "phone": "910-592-1131",
+    "office": "360 County Complex Road, Bldg. E, Suite 200, Clinton, NC 28328"
+   },
+   "extension": {
+    "url": "https://sampson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37165",
+   "title": "Scotland County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.scotlandcounty.org/148/Health-Department",
+    "phone": "910-277-2440",
+    "office": "1405 West Blvd., Laurinburg, NC 28352"
+   },
+   "extension": {
+    "url": "https://scotland.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37167",
+   "title": "Stanly County",
+   "health": {
+    "url": "https://www.stanlycountync.gov/",
+    "listedWebsite": "https://www.stanlycountync.gov/",
+    "phone": "704-982-9171",
+    "office": "1000 N. First St., Suite 3, Albemarle, NC 28001"
+   },
+   "extension": {
+    "url": "https://stanly.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37169",
+   "title": "Stokes County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.co.stokes.nc.us/",
+    "phone": "336-593-9361",
+    "office": "1009 Main St., Danbury, NC 27016"
+   },
+   "extension": {
+    "url": "https://stokes.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37171",
+   "title": "Surry County",
+   "health": {
+    "url": "https://www.co.surry.nc.us/",
+    "listedWebsite": "https://www.co.surry.nc.us/",
+    "phone": "336-401-8400",
+    "office": "118 Hamby Road, Dobson, NC 27017"
+   },
+   "extension": {
+    "url": "https://surry.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37173",
+   "title": "Swain County",
+   "health": {
+    "url": "https://www.swaincountync.gov/health-department/",
+    "listedWebsite": "https://www.swaincountync.gov/health-department/",
+    "phone": "828-488-3198",
+    "office": "545 Center St., Bryson City, NC 28713"
+   },
+   "extension": {
+    "url": "https://swain.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37175",
+   "title": "Transylvania County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://transylvaniahealth.org/",
+    "phone": "828-884-3135",
+    "office": "106 E. Morgan St., Suite 105, Brevard, NC 28712"
+   },
+   "extension": {
+    "url": "https://transylvania.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37177",
+   "title": "Tyrrell County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://mtwdistricthealth.org/",
+    "phone": "252-793-1750",
+    "office": "408 Bridge St., Columbia, NC 27925"
+   },
+   "extension": {
+    "url": "https://tyrrell.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37179",
+   "title": "Union County",
+   "health": {
+    "url": "https://www.unioncountync.gov/",
+    "listedWebsite": "https://www.unioncountync.gov/",
+    "phone": "704-296-4800",
+    "office": "2330 Concord Ave., Monroe, NC 28110"
+   },
+   "extension": {
+    "url": "https://union.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37181",
+   "title": "Vance County",
+   "health": {
+    "url": "https://www.gvph.org/",
+    "listedWebsite": "https://www.gvph.org/",
+    "phone": "252-492-7915",
+    "office": "115 Charles Rollins Road, Henderson, NC 27536"
+   },
+   "extension": {
+    "url": "https://vance.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37183",
+   "title": "Wake County",
+   "health": {
+    "url": "https://www.wake.gov/departments-government/public-health",
+    "listedWebsite": "https://www.wake.gov/departments-government/public-health",
+    "phone": "919-250-1120",
+    "office": "200 Swinburne St., Raleigh, NC 27610"
+   },
+   "extension": {
+    "url": "https://wake.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37185",
+   "title": "Warren County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://warrencountyhd.com/",
+    "phone": "252-257-1185",
+    "office": "544 W. Ridgeway St., Warrenton, NC 27589"
+   },
+   "extension": {
+    "url": "https://warren.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37187",
+   "title": "Washington County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://mtwdistricthealth.org/",
+    "phone": "252-793-3023",
+    "office": "198 N.C. Hwy 45 N., Plymouth, NC 27962"
+   },
+   "extension": {
+    "url": "https://washington.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37189",
+   "title": "Watauga County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.apphealthcare.com/",
+    "phone": "828-264-4995",
+    "office": "126 Poplar Grove Connector, Boone, NC 28607"
+   },
+   "extension": {
+    "url": "https://watauga.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37191",
+   "title": "Wayne County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.waynegov.com/241/Health-Department",
+    "phone": "919-731-1000",
+    "office": "301 N. Herman St., Goldsboro, NC 27530"
+   },
+   "extension": {
+    "url": "https://wayne.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37193",
+   "title": "Wilkes County",
+   "health": {
+    "url": "https://wilkescounty.net/199/Health-Department",
+    "listedWebsite": "https://wilkescounty.net/199/Health-Department",
+    "phone": "336-651-7450",
+    "office": "306 College St., Wilkesboro, NC 28697"
+   },
+   "extension": {
+    "url": "https://wilkes.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37195",
+   "title": "Wilson County",
+   "health": {
+    "url": "https://www.wilsoncountync.gov/departments/health-department",
+    "listedWebsite": "https://www.wilsoncountync.gov/departments/health-department",
+    "phone": "252-237-3141",
+    "office": "1801 Glendale Drive, Wilson, NC 27893"
+   },
+   "extension": {
+    "url": "https://wilson.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37197",
+   "title": "Yadkin County",
+   "health": {
+    "url": "https://www.dph.ncdhhs.gov/contact/LHD",
+    "listedWebsite": "http://www.yadkincountync.gov/index.aspx?nid=353",
+    "phone": "336-849-7910",
+    "office": "250 Willow St., Yadkinville, NC 27055"
+   },
+   "extension": {
+    "url": "https://yadkin.ces.ncsu.edu/"
+   },
+   "revision": 1
+  },
+  {
+   "id": "37199",
+   "title": "Yancey County",
+   "health": {
+    "url": "https://yanceycountync.gov/",
+    "listedWebsite": "https://yanceycountync.gov/",
+    "phone": "828-682-6118",
+    "office": "202 Medical Campus Drive, Burnsville, NC 28714"
+   },
+   "extension": {
+    "url": "https://yancey.ces.ncsu.edu/"
+   },
+   "revision": 1
+  }
+ ]
+}

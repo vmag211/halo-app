@@ -161,6 +161,23 @@ export const OWNED_ROW = {
     status: 'completed',
     idea_set: { id: 'test', status: 'completed' },
   }),
+  // 0031: an outreach draft; `n` varies the id and the address, which is in the key.
+  outreach_drafts: (owner, n) => {
+    const h = createHash('sha256').update(`draft:${owner}:${n}`).digest('hex');
+    return {
+      draft_id: `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`,
+      profile_id: owner,
+      draft_key: `Local office|office${n}@example.org`,
+      recipient: 'Local office',
+      topic: 'Drinking water',
+      water: 'Utility',
+      to_address: `office${n}@example.org`,
+      subject: 'A question',
+      body: 'Hello, I have a question.',
+      signature_hash: 'c'.repeat(64),
+      operation_id: `${h.slice(32, 40)}-${h.slice(40, 44)}-4${h.slice(45, 48)}-8${h.slice(49, 52)}-${h.slice(52, 64)}`,
+    };
+  },
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,

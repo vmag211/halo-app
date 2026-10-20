@@ -292,6 +292,15 @@ export const HALO_TABLES = {
     defaults: { created_at: now },
   },
 
+  // 0031 (B17 plan): a household's outreach drafts, one per recipient class
+  // and address, written only through save_outreach_draft. Never sent.
+  outreach_drafts: {
+    primaryKey: 'draft_id',
+    unique: [['profile_id', 'draft_key']],
+    ownerColumn: 'profile_id',
+    defaults: { revision: 1, contact_name: '', to_address: '', notes: [], created_at: now, updated_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },

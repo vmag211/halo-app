@@ -52,6 +52,7 @@ const OWNED_TABLES = {
   household_attachments: 'profile_id', // 0028
   household_summaries: 'profile_id', // 0029
   household_project_generations: 'profile_id', // 0030
+  outreach_drafts: 'profile_id',    // 0031
 };
 
 /**
@@ -87,6 +88,7 @@ const OWNER_DIRECT_ACCESS = {
   household_attachments: [],      // 0028: no policy at all. Private file records; read and written only through the 0028 functions, which only the service role may execute.
   household_summaries: [],        // 0029: no policy at all. Saved private reports; read and written only through the 0029 functions, which only the service role may execute.
   household_project_generations: [], // 0030: no policy at all. Saved idea sets with the typed interest; read and written only through the 0030 functions, which only the service role may execute.
+  outreach_drafts: [],            // 0031: no policy at all. A prepared copy a person wrote; read and written only through the 0031 functions, which only the service role may execute.
 };
 
 /**
@@ -114,6 +116,7 @@ const SERVICE_ONLY_OWNED = new Set([
   'household_attachments', // 0028: private file records; read and written only through the 0028 functions, called by the service role
   'household_summaries', // 0029: saved household summaries; read and written only through the 0029 functions, called by the service role
   'household_project_generations', // 0030: saved project idea sets; read and written only through the 0030 functions, called by the service role
+  'outreach_drafts', // 0031: outreach drafts; read and written only through the 0031 functions, called by the service role
 ]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
@@ -198,6 +201,12 @@ const PUBLIC_FUNCTIONS = {
   read_current_project_generation: 'service_role', // 0030: the newest completed idea set
   project_privacy_counts: 'service_role',         // 0030: what clear all removes from the idea sets, for inspect's count
   clear_project_generations_with_privacy_clear: 'trigger', // 0030: clear all removes the idea sets in the clear's own transaction
+  outreach_draft_json: 'service_role',            // 0031: a draft row as the routes answer it, called inside the 0031 functions
+  read_outreach_drafts: 'service_role',           // 0031: a household's drafts, or one, for history, status and replays
+  save_outreach_draft: 'service_role',            // 0031: a prepare and its ledger settle in one transaction
+  outreach_privacy_counts: 'service_role',        // 0031: what clear all removes from the drafts, for inspect's count
+  guard_settled_outreach_operation: 'trigger',    // 0031: a settled 'outreach' operation keeps its status
+  clear_outreach_with_privacy_clear: 'trigger',   // 0031: clear all removes the drafts in the clear's own transaction
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -256,6 +265,7 @@ const PROBE_COLUMN = {
   household_attachments: 'name',
   household_summaries: 'title',
   household_project_generations: 'idea_set',
+  outreach_drafts: 'body',
   attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',

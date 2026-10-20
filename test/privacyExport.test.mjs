@@ -1123,6 +1123,8 @@ const SEED_PLAN = [
   ['household_summaries', [0, 1]],
   // 0030: two saved idea sets.
   ['household_project_generations', [0, 1]],
+  // 0031: two outreach drafts to different addresses.
+  ['outreach_drafts', [0, 1]],
 ];
 
 test('on real Postgres: every allowlisted column, filter and order runs, and every seeded row of the household is exported', async () => {
