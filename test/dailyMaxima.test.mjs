@@ -5,7 +5,7 @@
  * Five parts, in order.
  *
  *  1. The client's code. readingLabel, analyzeHistory and the hook's
- *     validator are transcribed in test/helpers/frontendB08.mjs; the drift
+ *     validator come from test/helpers/frontendB08.mjs (the first two are the real .ts functions, the hook is a transcription); the drift
  *     test reads the frontend source now and requires it to equal the
  *     transcription once its types are stripped, the transcription is shown
  *     rejecting what the client rejects, and the two real .ts functions are
@@ -65,7 +65,7 @@ const transcribed = (t) => {
 };
 
 test('drift: each transcription is its frontend source, read now, with only the recorded types stripped', async () => {
-  assert.equal(TRANSCRIPTIONS.length, 3);
+  assert.equal(TRANSCRIPTIONS.length, 1, 'only the .tsx hook is still transcribed; the two .ts functions are imported');
   for (const t of TRANSCRIPTIONS) {
     const sourceText = await readFile(new URL(`../${t.file}`, import.meta.url), 'utf8');
     assert.equal(stripped(t, sourceText), transcribed(t), `${t.file}:${t.line} changed; re-transcribe it`);
@@ -123,7 +123,13 @@ test('the transcribed validator rejects what the client rejects, and accepts the
   assert.equal(nullClient.data, null, 'a client without a context does not take a context\'s rows');
 });
 
-test('the real readingLabel and analyzeHistory agree with their transcriptions on the snapshot', () => {
+test('the helper hands the suites the real readingLabel and analyzeHistory, and they run on the snapshot', () => {
+  assert.equal(readingLabel, real.readingLabel);
+  assert.equal(analyzeHistory, real.analyzeHistory);
+  // The helper and the real function are now one, so pin what the real one must say.
+  assert.deepEqual([1, 2, 3, 4].map((value) => readingLabel({ factor: 'Pollen', value, unit: '' })), ['Low', 'Moderate', 'High', 'Unknown category']);
+  assert.equal(readingLabel({ factor: 'Air', value: 42, unit: 'AQI' }), '42 AQI');
+  assert.equal(readingLabel(undefined), 'Unavailable');
   const snap = goodSnapshot();
   for (const row of [...snap.rows.slice(0, 8), ...snap.rows.slice(-8), undefined]) {
     assert.equal(readingLabel(row), real.readingLabel(row));

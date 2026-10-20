@@ -361,7 +361,7 @@ const [, CLEAR_ALL_DISABLED] = CLEAR_ALL_JSX.match(/ disabled=\{(.+)\} onClick=/
 const bannerOf = new Function('verified', 'status', `return ${BANNER_CONDITION} ? (${BANNER_TEXT}) : null;`);
 const clearAllDisabledOf = new Function('busy', 'blocked', 'verified', 'status', 'unknown', 'unresolved', `return ${CLEAR_ALL_DISABLED};`);
 
-productionOperations['privacy.status'] = { path: '/api/privacy/status' };
+assert.deepEqual(productionOperations['privacy.status'], { path: '/api/privacy/status' }, 'the real runtime registers the status read');
 
 /**
  * The panel after its status read settles: what useProductionResource holds,
