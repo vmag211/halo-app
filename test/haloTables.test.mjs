@@ -92,8 +92,8 @@ test('the migration parser still finds the tables it is meant to read', () => {
   assert.deepEqual(found, [
     'alerts', 'assistant_corpus', 'daily_maxima', 'daily_maxima_recorder', 'explore_areas', 'home_contexts', 'household_action_preferences',
     'household_action_state', 'household_actions', 'household_bands', 'household_workspace_records', 'learn_content', 'luna_conversations',
-    'luna_runs', 'luna_turns', 'map_layers', 'notification_prefs', 'operations', 'profile_preferences',
-    'push_subscriptions', 'recovery_challenges', 'symptom_logs', 'volunteer_orgs', 'water_snapshots',
+    'luna_runs', 'luna_turns', 'map_layers', 'notification_prefs', 'operations', 'operator_roles', 'profile_preferences',
+    'push_subscriptions', 'recovery_challenges', 'source_ops_audit', 'symptom_logs', 'volunteer_orgs', 'water_snapshots',
   ]);
 });
 

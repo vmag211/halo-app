@@ -116,6 +116,10 @@ const PUBLIC_REFERENCE_TABLES = {
   water_snapshots: 'none',  // 0010: per-utility reading fingerprints, no policies
   map_layers: 'none',       // 0011: pre-built map layers, no policies
   daily_maxima_recorder: 'none', // 0025: the recorder's one row (recording_from and counts), no policies
+  // 0027: staff access and audit records, not household data and not linked to profiles (B13).
+  // They hold an operator's account id and the reasons they typed, so no browser role may read them.
+  operator_roles: 'none',
+  source_ops_audit: 'none',
 };
 
 /** Every function in schema public. 'service_role': only the service role may execute it. 'trigger': runs only as a trigger. */
@@ -148,6 +152,7 @@ const PUBLIC_FUNCTIONS = {
   workspace_privacy_counts: 'service_role',       // 0026: what clear all removes from the workspace, for inspect's count
   guard_settled_workspace_operation: 'trigger',   // 0026: a settled 'workspace' operation keeps its status
   clear_workspace_with_privacy_clear: 'trigger',  // 0026: clear all removes the workspace in the clear's own transaction
+  guard_source_ops_audit: 'trigger',              // 0027: a source operations audit entry is never changed or removed
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -168,6 +173,11 @@ const REFERENCE_ROW = {
   map_layers: (n) => ({ layer: `test-${n}`, payload: {} }),
   // One row only: an attempt (n = 1) is refused by privilege before the key is reached.
   daily_maxima_recorder: (n) => ({ singleton: true, recording_from: `2026-09-0${n + 1}` }),
+  operator_roles: (n) => ({ profile_id: `b1300000-0000-4000-8000-00000000000${n}`, role: 'viewer', granted_by: 'test' }),
+  source_ops_audit: (n) => ({
+    operation_id: `b1300000-0000-4000-8000-0000000000a${n}`, actor_profile_id: 'b1300000-0000-4000-8000-000000000000', role: 'reviewer',
+    source_id: 'census-places', source_revision: 1, target: 'test', decision: 'approve', reason: 'A test reason.', outcome: 'refused', refusal: 'unsupported',
+  }),
 };
 
 /**
@@ -204,6 +214,8 @@ const PROBE_COLUMN = {
   water_snapshots: 'fingerprint',
   map_layers: 'payload',
   daily_maxima_recorder: 'last_run_at',
+  operator_roles: 'granted_by',
+  source_ops_audit: 'reason',
 };
 
 const COMMANDS = ['select', 'insert', 'update', 'delete'];

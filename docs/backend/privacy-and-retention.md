@@ -50,6 +50,15 @@ These tables have no household owner column or user-submitted free text. Their t
 | `public.map_layers` | Prebuilt public geographic layers and metadata | Daily job replaces layer payload; operator admin |
 | `public.daily_maxima_recorder` | One row of recorder state (0025): `recording_from`, the first day the recorder recorded, set once and never moved, and the last run's time and counts (counts only, never a coordinate, an id or provider text). No household data | Written only by the recorder's own functions; dropped by the 0025 back-out |
 
+## Staff access and audit (B13), not household data
+
+Two tables for the `/operations` screen (0027, `docs/backend/plans/b13-source-operations.md`). They hold an operator's account id and the decision reasons they typed, not a household's data, and have no foreign key to `profiles`, so they are outside the privacy export and both clears (proposed, Vibhav to confirm). Service role only: no browser role may read or write either.
+
+| Table | Contents and text | Deletion/replacement path |
+| --- | --- | --- |
+| `public.operator_roles` | One row per operator account: the account id, the role (`viewer`, `reviewer` or `publisher`), when it was granted and a free-text note of who granted it. Written only in the SQL editor; no route grants a role | Deleted by hand in the SQL editor. **Not removed by account deletion**: a deleted account's row is inert, because its id can never sign in again. Dropped by the 0027 back-out |
+| `public.source_ops_audit` | Every source decision an operator sent: their account id, the role found at the time, the source, revision, target and decision, **the reason they typed (8 to 500 characters)**, the outcome (today always `refused`) and the server's time | Append-only: a trigger refuses any change or removal, by anyone. **Retention is undecided and must be set before operator release**. Dropped by the 0027 back-out |
+
 ## Privacy requests (B07): export, clear and what they keep
 
 Repository behaviour of `GET /api/privacy/status`, `POST /api/privacy/export/inspect`, `POST /api/privacy/exports`, `POST /api/privacy/clear` and the privacy half of `GET /api/operations` (plan `docs/backend/plans/b07-privacy.md`). Migration 0024 is not applied anywhere and `HALO_PRIVACY_REVIEW_KEY` is set in no environment, so none of this runs in production yet; until the key is set the panel says "Privacy requests are unavailable." (Ruling P18).

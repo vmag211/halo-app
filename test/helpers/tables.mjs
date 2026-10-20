@@ -28,6 +28,9 @@ const now = () => new Date().toISOString();
 /** Stands in for luna_turns.seq, which migration 0020 fills from one identity sequence. */
 let turnSeq = 0;
 const nextSeq = () => (turnSeq += 1);
+/** Stands in for source_ops_audit.id, a 0027 identity column. */
+let auditSeq = 0;
+const nextAuditId = () => (auditSeq += 1);
 
 export const HALO_TABLES = {
   // auth.users -> profiles (0001) cascades; profiles.id is the owner id.
@@ -272,6 +275,11 @@ export const HALO_TABLES = {
   assistant_corpus: { primaryKey: 'id', defaults: { id: uuid } },
   // 0025: the recorder's one row (recording_from and the last run's counts), no household data.
   daily_maxima_recorder: { primaryKey: 'singleton', defaults: { singleton: true } },
+  // 0027: staff access and audit records, deliberately not linked to profiles
+  // (no ownerColumn: not household data, B13 plan). The audit's id is an
+  // identity column; granted_at and recorded_at default to now().
+  operator_roles: { primaryKey: 'profile_id', defaults: { granted_at: now } },
+  source_ops_audit: { primaryKey: 'id', unique: [['operation_id']], defaults: { id: nextAuditId, recorded_at: now } },
 };
 
 /** The declarations for just these tables (throws on a name that is not declared). */
