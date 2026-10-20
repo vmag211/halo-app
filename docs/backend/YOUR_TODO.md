@@ -7,15 +7,17 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 Do these in order. The detail for each lives in the section named; this list does not repeat it. State of
 the branch as of the night run: `docs/backend/STATE.md`.
 
-1. **Apply the eight pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029, 0030, 0031.** For
-   each, paste `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste
+1. **Apply the ten pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029, 0030, 0031, 0032,
+   0033.** For each, paste `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste
    `docs/backend/apply/verify-00NN.sql` and check the one row says every column is true (anything false:
    stop and send the row). Then run `notify pgrst, 'reload schema';`. Sections 2.14 (0024), 2.15 (0025),
-   2.17 (0026), 2.18 (0027), 2.19 (0028), 2.20 (0029), 2.21 (0030) and 2.22 (0031) hold the reason, the
-   quiet-time note and the tested back-out block for each. 0028 and 0029 need 0017 and 0026 first; 0030
-   and 0031 need 0017 (0030's project start and 0031's notes also read 0026). Applying a migration turns
-   nothing on. **0032** (the participation directory, 2.23) is new from B18 and needs only 0004, so it can
-   go at any point in the list; it serves nothing until a person writes and verifies listings (2.23).
+   2.17 (0026), 2.18 (0027), 2.19 (0028), 2.20 (0029), 2.21 (0030), 2.22 (0031), 2.23 (0032) and 2.24
+   (0033) hold the reason, the quiet-time note and the tested back-out block for each. 0028 and 0029 need
+   0017 and 0026 first; 0030 and 0031 need 0017 (0030's project start and 0031's notes also read 0026);
+   0032 needs only 0004 and 0033 nothing newer than the baseline, so neither depends on the rest.
+   Applying a migration turns nothing on. 0032 (the participation directory, B18) serves nothing until a
+   person writes and verifies listings (the template is in 2.23). 0033 (the weekly public water import,
+   B19) leaves the import off until its flag is set (see the flags in step 2).
 2. **Set the environment variables** (server side, Sensitive, then redeploy; names only, never a value in
    the repository):
    - `HALO_PRIVACY_REVIEW_KEY`, the only switch for privacy (2.16).
@@ -29,7 +31,10 @@ the branch as of the night run: `docs/backend/STATE.md`.
      generative AI, 2.21) needs `HALO_FEATURE_WORKSPACE` on only to start a project. `HALO_FEATURE_OUTREACH`
      (prepared outreach copies that are never sent, 2.22) stands alone. Each of the three waits on the
      decisions in its plan (`STATE.md`, "Decisions only Vibhav can make"). `HALO_FEATURE_PARTICIPATION`
-     (the participation directory, 2.23) stands alone and waits on the B18 rulings and on verified listings.
+     (the participation directory, 2.23) stands alone and waits on the B18 rulings (P1 to P11) and on verified
+     listings. `HALO_FEATURE_PUBLIC_IMPORT` (the weekly public water import, 2.24) stands alone, needs the
+     existing `CRON_SECRET`, and waits on your confirmation that automated reuse of the NC DWR table is
+     allowed (B19 decision 1).
 3. **Grant yourself the operator role** with the SQL in 2.18 step 4 (after 0027). Until you do, the
    operations screen shows the denied snapshot.
 4. **Merge the geo hotfix PR to main**: `vmag211/hotfix-geo-outage` (`50ae6cb`), so main stops overwriting
@@ -38,10 +43,7 @@ the branch as of the night run: `docs/backend/STATE.md`.
 5. **Deploy the backend branch** `vmag211/backend`. Migrations missing or flags off answer "unavailable",
    so the order against step 1 does not break anything. Afterwards trigger one daily cron run while ArcGIS
    is healthy (the geography check in the same "Known live risks" entry), and do the staging check in 1.4.
-6. **B19 (2026-10-20 night run): also apply 0033** with `docs/backend/apply/apply-0033.sql` and
-   `verify-0033.sql` (section 2.24). It needs no other pending migration. The weekly public water import
-   stays off until you set `HALO_FEATURE_PUBLIC_IMPORT` (B19 decision 1).
-7. **Capture the AirNow forecast documentation** (Part 3 item 10): the forecast web service docs (endpoint,
+6. **Capture the AirNow forecast documentation** (Part 3 item 10): the forecast web service docs (endpoint,
    parameters, response fields) and one real North Carolina response, so B10 Task 5 can be built.
 
 ---

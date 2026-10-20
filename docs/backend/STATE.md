@@ -4,23 +4,25 @@ One page, regenerated as work lands. **Read this first**, then `WORKFLOW.md` for
 package plan you are continuing. `checkpoint.md` holds the per-package detail this page summarises.
 
 Updated 2026-10-20 after the night run: B04 to B07 and B10 are complete (B10 except Task 5, gated on
-Vibhav), B11 to B17 are built and merged (B15 saved summaries, B16 Explore projects without generative AI,
-B17 outreach preparation that never sends), B08 is partly merged, and **the frontend is merged in**
-(`1253025`, the frontend ref at `5ac06f6`). `vmag211/backend` is not merged to main. At
-`origin/vmag211/backend` (`ce9e1e2`), `node --test test/*.test.mjs` runs
-**5,133 tests: 5,133 pass, 0 fail, 0 skipped**; `npm run typecheck` clean; `npm run lint` 0 errors and
-6 warnings (all pre-existing). `next build` needs no secrets since the clients became lazy (see below),
+Vibhav), B11 to B19 are built and merged (B15 saved summaries, B16 Explore projects without generative AI,
+B17 outreach preparation that never sends, B18 the participation directory that serves only
+person-verified listings, B19 the weekly public water import), B08 is partly merged, and **the frontend is
+merged in** (`1253025`, the frontend ref at `5ac06f6`). `vmag211/backend` is not merged to main. At
+`origin/vmag211/backend` (`e6b142f`), `node --test test/*.test.mjs` runs
+**5,351 tests: 5,351 pass, 0 fail, 0 skipped** (measured for this page); `npm run typecheck` and
+`npm run lint` were last reported clean (0 errors, 6 pre-existing warnings) at `ce9e1e2` and were not
+re-run for this docs-only update. `next build` needs no secrets since the clients became lazy (see below),
 but run any build in a scratch worktree anyway: `next build` auto-loads `.env.local`, which the boundary
 forbids reading (it last passed with placeholder Supabase variables on 2026-10-19; not re-run since the
 lazy-client change).
 
 ## What exists
 
-77 route files under `app/api` on `vmag211/backend`, exporting 93 method handlers. The frontend
+81 route files under `app/api` on `vmag211/backend`, exporting 98 method handlers. The frontend
 registry declares **72 operations**, each with a path and a method (`lib/frontend/production/runtime.ts`;
-the file is identical on `origin/codex/october15-review-refinement`). **60 have a backend route at the
-declared path and method; 12 do not. Of the 60, 28 answer with no configuration beyond what is already
-applied**, and 32 are built but answer "unavailable" (or a failed receipt) until Vibhav turns something
+the file is identical on `origin/codex/october15-review-refinement`). **63 have a backend route at the
+declared path and method; 9 do not. Of the 63, 28 answer with no configuration beyond what is already
+applied**, and 35 are built but answer "unavailable" (or a failed receipt) until Vibhav turns something
 on:
 
 - `actions.load`, `actions.commit` (flag `tasks`; 0023 is applied, so the flag can be turned on);
@@ -38,10 +40,15 @@ on:
 - `contacts.resolve`, `outreach.context`, `outreach.connection`, `outreach.prepare`, `outreach.history`,
   `outreach.status`, `outreach.connect`, `outreach.send` (flag `outreach`; drafts need 0031).
   `outreach.connect` and `outreach.send` are routed only to refuse: with the flag on they still answer 403
-  `email_sending_unsupported`, because nothing in HALO sends email.
+  `email_sending_unsupported`, because nothing in HALO sends email;
+- `organizations.search`, `opportunities.search`, `opportunities.detail` (flag `participation`, and 0032;
+  they serve only listings a person wrote in the SQL editor and marked verified, and **no listing exists
+  yet**, so with the flag on every area answers "no reviewed local coverage").
 
-Measured 2026-10-20 on `ce9e1e2` (it was 43 routed on `7fa4574`; B15 added three, B16 six and B17 eight,
-all behind flags, so the 28 that answer now did not change; it was 30 routed and 24 answering on `a5268be`). Method: every `'<op>': {path, method}` entry of `productionOperations`
+Measured 2026-10-20 on `e6b142f` (it was 60 routed on `ce9e1e2`; B18 added the three above, behind a flag,
+so the 28 that answer now did not change; B19 added no operation: it adds a weekly cron and changes what
+`water.read` serves, see the B19 row; it was 43 routed on `7fa4574`, and 30 routed and 24 answering on
+`a5268be`). Method: every `'<op>': {path, method}` entry of `productionOperations`
 (the method defaults to GET), matched as an exact method-and-path pair against every exported
 `GET|POST|PUT|PATCH|DELETE` in `app/api/**/route.js`. A match means only that a route exists at that path
 and method. It does not mean the body passes the operation's validator: the per-package conformance suites
@@ -59,12 +66,12 @@ are what show that. The 28 that answer now, by the package that made them answer
 | B10 | `forecast.read` (`GET /api/forecast`; Open-Meteo and NWS only, AirNow not yet) |
 | B12 | `food.search`, `fish.read`, `water.read`, `growers.search` (signed in, static reviewed data files, no migration) |
 
-The 12 with no route: `capabilities.read` (dropped on purpose), `opportunities.search` and
-`opportunities.detail`, `organizations.search` (blocked), `community.read` (dropped),
-`luna.proposal.edit`, `luna.proposal.cancel`, `luna.operation`, `luna.confirm` (Luna does not act),
-`map.brief` (dropped), `evidence.read` (built but held, E25) and `recovery.complete` (unbuilt). The reasons
-are in the table under "What is deliberately not built". The count was 14 of 72 on 2026-10-18, and the
-frontend closeout note's 68 operations is four short.
+The 9 with no route: `capabilities.read`, `community.read` and `map.brief` (dropped on purpose),
+`luna.proposal.edit`, `luna.proposal.cancel`, `luna.operation` and `luna.confirm` (Vibhav's Option A,
+2026-10-18: Luna does not act), `recovery.complete` (deferred by Vibhav) and `evidence.read` (built, held
+by E25 on `origin/vmag211/b08-evidence-held`). The reasons are in the table under "What is deliberately
+not built". The count was 14 of 72 on 2026-10-18, and the frontend closeout note's 68 operations is four
+short.
 
 **The remaining work is backend, not wiring.** The frontend half is already written. Components call
 `runtime.request('<operation>')`, the registry resolves the path, and a validator checks the response, so
@@ -109,6 +116,8 @@ Done 2026-10-20: `next build` needs no secrets (Supabase and Redis clients are b
 | B15 saved household summaries | Complete, with scores and factors not yet composed (S15-6). `summary.prepare`, `summary.list`, `summary.read`; migration 0029 (`household_summaries`, immutable once saved, the commit function that settles its own ledger row, a clear-all trigger); every refusal settles `failed`, never `cancelled`. Behind flag `HALO_FEATURE_SUMMARIES`, off, and needs `workspace` on. Plan `plans/b15-saved-summaries.md`, Rulings S15-1 to S15-11, `YOUR_TODO.md` 2.20 |
 | B16 Explore projects, no generative AI | Complete. `projects.generate`, `.current`, `.generation`, `.cancel`, `.guide`, `.start`; migration 0030 (`household_project_generations`); "generation" is a deterministic, explainable selection from a sourced library of 17 projects (`lib/data/exploreProjectLibrary.json`), no model and no paid service; the async contract (status, cancel) is still honoured. A started project's guide cannot be changed through `workspace.execute` (J13, `project_guide_locked`). Behind flag `HALO_FEATURE_PROJECTS`, off; Vibhav's decision 7 is still open. Plan `plans/b16-explore-projects.md`, Rulings J1 to J14, `YOUR_TODO.md` 2.21 |
 | B17 outreach preparation, never sends | Complete. `contacts.resolve` and the seven `outreach.*` operations; migration 0031 (`outreach_drafts`); official public offices from a static, source-recorded directory (`lib/data/ncOutreachContacts.json`), copy-only drafts, `outreach.connection` always "not connected", `outreach.connect` and `outreach.send` refused. Nothing sends email, calls a mail or OAuth provider or contacts anyone. Behind flag `HALO_FEATURE_OUTREACH`, off. Plan `plans/b17-outreach-preparation.md`, Rulings O1 to O8, `YOUR_TODO.md` 2.22 |
+| B18 participation directory | Complete as infrastructure; **no listing exists yet**. `organizations.search`, `opportunities.search`, `opportunities.detail`; migration 0032 (`participation_profiles`, `participation_opportunities`, three read functions that filter in SQL; RLS on, no client access). It serves **only rows a person wrote in the SQL editor and marked verified** (`verified_by`, `verified_at`); a trigger clears the verification when content changes, so a verification always covers exactly what is served. HALO writes no listing and no route writes. No area, or no verified listing for it, answers `no_coverage`, and an unreadable directory is a 5xx, never an empty list. `complete` is always `false` (P7). No proximity, distance or capacity. Behind flag `HALO_FEATURE_PARTICIPATION`, off. Plan `plans/b18-participation-directory.md`, Rulings P1 to P11, `YOUR_TODO.md` 2.23 (the listing template is there) |
+| B19 weekly public water import | Complete, waiting on a reuse confirmation. Migration 0033 (`public_evidence_snapshots`, `public_evidence_runs`, one write function); cron `GET\|POST /api/cron/public-evidence`, Thursdays 18:00 UTC (`vercel.json`). It fetches the U.S. Drought Monitor county figures and the NC DWR conservation table, checks both strictly (all 100 counties on every map, the table's own totals, real dates) and stores a dated copy only when the check passes; a failure stores nothing and keeps the last good copy. `water.read` serves the newest stored copy of each source, else the bundled file, and says which. Fish advisories stay on the hand build (their wording needs a person's review). Behind flag `HALO_FEATURE_PUBLIC_IMPORT`, off until the NC DWR reuse is confirmed (DS-113). Plan `plans/b19-public-evidence-refresh.md`, `YOUR_TODO.md` 2.24 |
 
 ## Migrations
 
@@ -131,8 +140,8 @@ as read" gateway check, are `YOUR_TODO.md` 2.10.
 They were applied as one batch; each keeps its apply steps and a tested back-out block in `YOUR_TODO.md`
 (0022 is 2.11). Once the backend branch is deployed, both Explore area verbs work against the applied 0022.
 
-**0024 to 0031 are written, merged to `vmag211/backend`, and applied nowhere: pending for Vibhav, in
-order** (0029 to 0031 are described after the 0024 to 0028 paragraph).
+**0024 to 0033 are written, merged to `vmag211/backend`, and applied nowhere: pending for Vibhav, in
+order** (0029 to 0033 are described after the 0024 to 0028 paragraph).
 0024 is privacy (`clear_household_records`, the fingerprint and count functions, the receipt purge and
 the freeze trigger; no table; `YOUR_TODO.md` 2.14). 0025 is `daily_maxima` for B08 (2.15); apply it as
 soon as the recorder is deployed, because a day is recorded only from the first run on and cannot be
@@ -153,6 +162,16 @@ it needs 0017, and `projects.start` also needs 0026. 0031 is outreach drafts for
 pair, `docs/backend/apply/apply-00NN.sql` and `verify-00NN.sql`, a tested back-out block, and a clear-all
 trigger, and each is inert until its flag (`HALO_FEATURE_SUMMARIES`, `HALO_FEATURE_PROJECTS`,
 `HALO_FEATURE_OUTREACH`).
+
+0032 is the participation directory for B18 (2.23): `participation_profiles` and
+`participation_opportunities`, thirteen functions; it needs only 0004 (`volunteer_orgs`), so it can go at
+any point in the list, and it serves nothing until a person writes and verifies listings (the template is
+in 2.23). 0033 is the weekly public water import for B19 (2.24): `public_evidence_snapshots`,
+`public_evidence_runs` and one write function; it needs nothing newer than the baseline. Both have the
+same pair, `docs/backend/apply/apply-00NN.sql` and `verify-00NN.sql`, and a tested back-out block, and
+neither turns anything on: the routes wait on `HALO_FEATURE_PARTICIPATION` and the cron on
+`HALO_FEATURE_PUBLIC_IMPORT`. Before 0033 is applied, or with the flag off, `water.read` keeps serving
+the bundled copy and says so.
 
 ## Environment variables Vibhav must set
 
@@ -177,17 +196,22 @@ environment that should have the feature, then redeploy.
   selection (J1, decision 7); starting a project also needs `workspace` on and 0026 (`YOUR_TODO.md` 2.21).
 - `HALO_FEATURE_OUTREACH=on` (prepared outreach copies, never sent) once 0031 is applied and the draft
   retention (O8) is accepted (`YOUR_TODO.md` 2.22).
+- `HALO_FEATURE_PARTICIPATION=on` (the participation directory) once 0032 is applied, the B18 rulings
+  (P1 to P11) are confirmed and at least one verified listing exists; with none, every area answers "no
+  reviewed local coverage" (`YOUR_TODO.md` 2.23).
+- `HALO_FEATURE_PUBLIC_IMPORT=on` (the weekly public water import) once 0033 is applied and you have
+  confirmed automated reuse of the NC DWR table (DS-113, B19 decision 1); the cron also needs the
+  existing `CRON_SECRET` (`YOUR_TODO.md` 2.24).
 - No variable switches B12 (always on, signed in) or B13 (the `operator_roles` row is the switch).
 
 ## What is deliberately not built, and why
 
-What remains unbuilt, in one table (the 12 operations with no route, plus the AirNow forecast). The bullets
-below hold the detail.
+What remains unbuilt, in one table (the 9 operations with no route, plus the AirNow forecast, plus the
+listing content B18 serves). The bullets below hold the detail.
 
 | Operation or feature | State | Why |
 | --- | --- | --- |
-| `organizations.search` | Blocked | Needs human-written, verified listings: no participation content exists, the cause vocabulary is disjoint, and "complete" has no stated meaning (B05) |
-| `opportunities.search`, `opportunities.detail` | Not built | Same need: dated volunteer opportunities must be human-written and verified; HALO will not scrape or invent them |
+| Participation listings (the content behind `organizations.search`, `opportunities.search`, `opportunities.detail`) | Routes built (B18), content not written | HALO will not scrape or invent listings; a person must write and verify each one in the SQL editor (B05 open question 7, `YOUR_TODO.md` 2.23). The three operations are routed, so they are not in the count of 9 |
 | `luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm`, `luna.operation` | Not built, by ruling | Luna answers and cites but does not act, so there is nothing to propose, confirm or track |
 | `recovery.complete` | Deferred by Vibhav | Recovery completion waits until after the competition (decision 5); the flag stays off |
 | `capabilities.read`, `community.read`, `map.brief` | Dropped | No consumer, validator or type on the frontend ref |
@@ -219,8 +243,8 @@ below hold the detail.
   has no route and the app shows its own empty state.
 - **B05 dropped `community.read` and `map.brief`** (no consumer, validator or type on the frontend ref),
   and **blocked `organizations.search`** (no participation content, a disjoint cause vocabulary, no
-  stated meaning for `complete`). The summaries trio, blocked there for want of record collections, was
-  built in B15 once B11 stored them. The plan lists what unblocks each. **Task 6, the public cache-only read for the map routes, is built**
+  stated meaning for `complete`; B18 later built its routes, see its row). The summaries trio, blocked
+  there for want of record collections, was built in B15 once B11 stored them. The plan lists what unblocks each. **Task 6, the public cache-only read for the map routes, is built**
   (Vibhav's yes to open question 1, 2026-10-19): with no Authorization header `/api/map`, `/api/district`
   and `/api/map/comparison` answer from what is stored, else 503, limited to 60 a minute per visitor.
   The CDN's handling of the shared-cache header is a staging check (`YOUR_TODO.md` 1.4).
@@ -248,6 +272,15 @@ below hold the detail.
 - **B17 sends nothing, ever.** No Gmail or OAuth connection, no token storage, no send attempt, no
   per-person staff emails, no landlord lookup. `attempts` in the history is truthfully empty. Draft deletion
   and an on-screen disclosure that drafts are kept have no route or copy in the frontend (a Yogi item).
+- **B18 writes no listing and has no frontend consumer for the detail.** With the flag on and no verified
+  row, every area answers `no_coverage`. `opportunities.detail` has no screen that calls it. The
+  organizations answer has no `availability` field on the frontend, so "no verified organizations here"
+  and "no match" look alike, and the coverage sentence prints an empty `checkedAt` as "Sources checked ."
+  (both Yogi items). No refresh job, outdated-listing report or participation record exists.
+- **B19 leaves fish advisories, food notices, NRCS and utility rule text out.** Fish text is published
+  advice that a person reviewed, so a new fetch cannot replace it unseen. The ArcGIS conservation service
+  and the PWSID crosswalk (DS-112, DS-114) are not used. Until the flag is on, `water.read` serves the
+  copy bundled by hand on 2026-10-20.
 
 ## Decisions only Vibhav can make
 
@@ -378,6 +411,31 @@ numbers are the plan's own.
 - O7: history `attempts` is truthfully empty and a draft id's status is the draft; any other id is 404.
 - O8: drafts are kept until clear all or account deletion with no delete route; name, address, subject, body and notes are private text in the export. The flag stays off until you confirm this.
 
+**B18 participation directory** (`plans/b18-participation-directory.md`)
+
+- P1: flag `HALO_FEATURE_PARTICIPATION`, off (503 `feature_unavailable`, nothing read); signed in; the same answer for every household and no household table read; 120 reads a minute per identity across the three, `private, no-store`.
+- P2: a row is served only when `verified_by` and `verified_at` are set and not in the future; searches also need an opportunity verified within 29 days and a profile within 180 days.
+- P3: a search serves only `listed` opportunities that have not started; rolling programs have no dates and stay while their verification is fresh; cancelled, full, postponed, started and expired listings are never searched.
+- P4: `opportunities.detail` (`?id=`) serves any verified listing whatever its status, date or freshness, so a saved commitment can learn it was cancelled; unknown and unverified are the same 404. It has no consumer yet, so the shape is ours to confirm.
+- P5: area means a listing's `served_place_ids` hold the area's id, its containing county or `us-state:NC`; never a distance, radius, travel time or "near you".
+- P6: `no_coverage` when no verified listing serves the area, `empty` when filters remove them all, `partial` only for a stored row the client's validator would refuse; an unreadable directory is a 5xx, never `items: []`.
+- P7: `complete` is always `false`, because a hand-verified directory can never claim to hold every opportunity in an area.
+- P8: the top-level `checkedAt` is the oldest verification date among the area's servable listings, `''` when there are none.
+- P9: query shape and limits: `interest`, `timing`, `search` of at most 160 characters, 20 items a page, an opaque cursor bound to its query; anything else is a 400.
+- P10: one profile is one participation route of one organization; an address needs a kind and a written role sentence, and an opportunity's address is a meeting place only.
+- P11: only a person in the SQL editor writes content; no route, job or script inserts a listing, and `volunteer_orgs.last_verified` is not used.
+
+**B19 weekly public water import** (`plans/b19-public-evidence-refresh.md`)
+
+- 1: the import is behind `HALO_FEATURE_PUBLIC_IMPORT`, off, until you confirm automated weekly reuse of the NC DWR table with its maintainer (DS-113); one flag covers both sources.
+- 2: it runs Thursdays 18:00 UTC, after the Drought Monitor release; if the Vercel plan refuses a third cron, call it from `/api/cron/daily` on Thursdays.
+- 3: each source stands alone, so a utility failure does not block a good drought copy, and the reverse.
+- 4: bounds: drought 1 to 10 whole maps with the newest at most 21 days old; utility 50 to 2,000 systems.
+- 5: keep the newest 8 copies and 200 runs per source.
+- 6: a database error on `water.read` serves the dated bundled copy rather than a 503.
+- 7: `/operations` lists the two sources only once the import has run, "current" for 8 days after the last stored copy, and a failed last run shows with its reason code.
+- 8: fish advisories stay on the hand build, because their wording is published advice that a person reviewed (the plan's "Dropped or blocked" section).
+
 ## Known live risks
 
 - **`origin/main` carries the old geography defect in the daily cron.** On main, `app/api/cron/daily/route.js`
@@ -435,6 +493,6 @@ numbers are the plan's own.
 4. One writer per checkout. Parallel implementers get worktrees, which provision from `origin/main`, so
    each must `git reset --hard vmag211/backend` first.
 5. Gate before every commit: `node --test test/*.test.mjs`, `npm run typecheck`, `npm run lint`,
-   `git diff --check`. Report real counts (5,133 tests at `ce9e1e2`).
+   `git diff --check`. Report real counts (5,351 tests at `e6b142f`).
 6. Process, from 2026-10-20: there are no separate reviewer agents. Each task is built by its implementer
    and tested once by the implementer's own test subagent, which fixes or reports what it finds.
