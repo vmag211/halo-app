@@ -33,7 +33,7 @@ Base `origin/vmag211/backend` at `f2b49e3`. No migration: every answer is built 
 
 ## Reads
 
-Signed-in only (the contract's Public "No"), `requireUser` then a per-identity limiter `publicEvidenceLimiter` (120 a minute, fail-open, the B05 reasoning: no provider is called). Queries: `resource` must be the route's own value (food: one of two); `foodId`, `guideId` match `^[a-z0-9-]{1,80}$`; anything else is ignored and never echoed or logged. 200 bodies carry `Cache-Control: private, max-age=600` and `Vary: Authorization`; every error is `private, no-store`. A data file that fails its own shape check answers 503, never an empty list. No table is read, so another household changes nothing.
+Signed-in only (the contract's Public "No"), `requireUser` then, for every signed-in request including invalid ones, a per-identity limiter `publicEvidenceLimiter` (120 a minute, fail-open, the B05 reasoning: no provider is called). Queries: `resource` must be the route's own value (food: one of two); `foodId`, `guideId` match `^[a-z0-9-]{1,80}$`; anything else is ignored and never echoed or logged. 200 bodies carry `Cache-Control: private, max-age=600` and `Vary: Authorization`; every error is `private, no-store`. A data file that fails its own shape check answers 503, never an empty list. No table is read, so another household changes nothing.
 
 ## Blocked, and what unblocks it
 

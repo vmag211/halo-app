@@ -155,10 +155,15 @@ test('the limiter is keyed by the caller only, refuses with 429 and Retry-After,
   await expectEnvelope(res, { status: 429, code: 'rate_limited' });
   assert.deepEqual(keys, [`${EVIDENCE_LIMIT_KEY}${limited.identities.alice.id}`]);
 
-  const before = harness({ rateLimit: (key) => { keys.push(key); return false; } });
+  const before = harness({ rateLimit: (key) => { keys.push(key); return true; } });
   keys.length = 0;
-  assert.equal((await get(before, ROUTES.food.path, '?resource=nope')).status, 400, 'validation comes before the limiter');
-  assert.deepEqual(keys, [], 'a refused query spends no token');
+  assert.equal((await get(before, ROUTES.food.path, '?resource=nope')).status, 400);
+  assert.deepEqual(keys, [`${EVIDENCE_LIMIT_KEY}${before.identities.alice.id}`], 'a refused query spends a token too');
+  const shed = harness({ rateLimit: () => false });
+  assert.equal((await get(shed, ROUTES.food.path, '?resource=nope')).status, 429, 'invalid queries are shed like any other');
+  keys.length = 0;
+  assert.equal((await get(before, ROUTES.food.path, '?resource=food-evidence', { as: null })).status, 401);
+  assert.deepEqual(keys, [], 'no session spends no token');
 
   const logged = muteConsoleError(t);
   const outage = harness({ rateLimit: () => LIMITER_UNAVAILABLE });
