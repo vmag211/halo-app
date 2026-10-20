@@ -7,12 +7,12 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 Do these in order. The detail for each lives in the section named; this list does not repeat it. State of
 the branch as of the night run: `docs/backend/STATE.md`.
 
-1. **Apply the five pending migrations, in order: 0024, 0025, 0026, 0027, 0028.** For each, paste
+1. **Apply the six pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029.** For each, paste
    `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste `docs/backend/apply/verify-00NN.sql`
    and check the one row says every column is true (anything false: stop and send the row). Then run
    `notify pgrst, 'reload schema';`. Sections 2.14 (0024), 2.15 (0025), 2.17 (0026), 2.18 (0027) and 2.19
-   (0028) hold the reason, the quiet-time note and the tested back-out block for each. 0028 needs 0017 and
-   0026 first. Applying a migration turns nothing on.
+   (0028) and 2.20 (0029) hold the reason, the quiet-time note and the tested back-out block for each. 0028
+   and 0029 need 0017 and 0026 first. Applying a migration turns nothing on.
 2. **Set the environment variables** (server side, Sensitive, then redeploy; names only, never a value in
    the repository):
    - `HALO_PRIVACY_REVIEW_KEY`, the only switch for privacy (2.16).
@@ -21,7 +21,8 @@ the branch as of the night run: `docs/backend/STATE.md`.
      `HALO_FEATURE_LUNA` (with the two model ids, 2.13 step 3), `HALO_FEATURE_WORKSPACE` (Homeguard
      workspace, 2.17), and `HALO_FEATURE_ATTACHMENTS` (private photos, 2.19) **only after
      `npm install sharp@0.35.5` is committed**, because `sharp` is not yet in `package.json`, and only with
-     `HALO_FEATURE_WORKSPACE` also on.
+     `HALO_FEATURE_WORKSPACE` also on. `HALO_FEATURE_SUMMARIES` (saved summaries, 2.20) also needs
+     `HALO_FEATURE_WORKSPACE` on.
 3. **Grant yourself the operator role** with the SQL in 2.18 step 4 (after 0027). Until you do, the
    operations screen shows the denied snapshot.
 4. **Merge the geo hotfix PR to main**: `vmag211/hotfix-geo-outage` (`50ae6cb`), so main stops overwriting
@@ -1005,6 +1006,43 @@ drop table if exists public.attachment_object_sweep;
 Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **every household's file records are deleted for good**, and the files stay in the bucket until you delete them as above. Test records keep any `attachments` list they hold, now naming files that no longer exist. Ledger rows in domain `attachments` stay; they hold ids, collection names and statuses only. The bucket row itself is left (drop it in Storage). Nothing else is touched.
+
+### 2.20 Apply 0029 (saved household summaries, B15)
+
+**Written, applied nowhere yet.** Needs 0016, 0017 and **0026** (apply 2.17 first); it reads 0023's tasks only for a summary that names one, and does not need 0024, 0025, 0027 or 0028. Quiet: one new table, one index and nine functions, plus one trigger on its own table and two on `public.operations`, each taking a brief SHARE ROW EXCLUSIVE on that table as it is created (a ledger claim or settle at that moment waits for it). Nothing existing is read or rewritten.
+
+What it is for (B15 plan, `docs/backend/plans/b15-saved-summaries.md`): Homeguard's Summary saves an immutable snapshot of the records a person selected through `POST /api/summaries`, lists them with `GET /api/summaries` and reopens one with `GET /api/summaries/detail`. A commit function checks the current home and every selected record at its exact revision under share locks, saves, and settles its own ledger row in the same transaction; a trigger refuses any change to a saved summary; a guard keeps a settled `summary` row from being turned `failed`; and a third trigger makes **privacy clear all delete the household's summaries inside the clear's own transaction**. No attachment bytes or photo data are ever stored.
+
+**Applying this does not turn summaries on.** The routes stay behind `HALO_FEATURE_SUMMARIES` (and need `HALO_FEATURE_WORKSPACE` on too), off by default, until you confirm the B15 decisions (retention, scores not included yet, limits).
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0029_household_summaries.sql`, or `docs/backend/apply/apply-0029.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run the verification query (the comment at the end of the file, or `docs/backend/apply/verify-0029.sql`): **one row, all seven columns true** (`rls_on`, `no_policies`, `no_client_access`, `functions_service_role_only`, `functions_invoker_pinned`, `triggers_on`, `five_constraints`). `no_client_access` false is the one that matters: stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+
+#### If you need to back out 0029
+
+The summary routes go back to answering "unavailable", exactly as before. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0029 -->
+
+```sql
+drop trigger if exists operations_privacy_clear_summaries on public.operations;
+drop trigger if exists operations_summary_settled_guard on public.operations;
+drop function if exists public.clear_summaries_with_privacy_clear();
+drop function if exists public.guard_settled_summary_operation();
+drop function if exists public.summary_privacy_counts(uuid);
+drop function if exists public.commit_household_summary(uuid, uuid, jsonb);
+drop function if exists public.household_summary_usage(uuid);
+drop function if exists public.read_household_summary(uuid, uuid);
+drop function if exists public.read_household_summaries(uuid, integer);
+drop function if exists public.household_summary_json(public.household_summaries);
+drop table if exists public.household_summaries;
+drop function if exists public.guard_household_summary_update();
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: **every household's saved summaries are deleted for good**, because the table goes. Ledger rows in domain `summary` stay; they hold a summary id or a reason code and a status only. Nothing else is touched.
 
 ---
 

@@ -136,6 +136,23 @@ export const OWNED_ROW = {
       object_path: `${owner}/${attachmentId}`,
     };
   },
+  // 0029: a saved summary; `n` varies the server ids, derived from the owner.
+  household_summaries: (owner, n) => {
+    const hex = (salt) => createHash('sha256').update(`${salt}:${owner}:${n}`).digest('hex');
+    const uuid = (h) => `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+    return {
+      summary_id: uuid(hex('summary')),
+      profile_id: owner,
+      operation_id: uuid(hex('summary-operation')),
+      revision: 1,
+      title: 'Household review',
+      home_context_id: null,
+      report: { title: 'Household review', generated: '2026-10-20T12:00:00.000Z', introduction: ['Purpose: Household review.'], sections: [] },
+      selection: { purpose: 'Household review', start: '2026-01-01', end: '2026-12-31' },
+      manifest: [],
+      omissions: ['Private notes were not included.'],
+    };
+  },
   // 0018: hashes only, and the columns accept nothing but 64 hex characters.
   recovery_challenges: (owner, n) => ({
     profile_id: owner,

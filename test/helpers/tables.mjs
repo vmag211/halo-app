@@ -275,6 +275,15 @@ export const HALO_TABLES = {
     defaults: { revision: 1, status: 'ready', metadata_removed: true, linked: false, created_at: now },
   },
 
+  // 0029 (B15 plan): a household's saved summaries, one immutable row per
+  // prepared summary, written only through commit_household_summary.
+  household_summaries: {
+    primaryKey: 'summary_id',
+    unique: [['operation_id']],
+    ownerColumn: 'profile_id',
+    defaults: { revision: 1, created_at: now },
+  },
+
   // Reference and system tables: no owner, nothing cascades.
   ucmr5_utilities: { primaryKey: 'pwsid' },
   water_snapshots: { primaryKey: 'pwsid', defaults: { updated_at: now } },

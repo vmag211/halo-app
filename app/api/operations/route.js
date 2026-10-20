@@ -24,6 +24,7 @@ import {
   attachmentsUnavailable,
   isAttachmentsUnavailable,
 } from '@/lib/attachmentStore';
+import { SUMMARY_DOMAIN, isSummaryUnavailable, recordedReceipt, summaryUnavailable } from '@/lib/summaryStore';
 
 // A reader, but a privacy export reconcile rebuilds the household's whole
 // file (B07 P9), as the POST that first built it may (60 s); under the
@@ -193,6 +194,23 @@ export async function GET(request) {
         result = await attachmentReconcileResult(supabaseAdmin, userId, operation);
       } catch (err) {
         if (isAttachmentsUnavailable(err)) return attachmentsUnavailable(requestId);
+        throw err;
+      }
+    } else if (operation.domain === SUMMARY_DOMAIN) {
+      // B15 Ruling S15-11, every status: the stored receipt holds the summary
+      // id or a reason code only, so a succeeded prepare is answered with the
+      // snapshot saved then, read now (`validSummaryReceipt` needs it,
+      // summary-service.ts:16), or `failed` `gone` once it has been cleared;
+      // a failure with its sentence; a pending one with the in-flight
+      // sentence. `cancelled`, which no summary writer sets, is answered
+      // `failed` (Ruling S15-3): the client never settles a cancelled
+      // receipt and would stay locked. Behind the `summaries` flag.
+      if (!featureEnabled('summaries') || !featureEnabled('workspace')) return summaryUnavailable(requestId);
+      try {
+        result = await recordedReceipt(supabaseAdmin, userId, { status: operation.status, result: operation.result });
+        status = result.status;
+      } catch (err) {
+        if (isSummaryUnavailable(err)) return summaryUnavailable(requestId);
         throw err;
       }
     } else if (operation.status === 'succeeded') {

@@ -80,6 +80,7 @@ const CLEAR_ALL = {
   daily_maxima: 'delete', // 0025: deleted before home_contexts when present, and counted (B08 E23)
   household_workspace_records: 'delete', // 0026: deleted by its trigger on the clear's own settle, counted by workspace_privacy_counts (B11 W8)
   household_attachments: 'delete', // 0028: deleted by its trigger on the clear's own settle, counted by attachment_privacy_counts (B14 A9)
+  household_summaries: 'delete', // 0029: deleted by its trigger on the clear's own settle, counted by summary_privacy_counts (B15)
 };
 const CLEAR_JOURNAL = {
   ...Object.fromEntries(Object.keys(CLEAR_ALL).map((table) => [table, 'keep'])),
@@ -127,6 +128,7 @@ const VARIANTS = {
   daily_maxima: [0, 1],
   household_workspace_records: [0, 1, 2],
   household_attachments: [0, 1],
+  household_summaries: [0, 1],
 };
 
 const contextId = (owner, n) => `${owner.slice(0, 24)}00000000c${n}0${n}`.slice(0, 36);
@@ -453,6 +455,7 @@ test('clear all: privacy_counts read before the claim is exactly what the clear 
       ...(await tx.query(`select public.privacy_counts($1, 'all') as c`, [ALICE])).rows[0].c,
       ...(await tx.query(`select public.workspace_privacy_counts($1) as c`, [ALICE])).rows[0].c,
       ...(await tx.query(`select public.attachment_privacy_counts($1) as c`, [ALICE])).rows[0].c,
+      ...(await tx.query(`select public.summary_privacy_counts($1) as c`, [ALICE])).rows[0].c,
     };
     const before = await counts(tx, ALICE);
     await claim(tx);
@@ -471,9 +474,11 @@ test('clear all: privacy_counts read before the claim is exactly what the clear 
     // 0026's and 0028's triggers on the settle, inside the same transaction, so they are not in it.
     const workspaceRows = observed.household_workspace_records;
     const fileRows = observed.household_attachments;
+    const summaryRows = observed.household_summaries;
     assert.ok(workspaceRows >= 3, 'the seed has workspace rows to remove');
     assert.ok(fileRows >= 2, 'the seed has files to remove');
-    assert.equal(Number(out.removed), Object.values(observed).reduce((sum, n) => sum + n, 0) - workspaceRows - fileRows);
+    assert.ok(summaryRows >= 2, 'the seed has summaries to remove');
+    assert.equal(Number(out.removed), Object.values(observed).reduce((sum, n) => sum + n, 0) - workspaceRows - fileRows - summaryRows);
   });
 });
 
@@ -909,8 +914,9 @@ test('guard: a settled privacy row keeps its status; a same-status rewrite, a re
     await claim(tx, { operationId: pending, kind: 'privacy.export' });
     assert.equal((await attempt(tx, `update public.operations set status = 'failed', result = '{"status":"failed","reason":"abandoned"}'::jsonb where operation_id = $1 and status = 'pending'`, [pending])).ok, true);
 
-    // Domains with no guard of their own are unaffected by this one.
-    for (const domain of ['luna', 'summary']) {
+    // Domains with no guard of their own are unaffected by this one. ('summary'
+    // was the second example until 0029 gave it a guard of its own.)
+    for (const domain of ['luna', 'projects']) {
       const other = crypto.randomUUID();
       await claim(tx, { operationId: other, domain, kind: `${domain}.test`, status: 'succeeded', result: { status: 'succeeded' } });
       assert.equal((await attempt(tx, `update public.operations set status = 'failed' where operation_id = $1`, [other])).ok, true, domain);
