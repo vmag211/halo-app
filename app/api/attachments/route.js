@@ -85,6 +85,7 @@ const MESSAGES = Object.freeze({
   tooLarge: 'This file is too large. Choose one up to 10 MiB.',
   unknownField: `Only ${FIELDS.join(', ')} can be sent.`,
   file: 'Choose one file.',
+  empty: 'This file is empty. Choose the photo again.',
   collection: 'Choose tests, observations or exploreNotes.',
   recordId: 'That record id is not valid.',
   name: 'Give the file a name of up to 200 characters.',
@@ -157,7 +158,8 @@ async function parseFields(form) {
   if (!operationId.ok) errors.push(field('operationId', operationId.code, operationId.message));
   if (!(file instanceof Blob) || typeof file.name !== 'string') errors.push(field('file', 'invalid_file', MESSAGES.file));
   else if (!validText(file.name, ATTACHMENT_LIMITS.nameLength)) errors.push(field('file', 'invalid_name', MESSAGES.name));
-  else if (file.size < 1 || file.size > IMAGE_LIMITS.inputBytes) errors.push(field('file', 'too_large', MESSAGES.tooLarge));
+  else if (file.size < 1) errors.push(field('file', 'empty_file', MESSAGES.empty));
+  else if (file.size > IMAGE_LIMITS.inputBytes) errors.push(field('file', 'too_large', MESSAGES.tooLarge));
   if (!ATTACHMENT_COLLECTIONS.includes(collection)) errors.push(field('collection', 'invalid_option', MESSAGES.collection));
   if (!validText(recordId, ATTACHMENT_LIMITS.idLength)) errors.push(field('recordId', 'invalid_id', MESSAGES.recordId));
   if (metadataRemoved !== 'true' && metadataRemoved !== 'false') errors.push(field('metadataRemoved', 'invalid_boolean', MESSAGES.flag));

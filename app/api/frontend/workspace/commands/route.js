@@ -3,7 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { apiError, internalError, loggableError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { featureDisabledReason, featureEnabled } from '@/lib/features';
-import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, requestHash, runOperation } from '@/lib/operations';
+import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
 import {
   LIMITS,
   REFUSALS,
@@ -179,7 +179,11 @@ export async function POST(request) {
         if (isAttachmentsUnavailable(err)) return NextResponse.json(refusalReceipt(operationId.value, 'attachments_unavailable'), { headers });
         throw err;
       }
-      if (!owned) return NextResponse.json(refusalReceipt(operationId.value, 'invalid_reference'), { headers });
+      // The early answer is for a new command only: a replay of a recorded one
+      // is answered from the ledger below, whatever the files are now.
+      if (!owned && !(await readOperation(supabaseAdmin, { operationId: operationId.value, profileId: userId, domain: WORKSPACE_DOMAIN }))) {
+        return NextResponse.json(refusalReceipt(operationId.value, 'invalid_reference'), { headers });
+      }
     }
 
     const ifMatch = ifMatchProblem(request, command);

@@ -253,6 +253,23 @@ test('a file the server cannot read as an allowed image (a PDF report, an SVG) i
   assert.equal((await db.query(`select count(*)::int as n from public.operations where domain = 'attachments' and profile_id = $1`, [w.ids.alice])).rows[0].n, 0);
 });
 
+test('a replayed workspace save is answered from the ledger even after the file it linked was dropped; an empty file says so', async () => {
+  const w = await createWorld(db);
+  const answer = await (await w.upload({ file: { blob: new Blob([FIXTURE]), name: 'photo.jpg' }, collection: 'observations', recordId: 'obs-replay', metadataRemoved: 'true', reviewed: 'true', operationId: crypto.randomUUID() })).json();
+  const record = sampleRecord('observations', { id: 'obs-replay', homeContextId: w.home.alice, photoAttachmentId: answer.id, photoAttachmentRevision: 1, photoMetadataRemoved: true });
+  const first = workspaceBody({ kind: 'write', collection: 'observations', record, expectedRevision: null });
+  assert.equal((await (await w.command(first)).json()).status, 'succeeded');
+  const { photoAttachmentId, photoAttachmentRevision, ...dropped } = { ...record, revision: 1 };
+  assert.ok(photoAttachmentId && photoAttachmentRevision);
+  assert.equal((await (await w.command(workspaceBody({ kind: 'write', collection: 'observations', record: dropped, expectedRevision: 1 }))).json()).status, 'succeeded');
+  assert.deepEqual(await w.files(), []);
+  const replay = await (await w.command(first)).json();
+  assert.equal(replay.status, 'succeeded', 'the recorded outcome, not a new judgment of current files');
+  const empty = await w.upload({ file: { blob: new Blob([]), name: 'photo.jpg' }, collection: 'observations', recordId: 'obs-1', metadataRemoved: 'true', reviewed: 'true', operationId: crypto.randomUUID() });
+  const body = await expectEnvelope(empty, { status: 400, code: 'validation_failed' });
+  assert.equal(body.field_errors[0].code, 'empty_file');
+});
+
 // ------------------------------------------------------- another household
 
 test('another household can never inspect, download, remove or link alice\'s file, nor attach to her test, nor reuse her operation id', async () => {
