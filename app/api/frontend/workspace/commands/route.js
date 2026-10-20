@@ -5,6 +5,7 @@ import { readJsonBody, parseUuid } from '@/lib/validate';
 import { featureDisabledReason, featureEnabled } from '@/lib/features';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
 import {
+  CHANGED_ELSEWHERE,
   LIMITS,
   REFUSALS,
   STORED_REFUSALS,
@@ -14,6 +15,7 @@ import {
   isWorkspaceUnavailable,
   parseWorkspaceCommand,
   planWorkspaceCommand,
+  readSettledWorkspace,
   readWorkspaceCollections,
   refusalForError,
   refusalReceipt,
@@ -67,7 +69,11 @@ import {
  *
  * THE ANSWERS:
  *   - succeeded: the collections the commit returned, or for a replay the
- *     current ones;
+ *     current ones. If the replay finds the saved record gone (deleted on
+ *     another device since), or a removed one back, no succeeded receipt
+ *     could be settled by this client (the ledger keeps no record content), so
+ *     the answer is the 200 `failed` receipt `changed_elsewhere` (Ruling W15),
+ *     which resolves the operation and unlocks Homeguard;
  *   - refused against stored state (stale_revision, notes_changed,
  *     invalid_reference, limit): 200 failed, the reason stored, so a replay
  *     answers the same body;
@@ -89,8 +95,12 @@ import {
  *
  * A database failure inside the commit is a 500, which this client reads as
  * "not confirmed" and reconciles through GET /api/operations. Until 0026 or
- * 0017 is applied: the non-retryable 503, decided before the claim. Log
- * lines carry the error's code and message only (loggableError), never a
+ * 0017 is applied: the non-retryable 503. The read of the touched collections
+ * runs before the claim and proves both, so it is decided before the claim
+ * when the tables or read_household_workspace are missing; if only
+ * commit_household_workspace is missing, the claim already exists, the
+ * operation settles failed and a replay of that id is the 409 `not_applied`.
+ * Log lines carry the error's code and message only (loggableError), never a
  * record. No top-level `data` key in any body.
  */
 
@@ -227,10 +237,14 @@ export async function POST(request) {
     }
     if (result.status === 'succeeded') {
       if (files && !outcome.replayed && touchesFiles(command)) await sweepFiles(userId, requestId);
-      const changes = outcome.replayed || !committedChanges
-        ? await readWorkspaceCollections(supabaseAdmin, userId, (Array.isArray(result.collections) ? result.collections : []).filter((name) => typeof name === 'string'))
-        : committedChanges;
-      return NextResponse.json({ operationId: operationId.value, status: 'succeeded', changes }, { headers });
+      if (!outcome.replayed && committedChanges) {
+        return NextResponse.json({ operationId: operationId.value, status: 'succeeded', changes: committedChanges }, { headers });
+      }
+      // A replay: the current rows, unless the record it saved has since gone
+      // (or the one it removed is back), which the client could not settle.
+      const settled = await readSettledWorkspace(supabaseAdmin, userId, result);
+      if (settled.changedElsewhere) return NextResponse.json(refusalReceipt(operationId.value, CHANGED_ELSEWHERE), { headers });
+      return NextResponse.json({ operationId: operationId.value, status: 'succeeded', changes: settled.changes }, { headers });
     }
     if (result.status === 'failed' && STORED_REFUSALS.includes(result.reason) && REFUSALS[result.reason]) {
       return NextResponse.json(refusalReceipt(operationId.value, result.reason), { headers });
