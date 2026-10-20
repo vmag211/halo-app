@@ -14,7 +14,8 @@ the branch as of the night run: `docs/backend/STATE.md`.
    2.17 (0026), 2.18 (0027), 2.19 (0028), 2.20 (0029), 2.21 (0030) and 2.22 (0031) hold the reason, the
    quiet-time note and the tested back-out block for each. 0028 and 0029 need 0017 and 0026 first; 0030
    and 0031 need 0017 (0030's project start and 0031's notes also read 0026). Applying a migration turns
-   nothing on.
+   nothing on. **0032** (the participation directory, 2.23) is new from B18 and needs only 0004, so it can
+   go at any point in the list; it serves nothing until a person writes and verifies listings (2.23).
 2. **Set the environment variables** (server side, Sensitive, then redeploy; names only, never a value in
    the repository):
    - `HALO_PRIVACY_REVIEW_KEY`, the only switch for privacy (2.16).
@@ -27,7 +28,8 @@ the branch as of the night run: `docs/backend/STATE.md`.
      `HALO_FEATURE_WORKSPACE` on. `HALO_FEATURE_PROJECTS` (Explore project ideas from a sourced library, no
      generative AI, 2.21) needs `HALO_FEATURE_WORKSPACE` on only to start a project. `HALO_FEATURE_OUTREACH`
      (prepared outreach copies that are never sent, 2.22) stands alone. Each of the three waits on the
-     decisions in its plan (`STATE.md`, "Decisions only Vibhav can make").
+     decisions in its plan (`STATE.md`, "Decisions only Vibhav can make"). `HALO_FEATURE_PARTICIPATION`
+     (the participation directory, 2.23) stands alone and waits on the B18 rulings and on verified listings.
 3. **Grant yourself the operator role** with the SQL in 2.18 step 4 (after 0027). Until you do, the
    operations screen shows the denied snapshot.
 4. **Merge the geo hotfix PR to main**: `vmag211/hotfix-geo-outage` (`50ae6cb`), so main stops overwriting
@@ -1096,6 +1098,140 @@ drop table if exists public.outreach_drafts;
 Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: **every household's outreach drafts are deleted for good**. Ledger rows in domain `outreach` stay; they hold draft ids, revisions and statuses only. Nothing was ever sent, so nothing outside HALO is affected. Nothing else is touched.
+
+### 2.23 Apply 0032 (the participation directory, B18: listings a person verified, nothing else)
+
+**Written, applied nowhere yet.** Needs **0004** (`volunteer_orgs`) only, which production has; it does not need 0005 to 0031 and may go before or after any of them. Quiet: two new tables, their indexes and triggers, and thirteen functions. Each foreign key to `volunteer_orgs` takes a brief SHARE ROW EXCLUSIVE on it as it is created; `GET /api/volunteer` reads are not blocked. Nothing existing is read or rewritten.
+
+What it is for (B18 plan, `docs/backend/plans/b18-participation-directory.md`): Explore's "Get involved" lists (`organizations.search`, `opportunities.search`) and an opportunity's detail. **HALO writes no listing.** The two tables, `participation_profiles` (an organization's way to take part) and `participation_opportunities` (a dated event or a rolling program), are filled by a person in the SQL editor with what an organization's official page says, and **a row is served only after that person marks it verified**. Until then every area answers "no reviewed local coverage", which is true.
+
+**Applying this does not turn the directory on.** The routes stay behind `HALO_FEATURE_PARTICIPATION`, off by default, until you confirm the B18 rulings (P1 to P11) and there are verified listings to serve.
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0032_participation_directory.sql`, or `docs/backend/apply/apply-0032.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run the verification query (the comment at the end of the file, or `docs/backend/apply/verify-0032.sql`): **one row, all seven columns true**. `no_client_access` or `functions_service_role_only` false: stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+
+#### Writing a listing (you or Yogi, by hand)
+
+The fields a person must write, and what each means, are in the plan's "What a person must write per listing". Every `<...>` below is yours to replace: the database refuses any text still holding a `<...>` placeholder, an em dash, or a non-https link, so these blocks cannot be run unedited. Write what the official page says; "Not stated on the official page." is a correct answer for cost, age or access. **Never write a capacity, a distance or "near you"**: there is no column for them.
+
+- **The organization** must already be a `volunteer_orgs` row (`select id, name from public.volunteer_orgs order by name;`). Adding one also shows it in the older `GET /api/volunteer` directory, so add it deliberately, with the 0012 columns (`name`, `description`, `counties`, `causes`, `url`).
+- **The areas** (`served_place_ids`) are ids exactly as Explore's area search gives them: `us-county:` plus the county FIPS (Mecklenburg is `us-county:37119`), `us-place:` plus a Census place GEOID, `us-zcta:` plus a ZIP code, or `us-state:NC` for the whole state. A listing for a county is shown for every city and ZIP whose Census center point is in it. To look one up from the repository: `node -e "import('./lib/places.js').then(m => console.log(m.searchPlaces({ query: 'Charlotte' })))"`.
+
+Step 1, add the listing **unverified** (nothing is served yet). An organization's way to take part:
+
+<!-- template-0032-profile -->
+
+```sql
+insert into public.participation_profiles
+  (id, org_id, title, organizer, interest, area, served_place_ids, mission, work, url, source_title,
+   extra_sources, address, address_kind, address_role, contact,
+   effort, age, cost, access, steps, bring, followup)
+values (
+  '<listing id>',                       -- lowercase letters, digits and hyphens, for example 'riverkeeper-cleanups'
+  (select id from public.volunteer_orgs where name = '<organization name>'),
+  '<the way to take part, as a short title>',
+  '<the organization, as people know it>',
+  'Cleanup',                            -- or 'Trees & habitat', 'Gardening', 'Community learning'
+  '<the area it serves, in words>',
+  array['<place id>'],
+  '<what the organization does, one or two sentences>',
+  '<what a participant actually does>',
+  'https://<official page>',
+  '<the official page''s title>',
+  '[]'::jsonb,                          -- or '[{"title": "<page title>", "url": "https://<another official page>"}]'
+  null, null, null,                     -- or '<address>', 'office' (or 'mailing', 'meeting', 'service-area'), '<what this address is, for example Office address, not an event meeting point.>'
+  null,                                 -- or '<a public contact the page prints>'
+  '<how much commitment it takes>',
+  '<who can take part, or Not stated on the official page.>',
+  '<cost, or Not stated on the official page.>',
+  '<access and suitable tasks, or Not stated on the official page.>',
+  '[{"title": "<step title>", "text": "<what to do>"}]'::jsonb,
+  '<what to bring or prepare>',
+  '<what to do afterwards>'
+);
+```
+
+A dated event (for a **rolling program**, use `'rolling'`, `null, null` for the two times and `null` for `venue_local_date`; a rolling program carries no dates):
+
+<!-- template-0032-opportunity -->
+
+```sql
+insert into public.participation_opportunities
+  (id, org_id, organizer, title, interest, artwork, kind, starts_at, ends_at, time_label,
+   venue_local_date, venue_timezone, venue_timezone_basis, status, area, served_place_ids,
+   venue, meeting_address, url, summary, work, duration, cost, age, access, bring, join_text, safety)
+values (
+  '<listing id>',
+  (select id from public.volunteer_orgs where name = '<organization name>'),
+  '<the organizer, as the listing names it>',
+  '<the event title>',
+  'Cleanup',                            -- or 'Trees & habitat', 'Gardening', 'Community learning'
+  'cleanup',                            -- the illustration: 'tree', 'cleanup' or 'garden' (never a photo of the venue)
+  'scheduled',
+  '2026-11-07 09:00 America/New_York',  -- the start, with its zone
+  '2026-11-07 12:00 America/New_York',  -- the end, after the start
+  '<the time as the listing puts it, for example Saturday 7 November, 9:00 to 12:00>',
+  '2026-11-07', 'America/New_York', 'source',  -- or null, null, null when the listing does not state its zone
+  'listed',
+  '<the area it serves, in words>',
+  array['<place id>'],
+  '<the meeting place, as the listing names it>',
+  null,                                 -- or '<the meeting place''s address>' (never an office or mailing address)
+  'https://<official page>',
+  '<what the event is, one or two sentences>',
+  array['<one task>', '<another task>'],
+  '<how long it lasts>',
+  '<cost, or Not stated on the official page.>',
+  '<who can join, or Not stated on the official page.>',
+  '<access, or Not stated on the official page.>',
+  '<what to bring>',
+  '<the official next step, for example Register on the organizer''s page.>',
+  '<the safety guidance the listing gives>'
+);
+```
+
+Step 2, after you have checked the row against the official page, **verify it**; only now is it served. Use `participation_profiles` or `participation_opportunities`:
+
+<!-- template-0032-verify -->
+
+```sql
+update public.participation_opportunities
+   set verified_by = '<your name or initials>', verified_at = now()
+ where id = '<listing id>';
+```
+
+- **Keep it fresh.** An opportunity is served for 29 days after its verification and a profile for 180; re-check the page and run step 2 again. A scheduled event leaves the lists by itself when it starts.
+- **Any change un-verifies.** Changing a served column without also setting a new `verified_at` clears the verification, so a corrected row is hidden until you verify it again. To record a cancellation (or `'full'`, `'postponed'`, only when the organizer says so) and keep it verified in one step: `update public.participation_opportunities set status = 'cancelled', verified_by = '<your name or initials>', verified_at = now() where id = '<listing id>';`
+- **Withdraw** a listing with `update ... set verified_by = null, verified_at = null where id = '<listing id>';`, or delete the row.
+
+#### If you need to back out 0032
+
+The three directory routes go back to answering "unavailable". Export the listings first if you want them (`select * from public.participation_profiles;`, then the same for `participation_opportunities`). In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0032 -->
+
+```sql
+drop function if exists public.read_participation_profiles(text[], timestamptz);
+drop function if exists public.read_participation_opportunity(text, timestamptz);
+drop function if exists public.read_participation_opportunities(text[], timestamptz);
+drop function if exists public.participation_profile_json(public.participation_profiles);
+drop function if exists public.participation_opportunity_json(public.participation_opportunities);
+drop table if exists public.participation_opportunities;
+drop table if exists public.participation_profiles;
+drop function if exists public.participation_opportunity_zone_check();
+drop function if exists public.participation_listing_guard();
+drop function if exists public.participation_sources_ok(jsonb);
+drop function if exists public.participation_steps_ok(jsonb);
+drop function if exists public.participation_places_ok(text[]);
+drop function if exists public.participation_list_ok(text[], integer, integer);
+drop function if exists public.participation_url_ok(text);
+drop function if exists public.participation_text_ok(text, integer);
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: **every listing a person wrote is deleted for good**. `volunteer_orgs` is not touched. No household data was ever in these tables.
 
 ---
 

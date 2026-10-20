@@ -319,6 +319,10 @@ export const HALO_TABLES = {
   // column and no foreign key, so an account's deletion cascade cannot take
   // the queue with it (B14 Ruling A9).
   attachment_object_sweep: { primaryKey: 'object_path', defaults: { due_at: now, created_at: now } },
+  // 0032 (B18 plan): public participation listings a person writes by hand,
+  // each keyed to a volunteer_orgs row. No owner: not household data.
+  participation_profiles: { primaryKey: 'id', defaults: { revision: 1, extra_sources: [], created_at: now, updated_at: now } },
+  participation_opportunities: { primaryKey: 'id', defaults: { revision: 1, status: 'listed', created_at: now, updated_at: now } },
 };
 
 /** The declarations for just these tables (throws on a name that is not declared). */
