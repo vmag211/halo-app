@@ -180,6 +180,19 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const sheetRef = useRef(sheet);
   useEffect(() => { routeRef.current = route; }, [route]);
   useEffect(() => { sheetRef.current = sheet; }, [sheet]);
+  // The floating Luna launcher unmounts while its sheet is open, so the sheet cannot hand focus back
+  // to the node that opened it. Return keyboard and screen reader focus to the remounted launcher.
+  const lastSheetType = useRef(sheet?.type);
+  useEffect(() => {
+    const previous = lastSheetType.current; lastSheetType.current = sheet?.type;
+    if (previous !== 'assistant' || sheet) return;
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      document.querySelector<HTMLButtonElement>(`button[aria-label="${c.labels.assistant}"]`)?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [sheet]);
   const sheetEntry = useRef(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastSequence = useRef(0);
