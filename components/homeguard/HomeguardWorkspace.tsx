@@ -59,9 +59,14 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
       heading?.focus({ preventScroll: true });
       // Keep the workspace switcher and return path in view on entry. Within a
       // workspace, bring the requested record/editor into view instead.
-      const target = isFirstOpen || sectionChanged
+      const entry = isFirstOpen || sectionChanged;
+      const target = entry
         ? document.querySelector('.hg-workspace-nav')
         : heading?.closest('.hg-intro') ?? heading;
+      // A switcher already in full view is left where it is: scrolling it anyway jumped a freshly
+      // loaded page by the height of the refresh bar just after it appeared.
+      const box = target?.getBoundingClientRect(), headerBottom = document.querySelector('.halo-f-header')?.getBoundingClientRect().bottom ?? 0;
+      if (entry && box && box.top >= headerBottom && box.bottom <= window.innerHeight) return;
       target?.scrollIntoView({ block: 'start', behavior: 'instant' });
     });
     return () => cancelAnimationFrame(frame);

@@ -17,3 +17,14 @@ for (const width of [320, 375, 414, 820, 1440]) test(`test entry cards keep a re
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
+
+// The entry scroll keeps the workspace switcher in view; when it already is, a freshly loaded
+// page must not jump by the height of the refresh bar once React takes over.
+test('a workspace opened at the top does not jump after hydration', async ({ page }) => {
+  await page.setViewportSize({ width:320, height:850 });
+  await page.goto('/foundation/preview/expanded/?tab=home&destination=maintenance&homeView=observation-detail&record=sample-moisture&motion=reduce&time=day&scale=150');
+  await page.waitForURL(/[?&]palette=/);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  await expect(page.locator('.hg-workspace-nav')).toBeInViewport();
+});
