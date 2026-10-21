@@ -1,0 +1,11 @@
+{
+  "operationId": "lunaClear",
+  "status": 200,
+  "body": {
+    "id": "0b030000-0000-4000-8000-00000000c001",
+    "revision": 5,
+    "messages": [],
+    "pendingRequest": null,
+    "unresolvedOperations": {}
+  }
+}

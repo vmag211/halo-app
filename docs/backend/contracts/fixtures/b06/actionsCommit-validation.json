@@ -1,0 +1,18 @@
+{
+  "operationId": "actionsCommit",
+  "status": 400,
+  "body": {
+    "error": "Clearing every task is not supported by this command. Nothing was changed.",
+    "code": "validation_failed",
+    "message": "Clearing every task is not supported by this command. Nothing was changed.",
+    "field_errors": [
+      {
+        "field": "kind",
+        "code": "unsupported_kind",
+        "message": "Clearing every task is not supported by this command. Nothing was changed."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

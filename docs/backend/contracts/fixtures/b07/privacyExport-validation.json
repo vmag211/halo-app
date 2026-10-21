@@ -1,0 +1,18 @@
+{
+  "operationId": "privacyExport",
+  "status": 400,
+  "body": {
+    "error": "Only operationId, reviewToken, scope can be sent.",
+    "code": "validation_failed",
+    "message": "Only operationId, reviewToken, scope can be sent.",
+    "field_errors": [
+      {
+        "field": "confirm",
+        "code": "unknown_field",
+        "message": "Only operationId, reviewToken, scope can be sent."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b07-contract-0001"
+  }
+}

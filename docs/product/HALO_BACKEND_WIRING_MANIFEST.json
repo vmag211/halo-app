@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "branch": "codex/october15-review-refinement",
+  "refs": {
+    "frontendBase": "857160e6ca878c04a004133e7e48292af3099a68",
+    "main": "9f1ef88fe2d99aa82e96285ce7aa152e99a5acb0",
+    "backend": "88b01b005ad783c7a719fd87a02c317c613b4b71"
+  },
+  "counts": {
+    "features": 45,
+    "journeys": 25,
+    "requirements": 1630,
+    "operations": 72,
+    "jsxFiles": 172,
+    "controls": 1800,
+    "exportedTypes": 248,
+    "fingerprintedFiles": 250
+  },
+  "sources": [
+    {
+      "source": "docs/continuation/FRONTEND_WIRING_CLOSEOUT.md",
+      "bytes": 16205,
+      "sha256": "c929c4cddcfc7a79097417c977189afd4de62404ae0ad7552ca87318433fead5"
+    },
+    {
+      "source": "docs/continuation/FRONTEND_WIRING_VERIFICATION.md",
+      "bytes": 13741,
+      "sha256": "4b83b0080b316a7425c6fdf747bdf35a25265b3f0e7e2f76f8ce97308ea54137"
+    },
+    {
+      "source": "tmp/frontend-wiring-closeout/operations.md",
+      "bytes": 6756,
+      "sha256": "685083ad09176ece7b47a40fdd9b1e0cf83527cfaab9c2f05dc366f6e0365ef0"
+    },
+    {
+      "source": "docs/continuation/FRONTEND_INTEGRATION_READY.md",
+      "bytes": 17818,
+      "sha256": "36a0ec90c0c520c55c0b631b7250ee51f536f553f608bf061fea4a192d585c85"
+    },
+    {
+      "source": "docs/continuation/HOME_ACCOUNT_PRODUCTION_INTEGRATION.md",
+      "bytes": 24663,
+      "sha256": "31ba5a2d589a4ed62950df9e9b7b41753ce427f2b981496b8ee065b179e25ea3"
+    },
+    {
+      "source": "docs/continuation/EXPANDED_PRODUCTION_INTEGRATION.md",
+      "bytes": 17707,
+      "sha256": "44e201e862fa8c1b75c5942ab0dacc2c3974ef5956e4186facc0edb5409e2768"
+    },
+    {
+      "source": "docs/product/OCTOBER15_REDESIGN_BACKEND_DELTA.md",
+      "bytes": 7092,
+      "sha256": "46c2c7be906a1e6d440abefe7cc243cc6741de2fb106d1ae7b691ddae1ff32db"
+    },
+    {
+      "source": "docs/continuation/OCTOBER16_REDESIGN_IMPLEMENTATION.md",
+      "bytes": 25118,
+      "sha256": "f3d0f01d2531d83e7f76ebf3d7593f4da8baf6d8767a0ac5882ca9e3d4d7db1c"
+    },
+    {
+      "source": "docs/continuation/OCTOBER16_VISUAL_REFINEMENT.md",
+      "bytes": 5901,
+      "sha256": "cf240163b0e7b280f0db96d40ed399233291060c30dc5131a6f61bc538f3e838"
+    },
+    {
+      "source": "components/expanded/HOMEPAGE_BACKEND_DELTA.md",
+      "bytes": 9662,
+      "sha256": "d0165ec81d2e798dc547a3d4c458a0415c9dd05f7b20492fa62a8f835af04872"
+    },
+    {
+      "source": "components/expanded/EXPLORE_BACKEND_DELTA.md",
+      "bytes": 45813,
+      "sha256": "34b173f69db8a3c356111b69c1fe3d40152cea1ea6ed8ee3e936d143c37ed7a1"
+    },
+    {
+      "source": "components/expanded/MY_WEEK_REVIEW.md",
+      "bytes": 30179,
+      "sha256": "e6ebfbaf187aba209b23131356092961326b0d2f6a0b94505220f32804b53a0e"
+    },
+    {
+      "source": "components/expanded/SETTINGS_ALERTS_REVIEW.md",
+      "bytes": 11680,
+      "sha256": "a853dfdf91d26cb2149d1787b11327697563396362bc091e0e91b95572a4d459"
+    },
+    {
+      "source": "docs/foundation/WIREFRAME_COMPLETION_MATRIX.md",
+      "bytes": 9946,
+      "sha256": "84b02d188426a66f66fee136f46812cdb6f20ac07fa454a7775e8e42dd3ca6de"
+    },
+    {
+      "source": "docs/product/HALO_COMPLETE_BACKEND_HANDOFF.md",
+      "bytes": 601277,
+      "sha256": "33abef338e35149c650856d0788ec7fd238a09b6c0b16e894adfcd2e2f0d481e"
+    },
+    {
+      "source": "docs/product/ai/HALO_BACKEND_WORKING_SPEC.md",
+      "bytes": 521027,
+      "sha256": "fc1fec4b180dc5057b2edf1c2203143d85535b43364502e674d34e04d415be86"
+    },
+    {
+      "source": "tmp/backend-handoff-wrap/interface-ledger.md",
+      "bytes": 288200,
+      "sha256": "0879c5d6dd3e1c95a613cccdd9a7d40934e7c31f1cd310c17a579180d17c61b4"
+    },
+    {
+      "source": "tmp/backend-handoff-wrap/type-register.md",
+      "bytes": 60979,
+      "sha256": "07d06dfac47de0028157dfa34b1a8f3049cc903751b6694ec8a4abdac9415428"
+    },
+    {
+      "source": "tmp/backend-handoff-wrap/source-register.md",
+      "bytes": 27254,
+      "sha256": "dd5d7c48ddfa8b0a47cad5401bb9fb99d63d1fa7795452ada59d801eabd55910"
+    }
+  ],
+  "packet": {
+    "path": "docs/product/HALO_BACKEND_WIRING_CURRENT.md",
+    "bytes": 1750247,
+    "sha256": "22153a73abdf646e0fa56cd676fb54eba8f2008f4042c4bed4ef9e8098808ff1"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "operationId": "actionsCommit",
+  "status": 200,
+  "body": {
+    "operationId": "0b060000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "reason": "busy",
+    "message": "My Week is busy with another save. Nothing was saved. Try again in a moment."
+  }
+}

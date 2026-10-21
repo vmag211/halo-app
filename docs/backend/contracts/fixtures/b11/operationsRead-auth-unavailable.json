@@ -1,0 +1,40 @@
+{
+  "operationId": "operationsRead",
+  "status": 503,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "tests",
+    "record": {
+      "id": "test-kitchen-tap",
+      "title": "Kitchen tap",
+      "revision": 0,
+      "purpose": "Check the kitchen tap",
+      "contextId": "0b110000-0000-4000-8000-000000000002",
+      "medium": "water",
+      "provider": "",
+      "sampleLabel": "",
+      "method": "",
+      "reviewReason": "",
+      "kind": "water",
+      "status": "draft",
+      "plannedDate": "",
+      "collectionStart": "",
+      "collectionEnd": "",
+      "expectedDate": "",
+      "rows": [],
+      "review": "not_received",
+      "archived": false,
+      "history": []
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "error": "Could not verify your session right now. Please try again.",
+    "code": "auth_unavailable",
+    "message": "Could not verify your session right now. Please try again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b11-contract-0001"
+  }
+}

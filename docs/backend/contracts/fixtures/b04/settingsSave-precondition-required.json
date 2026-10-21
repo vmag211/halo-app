@@ -1,0 +1,18 @@
+{
+  "operationId": "settingsSave",
+  "status": 422,
+  "body": {
+    "error": "Send the settings revision you are saving against in If-Match.",
+    "code": "validation_failed",
+    "message": "Send the settings revision you are saving against in If-Match.",
+    "field_errors": [
+      {
+        "field": "If-Match",
+        "code": "precondition_required",
+        "message": "Send the settings revision you are saving against in If-Match."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b04-contract-0001"
+  }
+}

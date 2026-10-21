@@ -1,0 +1,1927 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B04 settings and alerts backend contract",
+    "version": "b04-1",
+    "description": "The four operations B04 built (settings.read, settings.save, alerts.read, alerts.update) and operations.read as both of their clients reconcile through it. Dropped, and absent here: capabilities.read (no consumer, no validator, and disabling a read operation breaks its surface) and evidence.read (its validator demands the basis daily maximum, which daily_scores does not record; Vibhav's call). Response schemas mirror the frontend's own validators on origin/codex/october15-review-refinement (preferences-service.ts, alerts-service.ts), which discard the whole payload on one wrong field; where a rule is not JSON Schema the conformance test transcribes the validator instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key. unresolvedOperations is a lock, not a log, and a stored receipt carries [] (Ruling S14) while the live answer and a reconcile carry the live list without the operation itself (Ruling S16). Nothing here is a deployment claim: migration 0021, which all four operations need, was applied to production on 2026-10-19, and the routes answer there only once the backend branch is deployed."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/settings": {
+      "get": {
+        "operationId": "settingsRead",
+        "x-halo-operation": "settings.read",
+        "summary": "Read the household's settings snapshot",
+        "description": "The whole snapshot, from where each value lives: profile_preferences (display, quiet hours, calendar, Luna context, the revision), profiles (year, water, tenure, language) and notification_prefs. A household that has never saved settings gets 0021's defaults at revision 1, written as its row on this first read, so the revision it is shown is one a save can compare against. unresolvedOperations is this household's pending settings operations (Ruling S1). Identity is the session token only; a profile_id in the query or a header is ignored.",
+        "parameters": [
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime on every request when a home context is selected (runtime.ts:132). Accepted and IGNORED: settings belong to the household, and the home group reads the household's current home. A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The snapshot. The client discards it whole if validSettingsSnapshot fails, so every field is always present.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The household has no profile row (review N1), so it has no settings: not_found, not retryable, and nothing was written.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The code and message of the failure are logged with the request id (never its details or hint, which can quote a refused row); nothing of it is returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage (auth_unavailable, with Retry-After), or migration 0021 or 0017 not applied (feature_unavailable, not retryable). Before 0021 the surface is unavailable rather than guessing the three-state tenure from renter_mode (Ruling S10).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "settingsSave",
+        "x-halo-operation": "settings.save",
+        "summary": "Save one settings group against the revision the client was shown",
+        "description": "One call to public.save_settings (0021, Rulings S11, S12 and S15): the revision check and every table the group writes, in one transaction, with the home details saved through the 0016 home functions, and this operation's own ledger row settled succeeded in the same transaction. Of two saves holding one revision exactly one applies. Within the group a field is written only when it differs from what the client was shown, and the revision advances exactly once per applied save that changed a value. Every other writer of a snapshot value (PUT /api/notifications, PUT /api/household, PATCH /api/profile, POST /api/onboard, PATCH /api/home-contexts/{id}) advances the revision through 0021's triggers, so a stale save here conflicts instead of reverting it. Idempotency is the operation ledger (domain settings, kind settings.save); the precondition is decided inside the claimed operation, so a replay of a lost success returns that success. 0021 and the profile row are proved before the id is claimed, so a 503 or a 404 has written nothing.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "The client's own operation id, sent by the runtime on every mutation (runtime.ts:134), the same UUID as the body's operationId. Optional here; when sent it must equal operationId (case-insensitive), else a 422 idempotency_key_mismatch. The id lives in the body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "The revision the client was shown (runtime.ts:133), a positive integer, also accepted as an entity tag (\"4\" or W/\"4\"). Missing or malformed is a 422 precondition_required on field If-Match. The revision a save returns is accepted as the next If-Match.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(W/)?\"?[0-9]{1,15}\"?$"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime on every request when a home context is selected (runtime.ts:132). Accepted and IGNORED: the home group saves through the household's current home, decided in the database. A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A settings receipt: succeeded with the full snapshot, pending or unknown for a replay of unsettled work, or failed (the first call of a save the reaper had already settled; nothing was written, and the client keeps the draft).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unreadable body (bad_request): not JSON, or not an object. Nothing is read or written.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The household has no profile row (review N1): not_found, decided before the operation id is claimed, so nothing is written or claimed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A terminal refusal, with reason: stale_revision (If-Match is not the stored revision; revision is the current one, and nothing was written), home_changed (the household's home changed under the save; the whole save was rolled back), operation_mismatch (this operation id was already used with a different body, or by another household), or, on a REPLAY of an id whose save is over without a receipt, operation_failed (it threw in process) or operation_abandoned (the ledger's reaper settled it because it never finished). The first call of a reaped save is not a 409 but a 200 failed receipt, so the client keeps the draft.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 8192 bytes (payload_too_large)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed with field_errors, before anything is read or written: a missing or malformed If-Match (precondition_required), an operationId that is not a UUID, an Idempotency-Key that differs from it, an unknown or unwritable group (privacy and about are nothing_to_save), a key the group may not carry, or a value outside what the client accepts (an unknown option, a year outside 1700 to this year, a time that is not HH:MM, equal quiet times while quiet hours are on, a zone Intl or 0021 refuses).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The code and message of the failure are logged with the request id (never its details or hint, which can quote a refused row); nothing of it is returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage (auth_unavailable, with Retry-After), or migration 0021 or 0017 not applied (feature_unavailable, not retryable), decided before the operation id is claimed, so nothing was changed; should save_settings alone be missing (0021 half applied), the same 503 after the claim, recorded as failed with nothing changed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts": {
+      "get": {
+        "operationId": "alertsRead",
+        "x-halo-operation": "alerts.read",
+        "summary": "Read the alerts inbox, legacy list included",
+        "description": "The legacy body (count, unread, truncated, alerts) with the contract inbox added (items, unresolvedOperations). This route never answers 503 for a migration: before 0021 or 0017 it serves the legacy keys alone (Ruling S10). Reading never marks anything read (Ruling S6). The legacy POST on this path is not documented: it is not revision-aware, nothing in production calls it, and it retires with StageApp.",
+        "responses": {
+          "200": {
+            "description": "The legacy list, plus items and unresolvedOperations once 0021 and 0017 are applied.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsRead"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The code and message of the failure are logged with the request id (never its details or hint, which can quote a refused row); nothing of it is returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage only (auth_unavailable, with Retry-After). Never for a missing migration.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/state": {
+      "post": {
+        "operationId": "alertsUpdate",
+        "x-halo-operation": "alerts.update",
+        "summary": "Mark alerts read, dismiss them, or undo a dismissal, at the revisions the client holds",
+        "description": "All or nothing: one selected row that is stale, missing or another household's refuses the whole selection with the same 409, so the answer cannot reveal whether an alert exists. Every selected row advances its revision. Idempotency is the operation ledger (domain alerts, kind alerts.update), claimed before anything is read, and the selection is order-free in the ledger input. A refusal is recorded as failed with its reason, so GET /api/operations reports it truthfully. 0021 is proved before the id is claimed.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "The client's own operation id, sent by the runtime on every mutation (runtime.ts:134), the same UUID as the body's operationId. Optional here; when sent it must equal operationId (case-insensitive), else a 400 idempotency_key_mismatch.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertStateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An alerts receipt: succeeded with the whole inbox, or pending or unknown for a replay of unsettled work.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unreadable body (bad_request) or a field that failed a rule (validation_failed): an unknown key at any level, an operationId that is not a UUID or differs from Idempotency-Key, an empty selection or one over 100 rows, a row id that is not a UUID or is named twice, a revision that is not a whole number of at least 1, or a patch with neither read nor dismissed. Nothing is claimed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A terminal refusal, on the first call or a replay, with reason: stale_selection (a selected row is stale, missing or not this household's; nothing changed), operation_mismatch (this operation id was already used with a different selection or patch, or by another household), operation_failed (the attempt threw in process), operation_abandoned (the ledger's reaper settled it because it never finished) or operation_cancelled (the ledger holds it as cancelled, which no alerts writer records).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 16384 bytes (payload_too_large)",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The code and message of the failure are logged with the request id (never its details or hint, which can quote a refused row); nothing of it is returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage (auth_unavailable, with Retry-After), or migration 0021 or 0017 not applied (feature_unavailable, not retryable), decided before the operation id is claimed, so nothing was changed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations": {
+      "get": {
+        "operationId": "operationsRead",
+        "x-halo-operation": "operations.read",
+        "summary": "What happened to a settings or alerts operation whose answer the client lost",
+        "description": "Documented here for the settings and alerts domains only, which is how both clients reconcile a parked operation (ProductionPreferences.tsx:19, ProductionAlerts.tsx:19). A stale pending row is reaped to failed (reason abandoned) as it is read. The owner is the session token; another household's id is a plain 404.",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "query",
+            "required": true,
+            "description": "The parked operation id, a UUID. Anything else is a 400 naming operationId.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "description": "settings or alerts for the operations documented here (every other owned domain is accepted and documented elsewhere; recovery is a 400).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "settings",
+                "alerts"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The operation's canonical status with its stored receipt, and on succeeded the live unresolved list of its domain without itself (Ruling S16).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed naming operationId or domain.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "This household has no such operation in this domain (not_found). Different from failed: never recorded is not the same as did not happen.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error. The code and message of the failure are logged with the request id (never its details or hint, which can quote a refused row); nothing of it is returned.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A retryable auth outage (auth_unavailable, with Retry-After), or migration 0017 not applied (feature_unavailable, not retryable).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other 503 here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence. Strict here, because a field that leaked a database message or another household's id would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "SettingsConflict": {
+        "description": "A 409 from PATCH /api/settings. code is always conflict and retryable false; the client maps any 409 to a conflict and re-reads (runtime.ts:144, ProductionPreferences.tsx:18). revision is present exactly when the reason is stale_revision.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "const": "conflict"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale_revision",
+              "home_changed",
+              "operation_mismatch",
+              "operation_failed",
+              "operation_abandoned"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The stored revision, the one to send next."
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "reason": {
+              "const": "stale_revision"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "revision"
+          ]
+        },
+        "else": {
+          "not": {
+            "required": [
+              "revision"
+            ]
+          }
+        }
+      },
+      "AlertsConflict": {
+        "description": "A 409 from POST /api/alerts/state. code is always conflict and retryable false; the client maps it to a conflict and the person reloads. Revisions travel in the selection, so no revision is ever returned here.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "const": "conflict"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale_selection",
+              "operation_mismatch",
+              "operation_failed",
+              "operation_abandoned",
+              "operation_cancelled"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "UnresolvedOperations": {
+        "description": "A LOCK, not a log (Ruling S1): this household's unsettled operations in this domain, oldest first, from the ledger and nothing else, after abandoned ones are reaped to failed. The client parks the first id as unknown and makes the whole surface read-only until it is reconciled, so a direct answer to an operation never lists that operation itself.",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "uniqueItems": true
+      },
+      "TimeZone": {
+        "description": "An IANA zone. The server checks it the way the client does (new Intl.DateTimeFormat('en', {timeZone})) and also against 0021's column shape, which this pattern is; Intl rules are not JSON Schema.",
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_+-]{0,39}(/[A-Za-z0-9_+-]{1,40}){0,2}$"
+      },
+      "Clock": {
+        "description": "24-hour HH:MM (preferences-service.ts:10).",
+        "type": "string",
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+      },
+      "SettingsValues": {
+        "type": "object",
+        "properties": {
+          "home": {
+            "type": "object",
+            "description": "year is '' when unanswered. An unanswered water source reads as other, and an unanswered tenure reads as renter while profiles.renter_mode is true and as other otherwise, never as owner (Rulings S8 and S13).",
+            "properties": {
+              "year": {
+                "type": "string",
+                "pattern": "^([0-9]{4})?$"
+              },
+              "water": {
+                "type": "string",
+                "enum": [
+                  "utility",
+                  "well",
+                  "spring",
+                  "other"
+                ]
+              },
+              "tenure": {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "renter",
+                  "other"
+                ]
+              }
+            },
+            "required": [
+              "year",
+              "water",
+              "tenure"
+            ],
+            "additionalProperties": false
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "air_quality_change": {
+                "type": "boolean"
+              },
+              "weather_advisory": {
+                "type": "boolean"
+              },
+              "new_water_results": {
+                "type": "boolean"
+              },
+              "radon_season": {
+                "type": "boolean"
+              },
+              "season_summary": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "air_quality_change",
+              "weather_advisory",
+              "new_water_results",
+              "radon_season",
+              "season_summary"
+            ],
+            "additionalProperties": false
+          },
+          "quiet": {
+            "type": "object",
+            "description": "from and to are well formed even while quiet hours are off (a remembered draft); they may be equal only then.",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "from": {
+                "$ref": "#/components/schemas/Clock"
+              },
+              "to": {
+                "$ref": "#/components/schemas/Clock"
+              },
+              "zone": {
+                "$ref": "#/components/schemas/TimeZone"
+              }
+            },
+            "required": [
+              "enabled",
+              "from",
+              "to",
+              "zone"
+            ],
+            "additionalProperties": false
+          },
+          "luna": {
+            "type": "object",
+            "description": "Whether Luna may use household context. Off by default (Ruling S9, Vibhav's open decision).",
+            "properties": {
+              "tasks": {
+                "type": "boolean"
+              },
+              "home": {
+                "type": "boolean"
+              },
+              "projects": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "tasks",
+              "home",
+              "projects"
+            ],
+            "additionalProperties": false
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "es"
+            ]
+          }
+        },
+        "required": [
+          "home",
+          "notifications",
+          "quiet",
+          "luna",
+          "language"
+        ],
+        "additionalProperties": false
+      },
+      "SettingsDisplay": {
+        "type": "object",
+        "description": "palette is left out, never null, when none is stored: the client rejects null.",
+        "properties": {
+          "appearance": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ]
+          },
+          "ambient": {
+            "type": "boolean"
+          },
+          "scale": {
+            "type": "string",
+            "enum": [
+              "100",
+              "115",
+              "130",
+              "150"
+            ]
+          },
+          "motion": {
+            "type": "string",
+            "enum": [
+              "system",
+              "full",
+              "reduce"
+            ]
+          },
+          "contrast": {
+            "type": "boolean"
+          },
+          "palette": {
+            "type": "string",
+            "enum": [
+              "ocean",
+              "forest",
+              "iris"
+            ]
+          }
+        },
+        "required": [
+          "appearance",
+          "ambient",
+          "scale",
+          "motion",
+          "contrast"
+        ],
+        "additionalProperties": false
+      },
+      "SettingsCalendar": {
+        "type": "object",
+        "description": "linked is false by default: nothing is linked, and true would be a false claim (Ruling S9).",
+        "properties": {
+          "zone": {
+            "$ref": "#/components/schemas/TimeZone"
+          },
+          "streak": {
+            "type": "boolean"
+          },
+          "linked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "zone",
+          "streak",
+          "linked"
+        ],
+        "additionalProperties": false
+      },
+      "SettingsSnapshot": {
+        "description": "settings.read, and the snapshot inside a succeeded settings.save receipt. Mirrors validSettingsSnapshot (preferences-service.ts:6-11), which discards the whole snapshot on one wrong field. revision is the aggregate settings revision (Ruling S4), at least 1: a household that never saved gets 0021's defaults at revision 1, stored on that first read. Bare: no top-level data key (the runtime would unwrap it, runtime.ts:149).",
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "values": {
+            "$ref": "#/components/schemas/SettingsValues"
+          },
+          "display": {
+            "$ref": "#/components/schemas/SettingsDisplay"
+          },
+          "calendar": {
+            "$ref": "#/components/schemas/SettingsCalendar"
+          },
+          "unresolvedOperations": {
+            "$ref": "#/components/schemas/UnresolvedOperations"
+          }
+        },
+        "required": [
+          "revision",
+          "values",
+          "display",
+          "calendar",
+          "unresolvedOperations"
+        ],
+        "additionalProperties": false
+      },
+      "SettingsSave": {
+        "description": "The settings.save body as the workspace builds it (SettingsWorkspace.tsx:88-90): the whole values from the last snapshot with one group's slice edited, household for home, display and calendar for display, and the operation id. Only the named group's slice is read; the other groups in values are never written back. privacy and about are names the client type admits but never sends, and are a 422 nothing_to_save. A key the group may not carry is a 422 unknown_field.",
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "enum": [
+              "home",
+              "notifications",
+              "display",
+              "luna"
+            ]
+          },
+          "values": {
+            "type": "object"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "household": {
+            "type": "object",
+            "properties": {
+              "has_toddler": {
+                "type": "boolean"
+              },
+              "has_child": {
+                "type": "boolean"
+              },
+              "has_teen": {
+                "type": "boolean"
+              },
+              "has_adult": {
+                "type": "boolean"
+              },
+              "has_senior": {
+                "type": "boolean"
+              },
+              "has_pregnant": {
+                "type": "boolean"
+              },
+              "has_respiratory": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "has_toddler",
+              "has_child",
+              "has_teen",
+              "has_adult",
+              "has_senior",
+              "has_pregnant",
+              "has_respiratory"
+            ],
+            "additionalProperties": false
+          },
+          "display": {
+            "type": "object",
+            "description": "palette optional: left out keeps the stored one.",
+            "properties": {
+              "appearance": {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "light",
+                  "dark"
+                ]
+              },
+              "ambient": {
+                "type": "boolean"
+              },
+              "scale": {
+                "type": "string",
+                "enum": [
+                  "100",
+                  "115",
+                  "130",
+                  "150"
+                ]
+              },
+              "motion": {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "full",
+                  "reduce"
+                ]
+              },
+              "contrast": {
+                "type": "boolean"
+              },
+              "palette": {
+                "type": "string",
+                "enum": [
+                  "ocean",
+                  "forest",
+                  "iris"
+                ]
+              }
+            },
+            "required": [
+              "appearance",
+              "ambient",
+              "scale",
+              "motion",
+              "contrast"
+            ],
+            "additionalProperties": false
+          },
+          "calendar": {
+            "$ref": "#/components/schemas/SettingsCalendar"
+          }
+        },
+        "required": [
+          "group",
+          "values",
+          "operationId"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "group": {
+                  "const": "home"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "display": false,
+                "calendar": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "group": {
+                  "enum": [
+                    "notifications",
+                    "luna"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "household": false,
+                "display": false,
+                "calendar": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "group": {
+                  "const": "display"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "household": false
+              }
+            }
+          }
+        ]
+      },
+      "SettingsReceipt": {
+        "description": "The settings.save answer (preferences-service.ts:3). succeeded carries the full snapshot at the new revision, which is the next If-Match. A save of the values already stored applies without advancing the revision (review finding C). The direct answer's snapshot.unresolvedOperations is the live list without this operation; the receipt the ledger keeps, which a replay serves unchanged, carries [] there (Ruling S14). pending and unknown answer a replay of work not yet settled: the client parks the id and reconciles through GET /api/operations. failed answers the first call of a save whose ledger row the reaper had already settled as abandoned, so nothing was written; the client says \"The save was not applied. Your draft is still here.\" and keeps the draft. cancelled is the same shape for a replayed row the ledger holds as cancelled, which no settings writer records.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "const": "succeeded"
+              },
+              "snapshot": {
+                "$ref": "#/components/schemas/SettingsSnapshot"
+              }
+            },
+            "required": [
+              "operationId",
+              "status",
+              "snapshot"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "enum": [
+                  "pending",
+                  "unknown",
+                  "failed",
+                  "cancelled"
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "AlertTarget": {
+        "type": "object",
+        "description": "Where opening the alert navigates. Opening or following it never marks it read (Ruling S6). today admits no destination; learn is passed through only when stored, and no current writer stores one.",
+        "properties": {
+          "tab": {
+            "type": "string",
+            "enum": [
+              "home",
+              "plan",
+              "today"
+            ]
+          },
+          "destination": {
+            "type": "string"
+          },
+          "learn": {
+            "type": "string",
+            "enum": [
+              "air",
+              "uv",
+              "pollen",
+              "mold",
+              "pfas",
+              "radon",
+              "lead"
+            ]
+          }
+        },
+        "required": [
+          "tab"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "tab": {
+                  "const": "home"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "destination": {
+                  "enum": [
+                    "tests",
+                    "maintenance",
+                    "food",
+                    "summary"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tab": {
+                  "const": "plan"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "destination": {
+                  "enum": [
+                    "journal",
+                    "patterns",
+                    "recap",
+                    "outdoors",
+                    "reminders"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tab": {
+                  "const": "today"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "destination": false
+              }
+            }
+          }
+        ]
+      },
+      "AlertItem": {
+        "type": "object",
+        "description": "One alert as validAlertSnapshot (alerts-service.ts:8-11) requires it. category and target come from the stored columns when valid, else from the per-type mapping in lib/alertsInbox.js; a type with no mapping is kind app, category Conditions, tab today. date is the household's calendar day (America/New_York). title and body carry no U+2014. The client's optional source is never sent.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Home",
+              "Your week",
+              "Conditions"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "dismissed": {
+            "type": "boolean"
+          },
+          "target": {
+            "$ref": "#/components/schemas/AlertTarget"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "air_quality_change",
+              "weather_advisory",
+              "new_water_results",
+              "radon_season",
+              "season_summary",
+              "app"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "title",
+          "body",
+          "category",
+          "date",
+          "read",
+          "dismissed",
+          "target",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "AlertItems": {
+        "description": "The contract inbox, newest first, dismissed alerts INCLUDED (the client filters them itself, and Undo re-selects a dismissed row). Ids are unique, which the client also requires and JSON Schema cannot say for objects. A read holds the newest 100; a receipt also holds every row it changed, whatever its age.",
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AlertItem"
+        }
+      },
+      "LegacyAlert": {
+        "description": "A stored public.alerts row exactly as the legacy list has always served it (select *), for StageSession (stage-api.ts:148). Not a contract row: the production client reads items instead.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "fired_at": {
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "dismissed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "message",
+          "fired_at",
+          "read"
+        ]
+      },
+      "AlertsRead": {
+        "description": "alerts.read: the legacy body with two keys ADDED (Task 2b). count, unread, truncated and alerts are the legacy list (dismissed left out, newest 100, an exact unread count) and are always present. items and unresolvedOperations are the contract inbox and come together. Before 0021, or before 0017, they are left out together and the legacy keys are still served, never a 503 (Ruling S10); the client then says the alerts could not be verified, which is true.",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "unread": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegacyAlert"
+            },
+            "maxItems": 100
+          },
+          "items": {
+            "$ref": "#/components/schemas/AlertItems"
+          },
+          "unresolvedOperations": {
+            "$ref": "#/components/schemas/UnresolvedOperations"
+          }
+        },
+        "required": [
+          "count",
+          "unread",
+          "truncated",
+          "alerts"
+        ],
+        "dependentRequired": {
+          "items": [
+            "unresolvedOperations"
+          ],
+          "unresolvedOperations": [
+            "items"
+          ]
+        },
+        "additionalProperties": false
+      },
+      "AlertStateRequest": {
+        "description": "alerts.update (ProductionAlerts.tsx:17). selection holds 1 to 100 rows, each exactly {id, revision} with no id twice (a 400 duplicate_id; JSON Schema cannot say it). patch holds read, dismissed or both; the client only sends {read:true}, {dismissed:true} and {dismissed:false} (Undo is an ordinary second change). There is no If-Match: the revisions travel in the selection.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selection": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "revision"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "patch": {
+            "type": "object",
+            "properties": {
+              "read": {
+                "type": "boolean"
+              },
+              "dismissed": {
+                "type": "boolean"
+              }
+            },
+            "minProperties": 1,
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "operationId",
+          "selection",
+          "patch"
+        ],
+        "additionalProperties": false
+      },
+      "AlertReceipt": {
+        "description": "The alerts.update answer (alerts-service.ts:4). succeeded carries the WHOLE inbox, every selected row at a strictly higher revision with the patched fields equal to the patch (alertReceiptCovers), all or nothing. The direct answer's unresolvedOperations is the live list without this operation; the receipt the ledger keeps, which a replay serves unchanged, carries [] (Ruling S14). pending and unknown answer a replay of work not yet settled. A refusal is a 409, never a failed receipt.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "const": "succeeded"
+              },
+              "items": {
+                "$ref": "#/components/schemas/AlertItems"
+              },
+              "unresolvedOperations": {
+                "$ref": "#/components/schemas/UnresolvedOperations"
+              }
+            },
+            "required": [
+              "operationId",
+              "status",
+              "items",
+              "unresolvedOperations"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "enum": [
+                  "pending",
+                  "unknown"
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "OperationRecord": {
+        "description": "operations.read for a settings or alerts operation: the stored receipt with the canonical fields written after it, so the computed status always wins. On succeeded the live list of that domain, without the operation itself, replaces the stored [] (Ruling S16): at snapshot.unresolvedOperations for settings (and account), at the top level for alerts. A settled operation is never listed live, so two overlapping operations cannot park each other, and work still pending stays locked. failed carries reason abandoned when the ledger reaped the row, stale_selection when alerts.update refused the selection, and nothing when the attempt threw in process. pending is work inside its 120 s window; unknown is a stale row the reaper could not settle. Other domains are documented by their own packages and are outside this schema.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "settings",
+              "alerts"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "settings.save",
+              "alerts.update"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "cancelled",
+              "pending",
+              "unknown"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SettingsSnapshot"
+          },
+          "items": {
+            "$ref": "#/components/schemas/AlertItems"
+          },
+          "unresolvedOperations": {
+            "$ref": "#/components/schemas/UnresolvedOperations"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "abandoned",
+              "stale_selection"
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "domain": {
+                  "const": "settings"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "kind": {
+                  "const": "settings.save"
+                },
+                "items": false,
+                "unresolvedOperations": false,
+                "reason": {
+                  "const": "abandoned"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "kind": {
+                  "const": "alerts.update"
+                },
+                "snapshot": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "succeeded"
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "reason"
+                ]
+              },
+              "if": {
+                "properties": {
+                  "domain": {
+                    "const": "settings"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "snapshot"
+                ]
+              },
+              "else": {
+                "required": [
+                  "items",
+                  "unresolvedOperations"
+                ]
+              }
+            },
+            "else": {
+              "properties": {
+                "snapshot": false,
+                "items": false,
+                "unresolvedOperations": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "not": {
+                    "const": "failed"
+                  }
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

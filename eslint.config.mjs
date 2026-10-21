@@ -10,13 +10,21 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".next-stage-test/**",
+    ".next-stage-test-*/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
     // Immutable design reference contains original, vendored preview libraries.
     "docs/onboarding/approved/**",
+    "docs/foundation/approved/**",
     "playwright-report/**",
     "test-results/**",
+    // Agent worktrees under .claude/worktrees/ are full checkouts of this same
+    // repository, so without this every file is linted twice and a concurrent
+    // agent's in-progress work is reported as errors in this one's gate.
+    ".claude/**",
+    "test-results-*/**",
   ]),
 ]);
 

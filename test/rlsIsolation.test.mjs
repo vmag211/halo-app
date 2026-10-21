@@ -24,6 +24,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDb } from './db/pgliteHarness.mjs';
 import { OWNED_TABLES as ROUTE_HARNESS_OWNED_TABLES } from './helpers/tables.mjs';
+import { OWNED_ROW } from './db/ownedRows.mjs';
 
 /** Household tables: table -> the column holding the owner's auth user id, as its policies compare it. */
 const OWNED_TABLES = {
@@ -36,6 +37,22 @@ const OWNED_TABLES = {
   notification_prefs: 'profile_id', // 0010
   push_subscriptions: 'profile_id', // 0010
   home_contexts: 'profile_id',      // 0016
+  operations: 'profile_id',         // 0017 (nullable only for the unauthenticated 'recovery' domain)
+  recovery_challenges: 'profile_id', // 0018
+  luna_conversations: 'profile_id', // 0020
+  luna_turns: 'profile_id',         // 0020
+  luna_runs: 'profile_id',          // 0020
+  profile_preferences: 'profile_id', // 0021
+  explore_areas: 'profile_id',      // 0022
+  household_actions: 'profile_id',  // 0023
+  household_action_preferences: 'profile_id', // 0023
+  household_action_state: 'profile_id', // 0023
+  daily_maxima: 'profile_id',       // 0025 (its home link cascades too)
+  household_workspace_records: 'profile_id', // 0026
+  household_attachments: 'profile_id', // 0028
+  household_summaries: 'profile_id', // 0029
+  household_project_generations: 'profile_id', // 0030
+  outreach_drafts: 'profile_id',    // 0031
 };
 
 /**
@@ -56,7 +73,51 @@ const OWNER_DIRECT_ACCESS = {
   notification_prefs: ['select'], // 0010 policies; 0015 revokes insert, update, delete
   push_subscriptions: ['select'], // 0010: written with the service role only
   home_contexts: ['select'],      // 0016: written through its two service-role functions only; anon may not even select
+  operations: [],                 // 0017: no policy at all. Receipts are read back only through GET /api/operations, which uses the service role.
+  recovery_challenges: [],        // 0018: no policy at all. The caller is not signed in while a challenge is live, and the owner has no reason to read it either: status comes from POST /api/recovery/status, which checks the client nonce first.
+  luna_conversations: [],         // 0020: no policy at all. A conversation is read back only through the Luna routes, which use the service role.
+  luna_turns: [],                 // 0020: no policy at all. A turn is free text a person typed, so the service role is the only reader.
+  luna_runs: [],                  // 0020: no policy at all. A run's status is reported by GET /api/luna/runs/status, never read from the browser.
+  profile_preferences: [],        // 0021: no policy at all. The display, quiet-hours, calendar and Luna-context values come back through GET /api/settings, which reads them with the service role.
+  explore_areas: [],              // 0022: no policy at all. The saved discovery area comes back through GET /api/explore/area, which reads it with the service role.
+  household_actions: [],          // 0023: no policy at all. A task is free text a person typed; My Week reads it through read_household_actions with the service role, and writes it only through commit_household_actions.
+  household_action_preferences: [], // 0023: no policy at all. Read and written only inside the two 0023 functions, called by the service role.
+  household_action_state: [],     // 0023: no policy at all. The commit version is internal and never leaves the server.
+  daily_maxima: [],               // 0025: no policy at all. Written only through record_daily_maxima and read only by GET /api/evidence, both with the service role.
+  household_workspace_records: [], // 0026: no policy at all. Free text a person typed; read and written only through the 0026 functions, which only the service role may execute.
+  household_attachments: [],      // 0028: no policy at all. Private file records; read and written only through the 0028 functions, which only the service role may execute.
+  household_summaries: [],        // 0029: no policy at all. Saved private reports; read and written only through the 0029 functions, which only the service role may execute.
+  household_project_generations: [], // 0030: no policy at all. Saved idea sets with the typed interest; read and written only through the 0030 functions, which only the service role may execute.
+  outreach_drafts: [],            // 0031: no policy at all. A prepared copy a person wrote; read and written only through the 0031 functions, which only the service role may execute.
 };
+
+/**
+ * Owned tables that deliberately carry NO policy, so not even their owner can
+ * reach them directly. This is stricter than a select-own policy, not weaker:
+ * the only reader is a route using the service role. A table may be listed here
+ * only with the migration that makes it service-only, and the invariant below
+ * still proves it has row level security on, zero policies and zero privileges
+ * for anon and authenticated. Anything not listed must have an auth.uid()
+ * scoped policy as before.
+ */
+const SERVICE_ONLY_OWNED = new Set([
+  'operations', // 0017: receipts are replayed through GET /api/operations only
+  'recovery_challenges', // 0018: hashes of an unauthenticated ownership proof; the service role is the only reader
+  'luna_conversations', // 0020: served only by the Luna routes, which read it with the service role after verifying the token
+  'luna_turns', // 0020: free text a person typed and the answers Luna gave; nothing in the browser reads it directly
+  'luna_runs', // 0020: the answer is collected through GET /api/luna/runs/status, never from the table
+  'profile_preferences', // 0021: served only by GET/PATCH /api/settings, which read and write it with the service role after verifying the token
+  'explore_areas', // 0022: served only by GET/PATCH /api/explore/area, which read and write it with the service role after verifying the token
+  'household_actions', // 0023: free text a person typed; read and written only through the two 0023 functions, which only the service role may execute
+  'household_action_preferences', // 0023: the same two functions only
+  'household_action_state', // 0023: the internal commit version, never emitted
+  'daily_maxima', // 0025: dated values at a home's point; the recorder writes and GET /api/evidence reads them with the service role
+  'household_workspace_records', // 0026: the Homeguard workspace; read and written only through the 0026 functions, called by the service role
+  'household_attachments', // 0028: private file records; read and written only through the 0028 functions, called by the service role
+  'household_summaries', // 0029: saved household summaries; read and written only through the 0029 functions, called by the service role
+  'household_project_generations', // 0030: saved project idea sets; read and written only through the 0030 functions, called by the service role
+  'outreach_drafts', // 0031: outreach drafts; read and written only through the 0031 functions, called by the service role
+]);
 
 /** Tables that hold no personal data. 'read': anyone may read, nobody but the service role writes. 'none': service role only. */
 const PUBLIC_REFERENCE_TABLES = {
@@ -66,6 +127,24 @@ const PUBLIC_REFERENCE_TABLES = {
   assistant_corpus: 'read', // 0007: curated source passages
   water_snapshots: 'none',  // 0010: per-utility reading fingerprints, no policies
   map_layers: 'none',       // 0011: pre-built map layers, no policies
+  daily_maxima_recorder: 'none', // 0025: the recorder's one row (recording_from and counts), no policies
+  // 0027: staff access and audit records, not household data and not linked to profiles (B13).
+  // They hold an operator's account id and the reasons they typed, so no browser role may read them.
+  operator_roles: 'none',
+  source_ops_audit: 'none',
+  // 0028: storage object paths queued for deletion (B14 Ruling A9). A path
+  // holds a household id, so no browser role may read it; no owner column on
+  // purpose, so an account's deletion cascade cannot take the queue with it.
+  attachment_object_sweep: 'none',
+  // 0032: public participation listings a person writes by hand (B18). No
+  // household data, but served only through the routes, which serve only
+  // verified rows, so no browser role may read them directly.
+  participation_profiles: 'none',
+  participation_opportunities: 'none',
+  // 0033: public water copies and the import's runs (B19). Public data, but only the import writes
+  // it and only the server reads it, so no browser role may touch either table.
+  public_evidence_snapshots: 'none',
+  public_evidence_runs: 'none',
 };
 
 /** Every function in schema public. 'service_role': only the service role may execute it. 'trigger': runs only as a trigger. */
@@ -75,6 +154,82 @@ const PUBLIC_FUNCTIONS = {
   save_household: 'service_role',         // 0015: PUT /api/household in one transaction
   transition_home_context: 'service_role',        // 0016: onboarding saves the home (first, same or a move)
   update_home_context_attributes: 'service_role', // 0016: revisioned answers about the current home
+  save_settings: 'service_role',                  // 0021: PATCH /api/settings, one transaction per save
+  advance_settings_revision: 'trigger',           // 0021: a snapshot value changed, so the settings revision advances
+  reconcile_profile_tenure: 'trigger',            // 0021: tenure kept in step with renter_mode
+  guard_settled_settings_operation: 'trigger',    // 0021: a settled 'settings' operation keeps its status
+  read_household_actions: 'service_role',         // 0023: My Week's one snapshot
+  commit_household_actions: 'service_role',       // 0023: a task command and its ledger settle in one transaction
+  guard_settled_action_operation: 'trigger',      // 0023: a settled 'actions' operation keeps its status
+  privacy_schema_version: 'service_role',         // 0024: privacy.status's probe
+  privacy_fingerprint: 'service_role',            // 0024: what a privacy review binds
+  privacy_counts: 'service_role',                 // 0024: what a clear would remove, for inspect's count
+  clear_household_records: 'service_role',        // 0024: a privacy clear and its ledger settle in one transaction
+  purge_privacy_receipts: 'service_role',         // 0024: settled privacy receipts go after 24 hours
+  guard_settled_privacy_operation: 'trigger',     // 0024: a settled 'privacy' operation keeps its status
+  daily_maxima_schema_version: 'service_role',    // 0025: the evidence routes' probe
+  begin_daily_maxima_run: 'service_role',         // 0025: sets recording_from once
+  record_daily_maxima: 'service_role',            // 0025: one batch of daily maxima, pending rows only rewritten
+  finish_daily_maxima_run: 'service_role',        // 0025: the last run's time and counts
+  guard_final_daily_maximum: 'trigger',           // 0025: a recorded value or a final missing day is never rewritten
+  read_household_workspace: 'service_role',       // 0026: the workspace collections, one consistent read
+  commit_household_workspace: 'service_role',     // 0026: a workspace command and its ledger settle in one transaction
+  workspace_privacy_counts: 'service_role',       // 0026: what clear all removes from the workspace, for inspect's count
+  guard_settled_workspace_operation: 'trigger',   // 0026: a settled 'workspace' operation keeps its status
+  clear_workspace_with_privacy_clear: 'trigger',  // 0026: clear all removes the workspace in the clear's own transaction
+  guard_source_ops_audit: 'trigger',              // 0027: a source operations audit entry is never changed or removed
+  household_attachment_json: 'service_role',      // 0028: a file row as the client's HomeAttachment, called inside the 0028 functions
+  read_household_attachment: 'service_role',      // 0028: one file of a household, for inspect, download and remove
+  household_attachment_usage: 'service_role',     // 0028: a household's file count and bytes, the early limit answer
+  check_attachment_references: 'service_role',    // 0028: the files a workspace write names, the early answer
+  reserve_attachment_object: 'service_role',      // 0028: queues an upload's object path before its bytes are written
+  commit_household_attachment: 'service_role',    // 0028: an upload and its ledger settle in one transaction
+  remove_household_attachment: 'service_role',    // 0028: a removal and its ledger settle in one transaction
+  attachment_privacy_counts: 'service_role',      // 0028: what clear all removes from the files, for inspect's count
+  expire_staged_attachments: 'service_role',      // 0028: staged uploads never linked go after 24 hours
+  due_attachment_objects: 'service_role',         // 0028: queued objects the sweep may delete
+  forget_attachment_objects: 'service_role',      // 0028: drops queue entries the Storage API deleted
+  attachment_storage_state: 'service_role',       // 0028: the verification's view of the private bucket
+  guard_settled_attachments_operation: 'trigger', // 0028: a settled 'attachments' operation keeps its status
+  link_workspace_attachments: 'trigger',          // 0028: a workspace record names only its own ready files, and links them
+  delete_record_attachments: 'trigger',           // 0028: a deleted record's files go with it
+  queue_attachment_object: 'trigger',             // 0028: every deleted file queues its storage object
+  clear_attachments_with_privacy_clear: 'trigger', // 0028: clear all removes the files in the clear's own transaction
+  household_summary_json: 'service_role',         // 0029: a saved summary row as the client's SummarySnapshot, called inside the 0029 functions
+  read_household_summaries: 'service_role',       // 0029: the household's archive list
+  read_household_summary: 'service_role',         // 0029: one saved summary of a household
+  household_summary_usage: 'service_role',        // 0029: how many summaries a household has saved, the early limit answer
+  commit_household_summary: 'service_role',       // 0029: a summary and its ledger settle in one transaction
+  summary_privacy_counts: 'service_role',         // 0029: what clear all removes from the summaries, for inspect's count
+  guard_household_summary_update: 'trigger',      // 0029: a saved summary is never changed
+  guard_settled_summary_operation: 'trigger',     // 0029: a settled 'summary' operation keeps its status
+  clear_summaries_with_privacy_clear: 'trigger',  // 0029: clear all removes the summaries in the clear's own transaction
+  project_generation_json: 'service_role',        // 0030: a saved idea set as the routes answer it, called inside the 0030 functions
+  record_project_generation: 'service_role',      // 0030: one request's idea set, kept if its id is already there
+  read_project_generation: 'service_role',        // 0030: one saved idea set by its request id
+  read_current_project_generation: 'service_role', // 0030: the newest completed idea set
+  project_privacy_counts: 'service_role',         // 0030: what clear all removes from the idea sets, for inspect's count
+  clear_project_generations_with_privacy_clear: 'trigger', // 0030: clear all removes the idea sets in the clear's own transaction
+  outreach_draft_json: 'service_role',            // 0031: a draft row as the routes answer it, called inside the 0031 functions
+  read_outreach_drafts: 'service_role',           // 0031: a household's drafts, or one, for history, status and replays
+  save_outreach_draft: 'service_role',            // 0031: a prepare and its ledger settle in one transaction
+  outreach_privacy_counts: 'service_role',        // 0031: what clear all removes from the drafts, for inspect's count
+  guard_settled_outreach_operation: 'trigger',    // 0031: a settled 'outreach' operation keeps its status
+  clear_outreach_with_privacy_clear: 'trigger',   // 0031: clear all removes the drafts in the clear's own transaction
+  participation_text_ok: 'service_role',          // 0032: a CHECK constraint's shape check
+  participation_url_ok: 'service_role',           // 0032: a CHECK constraint's shape check
+  participation_list_ok: 'service_role',          // 0032: a CHECK constraint's shape check
+  participation_places_ok: 'service_role',        // 0032: a CHECK constraint's shape check
+  participation_steps_ok: 'service_role',         // 0032: a CHECK constraint's shape check
+  participation_sources_ok: 'service_role',       // 0032: a CHECK constraint's shape check
+  participation_listing_guard: 'trigger',         // 0032: revision, and a content change un-verifies
+  participation_opportunity_zone_check: 'trigger', // 0032: the venue zone and date agree
+  participation_opportunity_json: 'service_role', // 0032: an opportunity as the client's shape
+  participation_profile_json: 'service_role',     // 0032: a profile as the client's shape
+  read_participation_opportunities: 'service_role', // 0032: the servable opportunities for an area
+  read_participation_opportunity: 'service_role', // 0032: one verified opportunity by id
+  read_participation_profiles: 'service_role',    // 0032: the servable profiles for an area
+  record_public_evidence_run: 'service_role',     // 0033: one import run's copies and run rows, then the prune
 };
 
 const ALICE = 'a11ce000-0000-4000-8000-000000000001';
@@ -85,40 +240,36 @@ const DAVE = 'da5e0000-0000-4000-8000-000000000004';
 /** Who inserts "their own" new row: dave for profiles (he has none), carol for the rest (her profile exists). */
 const newcomerFor = (table) => (table === 'profiles' ? DAVE : CAROL);
 
-/** A valid row for each owned table, owned by `owner`; `n` varies unique keys (seeds use 0, attempts use 1). */
-const OWNED_ROW = {
-  profiles: (owner) => ({ id: owner, county: 'Test County' }),
-  daily_scores: (owner, n) => ({ profile_id: owner, date: `2026-09-1${n}`, aqi: 40 }),
-  home_risks: (owner) => ({ profile_id: owner }),
-  household_bands: (owner) => ({ profile_id: owner, has_child: true }),
-  symptom_logs: (owner, n) => ({ profile_id: owner, entry_date: `2026-09-1${n}`, symptoms: ['cough'] }),
-  alerts: (owner, n) => ({ profile_id: owner, type: 'air_quality', title: 'Air', message: 'Test alert', dedupe_key: `test-${n}` }),
-  notification_prefs: (owner) => ({ profile_id: owner }),
-  push_subscriptions: (owner, n) => ({
-    profile_id: owner,
-    endpoint: `https://fcm.googleapis.com/fcm/send/${owner}-${n}`,
-    p256dh: 'test-p256dh',
-    auth: 'test-auth',
-  }),
-  // Seeds are sequence 1 (current); an attempt is sequence 2, closed, so it never meets the one-current index.
-  home_contexts: (owner, n) => ({
-    profile_id: owner,
-    sequence: n + 1,
-    origin: n === 0 ? 'onboard' : 'move',
-    lat: 35.409,
-    lng: -80.58,
-    ...(n === 0 ? {} : { effective_to: '2026-09-15T00:00:00Z', closed_reason: 'moved' }),
-  }),
-};
-
 /** A valid row for each reference table; `n` varies the key (seeds use 0, attempts use 1). */
 const REFERENCE_ROW = {
   ucmr5_utilities: (n) => ({ pwsid: `NC999000${n}`, pws_name: 'Test Utility', status: 'measured', contaminants: {} }),
-  volunteer_orgs: (n) => ({ name: `Test Org ${n}`, description: 'Test', url: 'https://example.test' }),
+  // A fixed id, so the 0032 sample rows below can name their organization.
+  volunteer_orgs: (n) => ({ id: `b1800000-0000-4000-8000-00000000000${n}`, name: `Test Org ${n}`, description: 'Test', url: 'https://example.test' }),
+  participation_profiles: (n) => ({
+    id: `test-profile-${n}`, org_id: 'b1800000-0000-4000-8000-000000000000', title: 'Test', organizer: 'Test', interest: 'Cleanup',
+    area: 'Test', served_place_ids: ['us-state:NC'], mission: 'Test', work: 'Test', url: 'https://example.test', source_title: 'Test',
+    effort: 'Test', age: 'Test', cost: 'Test', access: 'Test', steps: [{ title: 'Test', text: 'Test' }], bring: 'Test', followup: 'Test',
+  }),
+  participation_opportunities: (n) => ({
+    id: `test-opportunity-${n}`, org_id: 'b1800000-0000-4000-8000-000000000000', organizer: 'Test', title: 'Test', interest: 'Cleanup',
+    artwork: 'cleanup', kind: 'rolling', time_label: 'Test', area: 'Test', served_place_ids: ['us-state:NC'], venue: 'Test',
+    url: 'https://example.test', summary: 'Test', work: ['Test'], duration: 'Test', cost: 'Test', age: 'Test', access: 'Test',
+    bring: 'Test', join_text: 'Test', safety: 'Test',
+  }),
   learn_content: (n) => ({ topic: `test-${n}`, locale: 'en', what_it_is: 'Test' }),
   assistant_corpus: () => ({ source_label: 'Test', source_url: 'https://example.test', retrieved: '2026-01-01', passage: 'Test' }),
   water_snapshots: (n) => ({ pwsid: `NC999000${n}`, fingerprint: 'test' }),
   map_layers: (n) => ({ layer: `test-${n}`, payload: {} }),
+  // One row only: an attempt (n = 1) is refused by privilege before the key is reached.
+  daily_maxima_recorder: (n) => ({ singleton: true, recording_from: `2026-09-0${n + 1}` }),
+  operator_roles: (n) => ({ profile_id: `b1300000-0000-4000-8000-00000000000${n}`, role: 'viewer', granted_by: 'test' }),
+  attachment_object_sweep: (n) => ({ object_path: `a77ac000-0000-4000-8000-00000000000${n}/a77ac000-0000-4000-8000-0000000000a${n}` }),
+  source_ops_audit: (n) => ({
+    operation_id: `b1300000-0000-4000-8000-0000000000a${n}`, actor_profile_id: 'b1300000-0000-4000-8000-000000000000', role: 'reviewer',
+    source_id: 'census-places', source_revision: 1, target: 'test', decision: 'approve', reason: 'A test reason.', outcome: 'refused', refusal: 'unsupported',
+  }),
+  public_evidence_snapshots: (n) => ({ source: 'usdm-drought', source_date: '2026-10-13', row_count: n + 1, content_sha256: 'a'.repeat(64), body: {} }),
+  public_evidence_runs: (n) => ({ source: 'usdm-drought', outcome: 'failed', reason: 'timeout', row_count: n }),
 };
 
 /**
@@ -136,12 +287,36 @@ const PROBE_COLUMN = {
   notification_prefs: 'air_quality_change',
   push_subscriptions: 'p256dh',
   home_contexts: 'water_source',
+  operations: 'request_hash',
+  recovery_challenges: 'attempts',
+  luna_conversations: 'revision',
+  luna_turns: 'body',
+  luna_runs: 'message',
+  profile_preferences: 'display_appearance',
+  explore_areas: 'label',
+  household_actions: 'title',
+  household_action_preferences: 'value',
+  household_action_state: 'version',
+  daily_maxima: 'value',
+  household_workspace_records: 'record',
+  household_attachments: 'name',
+  household_summaries: 'title',
+  household_project_generations: 'idea_set',
+  outreach_drafts: 'body',
+  attachment_object_sweep: 'due_at',
   ucmr5_utilities: 'pws_name',
   volunteer_orgs: 'description',
+  participation_profiles: 'mission',
+  participation_opportunities: 'summary',
   learn_content: 'what_it_is',
   assistant_corpus: 'passage',
   water_snapshots: 'fingerprint',
   map_layers: 'payload',
+  daily_maxima_recorder: 'last_run_at',
+  operator_roles: 'granted_by',
+  source_ops_audit: 'reason',
+  public_evidence_snapshots: 'row_count',
+  public_evidence_runs: 'reason',
 };
 
 const COMMANDS = ['select', 'insert', 'update', 'delete'];
@@ -345,6 +520,21 @@ test('there are no views or materialized views in public', async () => {
 test('every owned table has policies, and each one is scoped to the caller by auth.uid()', async () => {
   for (const table of Object.keys(OWNED_TABLES)) {
     const policies = await policiesOf(table);
+    if (SERVICE_ONLY_OWNED.has(table)) {
+      // Declared service-only: prove it really is closed, rather than skipping it.
+      assert.equal(policies.length, 0, `public.${table} is declared SERVICE_ONLY_OWNED but has ${policies.length} policies`);
+      for (const role of ['anon', 'authenticated']) {
+        const { rows: [grant] } = await db.query(
+          `select has_any_column_privilege($1, $2, 'SELECT')
+               or has_any_column_privilege($1, $2, 'INSERT')
+               or has_any_column_privilege($1, $2, 'UPDATE')
+               or has_table_privilege($1, $2, 'DELETE') as any_access`,
+          [role, `public.${table}`],
+        );
+        assert.equal(grant.any_access, false, `public.${table} is service-only but ${role} still holds a privilege on it`);
+      }
+      continue;
+    }
     assert.ok(policies.length > 0, `public.${table} has no policy referencing auth.uid(), so its owner cannot read it`);
     for (const policy of policies) {
       for (const expression of [policy.qual, policy.with_check].filter(Boolean)) {

@@ -1,0 +1,18 @@
+{
+  "operationId": "locationsSearch",
+  "status": 400,
+  "body": {
+    "error": "This field cannot be empty.",
+    "code": "validation_failed",
+    "message": "This field cannot be empty.",
+    "field_errors": [
+      {
+        "field": "query",
+        "code": "text_required",
+        "message": "This field cannot be empty."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b05-contract-0001"
+  }
+}

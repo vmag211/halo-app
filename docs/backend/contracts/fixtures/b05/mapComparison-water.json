@@ -1,0 +1,138 @@
+{
+  "operationId": "mapComparison",
+  "status": 200,
+  "body": {
+    "records": [
+      {
+        "id": "NC0000001",
+        "name": "Example Water A",
+        "kind": "Reported water result",
+        "scope": "Public water system",
+        "denominator": "One reported result per compound and system, not an annual average.",
+        "backgroundUrl": "https://www.epa.gov/dwucmr",
+        "coverageLabel": "Detection-only release. Complete testing coverage is unknown.",
+        "sourceVersion": null,
+        "sourceUrl": null,
+        "status": "available",
+        "coverage": "partial",
+        "values": [
+          {
+            "analyte": "PFOA",
+            "value": 1.2,
+            "unit": "ppt",
+            "observedAt": "2024-08-20",
+            "period": "2024-08-20",
+            "periodLabel": "2024-08-20",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "PFOS",
+            "value": 7.7,
+            "unit": "ppt",
+            "observedAt": "2024-08-20",
+            "period": "2024-08-20",
+            "periodLabel": "2024-08-20",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "PFHxS",
+            "value": 4,
+            "unit": "ppt",
+            "observedAt": "2024-08-20",
+            "period": "2024-08-20",
+            "periodLabel": "2024-08-20",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "PFNA",
+            "value": 3,
+            "unit": "ppt",
+            "observedAt": "2024-08-20",
+            "period": "2024-08-20",
+            "periodLabel": "2024-08-20",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "GenX",
+            "value": null,
+            "unit": "ppt",
+            "observedAt": null,
+            "period": null,
+            "periodLabel": "Not supplied",
+            "method": null,
+            "qualifier": "unknown"
+          }
+        ]
+      },
+      {
+        "id": "NC0000002",
+        "name": "Example Water B",
+        "kind": "Reported water result",
+        "scope": "Public water system",
+        "denominator": "One reported result per compound and system, not an annual average.",
+        "backgroundUrl": "https://www.epa.gov/dwucmr",
+        "coverageLabel": "Detection-only release. Complete testing coverage is unknown.",
+        "sourceVersion": null,
+        "sourceUrl": null,
+        "status": "available",
+        "coverage": "partial",
+        "values": [
+          {
+            "analyte": "PFOA",
+            "value": 2.1,
+            "unit": "ppt",
+            "observedAt": "2024-03-15",
+            "period": "2024-03-15",
+            "periodLabel": "2024-03-15",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "PFOS",
+            "value": null,
+            "unit": "ppt",
+            "observedAt": null,
+            "period": null,
+            "periodLabel": "Not supplied",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "PFHxS",
+            "value": null,
+            "unit": "ppt",
+            "observedAt": null,
+            "period": null,
+            "periodLabel": "Not supplied",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "PFNA",
+            "value": null,
+            "unit": "ppt",
+            "observedAt": null,
+            "period": null,
+            "periodLabel": "Not supplied",
+            "method": null,
+            "qualifier": "unknown"
+          },
+          {
+            "analyte": "GenX",
+            "value": null,
+            "unit": "ppt",
+            "observedAt": null,
+            "period": null,
+            "periodLabel": "Not supplied",
+            "method": null,
+            "qualifier": "unknown"
+          }
+        ]
+      }
+    ]
+  }
+}

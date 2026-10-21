@@ -1,0 +1,18 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 400,
+  "body": {
+    "error": "That place was not found. Search for it again.",
+    "code": "validation_failed",
+    "message": "That place was not found. Search for it again.",
+    "field_errors": [
+      {
+        "field": "place",
+        "code": "unknown_place",
+        "message": "That place was not found. Search for it again."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b05-contract-0001"
+  }
+}

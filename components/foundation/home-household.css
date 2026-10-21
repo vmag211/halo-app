@@ -1,0 +1,109 @@
+.halo-household-picker { margin-top:20px; padding:15px; border:1px solid var(--halo-border); border-radius:12px; }
+.halo-household-picker legend { padding-inline:7px; font-weight:600; }
+.halo-household-picker > div { display:flex; flex-wrap:wrap; gap:8px 18px; }
+.halo-household-picker label { display:flex; align-items:center; gap:8px; min-height:44px; }
+.halo-household-picker p { margin:0 0 12px; }
+.halo-home-household { min-width:0; margin-top:0; scroll-margin-top:85px; }
+.halo-home-house { position:relative; border:1px solid var(--halo-border); border-radius:var(--halo-panel-radius,16px); overflow:hidden; background:var(--halo-card); }
+.halo-home-guidance-heading { display:grid; grid-template-columns:minmax(0,1fr) minmax(125px,.8fr); gap:8px; align-items:center; padding:20px 20px 0; background:linear-gradient(130deg,color-mix(in srgb,var(--halo-primary) 10%,var(--halo-card)),var(--halo-card)); }
+.halo-f-app .halo-home-guidance-heading h2 { font:650 calc(1.35rem * var(--halo-text-scale))/1.2 var(--font-instrument),sans-serif; letter-spacing:-.025em; text-align:left; margin:7px 0 10px; }
+.halo-home-portrait-art { width:100%; height:auto; max-width:300px; justify-self:end; }
+.house-ground { fill:light-dark(#8bb6ac33,#7eaaa52e); }
+.house-garden { fill:light-dark(#87b7a3,#366e67); }
+.house-tree { fill:none; stroke:light-dark(#3c766b,#73a596); stroke-width:3; stroke-linecap:round; }
+.house-wall { fill:light-dark(#e4eef0,#b1c8cc); }
+.house-wall-side { fill:light-dark(#b4cdd2,#658f9b); }
+.house-roof { fill:light-dark(#316a72,#5a9fa3); }
+.house-roof-side { fill:light-dark(#548d91,#3d747e); }
+.house-chimney { fill:light-dark(#c2dadd,#83a9af); }
+.house-window { fill:light-dark(#4b8899,#265268); }
+.house-window-shine { fill:light-dark(#a1d1d5,#6ba3af); }
+.house-window-frame { fill:none; stroke:light-dark(#e4eef0,#b1c8cc); stroke-width:2; }
+.house-door { fill:light-dark(#3b7878,#3b6b74); }
+.house-handle { fill:#d5e7bd; }
+.house-step { fill:light-dark(#adc5c6,#77989f); }
+.house-planter { fill:light-dark(#789aa1,#527f89); }
+.house-plants { fill:light-dark(#60977d,#63a58b); }
+.halo-home-house-body { position:relative; padding:16px 20px 20px; }
+.halo-f-app .halo-home-house-instruction { text-align:left; color:var(--halo-secondary); font-size:calc(.8rem * var(--halo-text-scale)); line-height:1.5; margin:0; }
+.halo-home-residents { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; align-items:stretch; }
+.halo-home-person { position:relative; display:grid; grid-template-columns:40px minmax(0,1fr); align-items:center; gap:10px; color:var(--halo-ink); border:1px solid var(--halo-border); border-radius:12px; padding:14px 10px; min-height:100px; transition:background 180ms ease,border-color 180ms ease,transform 180ms ease; }
+.halo-home-person:hover,.halo-home-person:focus-visible { background:color-mix(in srgb,var(--halo-primary) 10%,var(--halo-card)); border-color:var(--halo-primary); transform:translateY(-2px); }
+.halo-home-person > span:not(.halo-home-figure) { font-size:calc(.78rem * var(--halo-text-scale)); line-height:1.4; font-weight:600; overflow-wrap:anywhere; padding-right:3px; }
+.halo-home-person .halo-home-figure { width:40px; height:60px; }
+.halo-home-person .halo-home-breathing { width:21px; height:21px; top:17px; right:-3px; }
+.halo-home-person .halo-home-breathing > span { width:14px; height:14px; }
+.halo-home-person-arrow { position:absolute; right:7px; top:7px; color:var(--halo-primary); width:12px; height:12px; }
+.halo-home-person .halo-home-backpack { width:15px; height:15px; bottom:16px; left:14px; }
+.halo-home-member-switch a > span:last-child { max-width:100px; text-align:center; }
+.halo-home-figure { position:relative; width:68px; height:86px; display:inline-flex; align-items:flex-end; justify-content:center; color:light-dark(#2e7382,#9dd8dc); }
+.halo-home-silhouette { width:100%; height:100%; display:block; background:currentColor; mask-repeat:no-repeat; mask-position:center bottom; mask-size:contain; -webkit-mask-repeat:no-repeat; -webkit-mask-position:center bottom; -webkit-mask-size:contain; }
+.halo-home-figure[data-member="pregnant"] { color:light-dark(#527b89,#b2d4e3); }
+.halo-home-figure[data-member="senior"] { color:light-dark(#5b727f,#c4d7e2); }
+.halo-home-figure[data-member="toddler"] { color:light-dark(#5d788b,#a8cadc); }
+.halo-home-figure[data-member="child"] .halo-home-silhouette { height:72%; width:80%; }
+.halo-home-figure[data-member="teen"] .halo-home-silhouette { height:87%; width:90%; }
+.halo-home-backpack { position:absolute; bottom:23px; left:24px; color:var(--ph-page); fill:currentColor; }
+.halo-home-breathing { position:absolute; top:27px; right:-1px; width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:var(--ph-page); border:1px solid currentColor; }
+.halo-home-breathing > span { width:19px; height:19px; background:currentColor; mask:url('/household-icons/breathing.svg') center/contain no-repeat; -webkit-mask:url('/household-icons/breathing.svg') center/contain no-repeat; }
+.halo-f-app .halo-home-house-caption { margin:12px 2px 0; text-align:left; font-size:calc(.73rem * var(--halo-text-scale)); line-height:1.6; color:var(--halo-secondary); }
+.halo-home-house-empty { text-align:center; padding:20px 8px; line-height:1.7; }
+.halo-home-house[data-count="1"] .halo-home-residents { grid-template-columns:minmax(0,250px); }
+.halo-home-member { display:grid; gap:27px; min-width:0; }
+.halo-home-member-hero { display:grid; justify-items:center; gap:16px; padding:18px 12px 30px; text-align:center; border-radius:120px 120px 30px 30px; background:radial-gradient(ellipse at 50% 30%,color-mix(in srgb,var(--halo-primary) 13%,var(--ph-page)),transparent 76%); }
+.halo-home-member-portrait { width:132px; height:132px; display:grid; place-items:center; border:1px solid color-mix(in srgb,var(--halo-primary) 28%,transparent); border-radius:48px; background:color-mix(in srgb,var(--halo-primary) 7%,var(--ph-page)); }
+.halo-home-member-portrait .halo-home-figure { width:89px; height:108px; }
+.halo-home-member-portrait .halo-home-breathing { width:36px; height:36px; top:35px; right:0; }
+.halo-home-member-portrait .halo-home-breathing > span { width:25px; height:25px; }
+.halo-f-app .halo-home-member-hero h2 { font-size:calc(1.8rem * var(--halo-text-scale)); margin:0; }
+.halo-home-member-hero p,.halo-home-member-focus p { color:var(--ph-muted); line-height:1.7; }
+.halo-home-member-tag { font-size:calc(.75rem * var(--halo-text-scale)); padding:7px 13px; border:1px solid var(--halo-border); border-radius:20px; color:var(--ph-muted); }
+.halo-home-member-focus { text-align:center; padding:21px 4px; border-block:1px solid var(--halo-border); display:grid; gap:13px; }
+.halo-f-app .halo-home-member-focus h2 { font-size:calc(1.12rem * var(--halo-text-scale)); line-height:1.6; }
+.halo-home-member-actions { display:grid; gap:27px; }
+.halo-home-member-action { padding:0 3px 24px; border-bottom:1px solid color-mix(in srgb,var(--factor-accent) 30%,transparent); }
+.halo-home-member-factor { display:flex; align-items:center; gap:10px; font-size:calc(.8rem * var(--halo-text-scale)); color:var(--ph-muted); }
+.halo-home-member-factor > svg { color:var(--factor-accent); flex-shrink:0; }
+.halo-home-step { margin-left:auto; font-family:var(--font-onest),sans-serif; opacity:.7; }
+.halo-f-app .halo-home-member-action h3 { font-size:calc(1.13rem * var(--halo-text-scale)); line-height:1.5; margin:18px 0 12px; text-align:center; }
+.halo-home-member-action > p,.halo-home-member-action details p { line-height:1.75; color:var(--ph-muted); }
+.halo-home-evidence { margin:20px 0 7px; display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:16px 14px; background:linear-gradient(90deg,color-mix(in srgb,var(--factor-accent) 8%,transparent),transparent); border-left:2px solid var(--factor-accent); }
+.halo-home-evidence > div { display:grid; gap:7px; flex:1 1 150px; }
+.halo-home-evidence span,.halo-home-evidence small { font-size:calc(.75rem * var(--halo-text-scale)); color:var(--ph-muted); }
+.halo-home-evidence strong { font:550 calc(.95rem * var(--halo-text-scale))/1.5 var(--font-onest),sans-serif; }
+.halo-home-member-action summary { cursor:pointer; min-height:48px; align-content:center; font-size:calc(.82rem * var(--halo-text-scale)); font-weight:500; line-height:1.6; padding-block:7px; }
+.halo-home-member-action a,.halo-home-member-back { display:inline-flex; align-items:center; min-height:44px; font-size:calc(.875rem * var(--halo-text-scale)); text-decoration:underline; text-underline-offset:4px; }
+.halo-home-member-action a { color:var(--factor-accent); }
+.halo-home-member-limits { display:grid; justify-items:center; gap:12px; text-align:center; padding:8px 4px; }
+.halo-home-member-limits > svg { color:var(--halo-primary); }
+.halo-f-app .halo-home-member-limits h2,.halo-f-app .halo-home-member-switch h2 { font-size:calc(1.15rem * var(--halo-text-scale)); line-height:1.5; }
+.halo-home-member-limits p { font-size:calc(.875rem * var(--halo-text-scale)); color:var(--ph-muted); line-height:1.7; }
+.halo-home-member-switch > div { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.halo-home-member-switch a { display:grid; justify-items:center; min-width:74px; min-height:90px; gap:8px; padding:10px 6px; border-radius:16px; font-size:calc(.8rem * var(--halo-text-scale)); }
+.halo-home-member-switch a:hover { background:var(--halo-tint); }
+.halo-home-member-switch .halo-home-figure { width:46px; height:55px; }
+.halo-home-member-switch .halo-home-breathing { width:22px; height:22px; top:18px; right:-3px; }
+.halo-home-member-switch .halo-home-breathing > span { width:15px; height:15px; }
+.halo-home-member-back { justify-self:center; text-align:center; }
+@media(min-width:700px) {
+ .halo-home-guidance-heading { grid-template-columns:minmax(0,1fr) 260px; padding:22px 28px 0; }
+ .halo-home-house-body { padding:12px 28px 28px; }
+ .halo-home-residents { grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); }
+ .halo-home-person { padding:18px 14px; min-height:108px; }
+}
+@media(max-width:699px) {
+ .halo-home-person { grid-template-columns:minmax(0,1fr); justify-items:center; gap:7px; padding:14px 8px 12px; text-align:center; }
+ .halo-home-person > span:not(.halo-home-figure) { padding-right:0; }
+ .halo-home-person .halo-home-figure { width:32px; height:52px; }
+}
+@media(max-width:350px) {
+ .halo-home-guidance-heading { padding:16px 14px 0; grid-template-columns:minmax(0,1fr) 108px; }
+ .halo-home-house-body { padding:14px; }
+}
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-residents { grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr)); }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-guidance-heading { grid-template-columns:minmax(0,1fr); }
+.halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-home-portrait-art { max-width:180px; }
+.halo-f-app[data-contrast="high"] .halo-home-figure { color:var(--halo-ink); }
+.halo-f-app[data-animate="false"] .halo-home-person { transition:none; }
+@media(prefers-reduced-motion:reduce) { .halo-home-person { transition:none; } }
+@media(forced-colors:active) { .halo-home-silhouette,.halo-home-breathing > span { background:LinkText; } .halo-home-portrait-art { display:none; } .halo-home-guidance-heading { grid-template-columns:minmax(0,1fr); } .halo-home-person { border-color:LinkText; } }

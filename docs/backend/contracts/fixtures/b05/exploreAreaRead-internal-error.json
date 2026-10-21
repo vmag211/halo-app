@@ -1,0 +1,12 @@
+{
+  "operationId": "exploreAreaRead",
+  "status": 500,
+  "body": {
+    "error": "Something went wrong on our side. Please try again.",
+    "code": "internal_error",
+    "message": "Something went wrong on our side. Please try again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b05-contract-0001"
+  }
+}

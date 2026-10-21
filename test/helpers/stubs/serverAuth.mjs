@@ -67,6 +67,45 @@ export async function requireUser(request) {
   };
 }
 
+/** Verbatim from lib/serverAuth.js. It talks to the provider over fetch, which the
+ * sandbox replaces per call, so the copy needs no change to run in a test. */
+export async function linkCallerEmail(request, email) {
+  const token = readBearerToken(request);
+  if (!token) return { ok: false, reason: 'no_session' };
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!base || !anonKey) return { ok: false, reason: 'unconfigured' };
+
+  let response;
+  try {
+    response = await fetch(`${base.replace(/\/+$/, '')}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { apikey: anonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    // The message could carry the host or the request; the reason is enough.
+    return { ok: false, reason: 'unreachable' };
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (response.ok) return { ok: true };
+
+  const code = String(payload?.error_code ?? payload?.code ?? '').toLowerCase();
+  const said = String(payload?.msg ?? payload?.message ?? payload?.error_description ?? payload?.error ?? '');
+  // The provider's unique address constraint is the only authority on whether an
+  // address belongs to another identity. Newer builds name it; older ones only
+  // say so in words, and that test is deliberately narrow, so an unrecognised
+  // refusal is reported as a refusal rather than quietly called a collision.
+  const taken =
+    code === 'email_exists' ||
+    code === 'user_already_exists' ||
+    ([400, 409, 422].includes(response.status) &&
+      /already (been )?registered|already exists|already in use|duplicate key/i.test(said));
+  if (taken) return { ok: false, reason: 'address_taken' };
+  return { ok: false, reason: 'rejected', detail: `${response.status} ${code || 'no_code'}` };
+}
+
 export function assertProfileMatches(claimedProfileId, userId) {
   if (claimedProfileId && claimedProfileId !== userId) {
     throw new AuthError(403, 'That profile does not belong to this session.');

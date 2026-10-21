@@ -191,3 +191,6 @@
     --halo-welcome-size: 48px;
   }
 }
+/* Public discovery is available without submitting an address or profile. */
+.halo-onboarding-public { max-width:430px; margin:0 auto; padding:16px 24px 28px; text-align:center; }
+.halo-onboarding-public a { display:inline-flex; align-items:center; min-height:44px; color:var(--halo-primary,#0f8d92); text-underline-offset:4px; }

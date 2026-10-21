@@ -1,0 +1,15 @@
+{
+  "operationId": "locationsSearch",
+  "status": 200,
+  "body": {
+    "candidates": [
+      {
+        "id": "us-place:3712000",
+        "place": "Charlotte",
+        "state": "NC",
+        "label": "Charlotte, NC",
+        "timezone": "America/New_York"
+      }
+    ]
+  }
+}

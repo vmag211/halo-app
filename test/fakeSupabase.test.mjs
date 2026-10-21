@@ -78,6 +78,15 @@ test('or and match combine conditions', async () => {
   assert.deepEqual(await ids(db.from('items').select().match({ owner: 'a', flag: true })), [1]);
 });
 
+test('a double-quoted or() value is one value, its quotes and backslash escapes removed (PostgREST reserved characters)', async () => {
+  const db = makeDb({ tables: { tags: { primaryKey: 'id' } }, seed: { tags: [{ id: 1, label: 'a,b.c:(d)' }, { id: 2, label: 'say "hi"\\' }, { id: 3, label: 'plain' }] } });
+  assert.deepEqual(await ids(db.from('tags').select().or('label.eq."a,b.c:(d)"')), [1]);
+  assert.deepEqual(await ids(db.from('tags').select().or('label.eq."say \\"hi\\"\\\\"')), [2]);
+  assert.deepEqual(await ids(db.from('tags').select().or('and(label.gt."b",label.lt."q"),id.eq."1"')), [1, 3]);
+  // The composite keyset form the privacy export sends: (day, id) > ('2026-01-02', 3).
+  assert.deepEqual(await ids(db.from('items').select().or('day.gt."2026-01-02",and(day.eq."2026-01-02",id.gt."3")').order('day')), [2, 4]);
+});
+
 test('unsupported builder methods throw instead of silently matching everything', () => {
   const db = makeDb();
   assert.throws(() => db.from('items').select().contains('label', ['x']), /does not support \.contains\(\)/);

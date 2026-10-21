@@ -1,0 +1,14 @@
+{
+  "operationId": "exploreAreaSave",
+  "status": 409,
+  "body": {
+    "error": "Your saved area cannot be changed any further.",
+    "code": "conflict",
+    "message": "Your saved area cannot be changed any further.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b05-contract-0001",
+    "reason": "revision_exhausted",
+    "revision": 2147483647
+  }
+}

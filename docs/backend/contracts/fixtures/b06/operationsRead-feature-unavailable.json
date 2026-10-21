@@ -1,0 +1,12 @@
+{
+  "operationId": "operationsRead",
+  "status": 503,
+  "body": {
+    "error": "Tasks in My Week are not available yet. Nothing was changed.",
+    "code": "feature_unavailable",
+    "message": "Tasks in My Week are not available yet. Nothing was changed.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

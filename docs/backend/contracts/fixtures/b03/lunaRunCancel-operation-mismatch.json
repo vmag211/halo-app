@@ -1,0 +1,12 @@
+{
+  "operationId": "lunaRunCancel",
+  "status": 409,
+  "body": {
+    "error": "That request id was already used for something else.",
+    "code": "conflict",
+    "message": "That request id was already used for something else.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

@@ -8,6 +8,7 @@ import {
   validationError,
   internalError,
   authFailureResponse,
+  loggableUpstashError,
 } from '../lib/apiErrors.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -317,4 +318,32 @@ test('serverAuth.authErrorResponse delegates AuthError to the envelope and ignor
 test('apiErrors source has no em dashes', () => {
   const source = readFileSync(new URL('../lib/apiErrors.js', import.meta.url), 'utf8');
   assert.equal(source.includes('\u2014'), false);
+});
+
+test('loggableUpstashError: the command Upstash quotes, and any body it quotes, never survive', async () => {
+  const { errors } = await import('@upstash/redis');
+  const key = 'halo:forecast:v1:open-meteo:12.34,-56.78:2026102414';
+  const http = new errors.UpstashError(`ERR max daily request limit exceeded, command was: [["set","${key}","{\\"marker\\":1}","ex",7200]]`);
+  assert.equal(loggableUpstashError(http), 'UpstashError: ERR max daily request limit exceeded');
+  const parse = new errors.UpstashJSONParseError(`<html>proxy page for ${key}</html>`);
+  assert.equal(loggableUpstashError(parse), 'UpstashJSONParseError: Unable to parse response body');
+  assert.equal(loggableUpstashError(Object.assign(new Error(`first line
+second ${key}`), { code: 'ECONNRESET' })), 'Error ECONNRESET: first line');
+  assert.equal(loggableUpstashError(new Error('x'.repeat(500))).length, 'Error: '.length + 160);
+  assert.equal(loggableUpstashError(Object.assign(new Error(''), { name: 'bad name!', code: 'bad code ' + key })), 'Error: (no message)');
+  assert.equal(loggableUpstashError(`a string with ${key}`), '(not an error object)');
+  assert.equal(loggableUpstashError(null), '(not an error object)');
+});
+
+test('loggableUpstashError never throws: a throwing getter or a refusing Proxy is a fixed sentence (B10 N6)', () => {
+  const key = 'halo:forecast:v1:open-meteo:12.34,-56.78:2026102414';
+  for (const field of ['name', 'code', 'message']) {
+    const err = new Error(`boom ${key}`);
+    Object.defineProperty(err, field, { get() { throw new Error(`getter ${key}`); } });
+    assert.equal(loggableUpstashError(err), '(unreadable error object)', field);
+  }
+  const proxy = new Proxy({}, { get() { throw new Error(key); } });
+  assert.equal(loggableUpstashError(proxy), '(unreadable error object)');
+  // A plain object with readable fields is still read as before.
+  assert.equal(loggableUpstashError({ name: 'UpstashError', message: `ERR x, command was: ["get","${key}"]` }), 'UpstashError: ERR x');
 });

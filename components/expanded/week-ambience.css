@@ -1,0 +1,57 @@
+/* Original environmental art plus independent water, mist, light and foreground motion. */
+.mw-ambience { --week-scene-height:214px; position:relative; isolation:isolate; min-height:var(--week-scene-height); overflow:hidden; background:#153a4a; border-radius:0; margin:-4px calc(-1 * var(--halo-gutter)) 0; }
+.mw-ambience-art,.mw-ambience-layer,.mw-ambience-panorama > img,.mw-ambience-water,.mw-ambience-shade { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.mw-ambience-art { overflow:hidden; border-radius:inherit; z-index:-1; background:linear-gradient(155deg,#638c9b,#254f5e 54%,#193e48); }
+.mw-ambience-layer { overflow:hidden; opacity:1; }
+.mw-ambience-layer[data-pending=true] { opacity:0; }
+.mw-ambience[data-dissolve=true] .mw-ambience-layer[data-revealing=true] { animation:mw-landscape-dissolve 3.6s cubic-bezier(.3,0,.2,1) both; }
+.mw-ambience-panorama { position:absolute; inset:-8%; pointer-events:none; animation:mw-landscape-pan 12s ease-in-out -3s infinite alternate; animation-play-state:paused; }
+.mw-ambience[data-moving=true] .mw-ambience-layer[data-pending=false] .mw-ambience-panorama { animation-play-state:running; }
+.mw-ambience-layer[data-landscape=coast] .mw-ambience-panorama,.mw-ambience-layer[data-landscape=cove] .mw-ambience-panorama { animation-direction:alternate-reverse; }
+.mw-ambience-panorama > img { object-fit:cover; object-position:center; user-select:none; }
+.mw-ambience-layer[data-failed=true] .mw-ambience-panorama > img { display:none; }
+.mw-ambience-water { opacity:.94; }
+.mw-ambience-shade { background:linear-gradient(180deg,rgb(6 27 38 / .15),transparent 30%,rgb(6 27 38 / .25) 58%,rgb(6 27 38 / .88)); }
+.mw-ambience::after { content:''; position:absolute; z-index:1; inset:auto 0 0; height:10px; background:linear-gradient(transparent,var(--halo-page)); pointer-events:none; }
+.mw-ambience-content { position:relative; min-height:var(--week-scene-height); display:flex; align-items:flex-end; padding:70px 19px 20px; pointer-events:none; }
+.mw-ambience-content > * { pointer-events:auto; }
+.mw-workspace.mw-dashboard .mw-ambience .mw-welcome { width:100%; min-height:0; margin:0; padding:0; background:none; color:#f0f9f8; }
+.mw-workspace.mw-dashboard .mw-ambience .mw-welcome h2 { color:#f0f9f8; text-shadow:0 1px 8px rgb(6 27 38 / .12); font-size:calc(1.65rem * var(--halo-text-scale)); }
+.mw-workspace.mw-dashboard .mw-ambience .mw-welcome time { color:#d4e7eb; font-weight:500; }
+.mw-ambience-controls { position:absolute; z-index:2; right:9px; top:9px; display:flex; align-items:center; gap:0; padding-left:10px; border:1px solid rgb(224 245 244 / .22); border-radius:7px; background:rgb(8 35 45 / .78); color:#ecf9f8; backdrop-filter:blur(12px); }
+.mw-ambience-name { padding-right:4px; font:500 calc(.61rem * var(--halo-text-scale))/1.3 var(--font-instrument),sans-serif; letter-spacing:.025em; white-space:nowrap; }
+.mw-workspace .mw-ambience-controls button { display:grid; place-items:center; width:44px; height:44px; min-width:44px; min-height:44px; border:0; border-radius:6px; padding:0; background:transparent; color:inherit; cursor:pointer; box-shadow:none; }
+.mw-workspace .mw-ambience-controls button:focus-visible { outline:2px solid #baf2e6; outline-offset:-4px; }
+.mw-workspace .mw-ambience-controls button[aria-pressed=true] { background:rgb(184 233 220 / .13); }
+.mw-workspace .mw-ambience-controls button:disabled { cursor:wait; opacity:.45; }
+.mw-ambience-haze { position:absolute; inset:36% -15% auto; height:16%; pointer-events:none; background:radial-gradient(ellipse at 29% 55%,rgb(230 249 239 / .3),transparent 48%),radial-gradient(ellipse at 75% 58%,rgb(227 246 239 / .2),transparent 45%); filter:blur(8px); animation:mw-landscape-mist 22s ease-in-out infinite alternate; }
+.mw-ambience-haze-front { inset:54% -25% auto; height:11%; opacity:.4; animation-duration:31s; animation-direction:alternate-reverse; }
+.mw-ambience-light { position:absolute; inset:-35% 15% 10%; pointer-events:none; background:linear-gradient(115deg,transparent 22%,rgb(220 244 220 / .12) 42%,transparent 57%); filter:blur(14px); transform-origin:50% 0; animation:mw-landscape-light 28s ease-in-out infinite alternate; }
+.mw-ambience-layer[data-landscape=forest] .mw-ambience-haze { opacity:.6; }
+.mw-ambience-layer[data-landscape=coast] .mw-ambience-light { opacity:.6; }
+.mw-ambience-reeds { position:absolute; inset:0; height:100%; width:100%; pointer-events:none; overflow:visible; fill:none; stroke:rgb(100 141 121 / .6); stroke-width:1.2; stroke-linecap:round; }
+.mw-ambience-reed-left { transform-origin:3% 100%; animation:mw-landscape-reed 7s ease-in-out infinite alternate; }
+.mw-ambience-reed-right { transform-origin:98% 100%; animation:mw-landscape-reed 9s ease-in-out -4s infinite alternate-reverse; }
+.mw-ambience[data-moving=false] :is(.mw-ambience-haze,.mw-ambience-light,.mw-ambience-reed-left,.mw-ambience-reed-right) { animation-play-state:paused; }
+.mw-ambience[data-dissolve=false] .mw-ambience-layer { transition:none; }
+.mw-ambience-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+@keyframes mw-landscape-mist { from { transform:translateX(-4%) scaleX(.95); opacity:.55; } to { transform:translateX(6%) scaleX(1.08); opacity:.9; } }
+@keyframes mw-landscape-pan { from { transform:translate3d(-4.5%,.35%,0) scale(1.04); } to { transform:translate3d(4.5%,-.35%,0) scale(1.06); } }
+@keyframes mw-landscape-dissolve { from { opacity:0; } to { opacity:1; } }
+@keyframes mw-landscape-light { from { transform:rotate(-5deg) translateX(-6%); opacity:.6; } to { transform:rotate(5deg) translateX(7%); opacity:1; } }
+@keyframes mw-landscape-reed { from { transform:rotate(-1.2deg); } to { transform:rotate(1.5deg); } }
+@media(hover:hover) { .mw-workspace .mw-ambience-controls button:hover { background:rgb(190 235 221 / .15); } }
+@media(prefers-reduced-motion:reduce) {
+  .mw-ambience :is(.mw-ambience-haze,.mw-ambience-light,.mw-ambience-reed-left,.mw-ambience-reed-right) { animation:none; }
+  .mw-ambience .mw-ambience-panorama { animation:none; transform:none; inset:0; }
+  .mw-ambience .mw-ambience-layer { transition:none; animation:none; }
+}
+.halo-f-app[data-contrast=high] .mw-ambience-art { visibility:hidden; }
+.halo-f-app[data-contrast=high] .mw-ambience { background:var(--halo-card); border:1px solid var(--halo-ink); }
+.halo-f-app[data-contrast=high] .mw-ambience-controls { background:var(--halo-card); color:var(--halo-ink); border-color:var(--halo-ink); }
+.halo-f-app[data-contrast=high] .mw-workspace.mw-dashboard .mw-ambience .mw-welcome :is(h2,time) { color:var(--halo-ink); text-shadow:none; }
+@media(forced-colors:active) {
+  .mw-ambience-art { display:none; }
+  .mw-ambience,.mw-ambience-controls { background:Canvas; color:CanvasText; border:1px solid CanvasText; }
+  .mw-workspace.mw-dashboard .mw-ambience .mw-welcome :is(h2,time) { color:CanvasText; text-shadow:none; }
+}

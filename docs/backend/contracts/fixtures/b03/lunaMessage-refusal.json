@@ -1,0 +1,26 @@
+{
+  "operationId": "lunaMessage",
+  "status": 200,
+  "body": {
+    "id": "0b030000-0000-4000-8000-000000007201",
+    "status": "completed",
+    "conversation": {
+      "id": "0b030000-0000-4000-8000-00000000c001",
+      "revision": 3,
+      "messages": [
+        {
+          "id": "0b030000-0000-4000-8000-0000000071a1",
+          "role": "user",
+          "text": "Do I have asthma?"
+        },
+        {
+          "id": "0b030000-0000-4000-8000-0000000071a2",
+          "role": "assistant",
+          "text": "I can't help diagnose a condition, interpret symptoms as an illness, or recommend treatment. I'm not a medical tool. For anything about your health, please talk to a clinician. I can explain your environmental readings and what the health and environmental agencies say about them."
+        }
+      ],
+      "pendingRequest": null,
+      "unresolvedOperations": {}
+    }
+  }
+}

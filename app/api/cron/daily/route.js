@@ -14,6 +14,8 @@ import { fetchHistory, UNLINKED_HOME } from '@/lib/journalHistory';
 import { pushConfigured, sendAlertPushes } from '@/lib/push';
 import { buildAndStoreAll } from '@/lib/mapBuild';
 import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
+import { loggableCode, purgeAllPrivacyReceipts } from '@/lib/privacyStore';
+import { sweepAttachmentObjects } from '@/lib/attachmentStore';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -44,6 +46,9 @@ export const maxDuration = 60;
  *     home's (and those with no home recorded), from the same bulk read: an
  *     earlier home's reading is never compared with the new home's.
  *  5. Pushes new alerts to subscribed devices and removes expired subscriptions.
+ *  After the household pass (step 3 and 4), privacy receipts settled more than 24 hours ago are
+ *  deleted for every household (B07 Ruling P10, purge_privacy_receipts with no owner). Its failure
+ *  (migration 0024 not applied, a database error) is logged by its code and never fails the run.
  *
  * Every date is the household-local (America/New_York) calendar day.
  */
@@ -70,7 +75,7 @@ async function mapLimit(items, n, fn) {
 }
 
 function summarizeGeo(g) {
-  return { requested: g.requested, found: g.found, failed_batches: g.failedBatches };
+  return { requested: g.requested, found: g.found, failed_batches: g.failedBatches, complete: g.complete };
 }
 
 /** Utilities whose readings changed since the last run. */
@@ -159,7 +164,8 @@ async function runDaily(request) {
       console.error('Water geography refresh failed:', err.message);
       return { error: err.message };
     });
-    const mapBuild = buildAndStoreAll(supabaseAdmin, geoRefresh.then((g) => g.geo)).catch((err) => ({ error: err.message }));
+    // The whole lookup result, so an incomplete lookup keeps the stored water and district layers.
+    const mapBuild = buildAndStoreAll(supabaseAdmin, geoRefresh).catch((err) => ({ error: err.message }));
 
     // 2. Water result changes.
     const water = await detectWaterChanges(utilities || []);
@@ -258,6 +264,20 @@ async function runDaily(request) {
       }
     });
 
+    // Privacy receipt retention for every household (P10), once per run, never fatal.
+    const privacyReceiptsPurged = await purgeAllPrivacyReceipts(supabaseAdmin).catch((err) => {
+      console.error('Daily job: the privacy receipt purge failed; the run goes on:', loggableCode(err));
+      return null;
+    });
+
+    // Private file objects queued for deletion (B14 Ruling A9): removals, record
+    // deletions, clears, account deletions and staged uploads past 24 hours.
+    // Bounded and never fatal; what is left waits for the next run.
+    const attachmentObjects = await sweepAttachmentObjects(supabaseAdmin, { expire: true, limit: 500 }).catch((err) => {
+      console.error('Daily job: the private file sweep failed; the run goes on:', loggableCode(err));
+      return null;
+    });
+
     let inserted = [];
     if (newAlerts.length) {
       const { data, error } = await supabaseAdmin
@@ -300,6 +320,8 @@ async function runDaily(request) {
       push,
       water_geo: await geoSummary,
       map_layers: await mapBuild,
+      privacy_receipts_purged: privacyReceiptsPurged,
+      attachment_objects: attachmentObjects,
       ran_at: now.toISOString(),
     });
   } catch (err) {

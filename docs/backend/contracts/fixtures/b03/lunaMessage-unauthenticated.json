@@ -1,0 +1,12 @@
+{
+  "operationId": "lunaMessage",
+  "status": 401,
+  "body": {
+    "error": "Sign-in required.",
+    "code": "auth_required",
+    "message": "Sign-in required.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "operationId": "alertsUpdate",
+  "status": 503,
+  "body": {
+    "error": "Settings and alerts are not available yet. Nothing was changed. Please try again later.",
+    "code": "feature_unavailable",
+    "message": "Settings and alerts are not available yet. Nothing was changed. Please try again later.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b04-contract-0001"
+  }
+}

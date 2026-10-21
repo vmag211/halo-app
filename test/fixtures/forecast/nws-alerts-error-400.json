@@ -1,0 +1,27 @@
+{
+  "_fixture": {
+    "provider": "NWS API, problem detail",
+    "recorded": "https://api.weather.gov/alerts/active?point=abc",
+    "retrieved": "2026-10-19",
+    "docs": [
+      "https://www.weather.gov/documentation/services-web-api",
+      "https://www.weather.gov/documentation/services-web-alerts",
+      "https://api.weather.gov/openapi.json (AlertStatus, AlertMessageType, Alert.expires, Alert.ends, ProblemDetail)"
+    ],
+    "edits": "none; recorded body as received (application/problem+json, HTTP 400)"
+  },
+  "response": {
+    "correlationId": "bdaf646a",
+    "parameterErrors": [
+      {
+        "parameter": "query.point",
+        "message": "Does not match the regex pattern ^(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)$"
+      }
+    ],
+    "title": "Bad Request",
+    "type": "https://api.weather.gov/problems/BadRequest",
+    "status": 400,
+    "detail": "Bad Request",
+    "instance": "https://api.weather.gov/requests/bdaf646a"
+  }
+}

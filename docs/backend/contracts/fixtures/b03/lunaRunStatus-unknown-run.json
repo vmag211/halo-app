@@ -1,0 +1,9 @@
+{
+  "operationId": "lunaRunStatus",
+  "status": 200,
+  "body": {
+    "id": "0b030000-0000-4000-8000-00000000c1d1",
+    "status": "failed",
+    "message": "Luna could not finish that answer. Your question is kept."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "operationId": "locationsSearch",
+  "status": 200,
+  "body": {
+    "candidates": [
+      {
+        "id": "us-county:37183",
+        "place": "Wake County",
+        "state": "NC",
+        "label": "Wake County, NC",
+        "timezone": "America/New_York"
+      },
+      {
+        "id": "us-place:3770540",
+        "place": "Wake Forest",
+        "state": "NC",
+        "label": "Wake Forest, NC",
+        "timezone": "America/New_York"
+      }
+    ]
+  }
+}

@@ -26,6 +26,11 @@ import { parseHouseholdBody } from '@/lib/profileInput';
  * says `transactional: false`. Any other failure of the function is a 500 and
  * nothing is saved.
  *
+ * Once migration 0021 is applied, the database itself advances the settings
+ * revision when this save changes a band, renter_mode or locale, and keeps the
+ * three-state tenure in step with renter_mode in the same row write (B04
+ * Rulings S12 and S13). The route does nothing extra for either.
+ *
  * Owner-scoped: identity is the verified session token. Composition never
  * changes a measurement or a score — only which wording and actions appear.
  * (Requires migration 0002; 0015 for the single transaction.)

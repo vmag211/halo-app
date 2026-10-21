@@ -1,0 +1,12 @@
+{
+  "operationId": "forecastRead",
+  "status": 503,
+  "body": {
+    "error": "Forecasts are unavailable right now. Try again shortly.",
+    "code": "upstream_unavailable",
+    "message": "Forecasts are unavailable right now. Try again shortly.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b10-contract-0001"
+  }
+}

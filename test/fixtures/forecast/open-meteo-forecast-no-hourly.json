@@ -1,0 +1,29 @@
+{
+  "_fixture": {
+    "provider": "Open-Meteo forecast API",
+    "derivedFrom": "open-meteo-forecast-charlotte.json (first 24 hours)",
+    "docs": [
+      "https://open-meteo.com/en/docs",
+      "https://open-meteo.com/en/docs/gfs-api"
+    ],
+    "edits": "hand-edited: hourly removed"
+  },
+  "response": {
+    "latitude": 35.203384,
+    "longitude": -80.859375,
+    "generationtime_ms": 0.4315376281738281,
+    "utc_offset_seconds": -14400,
+    "timezone": "America/New_York",
+    "timezone_abbreviation": "GMT-4",
+    "elevation": 239,
+    "hourly_units": {
+      "time": "unixtime",
+      "temperature_2m": "°F",
+      "apparent_temperature": "°F",
+      "precipitation": "inch",
+      "weather_code": "wmo code",
+      "wind_speed_10m": "mp/h",
+      "uv_index": ""
+    }
+  }
+}

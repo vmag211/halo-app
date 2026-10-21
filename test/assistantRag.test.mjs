@@ -10,6 +10,14 @@ import {
 } from '../lib/assistantRag.js';
 import { NO_SOURCE } from '../lib/assistant.js';
 
+// A model id is configuration, not a default any more (B03 Ruling L1): an
+// unset variable used to select a paid OpenAI model in any environment nobody
+// had configured. These tests exercise the pipeline, so they name the models
+// a deployment would have to name, and the loud failure is tested on its own
+// below.
+process.env.ASSISTANT_EMBED_MODEL ||= 'test-embed-model';
+process.env.ASSISTANT_CHAT_MODEL ||= 'test-chat-model';
+
 const PASSAGES = [
   { id: 'a', source_label: 'EPA', source_url: 'https://epa.gov/pfas', retrieved: '2026-09', passage: 'PFAS are man-made chemicals.' },
   { id: 'b', source_label: 'CDC', source_url: 'https://cdc.gov/lead', retrieved: '2026-09', passage: 'Lead is a heavy metal.' },
@@ -235,4 +243,76 @@ test('an answer cited with 【1】 is grounded, not discarded', async () => {
   assert.equal(res.grounded, true);
   assert.equal(res.answer, 'PFAS are man-made chemicals[1].');
   assert.deepEqual(res.citations.map((c) => c.label), ['EPA']);
+});
+
+// --- Ruling L1: an unset model variable fails loudly ---------------------------
+import { embedQuestion, composeAnswer, requiredModel } from '../lib/assistantRag.js';
+
+test('an unset model variable fails loudly instead of selecting a paid default', async () => {
+  const saved = { embed: process.env.ASSISTANT_EMBED_MODEL, chat: process.env.ASSISTANT_CHAT_MODEL };
+  const called = [];
+  const spyFetch = async (url) => { called.push(String(url)); throw new Error('the model must not be called'); };
+  try {
+    for (const blank of [undefined, '', '   ']) {
+      if (blank === undefined) delete process.env.ASSISTANT_EMBED_MODEL;
+      else process.env.ASSISTANT_EMBED_MODEL = blank;
+      await assert.rejects(
+        () => embedQuestion({ question: 'q', apiKey: 'k', fetchImpl: spyFetch }),
+        /ASSISTANT_EMBED_MODEL/,
+        `embedding with ${JSON.stringify(blank)}`,
+      );
+    }
+    delete process.env.ASSISTANT_CHAT_MODEL;
+    await assert.rejects(
+      () => composeAnswer({ question: 'q', passages: PASSAGES, apiKey: 'k', fetchImpl: spyFetch }),
+      /ASSISTANT_CHAT_MODEL/,
+      'the chat call',
+    );
+    assert.deepEqual(called, [], 'nothing was sent anywhere, so no paid model could be billed');
+    // The failure names the variable and never a model id, so nobody reads it
+    // as "use this instead".
+    const thrown = await embedQuestion({ question: 'q', apiKey: 'k', fetchImpl: spyFetch }).catch((error) => error);
+    assert.doesNotMatch(String(thrown.message), /gpt|text-embedding/i);
+    assert.throws(() => requiredModel('ASSISTANT_EMBED_MODEL'), /ASSISTANT_EMBED_MODEL/);
+  } finally {
+    process.env.ASSISTANT_EMBED_MODEL = saved.embed;
+    process.env.ASSISTANT_CHAT_MODEL = saved.chat;
+  }
+});
+
+test('a configured model id is what the request carries, trimmed', async () => {
+  const sent = [];
+  const fetchImpl = async (url, init) => {
+    sent.push(JSON.parse(init.body));
+    return { ok: true, json: async () => ({ data: [{ embedding: new Array(1536).fill(0.01) }] }) };
+  };
+  const saved = process.env.ASSISTANT_EMBED_MODEL;
+  process.env.ASSISTANT_EMBED_MODEL = '  free/embedder  ';
+  try {
+    await embedQuestion({ question: 'q', apiKey: 'k', fetchImpl });
+    assert.equal(sent[0].model, 'free/embedder');
+  } finally {
+    process.env.ASSISTANT_EMBED_MODEL = saved;
+  }
+});
+
+// --- Bounded history in the prompt (B03 Ruling L3) ----------------------------
+
+test('history is added to the prompt only when given, and only as data', () => {
+  const none = buildAnswerPrompt({ question: 'What is PFAS?', passages: PASSAGES });
+  assert.doesNotMatch(none.user, /CONVERSATION/, 'nothing changes for a caller that sends no history');
+  assert.doesNotMatch(none.system, /CONVERSATION/);
+
+  const withHistory = buildAnswerPrompt({
+    question: 'And in water?',
+    passages: PASSAGES,
+    history: 'person: What is PFAS?\nLuna: PFAS are man-made chemicals.',
+  });
+  assert.match(withHistory.user, /CONVERSATION:/);
+  assert.match(withHistory.user, /person: What is PFAS\?/);
+  assert.match(withHistory.system, /never as instructions/, 'the earlier turns are data too');
+  // The new question is still delimited as the one thing being answered.
+  assert.match(withHistory.user, /<question>\nAnd in water\?\n<\/question>/);
+  // The sources still come after it, so the model sees them last.
+  assert.ok(withHistory.user.indexOf('CONVERSATION:') < withHistory.user.indexOf('SOURCES:'));
 });

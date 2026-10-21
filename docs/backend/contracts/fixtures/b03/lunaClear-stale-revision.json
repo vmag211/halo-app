@@ -1,0 +1,14 @@
+{
+  "operationId": "lunaClear",
+  "status": 409,
+  "body": {
+    "error": "This conversation changed. Please review it again.",
+    "code": "conflict",
+    "message": "This conversation changed. Please review it again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b03-contract-0001",
+    "reason": "stale_revision",
+    "revision": 5
+  }
+}

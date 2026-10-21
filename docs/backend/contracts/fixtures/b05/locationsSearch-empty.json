@@ -1,0 +1,7 @@
+{
+  "operationId": "locationsSearch",
+  "status": 200,
+  "body": {
+    "candidates": []
+  }
+}

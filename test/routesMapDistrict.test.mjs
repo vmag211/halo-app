@@ -149,14 +149,23 @@ test('map: a database failure behind the quarter view is a 500 envelope with no 
   assert.ok(loggedText(logged).includes('Could not find the table'));
 });
 
-test('map: a missing session is a 401 envelope that echoes a client request id', async () => {
-  const h = harness();
-  const none = await expectEnvelope(await h.call('/api/map', 'GET', {}), { status: 401, code: 'auth_required' });
-  assert.equal(none.error, 'Sign-in required.');
-  await expectEnvelope(await h.call('/api/map', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+// Before B05 Task 6 this was "a missing session is a 401". No Authorization
+// header is now the public, cache-only read (test/routesMapPublic.test.mjs);
+// every Authorization header that is not a valid session is still the 401.
+test('map: an Authorization header that is not a valid session is a 401 envelope that echoes a client request id, and reads nothing', async () => {
+  const h = harness({ layers: [WATER_LAYER] });
+  for (const [authorization, error] of [['', 'Sign-in required.'], ['Basic abc', 'Sign-in required.'], ['Bearer', 'Sign-in required.'], ['Bearer test-token:nobody', 'Your session has expired. Please reload the app.']]) {
+    const body = await expectEnvelope(await h.call('/api/map', 'GET', { headers: { authorization } }), { status: 401, code: 'auth_required' });
+    assert.equal(body.error, error, `Authorization: ${JSON.stringify(authorization)}`);
+  }
+  await expectEnvelope(await h.call('/api/map', 'GET', { headers: { authorization: 'Bearer', 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+  assert.equal(h.db.queryLog.length, 0);
   const ok = await map(harness({ layers: [WATER_LAYER] }), '', 'alice', { 'x-request-id': 'client-trace-0001' });
   assert.equal(ok.headers.get('x-request-id'), 'client-trace-0001');
-  assert.equal(h.db.queryLog.length, 0);
+  const anonymous = await h.call('/api/map', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  assert.equal(anonymous.status, 200, 'no Authorization header at all is the public read');
+  // B05 follow-up (Task 6 review, finding 4): a shareable answer never carries the caller's id.
+  assert.match(anonymous.headers.get('x-request-id'), UUID, 'the shared answer carries an id the server chose');
 });
 
 test('map reads no household table: only the layer store and the public utilities', async () => {
@@ -165,6 +174,67 @@ test('map reads no household table: only the layer store and the public utilitie
   await map(h, '?layer=radon');
   assert.deepEqual([...new Set(h.db.queryLog.map((q) => q.table))].sort(), ['map_layers', 'ucmr5_utilities']);
 });
+
+// ------------------------------------------- map: quarter=latest (B05 D2)
+
+// The client sends quarter=latest on comparison and pagination calls and
+// resets to it on every layer change (F: MapPreview.tsx:127,231). `latest` is
+// the absence of a quarter on every layer, so each request below must be
+// answered exactly as the same request without the parameter.
+const STORED_LAYERS = {
+  water: WATER_LAYER,
+  radon: { layer: 'radon', assembled_at: NOW, payload: { layer: 'radon', count: 1, features: [{ county: 'Union County', zone: 1, severity: 'high' }], assembled_at: NOW } },
+  facilities: { layer: 'facilities', assembled_at: NOW, payload: { layer: 'facilities', scope: 'NC-08', count: 0, features: [], assembled_at: NOW } },
+  air: { layer: 'air', assembled_at: NOW, payload: { layer: 'air', count: 0, features: [], source: 'AirNow monitoring sites', assembled_at: NOW } },
+};
+
+for (const layer of Object.keys(STORED_LAYERS)) {
+  test(`map layer=${layer}&quarter=latest is answered exactly like layer=${layer}, from the same tables`, async () => {
+    const plain = harness({ layers: [STORED_LAYERS[layer]], utilities: UTILITIES });
+    const latest = harness({ layers: [STORED_LAYERS[layer]], utilities: UTILITIES });
+    const a = await map(plain, `?layer=${layer}`);
+    const b = await map(latest, `?layer=${layer}&quarter=latest`);
+    assert.equal(b.status, 200);
+    assert.equal(a.status, 200);
+    assert.deepEqual(await b.json(), await a.json());
+    assert.deepEqual(latest.db.queryLog.map((q) => q.table), plain.db.queryLog.map((q) => q.table));
+    assert.deepEqual(latest.db.queryLog.map((q) => q.table), ['map_layers']);
+    assert.deepEqual(latest.blockedFetches, []);
+  });
+}
+
+test('map: quarter=latest with no stored water layer is the same live build as no quarter, from the same tables', async () => {
+  const plain = harness({ utilities: UTILITIES });
+  const latest = harness({ utilities: UTILITIES });
+  const a = await (await map(plain, '?layer=water')).json();
+  const b = await (await map(latest, '?layer=water&quarter=latest')).json();
+  const { assembled_at: atA, ...restA } = a;
+  const { assembled_at: atB, ...restB } = b;
+  assert.ok(atA && atB);
+  assert.deepEqual(restB, restA);
+  assert.equal(b.prebuilt, false);
+  assert.equal(b.quarter, null, 'latest is not echoed back as a quarter');
+  assert.deepEqual(latest.db.queryLog.map((q) => q.table), plain.db.queryLog.map((q) => q.table));
+});
+
+test('map: layer=air&quarter=latest is a 200, while a real quarter on air stays quarter_not_applicable', async () => {
+  const h = harness({ layers: [STORED_LAYERS.air] });
+  const res = await map(h, '?layer=air&quarter=latest');
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ...STORED_LAYERS.air.payload, prebuilt: true });
+  const body = await expectEnvelope(await map(h, '?layer=air&quarter=2024Q3'), { status: 400, code: 'validation_failed' });
+  assert.deepEqual(body.field_errors.map((e) => [e.field, e.code]), [['quarter', 'quarter_not_applicable']]);
+});
+
+for (const quarter of ['Latest', 'LATEST', 'latest%20', '%20latest']) {
+  test(`map quarter=${quarter} is still a 400 (only the exact lowercase latest is accepted) and reads nothing`, async () => {
+    const h = harness({ utilities: UTILITIES });
+    const body = await expectEnvelope(await map(h, `?layer=water&quarter=${quarter}`), { status: 400, code: 'validation_failed', retryable: false });
+    assert.equal(body.error, 'quarter looks like 2024Q3.');
+    assert.deepEqual(body.field_errors.map((e) => [e.field, e.code]), [['quarter', 'invalid_quarter']]);
+    assert.equal(h.db.queryLog.length, 0);
+  });
+}
 
 // -------------------------------------------------------------- district
 
@@ -229,11 +299,19 @@ test('district: a failed live build is a 500 envelope with no database text, and
   assert.ok(loggedText(logged).includes('Storing district failed'), 'the failed store is logged');
 });
 
-test('district: a missing session is a 401 envelope that echoes a client request id', async () => {
+// Before B05 Task 6 this was "a missing session is a 401"; see the map test above.
+test('district: an Authorization header that is not a valid session is a 401 envelope that echoes a client request id, and reads no profile', async () => {
   const h = harness({ layers: [DISTRICT_LAYER] });
-  await expectEnvelope(await h.call('/api/district', 'GET', {}), { status: 401, code: 'auth_required' });
-  await expectEnvelope(await h.call('/api/district', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+  for (const authorization of ['', 'Basic abc', 'Bearer', 'Bearer test-token:nobody']) {
+    await expectEnvelope(await h.call('/api/district', 'GET', { headers: { authorization } }), { status: 401, code: 'auth_required' });
+  }
+  await expectEnvelope(await h.call('/api/district', 'GET', { headers: { authorization: 'Bearer', 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
+  assert.equal(h.db.queryLog.length, 0);
   assert.equal((await district(h, 'alice', { 'x-request-id': 'client-trace-0001' })).headers.get('x-request-id'), 'client-trace-0001');
+  const anonymous = await h.call('/api/district', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } });
+  assert.equal(anonymous.status, 200, 'no Authorization header at all is the public read');
+  assert.match(anonymous.headers.get('x-request-id'), UUID, 'the shared answer carries an id the server chose, not client-trace-0001');
+  assert.equal('household_county' in (await anonymous.json()), false);
 });
 
 test('district keeps its owner filter: the household county comes from the caller\'s own profile row', async () => {

@@ -1,0 +1,12 @@
+{
+  "operationId": "weekAcknowledge",
+  "status": 503,
+  "body": {
+    "error": "That request is still being processed. Please check its status before trying again.",
+    "code": "upstream_unavailable",
+    "message": "That request is still being processed. Please check its status before trying again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b06-contract-0001"
+  }
+}

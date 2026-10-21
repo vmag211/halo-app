@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { lazyClient } from '@/lib/lazyClient';
 import { ncRadonZones } from '@/lib/radonData'; // Bring in your local Radon dataset
 import { buildWellTestPlan } from '@/lib/wellTestData'; // Private well / spring test recommendations
 import { getRadonRisk, getWaterRisk, getHomeGuardScore } from '@/lib/scoring';
@@ -24,10 +25,11 @@ import {
 import { lookupWaterGeoOne } from '@/lib/waterGeo';
 import { utilityLeadInventory } from '@/lib/leadInventory';
 
-// 1. Connect to Supabase using your safe, public keys
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 1. Connect to Supabase using your safe, public keys (built on first use, so
+//    `next build` needs no secrets).
+const supabase = lazyClient(() =>
+  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+);
 
 // "A", "A and B", "A, B and C" — used so messages can name what was actually
 // found instead of asserting a chemical family. The names passed here are the

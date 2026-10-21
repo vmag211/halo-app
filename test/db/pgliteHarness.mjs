@@ -88,11 +88,21 @@ export async function applySql(pg, label, sql) {
 
 /**
  * Boots a fresh in-memory database with the baseline and the migrations.
- * @param {{ upTo?: number, migrations?: boolean }} [options]
+ * @param {{ upTo?: number, migrations?: boolean, settings?: Record<string, string|number> }} [options]
  *   upTo: apply only migrations numbered up to this one; migrations: false loads the baseline only.
+ *   settings: server settings fixed at start (`-c name=value`), for example
+ *   { max_prepared_transactions: 2 } so a test can hold row locks in a prepared
+ *   transaction, the one way a single-connection PGlite has a second transaction.
  */
-export async function createDb({ upTo = Infinity, migrations = true } = {}) {
-  const pg = new PGlite({ extensions: { vector } });
+export async function createDb({ upTo = Infinity, migrations = true, settings = {} } = {}) {
+  const startParams = Object.entries(settings).flatMap(([name, value]) => {
+    if (!/^[a-z_]+$/.test(name)) throw new Error(`createDb: "${name}" is not a setting name`);
+    return ['-c', `${name}=${value}`];
+  });
+  const pg = new PGlite({
+    extensions: { vector },
+    ...(startParams.length ? { startParams: [...PGlite.defaultStartParams, ...startParams] } : {}),
+  });
   await pg.waitReady;
   const applied = [];
   try {

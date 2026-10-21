@@ -1,0 +1,12 @@
+{
+  "operationId": "privacyInspect",
+  "status": 422,
+  "body": {
+    "error": "This export is too large to download at once. Choose fewer groups and try again.",
+    "code": "export_too_large",
+    "message": "This export is too large to download at once. Choose fewer groups and try again.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b07-contract-0001"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "tests",
+    "record": {
+      "id": "test-bad",
+      "title": "Kitchen tap",
+      "revision": 0,
+      "purpose": "Check the kitchen tap",
+      "contextId": "0b110000-0000-4000-8000-000000000002",
+      "medium": "water",
+      "provider": "",
+      "sampleLabel": "",
+      "method": "",
+      "reviewReason": "",
+      "kind": "water",
+      "status": "not-a-status",
+      "plannedDate": "",
+      "collectionStart": "",
+      "collectionEnd": "",
+      "expectedDate": "",
+      "rows": [],
+      "review": "not_received",
+      "archived": false,
+      "history": []
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "validation",
+    "reason": "invalid_record",
+    "message": "Some details of this record could not be saved. Your draft is kept."
+  }
+}

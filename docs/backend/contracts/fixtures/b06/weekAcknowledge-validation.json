@@ -1,0 +1,18 @@
+{
+  "operationId": "weekAcknowledge",
+  "status": 400,
+  "body": {
+    "error": "Use 240 characters or fewer.",
+    "code": "validation_failed",
+    "message": "Use 240 characters or fewer.",
+    "field_errors": [
+      {
+        "field": "id",
+        "code": "text_too_long",
+        "message": "Use 240 characters or fewer."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b06-contract-0001"
+  }
+}

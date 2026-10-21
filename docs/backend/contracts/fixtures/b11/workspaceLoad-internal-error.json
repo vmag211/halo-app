@@ -1,0 +1,15 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 500,
+  "request": {
+    "collection": "tests"
+  },
+  "body": {
+    "error": "Something went wrong on our side. Please try again.",
+    "code": "internal_error",
+    "message": "Something went wrong on our side. Please try again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b11-contract-0001"
+  }
+}

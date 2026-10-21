@@ -8,6 +8,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('live onboarding renders the approved mobile design', async ({ page }) => {
+  test.skip(process.env.HALO_HOSTED_REVIEW_TEST === '1', 'The static review intentionally excludes the production /onboarding route. Run this check against the application server.');
   await page.goto('/onboarding');
   await expect(page.locator('.halo-mobile-shell .halo-app')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'to HALO', exact: true })).toBeAttached();
@@ -55,6 +56,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(await page.locator('body').innerText()).not.toContain('\u2014');
       await page.getByRole('button', { name: 'See my results', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Onboarding flow complete' })).toBeVisible();
+      await expect(page.getByText('Continue to your HALO dashboard.', { exact: true })).toBeVisible();
+      await page.getByRole('link', { name: 'Continue to My Week', exact: true }).click();
+      await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week', exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByRole('button', { name: 'Add task', exact: true })).toBeVisible();
     });
   }
 }

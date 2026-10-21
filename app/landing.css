@@ -1,0 +1,19 @@
+.halo-landing { --landing-accent:light-dark(#0e5e6f,#2cc4bd); max-width:1200px; padding:24px clamp(20px,5vw,64px); margin:auto; width:100%; }
+.halo-landing > header,.halo-landing > footer { display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap; }
+.halo-landing a { color:var(--landing-accent); text-decoration:none; min-height:44px; display:inline-flex; align-items:center; gap:10px; }
+.halo-landing header strong { letter-spacing:.12em; font-size:1.25rem; }
+.halo-landing-mark { width:30px; height:34px; background:var(--landing-accent); mask:url('/halo-logo-mark.png') center/contain no-repeat; }
+.halo-landing-intro { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:72px 0; }
+.halo-landing-kicker { color:var(--landing-accent); font-weight:600; font-size:.9rem; }
+.halo-landing h1 { font-size:clamp(2rem,3.6vw,3.3rem); line-height:1.13; letter-spacing:-.04em; font-weight:650; margin:20px 0; }
+.halo-landing-intro p:not(.halo-landing-kicker) { max-width:42ch; font-size:1.1rem; line-height:1.65; opacity:.82; }
+.halo-landing-actions { display:flex; gap:12px 24px; align-items:center; flex-wrap:wrap; margin-top:28px; }
+.halo-landing .halo-landing-start { background:var(--landing-accent); color:light-dark(#fff,#081725); padding:12px 20px; border-radius:10px; font-weight:600; }
+.halo-landing-art { position:relative; min-height:400px; border-radius:20px; overflow:hidden; }
+.halo-landing-art img { object-fit:cover; }
+.halo-landing-paths { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:36px; padding:24px 0 64px; }
+.halo-landing-paths svg { color:var(--landing-accent); }
+.halo-landing h2 { font-size:1.05rem; font-weight:650; margin:14px 0 8px; }
+.halo-landing-paths p { line-height:1.6; opacity:.8; }
+.halo-landing footer { border-top:1px solid light-dark(#d3e4e6,#1d3a50); padding-top:20px; font-size:.85rem; }
+@media(max-width:767px) { .halo-landing-intro { grid-template-columns:1fr; gap:28px; padding:44px 0; } .halo-landing-art { min-height:210px; } .halo-landing-paths { grid-template-columns:1fr; gap:24px; padding-bottom:40px; } .halo-landing-paths article { display:grid; grid-template-columns:24px 1fr; gap:4px 16px; } .halo-landing-paths h2 { margin:0; } .halo-landing-paths p { grid-column:2; } }

@@ -1,0 +1,33 @@
+{
+  "operationId": "mapComparison",
+  "status": 200,
+  "body": {
+    "records": [
+      {
+        "id": "370000001",
+        "name": "Example Station",
+        "kind": "Hourly monitor observation",
+        "scope": "Monitoring station",
+        "denominator": "One station’s reported AQI for its dominant pollutant and hour.",
+        "backgroundUrl": "https://www.airnow.gov/",
+        "coverageLabel": "One hourly observation. Continuous coverage is not supplied.",
+        "sourceVersion": null,
+        "sourceUrl": null,
+        "status": "available",
+        "coverage": "partial",
+        "values": [
+          {
+            "analyte": "PM2.5",
+            "value": 61,
+            "unit": "AQI",
+            "observedAt": "2026-10-18T10:00:00Z",
+            "period": "2026-10-18T10:00:00Z",
+            "periodLabel": "2026-10-18T10:00:00Z",
+            "method": null,
+            "qualifier": "unknown"
+          }
+        ]
+      }
+    ]
+  }
+}

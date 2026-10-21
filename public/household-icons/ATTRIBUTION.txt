@@ -1,0 +1,8 @@
+Household figures use Google Material Icons and Material Symbols, Apache License 2.0 (LICENSE.txt).
+Source repository: https://github.com/google/material-design-icons
+pregnant.svg: src/action/pregnant_woman/materialiconsround/24px.svg
+senior.svg: src/social/elderly/materialiconsround/24px.svg
+toddler.svg: src/places/stroller/materialiconsround/24px.svg
+person.svg: src/social/man/materialiconsround/24px.svg
+breathing.svg: symbols/web/pulmonology/materialsymbolsrounded/pulmonology_fill1_24px.svg
+Downloaded September 30, 2026. Source shapes are unmodified; application color and size come from CSS.

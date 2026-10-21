@@ -3,7 +3,9 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { LAYERS, readLayer, buildLayer, storeLayer, loadUtilities, waterPayload } from '@/lib/mapBuild';
 import { getWaterGeo } from '@/lib/waterGeo';
 import { parseEnum } from '@/lib/validate';
-import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } from '@/lib/apiErrors';
+import { parseMapQuarter } from '@/lib/mapQuarter';
+import { ERROR_CODES, apiError, validationError, internalError } from '@/lib/apiErrors';
+import { publicMapRead } from '@/lib/publicAccess';
 
 // A cold, un-prebuilt layer falls back to a live build (ArcGIS ~20s, ECHO ~20s);
 // the daily job pre-builds every layer so that is rare.
@@ -25,11 +27,22 @@ export const maxDuration = 60;
  *
  * `layer` (default water; `district` is served by /api/district) and `quarter`
  * are validated: anything else is a 400 with a field error, before anything is
- * read. A well formed quarter with no readings is a true empty answer (0
+ * read. `quarter=latest` means no quarter, on every layer, exactly like an
+ * omitted one (lib/mapQuarter.js, B05 ruling D2). A well formed quarter with no readings is a true empty answer (0
  * features, and `quarters` names the ones that exist). A layer that cannot be
  * built live is a 503; a layer is never answered with an empty stand-in.
+ *
+ * A live water build whose service-area lookup did not complete is answered,
+ * marked `geography_complete: false` and `meta.availability: 'partial'` with a
+ * note that says so, and is not stored, so the next request tries again.
+ *
+ * Without an Authorization header the read is public and cache-only (B05
+ * Task 6, lib/publicAccess.js): the stored layer, or a water quarter whose
+ * geography is already in the cache, else a 503 that names the layer. It
+ * never builds, stores or fetches anything, so a visitor cannot spend a
+ * provider call or put a layer in `map_layers`. Any Authorization header is
+ * checked exactly as before.
  */
-const QUARTER_RE = /^\d{4}Q[1-4]$/;
 const PUBLIC_LAYERS = LAYERS.filter((layer) => layer !== 'district');
 
 /** The 503 for a layer whose source failed: the envelope plus the legacy `layer` field. */
@@ -43,11 +56,21 @@ async function layerUnavailable(layer, requestId) {
   return NextResponse.json({ ...(await envelope.json()), layer }, { status: 503, headers: envelope.headers });
 }
 
-export async function GET(request) {
-  const requestId = requestIdFor(request);
+/** The 503 for an anonymous read with nothing stored to answer from: the same shape, its own sentence. */
+async function layerNotStored(layer, requestId) {
+  const envelope = apiError({
+    status: 503,
+    code: ERROR_CODES.UPSTREAM_UNAVAILABLE,
+    message: `The ${layer} layer is not available to view right now. Try again shortly.`,
+    requestId,
+  });
+  return NextResponse.json({ ...(await envelope.json()), layer }, { status: 503, headers: envelope.headers });
+}
+
+const read = publicMapRead(async (request, { anonymous, requestId }) => {
   const headers = { 'X-Request-Id': requestId };
   try {
-    await requireUser(request);
+    if (!anonymous) await requireUser(request);
     const { searchParams } = new URL(request.url);
     const parsedLayer = parseEnum(searchParams.get('layer'), PUBLIC_LAYERS, { fallback: 'water' });
     if (!parsedLayer.ok) {
@@ -57,25 +80,25 @@ export async function GET(request) {
       );
     }
     const layer = parsedLayer.value;
-    const quarter = searchParams.get('quarter');
+    const parsedQuarter = parseMapQuarter(searchParams.get('quarter'), layer);
+    if (!parsedQuarter.ok) {
+      return validationError([{ field: 'quarter', code: parsedQuarter.code, message: parsedQuarter.message }], requestId);
+    }
+    const { quarter } = parsedQuarter;
 
     if (quarter) {
-      if (layer !== 'water') {
-        return validationError(
-          [{ field: 'quarter', code: 'quarter_not_applicable', message: 'quarter applies to the water layer only.' }],
-          requestId,
-        );
-      }
-      if (!QUARTER_RE.test(quarter)) {
-        return validationError([{ field: 'quarter', code: 'invalid_quarter', message: 'quarter looks like 2024Q3.' }], requestId);
-      }
       const utilities = await loadUtilities(supabaseAdmin);
-      const g = await getWaterGeo(utilities.map((u) => u.pwsid));
-      return NextResponse.json(waterPayload(utilities, g.geo, { quarter }), { headers });
+      const g = await getWaterGeo(utilities.map((u) => u.pwsid), { cacheOnly: anonymous });
+      // A cache-only miss is `complete: false` (N3). A signed-in caller is
+      // answered that honestly marked partial; a visitor gets nothing assembled
+      // from a lookup that never ran.
+      if (anonymous && !g.complete) return layerNotStored(layer, requestId);
+      return NextResponse.json(waterPayload(utilities, g.geo, { quarter, geographyComplete: g.complete }), { headers });
     }
 
     const stored = await readLayer(supabaseAdmin, layer);
     if (stored) return NextResponse.json({ ...stored, prebuilt: true }, { headers });
+    if (anonymous) return layerNotStored(layer, requestId);
 
     let payload;
     try {
@@ -84,7 +107,11 @@ export async function GET(request) {
       console.error(`Map layer ${layer} build failed (request ${requestId}):`, err);
       return layerUnavailable(layer, requestId);
     }
-    storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error(`Storing map layer failed (request ${requestId}):`, e.message));
+    if (payload.geography_complete === false) {
+      console.error(`Map layer ${layer} was built from an incomplete geography lookup and not stored (request ${requestId}).`);
+    } else {
+      storeLayer(supabaseAdmin, layer, payload).catch((e) => console.error(`Storing map layer failed (request ${requestId}):`, e.message));
+    }
     return NextResponse.json({ ...payload, prebuilt: false }, { headers });
   } catch (err) {
     const authResponse = authErrorResponse(err, requestId);
@@ -92,4 +119,9 @@ export async function GET(request) {
     console.error(`Map failed (request ${requestId}):`, err);
     return internalError(requestId);
   }
+});
+
+/** Next.js calls GET; the policy lives in `read` (lib/publicAccess.js). */
+export async function GET(request) {
+  return read(request);
 }

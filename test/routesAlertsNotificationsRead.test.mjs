@@ -60,7 +60,14 @@ test('alerts legacy request: count, unread and the alerts, newest first, dismiss
   assert.deepEqual(Object.keys(body).sort(), ALERT_KEYS);
   assert.deepEqual([body.count, body.unread, body.truncated], [2, 1, false]);
   assert.deepEqual(body.alerts.map((a) => a.title), ['Alert 2', 'Alert 1']);
-  assert.deepEqual(Object.keys(body.alerts[0]).sort(), ['created_at', 'dedupe_key', 'dismissed', 'fired_at', 'id', 'message', 'profile_id', 'read', 'severity', 'title', 'type']);
+  // This read is `select('*')`, so the columns a migration adds appear here.
+  // `revision` is 0021's, not null with a constant default of 1 on every row
+  // including the ones that existed before it, which is why it is present even
+  // though nothing in this legacy request asks for it. 0021's four nullable
+  // alerts columns (category, target_tab, target_destination, target_learn)
+  // come back as nulls on real Postgres; the route harness is a row store and
+  // only materializes a column that has a default or was written.
+  assert.deepEqual(Object.keys(body.alerts[0]).sort(), ['created_at', 'dedupe_key', 'dismissed', 'fired_at', 'id', 'message', 'profile_id', 'read', 'revision', 'severity', 'title', 'type']);
   assert.equal('request_id' in body, false, 'success bodies do not carry request_id');
 });
 

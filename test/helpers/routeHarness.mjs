@@ -48,6 +48,8 @@ import { createWebPushState } from './stubs/webPush.mjs';
 
 export { tokenFor } from './fakeSupabase.mjs';
 export { rpcError } from './fakeSupabase.mjs';
+/** Return this from `rateLimit(key)` to stand in for a limiter outage; see stubs/ratelimit.mjs. */
+export { LIMITER_UNAVAILABLE } from './stubs/context.mjs';
 
 const DEFAULT_IDENTITIES = { alice: {}, bob: {} };
 const ORIGIN = 'http://halo.test';

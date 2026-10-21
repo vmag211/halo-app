@@ -1,0 +1,40 @@
+{
+  "operationId": "operationsRead",
+  "status": 503,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "tests",
+    "record": {
+      "id": "test-kitchen-tap",
+      "title": "Kitchen tap",
+      "revision": 0,
+      "purpose": "Check the kitchen tap",
+      "contextId": "0b110000-0000-4000-8000-000000000002",
+      "medium": "water",
+      "provider": "",
+      "sampleLabel": "",
+      "method": "",
+      "reviewReason": "",
+      "kind": "water",
+      "status": "draft",
+      "plannedDate": "",
+      "collectionStart": "",
+      "collectionEnd": "",
+      "expectedDate": "",
+      "rows": [],
+      "review": "not_received",
+      "archived": false,
+      "history": []
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "error": "Homeguard records are not available yet. Nothing was changed.",
+    "code": "feature_unavailable",
+    "message": "Homeguard records are not available yet. Nothing was changed.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b11-contract-0001"
+  }
+}

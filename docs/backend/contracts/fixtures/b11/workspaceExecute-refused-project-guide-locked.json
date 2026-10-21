@@ -1,0 +1,75 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "exploreProjects",
+    "record": {
+      "id": "project-rain-garden",
+      "goal": "Rain garden",
+      "guide": {
+        "id": "g1",
+        "cost": "c",
+        "icon": "plant",
+        "cause": "Water",
+        "scene": "garden",
+        "scope": "s",
+        "steps": [
+          {
+            "id": "step-1",
+            "title": "Dig somewhere else",
+            "sourceIds": [
+              "s1"
+            ],
+            "checkpoint": "",
+            "instructions": [
+              "Dig a basin."
+            ]
+          }
+        ],
+        "title": "Rain garden",
+        "effort": "e",
+        "purpose": "p",
+        "sources": [
+          {
+            "id": "s1",
+            "url": "https://example.test/guide",
+            "title": "Guide",
+            "checked": "2026-10-01",
+            "publisher": "NCSU"
+          }
+        ],
+        "version": "v1",
+        "followup": "f",
+        "materials": [],
+        "completion": "c",
+        "constraints": [
+          "yard"
+        ],
+        "description": "d",
+        "suitability": "s"
+      },
+      "title": "Rain garden",
+      "status": "Completed",
+      "guideId": "g1",
+      "history": [],
+      "outcome": "Basin dug",
+      "revision": 3,
+      "stepNotes": {
+        "step-1": "Marked the spot"
+      },
+      "reviewDate": "2026-11-01",
+      "guideVersion": "v1"
+    },
+    "expectedRevision": 3
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "validation",
+    "reason": "project_guide_locked",
+    "message": "The guide of a started project cannot be changed. Nothing was saved. Your draft is kept. Reload the project, then save your own changes again."
+  }
+}

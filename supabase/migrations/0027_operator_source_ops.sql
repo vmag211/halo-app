@@ -1,0 +1,210 @@
+-- HALO: operator roles and the source operations audit log (B13 plan,
+-- docs/backend/plans/b13-source-operations.md).
+--
+-- Run once in the Supabase SQL editor. Safe to re-run. It needs nothing newer
+-- than 0001 and reads no existing table, so it may be applied before or after
+-- 0026. The routes it serves also use the operation ledger (0017).
+--
+-- Locks: creates two new tables, one function and two triggers on the new
+-- audit table, which nothing can be waiting on. No existing table is touched,
+-- and there is no foreign key, so no lock is taken on anything else.
+--
+-- ---------------------------------------------------------------------------
+-- WHAT THIS IS FOR
+-- ---------------------------------------------------------------------------
+--   public.operator_roles     who may open /operations, and as what. One row
+--                             per account: viewer, reviewer or publisher. An
+--                             account with no row is denied. Rows are written
+--                             ONLY here, in the SQL editor: no route grants,
+--                             changes or removes a role, and a role a browser
+--                             claims grants nothing.
+--   public.source_ops_audit   every source decision an operator sent, with
+--                             the server's own time. Append-only: a trigger
+--                             refuses UPDATE, DELETE and TRUNCATE for every
+--                             role, the service role included. Today every
+--                             row records a refusal (outcome 'refused'),
+--                             because no decision has a real effect in this
+--                             backend yet; the outcome 'applied' is for when
+--                             one does.
+--
+-- NOT HOUSEHOLD DATA, SO NO FOREIGN KEY (proposed, Vibhav to confirm). These
+-- are access and audit records about staff, not a household's data, so they
+-- stay out of the privacy export and clear, and an audit entry outlives the
+-- account that made it. A deleted account's role row is inert, because that
+-- id can never sign in again; delete it by hand if you want it gone.
+--
+-- Degrades cleanly: until this is applied GET /api/operator/sources, its
+-- history and its commands answer a non-retryable 503 feature_unavailable.
+--
+-- Grant yourself the role afterwards (put in your own auth user id):
+--   insert into public.operator_roles (profile_id, role, granted_by)
+--   values ('<your auth user id>', 'publisher', 'vibhav')
+--   on conflict (profile_id) do update
+--     set role = excluded.role, granted_at = now(), granted_by = excluded.granted_by;
+-- Remove a role:
+--   delete from public.operator_roles where profile_id = '<auth user id>';
+
+create table if not exists public.operator_roles (
+  profile_id  uuid        primary key,
+  role        text        not null,
+  granted_at  timestamptz not null default now(),
+  granted_by  text        not null
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'operator_roles_role_check') then
+    alter table public.operator_roles add constraint operator_roles_role_check
+      check (role in ('viewer', 'reviewer', 'publisher'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'operator_roles_granted_by_check') then
+    alter table public.operator_roles add constraint operator_roles_granted_by_check
+      check (char_length(btrim(granted_by)) between 1 and 200);
+  end if;
+end $$;
+
+create table if not exists public.source_ops_audit (
+  id               bigint      generated always as identity primary key,
+  operation_id     uuid        not null unique,
+  actor_profile_id uuid        not null,
+  role             text        not null,
+  source_id        text        not null,
+  source_revision  integer     not null,
+  target           text        not null,
+  decision         text        not null,
+  reason           text        not null,
+  locale           text,
+  outcome          text        not null,
+  refusal          text,
+  recorded_at      timestamptz not null default now()
+);
+
+do $$
+begin
+  -- The role found when the decision was checked, at the transaction, not the
+  -- one the screen showed: a role revoked in between is recorded as what it
+  -- had become ('denied' or 'viewer'), and only a reviewer or publisher can
+  -- ever have an applied entry.
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_role_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_role_check
+      check (role in ('denied', 'viewer', 'reviewer', 'publisher')
+             and (outcome <> 'applied' or role in ('reviewer', 'publisher')));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_source_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_source_check
+      check (source_id ~ '^[a-z][a-z0-9-]{0,63}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_revision_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_revision_check
+      check (source_revision > 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_target_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_target_check
+      check (char_length(target) <= 200);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_decision_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_decision_check
+      check (decision in ('approve', 'quarantine', 'publish', 'withdraw', 'translation', 'retry', 'rollback', 'publish-translation'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_reason_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_reason_check
+      check (char_length(btrim(reason)) >= 8 and char_length(reason) <= 500);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_locale_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_locale_check
+      check (locale is null or locale = 'es');
+  end if;
+  -- A refusal names its reason code; an applied decision has none.
+  if not exists (select 1 from pg_constraint where conname = 'source_ops_audit_outcome_check') then
+    alter table public.source_ops_audit add constraint source_ops_audit_outcome_check
+      check ((outcome = 'refused' and refusal is not null and refusal in ('forbidden', 'changed', 'unsupported'))
+          or (outcome = 'applied' and refusal is null));
+  end if;
+end $$;
+
+-- The snapshot's audit page for one source, newest first.
+create index if not exists source_ops_audit_source_id
+  on public.source_ops_audit (source_id, id desc);
+
+alter table public.operator_roles   enable row level security;
+alter table public.source_ops_audit enable row level security;
+-- No policies: service role only. The default privileges Supabase gives a new
+-- public table are revoked, so a signed-in browser cannot even see that a row
+-- exists, let alone grant itself a role.
+revoke all on table public.operator_roles   from anon, authenticated;
+revoke all on table public.source_ops_audit from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Append-only, whoever runs the statement
+-- ---------------------------------------------------------------------------
+create or replace function public.guard_source_ops_audit()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  raise exception 'HALO_AUDIT_APPEND_ONLY' using errcode = 'P0001',
+    detail = 'a source operations audit entry is never changed or removed';
+end;
+$$;
+
+revoke execute on function public.guard_source_ops_audit() from public, anon, authenticated;
+
+create or replace trigger source_ops_audit_append_only
+  before update or delete on public.source_ops_audit
+  for each row
+  execute function public.guard_source_ops_audit();
+
+create or replace trigger source_ops_audit_no_truncate
+  before truncate on public.source_ops_audit
+  for each statement
+  execute function public.guard_source_ops_audit();
+
+-- ---------------------------------------------------------------------------
+-- Verification (read only). Expect one row, all five columns true.
+-- ---------------------------------------------------------------------------
+--   select
+--     (select bool_and(relrowsecurity) from pg_class
+--       where oid in ('public.operator_roles'::regclass, 'public.source_ops_audit'::regclass)) as rls_on,
+--     (select count(*) from pg_policies
+--       where schemaname = 'public' and tablename in ('operator_roles', 'source_ops_audit')) = 0
+--       as no_policies,
+--     not exists (
+--       select 1 from unnest(array['anon', 'authenticated']) as r
+--        cross join unnest(array['public.operator_roles', 'public.source_ops_audit']) as t
+--        where has_any_column_privilege(r, t, 'SELECT')
+--           or has_any_column_privilege(r, t, 'INSERT')
+--           or has_any_column_privilege(r, t, 'UPDATE')
+--           or has_table_privilege(r, t, 'DELETE')
+--           or has_table_privilege(r, t, 'TRUNCATE'))
+--       as no_client_access,
+--     (select count(*) from pg_trigger
+--       where tgrelid = 'public.source_ops_audit'::regclass
+--         and tgname in ('source_ops_audit_append_only', 'source_ops_audit_no_truncate')) = 2
+--       as audit_append_only,
+--     (select count(*) from pg_constraint
+--       where conrelid in ('public.operator_roles'::regclass, 'public.source_ops_audit'::regclass)
+--         and contype = 'c') = 10
+--       as ten_checks;
+--
+-- ---------------------------------------------------------------------------
+-- If you need to back out 0027
+-- ---------------------------------------------------------------------------
+-- The three operator routes go back to answering a non-retryable 503
+-- feature_unavailable, exactly as before this is applied. Nothing else reads
+-- these tables.
+--
+-- What is lost: every role grant and every audit entry, because both tables
+-- are dropped. Export the audit first if you want to keep it:
+--   select * from public.source_ops_audit order by id;
+--
+-- The tested copy of this block is in docs/backend/YOUR_TODO.md, which is what
+-- test/migrationBackout.test.mjs runs.
+--
+-- <!-- backout-0027 -->
+-- drop table if exists public.source_ops_audit;
+-- drop table if exists public.operator_roles;
+-- drop function if exists public.guard_source_ops_audit();
+--
+-- Then run: notify pgrst, 'reload schema';

@@ -1,0 +1,7 @@
+.halo-workspace-toast { position:fixed; z-index:12; left:50%; bottom:calc(104px + env(safe-area-inset-bottom)); transform:translateX(-50%); display:flex; align-items:center; gap:9px; max-width:calc(100vw - 36px); padding:4px 9px 4px 16px; min-height:44px; border:1px solid var(--halo-border); border-radius:8px; background:var(--halo-card); color:var(--halo-ink); box-shadow:0 8px 22px #04192320; font:500 calc(.8rem * var(--halo-text-scale))/1.45 var(--font-instrument),Arial,sans-serif; }
+.halo-workspace-toast > span:not(.halo-spinner) { min-width:0; overflow-wrap:anywhere; }
+.halo-workspace-toast svg { flex-shrink:0; color:var(--halo-primary); }
+.halo-workspace-toast button,.halo-workspace-error button { min-width:44px; min-height:44px; padding:6px; border:0; background:transparent; color:var(--halo-secondary); display:grid; place-items:center; cursor:pointer; }
+.halo-workspace-error { display:flex; align-items:flex-start; gap:12px; padding:12px 12px 12px 16px; border-left:3px solid var(--halo-high); background:var(--halo-card); font:calc(.85rem * var(--halo-text-scale))/1.6 var(--font-instrument),Arial,sans-serif; }
+.halo-workspace-error p { margin:0; flex:1; min-width:0; overflow-wrap:anywhere; }
+.halo-workspace-toast button:focus-visible,.halo-workspace-error button:focus-visible { outline:3px solid var(--halo-primary); outline-offset:2px; }

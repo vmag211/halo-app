@@ -1,0 +1,12 @@
+{
+  "operationId": "mapDistrict",
+  "status": 429,
+  "body": {
+    "error": "Too many map requests from this device. Please wait a minute and try again.",
+    "code": "rate_limited",
+    "message": "Too many map requests from this device. Please wait a minute and try again.",
+    "field_errors": [],
+    "retryable": true,
+    "request_id": "b05-contract-0001"
+  }
+}

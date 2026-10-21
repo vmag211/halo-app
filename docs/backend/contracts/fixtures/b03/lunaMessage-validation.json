@@ -1,0 +1,18 @@
+{
+  "operationId": "lunaMessage",
+  "status": 400,
+  "body": {
+    "error": "Ask a question to get started.",
+    "code": "validation_failed",
+    "message": "Ask a question to get started.",
+    "field_errors": [
+      {
+        "field": "text",
+        "code": "text_required",
+        "message": "Ask a question to get started."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "operationId": "actionsCommit",
+  "status": 409,
+  "body": {
+    "error": "That earlier save cannot be confirmed here. Nothing new was saved. Reload My Week to see your tasks.",
+    "code": "conflict",
+    "message": "That earlier save cannot be confirmed here. Nothing new was saved. Reload My Week to see your tasks.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b06-contract-0001",
+    "reason": "unrecognized_receipt"
+  }
+}

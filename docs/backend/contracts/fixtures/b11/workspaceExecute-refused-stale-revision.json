@@ -1,0 +1,40 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "tests",
+    "record": {
+      "id": "test-kitchen-tap",
+      "kind": "water",
+      "rows": [],
+      "title": "Kitchen tap",
+      "medium": "water",
+      "method": "",
+      "review": "not_received",
+      "status": "draft",
+      "history": [],
+      "purpose": "Check the kitchen tap",
+      "archived": false,
+      "provider": "Stale tab",
+      "revision": 1,
+      "contextId": "0b110000-0000-4000-8000-000000000002",
+      "plannedDate": "",
+      "sampleLabel": "",
+      "expectedDate": "",
+      "reviewReason": "",
+      "collectionEnd": "",
+      "collectionStart": ""
+    },
+    "expectedRevision": 1
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "conflict",
+    "reason": "stale_revision",
+    "message": "This record changed. Your draft is kept. Review the latest version before saving."
+  }
+}

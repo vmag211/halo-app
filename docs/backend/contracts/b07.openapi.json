@@ -1,0 +1,1858 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B07 privacy backend contract",
+    "version": "b07-1",
+    "description": "The four operations B07 built for the Settings privacy panel (ProductionPrivacy.tsx), and the privacy half of operations.read: privacy.status (GET /api/privacy/status), privacy.inspect (POST /api/privacy/export/inspect), privacy.export (POST /api/privacy/exports), privacy.clear (POST /api/privacy/clear), and the privacy domain of GET /api/operations. Response schemas mirror what the panel accepts; where a rule is not JSON Schema the conformance suite (test/contractsB07.test.mjs) runs the panel's own code instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key. There is no capability flag: the key HALO_PRIVACY_REVIEW_KEY is the switch (Ruling P18). Nothing here is a deployment or approval claim: migration 0024 is not applied anywhere, and the key is set in no environment."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/privacy/status": {
+      "get": {
+        "operationId": "privacyStatus",
+        "x-halo-operation": "privacy.status",
+        "summary": "Whether privacy requests are available, and which privacy request is still unresolved",
+        "description": "Ruling P14. The panel enables nothing until this answers (ProductionPrivacy.tsx:17-19): verified needs every entry to be an object with a non-empty operationId and a scope of export, journal or all, and the client locks on the first entry. Before listing, the household's privacy receipts settled more than 24 hours ago are purged (P10) and a stale pending claim is reaped, so a dead request cannot lock the panel for ever. At most 100 entries, oldest first. The empty state is exactly {\"unresolvedOperations\":[]}. Availability is reported here (P11): no usable HALO_PRIVACY_REVIEW_KEY, or migration 0024 or 0017 missing, is the non-retryable 503 feature_unavailable, with nothing written.",
+        "parameters": [
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: privacy belongs to the household, not a home (Ruling P1). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The unresolved privacy requests, as {operationId, scope} objects.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required). Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: a ledger read failed. The client shows \"Privacy requests are unavailable.\" with Try again.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: no usable review key, or 0024 or 0017 not applied. auth_unavailable, retryable, with Retry-After. The client shows \"Privacy requests are unavailable.\" with Try again.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other answer here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/privacy/export/inspect": {
+      "post": {
+        "operationId": "privacyInspect",
+        "x-halo-operation": "privacy.inspect",
+        "summary": "Open a privacy review: what an export would contain, or what a clear would remove",
+        "description": "Rulings P5, P6, P8, P11, P15 and P17. Nothing is written: inspect is never ledgered (trap P-2). The answer carries a stateless review token (ten minutes, signed with HALO_PRIVACY_REVIEW_KEY, binding this household, the scope, the selection and a fingerprint of the records the person's own actions write), the number of records and a preview. An export's preview is its manifest and the field names each table contributes, never the records (MP-388); a clear's preview is what it removes by group, what survives and the limits of a deletion. The client checks reviewToken is a string, count a safe integer at least 0 and expiresAt parseable and in the future (ProductionPrivacy.tsx:22). Shares a fail-open budget of 30 an hour per household with export (P17).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime with every POST. Accepted and ignored: an inspect is never ledgered (trap P-2), so there is nothing to replay.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "Refused: any value is a 400 (unexpected_header on inspect, precondition_unsupported on export and clear), decided before anything is read or recorded. No privacy call sends a precondition (Ruling P17). Documented only so the refusal is.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: privacy belongs to the household, not a home (Ruling P1). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyInspectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The review.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyInspect"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed: a body that is not exactly {scope, groups, privateText}, an unknown or duplicated group, groups empty for an export, a non-boolean privateText, or any If-Match header. Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required). Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large: a body over 2,048 bytes.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "export_too_large: the selected export would pass 4,000,000 bytes (P8). The client reads it as validation and opens no review; nothing is minted.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportTooLargeEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: the household's privacy budget (30 an hour, shared with export) is spent. Fail-open: an Upstash outage never refuses.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: a record read that is not a missing table or column failed, so the count is unknown and nothing is minted.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: privacy is not available (P11). auth_unavailable, retryable, with Retry-After.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other answer here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/privacy/exports": {
+      "post": {
+        "operationId": "privacyExport",
+        "x-halo-operation": "privacy.export",
+        "summary": "Download the export a review showed",
+        "description": "Rulings P8, P9 and P15. The file travels inline and is stored nowhere: the ledger keeps only {operationId, status, scope: export, selection: {groups, privateText}} (trap P-8). Success carries file {name, mime, text}: name halo-export-YYYY-MM-DD.json (the household's local date, no identifier, UI-146), mime exactly application/json, text the export document (format halo-export-v1). The client saves it with downloadWeekFile after checking the mime, a text of at most 10,485,760 characters and the name rule (ProductionPrivacy.tsx:23). A replay of a recorded export is answered from the ledger, with the file rebuilt from the stored selection within ten minutes of the export and without it after (P9). An export that outgrew the 4,000,000-byte cap since its review is 200 failed too_large, which is true: an export changes nothing.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "The client's own operation id, a UUID, the same id as the body's operationId after trim and lowercase (Ruling P17). Missing, not a UUID, or a different id is a 400 with nothing recorded. The ledger (domain privacy) is the only idempotency mechanism.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "Refused: any value is a 400 (unexpected_header on inspect, precondition_unsupported on export and clear), decided before anything is read or recorded. No privacy call sends a precondition (Ruling P17). Documented only so the refusal is.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: privacy belongs to the household, not a home (Ruling P1). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyMutationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Succeeded with its file, or failed (too_large; abandoned when a replay meets a reaped claim; no reason for an in-process throw).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyExportReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed: a body that is not exactly {reviewToken, scope, operationId}, a scope other than export, an operationId that is not a UUID, an Idempotency-Key missing, not a UUID or not the operationId, any If-Match header, a token this server could not have minted, or a token minted for another scope. Decided before the ledger claim, so nothing is recorded. A body carrying a confirmation word (confirm: \"DELETE\") is an unknown key (trap P-5).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required). Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "conflict, not retryable, decided before the claim with nothing recorded: review_changed (the token was minted for another household, has expired, or the records it reviewed changed) or operation_mismatch (this id was already used for a different request). The client shows \"This item changed. Review the latest version before saving.\" and keeps the review open.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large: a body over 4,096 bytes.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: the privacy budget shared with inspect is spent. Nothing is recorded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: a database failure the route could not classify. Logged by code and message only, never a token, a fingerprint or a row. On a mutation the client reads it as unknown_outcome and reconciles.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: no usable review key, or 0024 or 0017 not applied, decided before the claim. upstream_unavailable, retryable: a replay met this operation still pending, its outcome not known yet. auth_unavailable, retryable, with Retry-After. The client reads every 5xx here as unknown_outcome and checks the operation through operations.read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other answer here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/privacy/clear": {
+      "post": {
+        "operationId": "privacyClear",
+        "x-halo-operation": "privacy.clear",
+        "summary": "Clear the journal, or every household record but the login",
+        "description": "Rulings P3, P4, P7, P15 and P16; decisions D-P1 and D-P4. One database function (clear_household_records, migration 0024) deletes, resets the profile for all, and settles this operation's own ledger row in one transaction, so a deletion exists if and only if its operation is succeeded, and every failed means nothing was deleted (\"The request was not applied. Your data is unchanged.\"). journal removes symptom logs and season summaries; all removes every household record, resets the profile (so the household reads as not onboarded) and keeps the login, recovery material and this receipt. There is no confirmation word on the wire: the typed DELETE is the client's, the review token is the server's proof. The receipt is {operationId, status, scope}, kept 24 hours (P10).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "The client's own operation id, a UUID, the same id as the body's operationId after trim and lowercase (Ruling P17). Missing, not a UUID, or a different id is a 400 with nothing recorded. The ledger (domain privacy) is the only idempotency mechanism.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "Refused: any value is a 400 (unexpected_header on inspect, precondition_unsupported on export and clear), decided before anything is read or recorded. No privacy call sends a precondition (Ruling P17). Documented only so the refusal is.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: privacy belongs to the household, not a home (Ruling P1). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyMutationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Succeeded with its scope, or failed: review_changed (the records changed between the route's check and the function's), busy (another request of the household is pending, or a Luna answer is being written), abandoned (a replay meeting a reaped claim), or no reason (an in-process throw). Nothing was deleted on any failed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyClearReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed: a body that is not exactly {reviewToken, scope, operationId}, a scope other than journal or all, an operationId that is not a UUID, an Idempotency-Key missing, not a UUID or not the operationId, any If-Match header, a token this server could not have minted, or a token minted for another scope. Decided before the ledger claim, so nothing is recorded. A body carrying a confirmation word (confirm: \"DELETE\") is an unknown key (trap P-5).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required). Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "conflict, not retryable, decided before the claim with nothing recorded: review_changed (the token was minted for another household, has expired, or the records it reviewed changed) or operation_mismatch (this id was already used for a different request). The client shows \"This item changed. Review the latest version before saving.\" and keeps the review open.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large: a body over 4,096 bytes.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: a database failure the route could not classify. Logged by code and message only, never a token, a fingerprint or a row. On a mutation the client reads it as unknown_outcome and reconciles.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: no usable review key, or 0024 or 0017 not applied, decided before the claim. upstream_unavailable, retryable: a replay met this operation still pending, its outcome not known yet. auth_unavailable, retryable, with Retry-After. The client reads every 5xx here as unknown_outcome and checks the operation through operations.read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other answer here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations": {
+      "get": {
+        "operationId": "operationsRead",
+        "x-halo-operation": "operations.read",
+        "summary": "What happened to a privacy request (the panel's Check request status)",
+        "description": "The B07 half of GET /api/operations: domain privacy only (ProductionPrivacy.tsx:25). The stored receipt is spread first, then the canonical fields. A succeeded privacy.export created within the last ten minutes is answered with file rebuilt from its stored selection and the current rows (P9), under the same size cap, spending the privacy budget (fail-open) and skipped when the review key is unset; after the window, or when it no longer fits, it is answered without file, which the client shows as \"The export is not ready to download. Check its status.\" with its lock kept until a reload. Every other privacy row is answered as stored. Another household's operation id is a 404, with nothing said about whose it is.",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "query",
+            "required": true,
+            "description": "The operation to read, a UUID.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "description": "privacy for the operations documented here. Other ledger domains are documented by their own packages.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client runtime when a home context is selected. Accepted and IGNORED: privacy belongs to the household, not a home (Ruling P1). A foreign or unknown value changes nothing.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The operation, in one of four shapes (see PrivacyOperationRead).",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyOperationRead"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed: operationId not a UUID, or a domain that is not readable here.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required: no bearer token, or one that is expired or invalid (auth_required). Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: no operation of this household under this id and domain (a purged receipt, another household's id, or none). The client shows its unavailable sentence and keeps its lock.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: the rebuild of an export file inside its window spends the privacy budget, and it is spent.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: a ledger or record read failed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: migration 0017 is not applied. auth_unavailable, retryable, with Retry-After.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Sent only with the retryable auth outage (code auth_unavailable), 2 seconds. No other answer here sends it.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence. Strict here, because a field that leaked a database message, a token or another household's id would leak it into a log.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "bad_request",
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "payload_too_large",
+              "rate_limited",
+              "upstream_unavailable",
+              "internal_error",
+              "feature_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "ExportTooLargeEnvelope": {
+        "description": "The 422 of an inspect whose export would pass the cap (P8). Not retryable: the same selection stays too large.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "const": "export_too_large"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "UnavailableEnvelope": {
+        "description": "A 503 from a privacy route. feature_unavailable is not retryable: no usable HALO_PRIVACY_REVIEW_KEY, or migration 0024 or 0017 is not applied (P11). auth_unavailable is the retryable auth outage. upstream_unavailable is the retryable in-flight answer of a mutation whose replay met its ledger row still pending.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "enum": [
+              "feature_unavailable",
+              "auth_unavailable",
+              "upstream_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "code": {
+              "const": "feature_unavailable"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "retryable": {
+              "const": false
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "retryable": {
+              "const": true
+            }
+          }
+        }
+      },
+      "ReadUnavailableEnvelope": {
+        "description": "A 503 from a privacy read: feature_unavailable (not retryable) or the auth outage (retryable). A read never claims an operation, so it is never in flight.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnavailableEnvelope"
+          },
+          {
+            "properties": {
+              "code": {
+                "enum": [
+                  "feature_unavailable",
+                  "auth_unavailable"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ConflictEnvelope": {
+        "description": "A terminal 409 from export or clear, decided before the ledger claim with nothing recorded (P15). code is always conflict and retryable false; the client maps it to conflict, shows \"This item changed. Review the latest version before saving.\" and keeps the review open. reason: review_changed (the token was minted for another household, has expired, or the records it reviewed changed) or operation_mismatch (this operation id was already used for a different request).",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The legacy sentence; equal to message."
+          },
+          "code": {
+            "const": "conflict"
+          },
+          "message": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "retryable": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "review_changed",
+              "operation_mismatch"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyScope": {
+        "enum": [
+          "export",
+          "journal",
+          "all"
+        ]
+      },
+      "PrivacyStatus": {
+        "description": "Ruling P14. The client's verified (ProductionPrivacy.tsx:18) accepts exactly this: bare ids, or a top-level data key, would leave the panel reading \"Privacy requests are unavailable.\" (trap P-1).",
+        "type": "object",
+        "properties": {
+          "unresolvedOperations": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "operationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "scope": {
+                  "$ref": "#/components/schemas/PrivacyScope"
+                }
+              },
+              "required": [
+                "operationId",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "unresolvedOperations"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyInspectRequest": {
+        "description": "Exactly what the panel sends (ProductionPrivacy.tsx:22): the scope and the export selection, which a clear sends too and may leave empty (trap P-3). groups must not be empty for an export.",
+        "type": "object",
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/PrivacyScope"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "tasks",
+                "home",
+                "explore",
+                "journal",
+                "conversation",
+                "preferences"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "privateText": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scope",
+          "groups",
+          "privateText"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "scope": {
+              "const": "export"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "groups": {
+              "minItems": 1
+            }
+          }
+        }
+      },
+      "ExportPreview": {
+        "description": "An export's preview: the manifest the file will carry and the field names each table contributes, never the records (MP-388).",
+        "type": "object",
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/ExportManifest"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "enum": [
+                "tasks",
+                "home",
+                "explore",
+                "journal",
+                "conversation",
+                "preferences"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "manifest",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "ExportManifest": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Every record the file holds; equal to the inspect count."
+          },
+          "counts": {
+            "type": "object",
+            "propertyNames": {
+              "enum": [
+                "tasks",
+                "home",
+                "explore",
+                "journal",
+                "conversation",
+                "preferences"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "omitted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "table",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "records",
+          "counts",
+          "omitted",
+          "warnings"
+        ],
+        "additionalProperties": false
+      },
+      "ClearPreview": {
+        "description": "A clear's preview: the records it removes by group (adding up to count), what survives, and the limits of a deletion (UI-192, BE-312). Week journal check-ins are not stored on the server yet, and it says so (P13).",
+        "type": "object",
+        "properties": {
+          "scope": {
+            "enum": [
+              "journal",
+              "all"
+            ]
+          },
+          "remove": {
+            "type": "object",
+            "propertyNames": {
+              "enum": [
+                "tasks",
+                "home",
+                "explore",
+                "journal",
+                "conversation",
+                "preferences",
+                "alerts",
+                "requests",
+                "other"
+              ]
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "keep": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "after": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notStored": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "scope",
+          "remove",
+          "keep",
+          "notStored",
+          "limits"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyInspect": {
+        "type": "object",
+        "properties": {
+          "reviewToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Opaque to the client. Stored nowhere; carries no household identifier and no fingerprint (P6)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Ten minutes after the inspect (P10)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "preview": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExportPreview"
+              },
+              {
+                "$ref": "#/components/schemas/ClearPreview"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reviewToken",
+          "expiresAt",
+          "count",
+          "preview"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyMutationRequest": {
+        "description": "Exactly what the panel's confirm sends (ProductionPrivacy.tsx:24, Ruling P7). The selection lives in the signed token (trap P-4).",
+        "type": "object",
+        "properties": {
+          "reviewToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PrivacyScope"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "reviewToken",
+          "scope",
+          "operationId"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyExportReceipt": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "const": "succeeded"
+              },
+              "file": {
+                "type": "object",
+                "description": "The export, inline. The client refuses a mime other than application/json or text/csv, a text over 10,485,760 characters or a name failing /^halo[-\\w]*\\.(json|csv)$/ (ProductionPrivacy.tsx:23); this server sends JSON only.",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^halo-export-\\d{4}-\\d{2}-\\d{2}\\.json$"
+                  },
+                  "mime": {
+                    "const": "application/json"
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 4000000,
+                    "description": "The export document, two-space indented JSON with format halo-export-v1. Validated against PrivacyExportDocument by the conformance suite."
+                  }
+                },
+                "required": [
+                  "name",
+                  "mime",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "operationId",
+              "status",
+              "file"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "const": "failed"
+              },
+              "reason": {
+                "enum": [
+                  "too_large",
+                  "abandoned"
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PrivacyClearReceipt": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "const": "succeeded"
+              },
+              "scope": {
+                "enum": [
+                  "journal",
+                  "all"
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "status",
+              "scope"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "const": "failed"
+              },
+              "reason": {
+                "enum": [
+                  "review_changed",
+                  "busy",
+                  "abandoned"
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PrivacyExportOperationSucceeded": {
+        "description": "A succeeded export, as stored (its selection, no content) plus the canonical fields; with file only inside the ten-minute rebuild window (P9), and the two kinds of answer are both 200. The client downloads with file and, without it, keeps its lock with \"The export is not ready to download. Check its status.\"",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "privacy"
+          },
+          "kind": {
+            "const": "privacy.export"
+          },
+          "status": {
+            "const": "succeeded"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope": {
+            "const": "export"
+          },
+          "selection": {
+            "type": "object",
+            "properties": {
+              "groups": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "tasks",
+                    "home",
+                    "explore",
+                    "journal",
+                    "conversation",
+                    "preferences"
+                  ]
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "privateText": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "groups",
+              "privateText"
+            ],
+            "additionalProperties": false
+          },
+          "file": {
+            "type": "object",
+            "description": "The export, inline. The client refuses a mime other than application/json or text/csv, a text over 10,485,760 characters or a name failing /^halo[-\\w]*\\.(json|csv)$/ (ProductionPrivacy.tsx:23); this server sends JSON only.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^halo-export-\\d{4}-\\d{2}-\\d{2}\\.json$"
+              },
+              "mime": {
+                "const": "application/json"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 4000000,
+                "description": "The export document, two-space indented JSON with format halo-export-v1. Validated against PrivacyExportDocument by the conformance suite."
+              }
+            },
+            "required": [
+              "name",
+              "mime",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at",
+          "scope",
+          "selection"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyClearOperationSucceeded": {
+        "description": "A succeeded clear, as stored: the minimal receipt {operationId, status, scope} (P10). The receipt survives its own clear (P4).",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "privacy"
+          },
+          "kind": {
+            "enum": [
+              "privacy.clear.journal",
+              "privacy.clear.all"
+            ]
+          },
+          "status": {
+            "const": "succeeded"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope": {
+            "enum": [
+              "journal",
+              "all"
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at",
+          "scope"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "privacy.clear.all"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "scope": {
+              "const": "all"
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "scope": {
+              "const": "journal"
+            }
+          }
+        }
+      },
+      "PrivacyOperationFailed": {
+        "description": "A failed privacy request, as stored: a refusal ({status: failed, reason}), the reaper's {status: failed, reason: abandoned}, or an in-process throw (no receipt). Under P3 nothing was deleted on any of them, so the client's \"The request was not applied. Your data is unchanged.\" is true.",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "privacy"
+          },
+          "kind": {
+            "enum": [
+              "privacy.export",
+              "privacy.clear.journal",
+              "privacy.clear.all"
+            ]
+          },
+          "status": {
+            "const": "failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "enum": [
+              "too_large",
+              "abandoned",
+              "review_changed",
+              "busy"
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyOperationOpen": {
+        "description": "Not settled: pending (still running) or unknown (past its window and not reaped). The client keeps its lock with \"The request is still being checked.\"",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "const": "privacy"
+          },
+          "kind": {
+            "enum": [
+              "privacy.export",
+              "privacy.clear.journal",
+              "privacy.clear.all"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "unknown"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "operationId",
+          "domain",
+          "kind",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "PrivacyOperationRead": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PrivacyExportOperationSucceeded"
+          },
+          {
+            "$ref": "#/components/schemas/PrivacyClearOperationSucceeded"
+          },
+          {
+            "$ref": "#/components/schemas/PrivacyOperationFailed"
+          },
+          {
+            "$ref": "#/components/schemas/PrivacyOperationOpen"
+          }
+        ]
+      },
+      "PrivacyExportDocument": {
+        "description": "The parsed text of an export file (P8, BE-331). Never carries origin: isolated-wireframe or authoritative: false. Group contents are allowlisted per table (lib/privacyInventory.js) and are not restated here.",
+        "type": "object",
+        "properties": {
+          "format": {
+            "const": "halo-export-v1"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope": {
+            "const": "export"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "tasks",
+                "home",
+                "explore",
+                "journal",
+                "conversation",
+                "preferences"
+              ]
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "privateText": {
+            "type": "boolean"
+          },
+          "exactLocation": {
+            "const": "excluded"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ExportManifest"
+          },
+          "tasks": {
+            "type": "object"
+          },
+          "home": {
+            "type": "object"
+          },
+          "explore": {
+            "type": "object"
+          },
+          "journal": {
+            "type": "object"
+          },
+          "conversation": {
+            "type": "object"
+          },
+          "preferences": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "format",
+          "generatedAt",
+          "scope",
+          "groups",
+          "privateText",
+          "exactLocation",
+          "manifest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

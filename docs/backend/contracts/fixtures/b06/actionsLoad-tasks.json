@@ -1,0 +1,60 @@
+{
+  "operationId": "actionsLoad",
+  "status": 200,
+  "body": {
+    "actions": [
+      {
+        "id": "0b060000-0000-4000-8000-000000000001",
+        "key": "personal:1",
+        "date": "2026-10-20",
+        "state": "saved",
+        "title": "Test the kitchen tap",
+        "origin": "Personal",
+        "reason": "Due this week",
+        "revision": 1
+      },
+      {
+        "id": "0b060000-0000-4000-8000-000000000002",
+        "key": "personal:2",
+        "date": "2026-10-21",
+        "state": "saved",
+        "title": "Flush the outdoor spigot",
+        "origin": "Personal",
+        "reason": "Due this week",
+        "revision": 1
+      }
+    ],
+    "metas": {
+      "personal:1": {
+        "note": "Use the kit in the hall cupboard.",
+        "time": "09:00",
+        "zone": "America/New_York",
+        "paused": false,
+        "history": [
+          "2026-10-19: Added by you."
+        ],
+        "archived": false,
+        "duration": 60,
+        "reminder": false,
+        "recurrence": "none",
+        "completedOn": ""
+      }
+    },
+    "preferences": {
+      "week:focus": "Water at home",
+      "food-interests": [
+        "fish",
+        "water"
+      ],
+      "week:review-preferences": {
+        "time": "18:00",
+        "zone": "America/New_York",
+        "enabled": true,
+        "weekday": 0
+      }
+    },
+    "unresolvedOperations": [
+      "0b060000-0000-4000-8000-000000000003"
+    ]
+  }
+}

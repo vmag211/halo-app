@@ -1,0 +1,159 @@
+{
+  "operationId": "mapLayer",
+  "status": 200,
+  "body": {
+    "layer": "water",
+    "quarter": null,
+    "quarters": [
+      "2024Q1",
+      "2024Q3"
+    ],
+    "count": 2,
+    "located": 1,
+    "counts": {
+      "total": 2,
+      "over_limit": 1,
+      "hazard_index_over": 0,
+      "by_contaminant": {
+        "PFOA": {
+          "tested": 2,
+          "over": 0
+        },
+        "PFOS": {
+          "tested": 1,
+          "over": 1
+        },
+        "PFHxS": {
+          "tested": 1,
+          "over": 0
+        },
+        "PFNA": {
+          "tested": 1,
+          "over": 0
+        },
+        "HFPO-DA": {
+          "tested": 0,
+          "over": 0
+        }
+      }
+    },
+    "features": [
+      {
+        "pwsid": "NC0000001",
+        "name": "Example Water A",
+        "status": "Final",
+        "overall_severity": "severe",
+        "coverage": "complete",
+        "latest_sample_date": "8/20/2024",
+        "latest_sample_iso": "2024-08-20",
+        "detected_unregulated": [],
+        "contaminants": {
+          "PFOA": {
+            "value_ppt": 1.2,
+            "limit_ppt": 4,
+            "ratio": 0.3,
+            "severity": "moderate",
+            "date": "8/20/2024",
+            "date_iso": "2024-08-20",
+            "proposed_for_rescission": false
+          },
+          "PFOS": {
+            "value_ppt": 7.7,
+            "limit_ppt": 4,
+            "ratio": 1.9,
+            "severity": "severe",
+            "date": "8/20/2024",
+            "date_iso": "2024-08-20",
+            "proposed_for_rescission": false
+          },
+          "PFHxS": {
+            "value_ppt": 4,
+            "limit_ppt": 10,
+            "ratio": 0.4,
+            "severity": "elevated",
+            "date": "8/20/2024",
+            "date_iso": "2024-08-20",
+            "proposed_for_rescission": true
+          },
+          "PFNA": {
+            "value_ppt": 3,
+            "limit_ppt": 10,
+            "ratio": 0.3,
+            "severity": "moderate",
+            "date": "8/20/2024",
+            "date_iso": "2024-08-20",
+            "proposed_for_rescission": true
+          },
+          "HFPO-DA": {
+            "severity": "no_data",
+            "limit_ppt": 10,
+            "proposed_for_rescission": true
+          }
+        },
+        "hazard_index": {
+          "value": 0.7,
+          "exceeds": false,
+          "severity": "elevated",
+          "components": {
+            "PFNA": 0.3,
+            "PFHxS": 0.4
+          },
+          "basis": "latest_sample",
+          "proposed_for_rescission": true
+        },
+        "lat": 34.985,
+        "lng": -80.549,
+        "population": 34000
+      },
+      {
+        "pwsid": "NC0000002",
+        "name": "Example Water B",
+        "status": "Final",
+        "overall_severity": "elevated",
+        "coverage": "complete",
+        "latest_sample_date": "3/15/2024",
+        "latest_sample_iso": "2024-03-15",
+        "detected_unregulated": [],
+        "contaminants": {
+          "PFOA": {
+            "value_ppt": 2.1,
+            "limit_ppt": 4,
+            "ratio": 0.5,
+            "severity": "elevated",
+            "date": "3/15/2024",
+            "date_iso": "2024-03-15",
+            "proposed_for_rescission": false
+          },
+          "PFOS": {
+            "severity": "no_data",
+            "limit_ppt": 4,
+            "proposed_for_rescission": false
+          },
+          "PFHxS": {
+            "severity": "no_data",
+            "limit_ppt": 10,
+            "proposed_for_rescission": true
+          },
+          "PFNA": {
+            "severity": "no_data",
+            "limit_ppt": 10,
+            "proposed_for_rescission": true
+          },
+          "HFPO-DA": {
+            "severity": "no_data",
+            "limit_ppt": 10,
+            "proposed_for_rescission": true
+          }
+        },
+        "hazard_index": null,
+        "lat": null,
+        "lng": null,
+        "population": null
+      }
+    ],
+    "population_source": "EPA Community Water System Service Area Boundaries (Population_Served_Count)",
+    "assembled_at": "2026-10-18T11:00:00.000Z",
+    "note": "1 of 2 systems have no mapped service area; they carry severity but no coordinates.",
+    "prebuilt": true
+  }
+}

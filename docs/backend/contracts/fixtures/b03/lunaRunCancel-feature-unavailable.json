@@ -1,0 +1,12 @@
+{
+  "operationId": "lunaRunCancel",
+  "status": 503,
+  "body": {
+    "error": "Luna is not available yet. Nothing was changed.",
+    "code": "feature_unavailable",
+    "message": "Luna is not available yet. Nothing was changed.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b03-contract-0001"
+  }
+}

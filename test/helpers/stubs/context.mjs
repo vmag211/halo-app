@@ -11,6 +11,19 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 const storage = new AsyncLocalStorage();
 
+/**
+ * Returned by a harness `rateLimit(key)` to mean "the limiter could not
+ * answer", so a test can exercise a route's fail-open or fail-closed choice.
+ * See the ratelimit stub, which acts on it, and routeHarness.mjs, which
+ * re-exports it for tests.
+ *
+ * It lives here rather than in that stub because a drift test pins the
+ * ratelimit stub's exports to lib/ratelimit.js's exactly, which is what keeps
+ * a new limiter from being added without a stand-in; a test-only helper
+ * exported from there would have to weaken that check.
+ */
+export const LIMITER_UNAVAILABLE = Symbol('limiter unavailable');
+
 export function runWithHarness(state, fn) {
   return storage.run(state, fn);
 }

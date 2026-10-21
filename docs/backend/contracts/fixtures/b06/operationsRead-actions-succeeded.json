@@ -1,0 +1,53 @@
+{
+  "operationId": "operationsRead",
+  "status": 200,
+  "body": {
+    "status": "succeeded",
+    "affected": [
+      {
+        "id": "0b060000-0000-4000-8000-000000000001",
+        "revision": 1
+      }
+    ],
+    "removed": [],
+    "unresolvedOperations": [
+      "0b060000-0000-4000-8000-000000000002"
+    ],
+    "operationId": "0b060000-0000-4000-8000-000000000003",
+    "snapshot": {
+      "actions": [
+        {
+          "id": "0b060000-0000-4000-8000-000000000001",
+          "key": "personal:1",
+          "date": "2026-10-20",
+          "state": "saved",
+          "title": "Test the kitchen tap",
+          "origin": "Personal",
+          "reason": "Due this week",
+          "revision": 1
+        }
+      ],
+      "metas": {
+        "personal:1": {
+          "note": "",
+          "time": "02:30",
+          "zone": "America/New_York",
+          "paused": false,
+          "history": [],
+          "archived": false,
+          "duration": 60,
+          "reminder": false,
+          "recurrence": "none",
+          "completedOn": ""
+        }
+      },
+      "preferences": {},
+      "unresolvedOperations": [
+        "0b060000-0000-4000-8000-000000000002"
+      ]
+    },
+    "domain": "actions",
+    "kind": "actions.commit",
+    "created_at": "2026-10-19T12:00:00.000Z"
+  }
+}

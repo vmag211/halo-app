@@ -1,0 +1,24 @@
+# X07 source operations wireframe completion
+
+October 12, 2026. This is an isolated operator workflow review, not an authenticated operator console, source acquisition service, publication authority or production delivery claim. It appears only within external expanded review tools. It does not appear in household navigation, call APIs, retrieve URLs, publish evidence, send notifications or mutate any household record. All source organizations, records, run diagnostics and role selections are synthetic; supporting URLs use the reserved example.org domain. Browser memory resets on reload.
+
+## Covered workflow
+
+- Default household-access denial; separate viewer, reviewer and publisher review roles. Authority is checked again against the current role at confirmation, not just by disabling a button.
+- Three distinct review cases: a validated guidance candidate, an unexpectedly empty invalid water import with unit/geography/date/required-field failures, and an unavailable air feed retaining a dated partial last-valid publication.
+- Source owner, issuing organization, support URL, reuse terms, geography/coverage, method, cadence, source observation/publication/retrieval dates, parser/content revision, last successful run, safe diagnostic, rejected count, broken-link status, reviewer and next review date.
+- Published/candidate comparisons distinguish missing from zero and retain original units, geographic scope, dates, required fields and interpretation state. Invalid import rows are never promoted to an all-clear by request success or operator approval.
+- Exact-revision quarantine, validated approval, separate publisher publication, withdrawal and Spanish translation review. Translation approval belongs to the exact approved content version; English publication does not imply a pending translation was published. Coverage changes are reviewed as part of source-version comparison, not free-form consumer edits.
+- Explicit action reason and scoped confirmation, stale revision rejection, pending cancellation, retained failed/offline drafts, bounded retry of one failed run with its existing request key, and idempotent application by operation ID.
+- Unknown outcome blocks new decisions and blind retry. The isolated status fixture can remain unknown or confirm that no write occurred, then allow deliberate retry. No simulated status is presented as a real server operation ledger.
+- Publication/withdrawal reviews describe affected recommendations and separate deduplicated notification intents. Version history and audit decisions are retained. Saved actions, household evidence, private notes and documents are outside this surface's model and cannot be deleted by it.
+
+## Verification
+
+`test/frontend-source-operations.test.mjs` contains seven passing logic tests for role boundaries (including unexpected runtime role values), anomaly quarantine, immutable publication history, exact revisions/reasons/idempotency, scoped retry with stale last-valid retention, version-bound translations and distinct evidence states. All six `test/ui/source-operations.spec.ts` scenarios passed against the stable static snapshot: denial/viewer access, publish/withdraw/translation, malformed import quarantine, retry, failure/offline/unknown outcomes, stale revision/role changes, pending cancellation and 320px layout. The operator-role allowlist and translation-publication wording also passed in the integrated browser regression. The root completion receipt records the aggregate result and publication.
+
+## Backend and operational work still required
+
+Vibhav must provide independently authenticated operator identities and roles, server-enforced source/run/revision ownership and validation, exact version comparison, durable idempotency and audit timestamps, atomic publication pointers and rollback, authoritative outcome reconciliation, bounded resumable ingestion with quotas and private/public separation, safe diagnostics, URL/licence/coverage verification, reviewer identity and review expiry, localization lifecycle, deduplicated affected-entity events and notification intent, secret isolation, backup/restore and operational monitoring. A hidden route or client-selected role is never authorization. Failed fetches and unexpected empty imports must retain the last valid dated source as stale, not replace it with clean conditions. Raw imports, HTML, model output and external instructions cannot become reviewed guidance merely by checking a box.
+
+The wireframe does not fetch actual guidance, translate content, republish provider data, automatically retry jobs, update live scores, rewrite old scientific interpretations or prove real refresh reliability. It preserves the backend/approval/archive boundaries in `docs/WIREFRAME_WORKFLOW.md`, master-plan X07, the frontend operator requirements and X07 acceptance.

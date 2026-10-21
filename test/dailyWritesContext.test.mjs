@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRouteHarness } from './helpers/routeHarness.mjs';
+import { createRouteHarness, rpcError } from './helpers/routeHarness.mjs';
 import { HALO_TABLES, haloTables } from './helpers/tables.mjs';
 import { fullContextRow } from './helpers/fakeHomeContext.mjs';
 import { withoutColumn } from './helpers/missingColumn.mjs';
@@ -190,6 +190,47 @@ for (const code of ['PGRST204', '42703']) {
     assert.match(String(logs.warn.mock.calls[0].arguments[0]), new RegExp(`home_context_id.*${code}|${code}.*home_context_id`));
   });
 }
+
+// ------------------------------------------------- privacy receipt purge (B07 Task 3, Ruling P10)
+
+test('the daily job purges settled privacy receipts once per run, for every household (no owner), after the household loop', async (t) => {
+  quiet(t);
+  const h = cronHarness();
+  const readingsAtPurge = [];
+  h.db.registerRpc('purge_privacy_receipts', () => {
+    readingsAtPurge.push(h.db.rows('daily_scores').filter((row) => row.date === TODAY).length);
+    return 4;
+  }, { args: ['p_profile_id'] });
+  const body = await runJob(h);
+  const calls = h.db.rpcCalls.filter((call) => call.name === 'purge_privacy_receipts');
+  assert.deepEqual(calls.map((call) => call.args), [{ p_profile_id: null }], 'one call, passing no owner explicitly');
+  assert.deepEqual(readingsAtPurge, [3], 'after every household\'s reading was recorded');
+  assert.equal(body.privacy_receipts_purged, 4);
+});
+
+test('a failed privacy receipt purge never fails the daily run and is logged by its code only', async (t) => {
+  const logs = quiet(t);
+  const h = cronHarness();
+  h.db.registerRpc('purge_privacy_receipts', () => {
+    throw rpcError('XX000', 'Failing row contains (SECRET-ROW-VALUE)', 'DETAIL-SECRET');
+  }, { args: ['p_profile_id'] });
+  const body = await runJob(h);
+  assert.deepEqual(body.readings, { recorded: 3, already_had_one: 0, failed: 0 }, 'the rest of the run is unchanged');
+  assert.equal(body.privacy_receipts_purged, null);
+  const lines = logs.error.mock.calls.map((call) => call.arguments.join(' ')).filter((line) => /privacy receipt purge/i.test(line));
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /XX000/);
+  assert.ok(!lines.join('\n').includes('SECRET'), 'no message, detail or row value');
+});
+
+test('before 0024 (the purge function is missing, PGRST202) the daily run still succeeds', async (t) => {
+  const logs = quiet(t);
+  const h = cronHarness();
+  const body = await runJob(h);
+  assert.equal(body.ok, true);
+  assert.equal(body.privacy_receipts_purged, null);
+  assert.ok(logs.error.mock.calls.some((call) => /privacy receipt purge failed.*PGRST202/.test(call.arguments.join(' '))));
+});
 
 /**
  * Makes the bulk read of the current homes answer `error` (the database's answer to the whole

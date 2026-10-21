@@ -1,0 +1,27 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "foodQuestions",
+    "record": {
+      "id": "question-1",
+      "title": "A record",
+      "revision": 0,
+      "evidenceId": "notice-1",
+      "question": "Is my lot included?",
+      "reportId": "test-not-mine",
+      "note": ""
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "validation",
+    "reason": "invalid_reference",
+    "message": "A linked record or home is no longer available. Your draft is kept. Review the links before saving."
+  }
+}

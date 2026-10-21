@@ -9,6 +9,10 @@
  *                "<column> is not null" (nothing else is understood)
  *   ownerColumn  'profile_id'          rows cascade away with that auth user
  *   defaults     { id: () => uuid }    filled in for columns an insert omits
+ *   references   [{ column, table, key }]  a foreign key: a written row whose
+ *                column is not null must name a row of `table` by `key`, else
+ *                23503 and nothing is written. Checked only when `table` is
+ *                declared too, and never for a seed (test setup).
  *
  * Writes are statements: each one is planned against a copy and either commits
  * whole or returns an error and changes nothing, like a Postgres transaction.
@@ -47,8 +51,10 @@ function partialPredicate(where) {
 }
 
 export class FakeTable {
-  constructor(name, declaration = {}) {
+  constructor(name, declaration = {}, lookup = () => undefined) {
     this.name = name;
+    this.lookup = lookup;
+    this.references = declaration.references ?? [];
     this.primaryKey = toColumns(declaration.primaryKey);
     this.unique = (declaration.unique ?? []).map(toColumns);
     this.partialUnique = (declaration.partialUnique ?? []).map(({ name: constraint, columns, where }) => ({
@@ -59,6 +65,15 @@ export class FakeTable {
     this.ownerColumn = declaration.ownerColumn ?? null;
     this.defaults = declaration.defaults ?? {};
     this.rows = [];
+    /**
+     * Row triggers a test installs (fakeSupabase registerTrigger). `before(oldRows, newRows)`
+     * runs on the planned rows of an insert, upsert or update and may change those row objects
+     * in place, as a BEFORE ROW trigger changes NEW, or throw a pgError to refuse the whole
+     * statement, as a trigger that raises does; `after(oldRows, newRows)` runs once the
+     * write is committed. Neither runs for a seed (test setup) or a delete.
+     */
+    this.triggers = { before: [], after: [] };
+    this.seeding = false;
   }
 
   /** Every declared key as { columns, constraint }. */
@@ -113,10 +128,46 @@ export class FakeTable {
     return null;
   }
 
+  #foreignKeyError(rows) {
+    for (const { column, table, key } of this.references) {
+      const target = this.lookup(table);
+      if (!target) continue;
+      for (const row of rows) {
+        const value = row[column];
+        if (isNil(value) || target.rows.some((other) => compareValue('eq', other[key], value) === true)) continue;
+        return pgError(
+          '23503',
+          `insert or update on table "${this.name}" violates foreign key constraint "${this.name}_${column}_fkey"`,
+          `Key (${column})=(${value}) is not present in table "${table}".`,
+        );
+      }
+    }
+    return null;
+  }
+
   #plan(work, affected) {
-    const error = this.#nullKeyError(work) ?? this.#uniqueError(work);
+    const fire = !this.seeding;
+    if (fire) {
+      for (const before of this.triggers.before) {
+        // A BEFORE trigger that raises fails the statement, which then changes nothing.
+        try {
+          before(this.rows, work);
+        } catch (error) {
+          if (error?.name === 'PostgrestError') return { error };
+          throw error;
+        }
+      }
+    }
+    const error = this.#nullKeyError(work) ?? this.#uniqueError(work) ?? (fire ? this.#foreignKeyError(affected) : null);
     if (error) return { error };
-    return { rows: affected.map(wire), commit: () => { this.rows = work; } };
+    return {
+      rows: affected.map(wire),
+      commit: () => {
+        const previous = this.rows;
+        this.rows = work;
+        if (fire) for (const after of this.triggers.after) after(previous, work);
+      },
+    };
   }
 
   #copy() {
@@ -125,7 +176,13 @@ export class FakeTable {
 
   /** Test setup. Constraints apply, so a bad seed fails loudly. */
   seed(rows) {
-    const plan = this.insert(rows);
+    this.seeding = true;
+    let plan;
+    try {
+      plan = this.insert(rows);
+    } finally {
+      this.seeding = false;
+    }
     if (plan.error) throw new Error(`fakeSupabase seed for "${this.name}": ${plan.error.message}`);
     plan.commit();
   }

@@ -1,8 +1,725 @@
+# B11 checkpoint: Homeguard workspace (`workspace.load`, `workspace.execute`, the `workspace` reconcile)
+
+Date: 2026-10-20. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b11-homeguard-workspace.md` (Rulings W1 to W14). Contract: `docs/backend/contracts/b11.openapi.json`, version `b11-1`, with its fixtures and `test/contractsB11.test.mjs`.
+
+The B07, B06, B10, B04, B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **The workspace is not live anywhere.** Migration 0026 is applied nowhere and `HALO_FEATURE_WORKSPACE` is set in no environment, so Homeguard's load answers a 503 and a save answers a 200 `failed` receipt with "Saving Homeguard records is not available yet. Nothing was saved."
+
+## Five things a reader would otherwise assume wrongly
+
+1. **A refused save is a 200, and a 5xx locks Homeguard.** The client keeps its draft and does not lock on a `failed` receipt, so every refusal (`stale_revision`, `notes_changed`, `invalid_reference`, `limit`, `invalid_record`, `attachments_unavailable`, `clear_unsupported`, `week_journal_unavailable`, `home_transitions_unavailable`) is `{status: 'failed', changes: {}, code, reason, message}` with a 200. Any 5xx on a save, including the 503 for a missing migration, is read as an unknown outcome and locks the screen on that operation until its status is checked.
+2. **Fourteen of the sixteen collections are stored.** `weekJournal` (Ruling W2) and `homeTransitions` (W3) are answered `unavailable` with a sentence and the pending list, and a write for either is refused. Neither is an empty list.
+3. **Private files, `clear-private` and project generation are not here.** A record that names a private file is refused (W4). The workspace's `clear-private` command is refused (W9): there is one clearing path, the privacy review in Settings. A project guide is stored as the client sent it (W13); nothing verifies its provenance.
+4. **The server assigns every revision.** 1 on create, one more on update; a sent record revision is ignored, and there is no collection revision (W6). A record's own revision is the only concurrency control, checked again inside the commit function under its locks.
+5. **"B11" is the backend's numbering of this package.** The spec's own B11 rows (HO-091, HO-092, HO-110) are about Luna and are untouched.
+
+## Where B11 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0026, the load and commit functions, the privacy hooks, the three routes, the flag | Merged (`afe9d67`; merge `c16ea6a`), edge-case fix `996138b` |
+| 2. Contract, conformance, tracker, checkpoint | This section. `b11.openapi.json`, `fixtures/b11/` and `test/contractsB11.test.mjs`, on top of `6ed15fa` |
+
+## Verification
+
+`test/contractsB11.test.mjs` runs every operation through the real handlers on PGlite with migration 0026 and the 0017 ledger, and judges each answer by the client's own runtime, adapter and validators. Every fixture is a real handler's answer with the command that led to it, replayed through the client. The per-route suites (`routesWorkspace`, `routesWorkspaceDb`, `workspaceSchema`, `workspaceRecords`) are unchanged. Nothing has run against a real Supabase project.
+
+## Rulings
+
+W1 to W14 are in the plan. The ones that most shape behaviour:
+
+- **W1 (proposed, Vibhav to confirm): the capability is off by default.** The workspace holds free text a person typed and health-adjacent records. Proposed retention: kept until the person deletes the record, clears all or deletes the account.
+- **W5: the reconcile always carries `changes`.** A succeeded operation is answered with the CURRENT rows of the collections it touched (the ledger keeps names, ids and revisions only); every other status carries `changes: {}` and a sentence.
+- **W9: `clear-private` is refused.** It is the second clearing path that YOUR_TODO 35 (C11) asked to avoid.
+- **W12: a stale or duplicate write is a refusal, never a 409.** A 409 is only for a replay of an operation that cannot be answered (`operation_mismatch`, `abandoned`, `not_applied`, `unrecognized_receipt`).
+
+## Open questions for Vibhav
+
+Rulings marked proposed in the plan wait for you: W1 (retention and the flag), W2 and W3 (the journal and home history stay unavailable), W4 (private files later), W6 (no collection revision), W7 (limits: 1,000,000 byte body, 262,144 byte record, 1,000 records and 1,500,000 bytes a collection), W8 (clear all deletes the workspace in the clear's transaction), W10 (references must name the caller's own records) and W13 (guides stored as sent). Applying 0026 does not turn the workspace on (`YOUR_TODO.md` 2.17).
+
+## Known limits and deferred minors
+
+- A save sent after the table has gone missing (a 503 before the claim) is read by the client as an unknown outcome and locks; its status check then finds no operation (a 404) and cannot clear the lock until a reload. A load would have failed first, so this needs the table to disappear between load and save.
+- A stale pending row past its two minute window is reaped by its own reconcile and answered `failed`; the status `unknown` is documented only for a reap that itself failed.
+- A record over 262,144 bytes is refused as `limit` before any claim, and a full collection is refused as `limit` inside the claim; both are the same sentence.
+- A workspace save between a privacy review and its confirm is not detected by the fingerprint (clear all already refuses while any operation is pending).
+- A reconcile or a command replay of a succeeded save returns the CURRENT rows (Ruling W5). If its effect has since been undone on another device (the saved record deleted, or the removed record added again), the client cannot settle a succeeded receipt, and the ledger holds no record content to repeat. **Fixed (Ruling W15, proposed, Vibhav to confirm):** that case is answered as the 200 `failed` receipt `changed_elsewhere` (code `conflict`, `changes: {}`, a sentence telling the person to reload); on `GET /api/operations` this is the one place the answered `status` differs from the ledger's `succeeded`, which stays. The client resolves the operation and unlocks. What it shows afterwards: no ghost of the deleted record, but a row it already held (an update whose answer was lost) stays at its old revision until a reload, and saving it is an ordinary stale-revision conflict, not a lock. A newer revision of the saved record is still answered `succeeded`. Tested through the real runtime and adapter in `test/contractsB11.test.mjs`.
+- If only `commit_household_workspace` is missing (0026 is one file, so it is not reachable in practice), the commands route has already claimed the operation when it answers the 503; the row settles failed and a replay is a 409 `not_applied`. The route's comment now says so: "decided before the claim" holds for the read function only.
+- `GET /api/operations` with the capability off answers 404 for an unknown id and 503 only for a known one, because the lookup runs first. An operation id used by another household answers 409 `operation_mismatch` on the commands route, which reveals only that a random UUID exists.
+
+## Next
+
+1. Answer the open questions, apply 0026 (`YOUR_TODO.md` 2.17), and decide when the flag goes on.
+2. The attachments package (W4) and a journal and home-history decision (W2, W3) are the next B11 follow-ups.
+
+---
+
+# B07 checkpoint: privacy (status, inspect, export, clear)
+
+Date: 2026-10-20. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b07-privacy.md`. Contract digest, rulings and reviews: `.superpowers/sdd/b07-privacy-forecast/` (gitignored scratch).
+
+The B06, B04, B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **Privacy is not live anywhere.** Migration 0024 is applied nowhere and `HALO_PRIVACY_REVIEW_KEY` is set in no environment, so every privacy route answers "unavailable" and the panel says "Privacy requests are unavailable." `docs/backend/STATE.md` is not updated by this task; the controller regenerates it.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **The key is the switch, and it is off.** There is no capability flag (Ruling P18): privacy reduces data and collects none. Until the key is set the panel's honest off state stands. Vibhav sets it on staging, does one browser pass of the clear, and only then sets it in production (`YOUR_TODO.md` 2.16, plan Open question 4).
+2. **Clear all is not account deletion** (D-P1). It deletes every household-owned record (home, home history, household answers and settings included) and resets the profile, so the household goes back through onboarding. The login, the recovery challenges and the clear's own receipt survive. `DELETE /api/account` stays the identity-deletion path.
+3. **The export file is stored nowhere** (P8, P9). It travels inline in the receipt. A lost answer is rebuilt from the stored selection and the current rows within ten minutes; after that the receipt answers without the file and the panel keeps its lock until a reload. The ledger holds group names and a boolean, never content.
+4. **Clear Journal does not clear the week journal** (P13). Week journal check-ins have no server storage yet. Clear Journal removes symptom logs and season summaries, and the review says the week journal is not stored on the server.
+5. **"B07" is the backend's numbering.** The spec calls export and deletion B12. Forecast (`forecast.read`) was split out as B10.
+
+## Where B07 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0024: clear, fingerprint, counts, purge, probe, freeze trigger | Merged (`7f1a321`; merge `66e7c26`), fix round merge `3961a00` |
+| 2. `lib/privacyInventory.js`, `lib/privacyToken.js`, `lib/privacyStore.js` | Merged (`8ecdd82`; merge `ddc902d`), fix round merge `3961a00` |
+| 3. `GET /api/privacy/status` and the receipt purge | Merged (`5e640d6`, `d6d7ba2`, `1aabc33`; merge `09a04ec`) |
+| 4. The export builder and `POST /api/privacy/export/inspect` | Merged (`f3735ec`, `081ccd4`; merge `37788d5`) |
+| 6. `POST /api/privacy/clear` | Merged (`8bacd49`, `68c8bf1`, `75c2a3e`; merge `08da745`) |
+| 5. `POST /api/privacy/exports` and the export reconcile overlay | Merged (`dea0c5a`, `36cc1c9`; merge `d201fe0`) |
+| 7. Contracts, conformance, docs, tracker, checkpoint | This section, on `cc1a185` |
+
+Every task before 7 had an independent review; each review is in the scratch folder. From 2026-10-20 there is no separate reviewer: Task 7 was exercised by one test subagent (below). Nothing is merged to main.
+
+## What was built
+
+- **Migration 0024** (functions and a trigger, no table): `clear_household_records` performs both clears and settles its own ledger row in one transaction (P3); `privacy_fingerprint` and `privacy_counts` back the review; `purge_privacy_receipts` deletes settled privacy receipts after 24 hours; `privacy_schema_version` is the availability probe; `operations_privacy_settled_guard` freezes a settled privacy row's status (P16). All service-role only.
+- **`lib/privacyInventory.js`** places every owned table for export (a group and two column tiers, or an exclusion with a reason) and for both clears, and two structural tests fail when a new owned table is not placed (P2, P12). **`lib/privacyToken.js`** mints and verifies the stateless review token (P6). **`lib/privacyStore.js`** wraps the 0024 functions and now also holds, since Task 7, the one table of privacy ledger kinds (`PRIVACY_KINDS`, which the export and clear routes write and `privacy.status` maps back to a scope), the log-code filter (`loggableCode`) and the routes' shared opening (`openPrivacy`: the key, then the 0024 probe). This folds the Task 3 and Task 5 review carries; no behaviour changed.
+- **The four routes** and the privacy branch of `GET /api/operations`, as the plan's Tasks 3 to 6 describe them.
+- **`docs/backend/contracts/b07.openapi.json`**, version `b07-1`, with 56 fixtures under `fixtures/b07/`, and **`test/contractsB07.test.mjs`** (79 tests), described in `docs/backend/contracts/README.md`. It runs every route on PGlite with the real 0024 functions and the household tables read straight from PGlite (`test/db/pgliteSelect.mjs` gained `neq`, `gt`, `in` and a counted head select for the export builder), and hands every answer to the panel's whole consumption logic, transcribed in `test/helpers/frontendB07.mjs` from `ProductionPrivacy.tsx:18-25` and `SettingsWorkspace.tsx:52`, with a drift test and a negative control per transcribed function. The Task 5 and Task 6 carries are in it: both export success shapes (with and without `file`), a clear's success carrying `scope`, one PGlite inspect-to-export run, and a real pending export and a real pending clear listed by `privacy.status` with their scope.
+- **Docs:** every row of `docs/backend/privacy-and-retention.md` now gives its export group and tier (or why it is never exported) and what each clear does, with a new section on the review, the file, the receipts and their retention, and residuals F2 and F3. `YOUR_TODO.md` gained 2.16 (the key steps, the staging-first order, 0024 and 0025 pending) and Part 4 items 33 to 36 for Yogi (F1, F4, C11 and the too-large export message). The tracker gained the B07 rows.
+
+## Rulings
+
+P1 to P18 are in the plan. The ones that most shape behaviour:
+
+- **P3: a deletion exists if and only if its operation is `succeeded`.** One database function deletes, resets and settles its own row, so every `failed` (a refusal, an in-process throw, a reap) means nothing was deleted, and the client's "The request was not applied. Your data is unchanged." is true. P16's freeze trigger keeps a committed clear whose answer was lost from being recorded as failed.
+- **P6: the review token binds the household, scope, selection and a fingerprint** of the records the person's own actions write, signed with its own key. Server-written rows (daily scores, alerts, runs) are counted and removed but not bound, so a background refresh never refuses a clear.
+- **P8 and P9: the file travels inline, is never stored, and is rebuilt only within ten minutes.**
+- **P10 (D-P3, proposed): ten minutes for the token and the rebuild, 24 hours for receipts**, the shortest the contract allows.
+- **P11: availability is reported by `privacy.status`**, never first discovered by a mutation.
+- **P15: refusal taxonomy.** Malformed is a 400 before the claim; a stale or foreign token is a 409 before the claim; the function's refusals after the claim are 200 `failed`; a reaped row before the function is a 500 that reconciles to `failed`.
+
+## Migration 0024
+
+**Written, merged, and applied nowhere.** It needs 0023 and refuses to apply without the tables it uses. Its pre-apply profiles column check, apply steps, five-column verification and tested back-out block (`<!-- backout-0024 -->`) are in `YOUR_TODO.md` 2.14. **0024 and 0025 are both pending for Vibhav**; they are independent, and the clear handles 0025's table whichever is applied first. Applying 0024 turns nothing on: the key does (2.16).
+
+## Verification
+
+Gate on `cc1a185` plus Task 7:
+
+- `node --test test/*.test.mjs`: **4,529 passed, 0 failed, 0 skipped, 0 todo**.
+- B07 suites: `contractsB07` 79 (new) and `privacyStore` 19 (3 new: `loggableCode`, `PRIVACY_KINDS` both ways, `openPrivacy` key before probe); every other privacy suite passes unchanged, with no test weakened or removed.
+- `npm run typecheck`: clean.
+- `npm run lint`: **0 errors and the 6 pre-existing warnings**.
+- `git diff --check`: clean.
+
+**Test subagent** (one, per the 2026-10-20 rule). It ran the suites (79 and 342 pass) and mutated a scratch copy: bare ids from `privacy.status`, a clear receipt without `scope`, a wrong clear kind, a changed `PRIVACY_KINDS` entry, an export without `file`, `confirm` accepted as a body key, the rebuild limiter bypassed and the status probe skipped were each caught by `contractsB07`; the rebuild window ignored, a rebuild without the key and `openPrivacy` mis-ordered were caught by the route suites. It found one gap, `loggableCode` returning a message unnoticed by every suite, now pinned in `privacyStore`; and suggested the contract suite own the before-0024 503, now asserted on the status read and all three mutations with nothing claimed. It found no defect and no U+2014 or personal email in the diff.
+
+Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped and blocked, and why
+
+- **Dropped:** `forecast.read` (split out as B10); CSV exports (nothing asks for one, and a multi-table export has no honest single CSV shape); a stored export artifact (the contract delivers the file inline, C12); clearing the frontend workspace collections on the server (they have no storage).
+- **Blocked:** account deletion through this panel (it is not account deletion); export of `home_risks` fields (count only until its deployed columns are audited); devices and sessions, attachments, jobs and remote session cleanup (none exist).
+
+## Open questions for Vibhav
+
+The plan lists eleven. The ones that need an answer before or soon after the key is set:
+
+1. **D-P3 retention:** ten minutes for reviews and rebuilds, 24 hours for receipts. Confirm, or name longer periods.
+2. **Recovery challenges survive clear all** (proposed), as login material.
+3. **Language resets to English on clear all** (proposed), because D-P1 removes settings.
+4. **Turn the clear on only after one browser pass on staging.** Clear all is irreversible.
+5. **`home_risks` columns:** re-run the read-only audit and send the list, or confirm the table is unused.
+6. **The 4,000,000-byte export cap** and the limit of 30 privacy reviews and exports per household per hour.
+7. **Residual F2:** accept one in-flight cron alert after a clear, or add a "cleared at" marker.
+8. **Apply 0024** after its pre-apply check returns no rows.
+
+## Known limits and deferred minors
+
+- **PGlite cannot show true concurrency** (one connection). F3, a deadlock between a clear and a concurrent My Week commit, is reasoned from the SQL.
+- **PGlite answers timestamps in the session's zone** (for example `-05:00`), where PostgREST answers UTC. Both are ISO 8601 with an offset; the fixtures fix every instant, so this changes nothing a client reads.
+- **The too-large export message is not shown.** The runtime maps the 422 to its generic validation sentence (`YOUR_TODO.md` Part 4 item 36).
+- **After clear all the panel stays on Settings** until the next app load sends the person to onboarding (F1, Part 4 item 33).
+- **Fixtures are regenerated, not hand-edited.** After a deliberate contract change, run `node test/contractsB07.test.mjs --write-b07-fixtures` and review the diff.
+
+## Next
+
+1. Merge Task 7 onto `vmag211/backend`. The controller then regenerates `STATE.md`: four more operations answer (unavailable until the key is set), the new key sits under known risks beside `HALO_RECOVERY_TOKEN_KEY`, and 0024 is pending.
+2. Vibhav: apply 0024 on staging, set the key there, one browser pass, then production (`YOUR_TODO.md` 2.14 and 2.16).
+3. Give Yogi `YOUR_TODO.md` Part 4 items 33 to 36 and the B07 contract.
+
+---
+
+# B06 checkpoint: My Week (tasks, their planning details, and the week strip)
+
+Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b06-home-actions-week.md`. Contract digest and rulings: `.superpowers/sdd/b06-home-actions-week/` (`contract-digest.md`, `progress.md`, the task reviews; gitignored scratch).
+
+The B04, B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **My Week's tasks are not live anywhere.** The `tasks` capability is off in every environment and stays off until Vibhav approves a retention period for tasks. Migration 0023 is applied nowhere. `docs/backend/STATE.md` is not updated by this task; the controller regenerates it after the B04 and B06 contract tasks both merge.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **My Week still cannot load in production, by decision.** The routes are built and tested, but the `tasks` flag is off by default (Rulings H1, H17), and Vibhav confirmed on 2026-10-18 that it stays off until retention for tasks is approved. Until then the load is a non-retryable 503, and My Week shows exactly what it shows today with no route: "Your tasks could not load. Reconnect and try again." (open question 4).
+2. **The week strip will never show a change in this release.** `week.changes` always answers `{"changes":[],"unresolvedOperations":[...]}` (Ruling H4). No source of a change exists: organizer events, forecasts and the home record collections are unbuilt, and deriving a change from water alerts would invent a link no record makes (C4). `week.acknowledge` validates the body and then refuses, every time, through the ledger (Ruling H19). The strip renders nothing for that answer, which is its own designed empty state.
+3. **This is not the spec's P01 and P02 in full.** It is what the client contract needs today: three states, not the spec's seven (C5); recurrence driven by the client, with no occurrence table; no reminders or scheduler (HO-072); no evidence snapshots, parents or dispositions; and the `clear` command kind refused (Ruling H14). The tracker marks every broad row partial.
+4. **"B06" is the backend's numbering.** The spec's own B06 is "Food advisories and grower resources", and the spec calls this work "B03 Shared actions Plan and durable delivery". The registry's routes win over the spec's REST names (HO-096 permits renaming).
+5. **Tasks belong to the household, not a home** (Ruling H2). `X-Halo-Home-Context` is ignored on all four routes, so a move carries nothing (`portableTasks`). The unique key can widen later without moving data (open question 2).
+
+## Where B06 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0023, its read function and its atomic commit function | Merged (`b6746d3`, `9e71225`; merge `615f7d6`) |
+| 2. `lib/actionRules.js`, the client's rules and the command planner | Merged (`722201a`, `cbaaa4e`; merge `5354ccd`) |
+| 3. `GET /api/frontend/actions` (`actions.load`), the store library, the flag | Merged (`a2d296d`, `a9d1a22`; merge `0928320`) |
+| 4. `POST /api/frontend/actions/commands` (`actions.commit`) and the `actions` reconcile in `operations.read` | Merged (`f9700c4`, `d69e8bb`, `faaf33d`; merge `b5e978c`) |
+| 5. `GET /api/week/changes` and `POST /api/week/changes/acknowledge` | Merged (`a1825a0`, `631bc14`; merge `18a0829`) |
+| 6. Contracts, conformance, tracker, checkpoint | This section. Built on `b5e978c` (`15a3a21`, `283557b`), with a review fix round (`c4cb6d5`) and a merge of `vmag211/backend` at `3c0e7e8` |
+
+Every task before 6 had an independent review, and each review is in `.superpowers/sdd/b06-home-actions-week/`. Task 6 was reviewed (CHANGES REQUIRED, two docs fixes and seven nits, all addressed in `c4cb6d5`); the fix round is not yet re-reviewed. Nothing is merged to main.
+
+## What was built
+
+- **Migration 0023** creates three tables: `household_actions` (one row per task, keyed by the household and the client's task key), `household_action_preferences` (the six My Week preferences) and `household_action_state` (one internal counter per household). It also creates one index, ten CHECK constraints, the read function `read_household_actions`, the atomic commit function `commit_household_actions`, and a guard trigger on 0017's `operations`. All of it is service-role only: RLS is on with no policy, and the browser roles have no privilege on the tables and no EXECUTE on the functions.
+- **`lib/actionRules.js`** is the client's own rules, transcribed with types stripped and nothing improved (Ruling H15): `validActionDate`, `actionDraftError`, `revisedActionBatch`, `eventInstant`, `actionMetadataError`, `validActionPreferences`, `validActionSnapshot` and `sameValue`. It also holds `parseActionCommand`, which settles every 400 that needs no stored state, and `planActionCommand`, which applies a command in the reference order and validates the whole resulting snapshot.
+- **`GET /api/frontend/actions`** reads the household's whole snapshot in one statement, so a household over 1,000 tasks is not cut short (F1). It reads the unresolved list before the snapshot, and returns a stored snapshot exactly as read even when the server's own validator refuses it, logging only ids and codes (Rulings H24, H31).
+- **`POST /api/frontend/actions/commands`** checks, in order: the session, the body (at most 4,000,000 bytes), the operation id and `Idempotency-Key`, the flag, `If-Match` (refused), and the whole command. It then reads the snapshot and the live list, claims the ledger row, and plans and commits through the one database function, retrying a lost race at most three times. Every refusal is the contract's own 200 `failed` receipt, or a terminal 409 on a replay (Ruling H11).
+- **`GET /api/operations`** answers a succeeded `actions` operation with the household's CURRENT snapshot and the live list minus the operation itself, at the top level and at `snapshot` (Rulings H18, S16). Every other status and domain is replayed as stored.
+- **`GET /api/week/changes`** and **`POST /api/week/changes/acknowledge`** need only 0017 and are not behind the flag (they collect no free text).
+- **`docs/backend/contracts/b06.openapi.json`** is version `b06-1`, with 60 fixtures under `fixtures/b06/`. Each fixture is the normalised answer of a real handler, and a test fails if one drifts. **`test/contractsB06.test.mjs`** (79 tests) runs the handlers against the contract and through the client's own consumption logic, transcribed once in `test/helpers/frontendB06.mjs`. Task 6 moved the week strip transcription there from `routesWeekChanges`, so the per-route suites and the contract share one copy. It covers every documented status, including:
+  - the flag-off 503;
+  - the empty household;
+  - the H11 400;
+  - the five 200 refusal reasons and the disabled receipt;
+  - the four 409 reasons;
+  - the in-flight 503;
+  - the stored refusal's `check`;
+  - the S14 and S16 list shapes.
+
+  It checks three cross-route agreements: a receipt's snapshot is the next load; a reconcile is the current snapshot plus the live list in both places; and the empty household is the same bytes on the load, a receipt and its reconcile. A drift test holds `lib/actionRules.js` to the independent transcription on a corpus of more than 800 comparisons. **No disagreement was found.** No B06 body has a top-level `data` key or a U+2014.
+
+## Rulings
+
+H1 to H7 were the controller's before planning, H8 to H24 were made in planning, and H25 to H33 were made during execution. All are in `progress.md` and the plan. The ones that most shape behaviour:
+
+- **H8: a task write exists if and only if its operation is `succeeded`.** The commit function settles the save's own ledger row, in the transaction that writes the tasks. So when a reaped save reconciles, the client's "No save was applied. Your draft is kept for review." is always true.
+- **H25 (amends T5): whole-snapshot validation refuses only failures the command adds.** A stored row that only the server's time zone data rejects (H24 drift) does not block unrelated saves, and a save that fixes or deletes the bad row still works. As first planned, one such row would have blocked every save while the client still showed My Week.
+- **H28: a guard trigger on `operations` freezes the status of a settled `actions` row.** Without it, `runOperation` would overwrite the function's in-transaction `succeeded` with `failed` when the response is lost, and the client would be told nothing was saved. It applies to domain `actions` only, and the reaper, which touches pending rows only, is unaffected.
+- **H29: the commit function locks its own pending ledger row first.** A row the reaper has already settled aborts the commit, so a reaped row never becomes `succeeded` without its write, and a committed task is never reaped.
+- **H32 (amends H16): a live success reads the unresolved list once, after the snapshot probe and before the claim**, in the same order as the load. Every operation already claimed when the list is read is then either listed, or in the snapshot the commit returns. The residual is under Known limits.
+- Also in force:
+  - **H3:** the ledger holds ids, revisions and reason codes only.
+  - **H9:** one read function builds every snapshot.
+  - **H10:** a household version serialises commits, because metadata moves no per-task revision.
+  - **H12:** signatures are parsed and deep-compared, all first.
+  - **H13:** echo exactly, and refuse only what cannot round-trip: U+0000, a lone surrogate, a non-finite number, year 0000.
+  - **H17:** the flag.
+  - **H21:** `Idempotency-Key` required and equal to the body's id, `If-Match` refused, `maxDuration = 60`.
+  - **H26:** nesting is capped at 32.
+  - **H27:** the body id is lowercased and never trimmed.
+  - **H30:** years 1 to 9999.
+  - **H31:** log codes, not text.
+  - **H33:** a stored `invalid_result` refusal may carry `check`, one of nine fixed codes, never typed text.
+  - **S14 and S16:** carried from B04. A stored receipt carries `unresolvedOperations: []`, and a reconcile carries the live list.
+
+## Migration 0023
+
+**Written, merged, and applied nowhere.** 0023 is the **fifth pending migration**, after 0019, 0020, 0021 and 0022. 0001 to 0018 are applied to production. Its apply steps, its six-column verification query (expect one row, all true, including `ten_checks`, meaning exactly 10 CHECK constraints), and its tested back-out block (`<!-- backout-0023 -->`) are in `YOUR_TODO.md` 2.12. The back-out is tested on PGlite only. Applying it takes a brief SHARE ROW EXCLUSIVE on `profiles` and on `operations` (the guard trigger). Applying it turns nothing on: the flag decides that.
+
+## Verification
+
+Gate at the Task 6 docs commit, on `b5e978c` plus Task 6: **3,304 passed**, which is the 3,227 of the Task 4 merge plus the 77 contract tests then. Moving the strip transcription changed no per-route count. The review round added 2 contract tests and one fixture (3,306).
+
+Gate on the merge of `vmag211/backend` at `3c0e7e8` (which includes B04 Task 3) into Task 6 after its review round:
+
+- `node --test test/*.test.mjs`: **3,384 passed, 0 failed, 0 skipped, 0 todo**.
+- B06 suites: `actionsSchema` 24, `actionRules` 26, `actionsStore` 18, `routesActionsLoad` 26, `routesActionsCommit` 27, `routesActionsCommitDb` 12, `routesWeekChanges` 34, `contractsB06` 79, plus the B06 cases in `routesOperations`, `rlsIsolation`, `migrationBackout`, `haloTables` and `routeIsolation`.
+- `npm run typecheck`: clean.
+- `npm run lint`: **0 errors and the 5 pre-existing warnings**.
+- `git diff --check`: clean.
+
+Task 6's mutation checks, each restored afterwards:
+
+- Removing `not_applied` from the contract's 409 reason enum failed 6 tests: two fixtures, the coverage test, both mutation conformance tests, and the fixture-to-handler comparison.
+- Renaming `revisions` to `revision` in the commit route's refusal body failed 4: the commit and reconcile conformance, the fixture comparison, and the header test (a test that stops early stops sending the headers it would have).
+- Dropping the top-level live list from the `actions` reconcile in `app/api/operations/route.js` failed 3, including the cross-route agreement.
+- After the review's fix round (its N1): forcing a live commit receipt's `unresolvedOperations` to `[]` failed 4. These were the commit conformance, which includes the `actionsCommit-success-unresolved` fixture of the H32 list; the cross-route test, which now compares a non-empty list between each receipt and the next load; the fixture comparison; and the header test. The contract's `check` codes and `invalid_result` sentences are now pinned to the exported `ACTION_CHECKS` in `lib/actionsStore.js`. A body owner (`profileId`, `profile_id`) on `actions.commit` is shown refused.
+
+The earlier tasks' mutations are in their reviews. Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped and blocked, and why
+
+- **Dropped:** the `clear` command kind. It has no production sender, and clearing belongs to `privacy.clear`. It is a 400. Also dropped: `reminderStates` (no scheduler), occurrence tables (recurrence is client-driven), and acknowledgement storage (nothing was ever emitted to acknowledge).
+- **Blocked:** turning the flag on, on retention (BE-320). `week.changes` with content, on a change source. `portableTasks` and carry-forward on a move, on open question 2. Export and deletion under `privacy.*`, on B12; until then deletion is the account cascade.
+
+## Open questions for Vibhav
+
+1. **Retention for tasks, their planning details and task preferences** (BE-320, BE-323). **This gates the flag** (Ruling H1, confirmed 2026-10-18). Until it is answered, My Week stays as it is today in production.
+2. **Tasks per household or per home** (Ruling H2). Per household now. Per home would make carry-forward (BE-206) and `portableTasks` meaningful. The key can widen later without moving data.
+3. **Weekly availability as a schedule** (Ruling H5). It is last-write-wins per key, which BE-264 does not accept for schedules. A conflict mechanism needs a precondition in the client contract from Yogi.
+4. **Whether a dead My Week is acceptable while the flag is off.** The client's sentence suggests a fix the person cannot make. The alternative is an availability field from Yogi (`YOUR_TODO.md` Part 4 item 18).
+5. **The week strip's change source.** Whether organizer events, forecasts or the home record collections are in v1 decides whether `week.changes` ever has content. Until one is, the strip is empty by design.
+6. **Whether tasks may reach Luna.** Tasks now exist to send. 0021's `luna_tasks` switch is the gate, and this joins STATE decision 2.
+7. **Unbounded task history** (BE-327, Ruling H23). `meta.history` grows on every change with no bound, and every save carries it, so a long-lived task eventually cannot be saved under the 4 MB cap. It needs a bound in the contract (Yogi) that you agree to.
+8. **Applying 0023**, the fifth pending migration (`YOUR_TODO.md` 2.12). It can go in one batch with 0019 to 0022.
+
+## Known limits and deferred minors
+
+- **The H32 residual.** An operation claimed after a save's list read, which then commits after that save, is in neither the save's list nor its snapshot. The load accepts the same residual. It cannot be told apart from a commit that lands just after the answer, which the client never polls for. Closing it would mean returning the list from inside the commit function's transaction, a 0023 change that is not recommended now.
+- **PGlite cannot show true concurrency.** It runs one connection. The H10 race test interleaves two commits from one base, and the H29 and reaper tests interleave conditional updates. Postgres's row locks and `where version = ...` under real parallel sessions are argued from the SQL, not observed.
+- **Time zone data can still disagree between Node and a browser** (digest 9.5). H24 and H25 keep such a row loadable and other saves working. The residual is recorded, not solved.
+- **The client does not reload after a refusal or a 409** (F4), and **a reconcile 404 locks My Week until a page reload** (F7). Both are client-side, and both are in `YOUR_TODO.md` Part 4 for Yogi.
+- **A reaped row with a late refused commit can replay as `not_applied` rather than `abandoned`** (Task 4 review O-a). Both are terminal 409s, and with `maxDuration = 60` under the 120-second window it is unreachable.
+- **A `cancelled` actions row with no receipt would answer the in-flight 503.** The actions domain never writes `cancelled` (Task 4 review O-b).
+- **`YOUR_TODO.md` 2.6's "which migrations are applied" query still stops at 0019.** 2.12 says to use 0023's own verification query instead.
+- **Fixtures are regenerated, not hand-edited.** After a deliberate contract change, run `node test/contractsB06.test.mjs --write-b06-fixtures` and review the diff.
+
+**Constraint for later packages: project, step and engagement ids must stay ASCII.** A task key is capped at 1,000 UTF-8 bytes (Task 1 review L1: a longer key fails in the unique index). Keys are composed from those ids, so 200 non-ASCII characters per id could exceed the cap, and the save would be refused.
+
+## Next
+
+1. Verify Task 6's review round. Task 6 already contains `vmag211/backend` at `3c0e7e8`, with the B04 contracts task. Then merge it onto `vmag211/backend`. The controller then regenerates `STATE.md` and re-measures the registry: four more operations answer.
+2. Answer open question 1. It alone unblocks the flag. Then apply 0019 to 0023 as one batch.
+3. Give Yogi `YOUR_TODO.md` Part 4 items 16 to 22 and the B06 contract.
+
+---
+
+# B10 checkpoint: the outdoor planner's forecast (`forecast.read`)
+
+Date: 2026-10-20. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b10-forecast.md`. Rulings and carries: the B10 lines of `.superpowers/sdd/b07-privacy-forecast/progress.md` (gitignored scratch). Nothing here is a deployment, provider or approval claim. No migration is involved. `docs/backend/STATE.md` is regenerated by the controller, not by this task.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **Air is not checked in production yet.** The AirNow forecast adapter (Task 5) waits for Vibhav's capture of the authenticated AirNow documentation (open question 2a). Until it lands, `lib/forecast/airNowSlot.js` is empty, the route makes no AirNow call, and Air coverage says "Air was not checked." The tests stand an adapter in through the same slot.
+2. **Air and pollen never have per-period numbers.** AirNow's forecast is one value per day, so `air` is always `null` and the day's forecast is in Air coverage and the tradeoff text (C1). There is no free pollen source, so `pollen` is always `null` and coverage says so (D-F2). The Air and Pollen cards show "Unavailable" by design.
+3. **Rain is a modelled amount, never a chance.** The GFS model has no precipitation probability, so the weather text gives the model's inches; the frontend has no rain field.
+4. **`issuedAt` means two things** (F17). With provider data it is the model run's initialisation time; in an empty snapshot it is the answer time, which the screen never prints. While the two GFS grids disagree, the last confirmed run is served for up to 8 hours, expiring 30 minutes after each answer (F18-S).
+5. **Only North Carolina places resolve.** A typed place goes through the Census gazetteer (exact matches); anything else, an ambiguous name, or another state is an empty snapshot made with no provider call, which is also why keystrokes cost nothing (trap 18).
+
+## Where B10 stands
+
+| Task | State |
+| --- | --- |
+| 1. Census internal points for every place kind | Merged (`a426953`) |
+| 2. `resolveForecastPlace` and `roundForProvider` | Merged (`11a868e`) |
+| 3. HTTP helper, hour-keyed cache, budgets | Merged (`bb68cbf`) |
+| 4. Open-Meteo GFS adapter | Merged with 6 (`985dd6f`) |
+| 5. AirNow forecast adapter | **Gated** on the AirNow docs capture (DS-032) |
+| 6. NWS active alerts adapter | Merged with 4 (`985dd6f`) |
+| 7. Snapshot builder and copy | Merged (`04371ae`) |
+| 8. `GET /api/forecast` | Merged (`6db1b78`) |
+| 9. Contracts, conformance, tracker, checkpoint | This section |
+
+## What Task 9 built
+
+- **`docs/backend/contracts/b10.openapi.json`**, version `b10-1`: one operation, `forecastRead`. It documents F12's date-only horizon, F17's two meanings of `issuedAt`, F18 and F18-S expiry, F19 versions, the four coverage keys and F21's statuses (200, 400, 401, 429, 500, 503). The 503 lists its log-only reason tokens, `open_meteo_incomplete` among them (no date in the series has all three periods complete). The coverage schema requires strings: the client's validator only checks that coverage exists, so an object value would pass it and break the render. That is a render-level rule, and the schema states it.
+- **15 fixtures** under `docs/backend/contracts/fixtures/b10/`, each the body the real handler produced in the contract suite (fixed clock, recorded provider bodies, request id `b10-contract-0001`). A test fails if one drifts.
+- **`test/contractsB10.test.mjs`** runs the real `createProductionRuntime` with a fetcher that calls the real route, so query building, status mapping and the envelope are the client's own code, then the hook's handling, the validator and the screen's decisions, and asserts what the screen shows: periods and their times, the Issued line, coverage, Source, Horizon, Expiry, Official notices, the empty-state message, the check-again date, the error row with Retry forecast, the Refresh forecast notice, and the save check. Saving Afternoon produces a B06 meta (`time` 12:00, `zone` America/New_York) that B06's `validActionSnapshot` accepts, with the period version and source in the task reason.
+- **`test/helpers/frontendB10.mjs`** gains `WeekOutdoors.tsx:33` (validate) and `:36-38` (nextMeta, options, reason) as whole-line transcriptions, and fragments of `ProductionContext.tsx:9,14` and `WeekOutdoors.tsx:44,45`, with a drift test that reads the working tree.
+- **F18 change (controller ruling, 2026-10-20):** an answer with provider data but no periods for the date (a past date, a date past the horizon, today after 21:00) now expires 24 hours out, like an empty answer, instead of 90 minutes after the fetch. The screen renders Refresh forecast only with periods, so after 90 minutes it refused the save with no way to refresh (found by the Task 9 test agent). `lib/forecast/snapshot.js`; pinned in `test/contractsB10.test.mjs`.
+- **Carried nits:** N6, `loggableUpstashError` never throws (a throwing getter or a refusing Proxy logs "(unreadable error object)"); N7, `getJson` rounds a fractional `timeoutMs` up to whole milliseconds, since `AbortSignal.timeout` throws on a fraction.
+
+## Verification
+
+The gate counts are in the Task 9 commit message and the controller's progress log. Everything runs on local fakes: a fetch stub per provider host, a fake Upstash REST server behind the real client, the limiter stub, and the in-memory database. No `.env*` was read, no provider, Upstash or Supabase project was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Open questions
+
+For Vibhav (`YOUR_TODO.md` Part 3): Open-Meteo free-tier eligibility, and its attribution (DS-036, open question 1); the AirNow docs capture and the "made known" note to the AirNow program (open question 2); `NWS_CONTACT` and NWS alerts under "free only" (open question 3); the budget numbers (open question 4). For Yogi (`YOUR_TODO.md` Part 4): frontend findings N1 to N4 and open questions 5 to 7.
+
+## Next
+
+1. Merge Task 9; the controller regenerates `STATE.md` and re-measures the registry (one more operation answers).
+2. Vibhav captures the AirNow forecast documentation; then Task 5 plugs into the slot with one line.
+3. Set `NWS_CONTACT` before the forecast goes live.
+
+---
+
+# B04 checkpoint: settings and alerts
+
+Date: 2026-10-19. Branch: `vmag211/backend` (Task 3 is on its own worktree branch, built on `6a11adc`, not merged yet). Plan: `docs/backend/plans/b04-settings-and-alerts.md`. Contract digest, progress ledger and every review: `.superpowers/sdd/b04-settings-alerts-evidence/` (gitignored scratch).
+
+The B05, B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **Neither surface is live anywhere:** both need migration 0021, and 0021 is applied nowhere.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **`unresolvedOperations` is a lock, not a log (Ruling S1).** One id in it makes the whole settings surface, or the whole alerts inbox, read-only until the client reconciles it (`ProductionPreferences.tsx:18`, `ProductionAlerts.tsx:14`). So it lists only this household's genuinely pending operations in that domain, after the ledger's reaper has settled abandoned ones as `failed`. A stored receipt carries `[]` (Ruling S14), because a list frozen into history made two overlapping operations park each other for ever, and this was reproduced. The direct answer, and a reconcile through `GET /api/operations`, carry the live list without the operation itself (Ruling S16): at `snapshot.unresolvedOperations` for settings, and at the top level for alerts.
+2. **Two of the four scoped surfaces were dropped, on purpose.** `GET /api/capabilities` has no consumer and no validator. The runtime's `enabled: false` refuses to dispatch, so disabling a read leaves its surface empty for ever instead of explaining why. `GET /api/evidence` cannot be both truthful and valid: its validator accepts only the basis `daily maximum`, and `daily_scores` stores app-time observations. That is a provenance question, and it is Vibhav's.
+3. **`GET /api/alerts` is the legacy route, extended, and it never answers 503 for a migration (Ruling S10).** It keeps `count`, `unread`, `truncated` and `alerts` (StageSession still reads them) and adds `items` and `unresolvedOperations`. Before 0021 or 0017 it serves the legacy keys alone. The production client then says the alerts could not be verified, which is true. Settings and `alerts.update` answer a non-retryable 503 instead.
+4. **A settings save is one database function.** `save_settings` does the revision check, every table write (home details through the 0016 functions) and the settling of its own ledger row in one transaction (Rulings S11 and S15). Triggers advance the settings revision for every other writer of a value the snapshot shows (Ruling S12), and keep `tenure` in step with `renter_mode` (Ruling S13). Reviewing 0021 is reviewing the save. The route only parses, claims and answers.
+5. **Nothing has run against a real Supabase project.** Every test runs on the in-memory fake, whose `save_settings` and triggers are stand-ins pinned to the real ones write by write (`test/settingsSaveDb.test.mjs`), or on PGlite against the real migration. PGlite has a single connection, so no test runs two transactions against each other. The deadlock fixes were reasoned through on paper and approved in review.
+
+## Where B04 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0021 | Merged (`4ed4729`, `269b475`; merge `4afc334`) |
+| Reaper (found while planning, owned by B04) | Merged (merge `1d9fe75`) |
+| 2b. `GET /api/alerts` contract read, `POST /api/alerts/state` | Merged (`09c35d2`, `5cf904a`; merge `3d54cdc`) |
+| 2a. `GET` and `PATCH /api/settings`, atomic `save_settings`, database-owned revision | Merged (`334a264`, `eb75614`; merge `85c0b2a`) |
+| Follow-up: S14, S15, S16, 0021 fixes A to F | Merged (`a9c9791`, `a53ecc2`, `1c42fa7`; merge `6a11adc`) |
+| 3. Contracts, conformance, tracker, checkpoint, nit 1 | This section. Commits `5d12daa`, `af27b18`, `29f8454`, then the fix round for the review's B1, B2 and N1 to N6 in the commit that carries this line. The fix round is not re-reviewed yet |
+
+Every task before 3 had an independent review, and every review is in the evidence directory. Nothing is merged to main.
+
+## What exists
+
+- **`GET /api/settings`** answers the whole snapshot from where each value lives. A household that never saved gets 0021's defaults at revision 1, stored on that first read. A household with no profile row is a 404 (review N1). Before 0021 or 0017 it answers the non-retryable 503.
+- **`PATCH /api/settings`** saves one group (`home`, `notifications`, `display` or `luna`) against `If-Match`, through the ledger (domain `settings`). Of two saves at one revision exactly one applies. A save writes only its group's changed fields. A save of the values already stored applies without advancing the revision (finding C). Each 409 has a reason: `stale_revision` (with the current revision), `home_changed`, `operation_mismatch`, and on a replay `operation_failed` or `operation_abandoned`. **New in Task 3 (nit 1):** a save whose ledger row the reaper settled before `save_settings` ran answers the first call with `200 {operationId, status:'failed'}`. The client's own branch then says "The save was not applied. Your draft is still here." and keeps the draft. Before, the 409 made it re-read, overwrite the draft and say the settings had changed, which they had not. A replay of that id keeps the terminal 409. This case is practically unreachable (`maxDuration` 60 s against the 120 s window), but the answer is now true.
+- **`GET /api/alerts`** adds the contract inbox. It holds the newest 100, dismissed included (Undo needs them), each with a revision, a category and a target the client can route. Reading never marks anything read (Ruling S6).
+- **`POST /api/alerts/state`** marks read, dismisses or undoes, at the revisions the client holds. It is all or nothing: one stale, missing or foreign row refuses the whole selection with the same 409. It answers the whole inbox. Each 409 has a reason: `stale_selection`, `operation_mismatch`, `operation_failed`, `operation_abandoned` or `operation_cancelled`.
+- **`docs/backend/contracts/b04.openapi.json`**, version `b04-1`, documents those four and `GET /api/operations` for both domains, with **59 fixtures**, each captured from the real handler. **`test/contractsB04.test.mjs`** (75 tests) runs the handlers against it. It also runs them against the frontend's own `validSettingsSnapshot`, `validAlertSnapshot` and `alertReceiptCovers`, and against both client hooks. Those are transcribed once in `test/helpers/frontendB04.mjs`, now shared by `test/routesSettings.test.mjs` and `test/routesAlertsState.test.mjs` (which each carried their own copy). The suite makes three cross-route checks. Each settings receipt's revision is the next `If-Match`, and the one before it is a `stale_revision` naming it. A reconcile carries the live list minus itself, for both domains, while the ledger keeps `[]`. And the clients' own hooks clear a parked save and a parked change in one check. **No disagreement was found.** No B04 body, fixture or schema has a top-level `data` key or a U+2014. Headers are checked both ways.
+
+## Rulings
+
+| Ruling | What it settled |
+| --- | --- |
+| S1 | `unresolvedOperations` is a lock: only stored-pending rows of that domain, never widened |
+| S2 | One migration, 0021, for both surfaces |
+| S3 | `profiles.tenure` beside `renter_mode`, not instead of it |
+| S4 | The settings revision is a real column, advanced only by a change that is applied |
+| S5 | The legacy writers must advance the revision too (now done by S12's triggers) |
+| S6 | Opening an alert is not reading it; Undo is a second revision-bound change |
+| S7 | No tenure/`renter_mode` check in the schema; consistency is a write-side rule |
+| S8 | An unanswered tenure is reported as `other`, never `owner` (the validator rejects null) |
+| S9 | Defaults: zones `America/New_York`, Luna context switches off, `calendar_linked` false |
+| S10 | Before 0021 the alerts read keeps every legacy key and never 503s; settings is unavailable |
+| S11 | A settings save is one `save_settings` transaction |
+| S12 | The database advances the settings revision for every writer of a snapshot value |
+| S13 | Tenure reads from `renter_mode` when unanswered, and a household save reconciles the pair |
+| S14 | A stored receipt carries `unresolvedOperations: []`; only the live answer carries the list |
+| S15 | `save_settings` settles its own ledger row; a settled settings row cannot be relabelled |
+| S16 | `GET /api/operations` overlays the live list minus itself on a succeeded receipt |
+
+## Migration 0021
+
+**Written, amended three times, applied nowhere, and safe to apply as far as review can tell.** Task 1 wrote it. The amendments were `save_settings` with the revision and tenure triggers (S11 to S13), review fixes A to D with S15, and fixes E and F. Fix A creates a group's row before the revision lock, so a first-time notifications write cannot deadlock a save. Fix E locks the profile before the ledger row, the same order as account deletion's cascade. Fix F creates that row only for the group sent, so `household_set` stays false for a household that never answered. The fourth review approved it. The deadlock reasoning is on paper, because PGlite cannot run two connections. Task 3 changed one thing in the file: a reflowed comment line near the old `:563`. 0001 to 0018 are applied to production, and 0019 to 0023 are pending. 0021's apply steps, including the 100-row "Mark all as read" gateway check (R2), the verification query and what its counts cover, and the tested `<!-- backout-0021 -->` block, are `YOUR_TODO.md` 2.10.
+
+## Verification
+
+Gate at the Task 3 fix-round commit, on `6a11adc` plus Task 3: `node --test test/*.test.mjs` **3,255 passed, 0 failed, 0 skipped, 0 todo**. That is the 3,177 of `6a11adc`, plus 75 contract tests, plus 2 settings tests and 1 alerts test. The nit 1 test replaced the first-call 409 test and added the client's own flow, and the fix round added the N3 and B1 tests. `npm run typecheck` is clean. `npm run lint` shows **0 errors and the 5 pre-existing warnings**. `git diff --check` is clean, and every touched file has LF endings. `vmag211/backend` has since moved to `b5e978c` (B06 Task 4), which changes `app/api/operations/route.js` (the actions overlay, and the code-and-message log). The fix round touches that file with the identical import and log lines, so the two should merge cleanly. Re-run the gate on the merge.
+
+Task 3's mutation checks, each restored afterwards and each killed. Every count is from the **full suite** (`node --test` over every `test/*.test.mjs`), split by file where more than one file failed:
+
+| Mutation | Tests failed (full suite) |
+| --- | --- |
+| Schema: `SettingsConflict` reason enum loses `home_changed` | 3, all in `contractsB04`: that fixture, the coverage test, the save conformance |
+| Schema: `SettingsDisplay.scale` enum loses `115` | 13, all in `contractsB04`: the 5 fixtures holding alice's snapshot, the drift test, 3 handler conformance tests, the logging test, both cross-route tests, and the request-header test (a failed call never records its headers) |
+| Schema: `AlertItem.kind` enum loses `radon_season` | 11, all in `contractsB04`: the 6 inbox fixtures, the drift test, 3 handler conformance tests, the S14 and S16 cross-route test |
+| Handler: the first-call reaped save also sends `reason` | 2: 1 in `contractsB04` (the receipt schema is strict), 1 in `routesSettings` |
+| Handler: the settings reconcile overlay goes to the top level | 3: 1 in `contractsB04` (the S14 and S16 cross-route test), 2 in `routesSettings` |
+| Handler: an alert item's `date` is the raw timestamp | 22: 5 in `contractsB04`, the rest in `routesAlertsState` |
+| Handler: nit 1 reverted (the first call answers the 409) | 4: 2 in `contractsB04`, 2 in `routesSettings` |
+| Handler: `GET /api/alerts` logs the raw error (review B1) | 2: 1 in `contractsB04`, 1 in `routesAlertsState` |
+| Handler: `GET /api/operations` logs the raw error (review B1) | 1, in `contractsB04` |
+| Handler: the N3 revision re-read removed | 1, in `routesSettings` |
+
+Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped, and why
+
+- **`GET /api/capabilities`.** Nothing consumes it. `ProductionApp.tsx:43` passes no capabilities, and nothing validates a response. Where the mechanism does work, it breaks reads: `runtime.ts:110` refuses an operation whose `enabled` is `false` before any fetch, so `settings.read` off leaves the snapshot null for ever. The honest pattern already ships: per-domain `{enabled, reason}` on `GET /api/account`. Tracker HO-098.
+- **`GET /api/evidence`.** The validator accepts only `comparison.basis === 'daily maximum'`, while `daily_scores` holds app-time observations collapsed by `latestPerDay`. So a truthful answer cannot validate, and a valid one is a false provenance claim. A second blocker: `comparison.context` must equal the home context id, which is null for a household without one. Tracker HO-100 (the B04 row).
+
+## Open questions for Vibhav
+
+1. **The evidence basis.** Record daily maxima in the pipeline, or add a basis word for what is stored. This unblocks `GET /api/evidence`.
+2. **Retention for preference rows** (`profile_preferences`). It is undecided, like every other period. The row is deleted with the account and holds no free text, but it reveals a household's zone and quiet hours.
+3. **Luna's context switches default to off** (Ruling S9). That is the fail-safe answer to your open decision 2, whether household data may reach a free-tier model. Confirm it, or say which switches may default on.
+4. **`calendar_linked` defaults to false**, because nothing is linked and true would be a false claim. Confirm.
+5. **Whether `GET /api/capabilities` should exist at all**, given it has no consumer and the per-domain pattern works.
+6. **Applying 0021** (`YOUR_TODO.md` 2.10), with 0019, 0020, 0022 and 0023 as one batch.
+
+## Known limits and deferred minors
+
+- **"Mark all as read" at 100 rows is unproved through the real gateway.** The id filter makes a URL of about 7.2 KB. It is check 4 of `YOUR_TODO.md` 2.10, and the fix, if it fails, is a database function.
+- **The legacy `POST /api/alerts` does not advance `alerts.revision`.** Nothing in production calls it, but a change through it is invisible to the compare-and-set. It retires with StageApp, and must not be revived as it is.
+- **Two alerts residuals were accepted at 2b's review:** a mixed outcome on a double fault, and a receipt page read before the write without a database function.
+- **A late `settle` can overwrite a row the reaper settled** with the real outcome, in any domain. This converges to the truth. Narrowing the generic settle would conflict with S15's succeeded-to-succeeded rewrite, so it was not done. The lost "abandoned" history reason is accepted.
+- **Logging is code and message only on every B04 route (review B1).** `GET /api/alerts` used to log a database error whole, because `contractInbox` rethrows it unchanged, and `GET /api/operations` did too on `6a11adc`. The fix round passes both through `loggableError`. The operations change is line for line the one B06 Task 4 made on `b5e978c`, comment included, so its comment mentions the actions overlay, which this branch only gains on the merge. Routes outside B04 (`/api/notifications`, `/api/household`, `/api/profile`, `/api/home-contexts/[id]`) were not changed. They wrap a database error as `new Error(message)`, so no details or hint reach their logs, but BE-201's B04 row covers only the B04 routes.
+- **A stale save that finds no preferences row (review N3).** `save_settings` answers `{saved:false, revision:null}` when the preferences row is gone, which only a manual delete between the route's read and the save can cause. The route now makes the row again, exactly as a first read does, and names that revision. So every `stale_revision` carries one, as the contract says.
+- **The workspace adapter's `receipt()` requires `changes` for every status**, so a reaped workspace receipt is refused (reaper review finding 4). That binds whoever wires workspace domains. It is not a B04 surface.
+- **`X-Halo-Home-Context` is accepted and ignored by settings.** The home group saves through the household's current home, decided in the database.
+- **Settings validates the build year from 1700, the client from 1000** (digest C8). An older year the client allows is a 422 here.
+
+## Next
+
+1. Review Task 3, then merge it onto `vmag211/backend` (now at `b5e978c`) and re-run the gate on the merge.
+2. Answer open questions 1 to 6.
+3. Apply 0019 to 0023 as one batch when ready, and run 2.10's gateway check.
+4. Give Yogi the B04 contract. No frontend change is needed for either surface.
+
+---
+
+# B05 checkpoint: discovery (the map routes, Explore your area, an honest comparison)
+
+Date: 2026-10-19. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b05-discovery-and-summaries.md`. Contract digest: `.superpowers/sdd/b05-discovery-and-summaries/contract-digest.md` (gitignored scratch).
+
+The B03, B02 and B01 checkpoints follow this section unchanged. Nothing here is a deployment, provider or approval claim. **The Explore area is not live anywhere:** it needs migration 0022, and 0022 is applied nowhere.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **"Summaries" in the package name built nothing.** The registry names ten operations for this wave. B05 built four (`locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`) and fixed the two shipped map routes the frontend already calls (`map.layer`, `map.district`). It **dropped** `community.read` and `map.brief`: neither has a consumer, a validator or a type on the frontend ref, and the brief is already built client side from district data. It **blocked** `organizations.search`: there is no participation content, the cause vocabulary is disjoint from the frontend's, and nothing says what `complete` means. It also **blocked** `summary.prepare`, `summary.list` and `summary.read`, because no migration creates the record collections a snapshot freezes. The plan lists what unblocks each one.
+2. **The default `/map` shows live data only from what is stored.** The registry marks the map operations public, and `/map` runs without credentials unless `?access=owned`. BE-047 says a truly unauthenticated route needs a separately reviewed cache, abuse and quota policy. Task 6 is that policy, approved by Vibhav on 2026-10-19 (open question 1, option A) and built after this checkpoint: a request with no Authorization header is a cache-only read (a stored layer or view, or a water quarter whose geography is already cached, else a 503), limited to 60 a minute per visitor, failing open, and shared-cacheable for 10 minutes. Whether the CDN honours that is a staging check (`YOUR_TODO.md` 1.4).
+3. **`map.comparison` can never say "Aligned".** Every record has no method, no source version, every qualifier `unknown` and coverage `partial` (Ruling D3). So the client's own `compareEvidence` answers "Not comparable", with the method, source and qualifier reasons, for every pair, including two systems with identical readings on the same day. That is the truth about the data HALO holds, not a defect, and the contract schema pins it. The only way to alignment is acquiring UCMR 5 method, release and non-detect qualifiers (HO-074, open question 3). Without the route, the UI would say "Load this layer before comparing its records." about a loaded layer, which is false.
+4. **Explore your area is counties, cities and towns, and ZIP codes, in North Carolina only.** *(Updated by B05 Task 8, after open question 2 was answered on 2026-10-19.)* `locations.search` reads the repo's public-domain Census county set and, since Task 8, the 2026 Gazetteer places and the 2020 ZCTAs (`lib/data/ncPlaces.json`), and calls no geocoder (DS-016 and HO-074 gate Mapbox storage rights, and the one Mapbox window belongs to onboarding). "Charlotte" and "28208", the chooser's own examples (F3), each answer one candidate. Outside North Carolina the answer is still empty.
+5. **`origin/main` carries the geography defect that B05 fixed.** On main, the daily cron hands `buildAndStoreAll` a bare Map (`app/api/cron/daily/route.js:162`), and `vercel.json` runs it every day at 11:00 UTC. A failed ArcGIS lookup resolves rather than rejects, so a run during an outage overwrites good water and district rows with "0 people, complete". This predates B05, and a Task 1 reviewer found it. `vmag211/backend` fixes it. If production deploys main, the defect is live today (STATE, Known live risks).
+
+## Where B05 stands
+
+| Task | State |
+| --- | --- |
+| 1. Map wiring fixes, first conformance test of `/api/map` and `/api/district` | Merged (`a6d04ef`, `244f4c9`, `d9f2e1c`; merge `9ad9989`) |
+| 2. County gazetteer and `GET /api/locations/search` | Merged (`9c91b08`, `530bcf7`; merges `94146d6`, `6c46ade`) |
+| 3. Migration 0022 and `lib/exploreArea.js` | Merged (`8d67f9f`, `53008ec`, `3f14de5`; merge `0cf2287`) |
+| Geography outage fix (found in review, predates B05) | Merged (`389e897`, `86ba259`; merges `3e91fd3`, `48e4b11`) |
+| 4. `GET` and `PATCH /api/explore/area` | Merged (`18ad7e2`; merge `192f40e`) |
+| 5. `GET /api/map/comparison` | Merged (`4bc7d63`, `fad5cf6`; merges `31c5f17`, `48e4b11`) |
+| 6. Public read for the map routes | Built after this checkpoint, on Vibhav's yes to open question 1 (2026-10-19); in review |
+| 7. Contracts, conformance, tracker, checkpoint | This section. Built on `48e4b11`; commits `58f2d33`, `fd3aa39` and the docs commit that carries this section |
+
+Every task before 7 had an independent review, and each review is in `.superpowers/sdd/b05-discovery-and-summaries/`. Task 7 itself has not been reviewed yet. Nothing is merged to main.
+
+## What exists
+
+- **`GET /api/map`** treats `quarter=latest` as no quarter on every layer, checked before applicability. It uses one parser, `lib/mapQuarter.js`, which the comparison shares (D2). A live water build whose service-area lookup did not complete is answered with `geography_complete: false`, `meta.availability: 'partial'` and a note naming the failed lookup, and it is stored nowhere. The daily pre-build keeps the stored rows.
+- **`GET /api/district`** answers a 503 rather than totals the lookup could not support. Its boundary source lines no longer carry U+2014. Contradiction 9.9 (the no-population branch the client rejects) is unreachable through every producer and is pinned by test.
+- **`GET /api/locations/search`** answers up to 20 NC counties as the client's `DiscoveryPlace`, bare, with no table read and no outbound call (D4).
+- **Migration 0022** (`explore_areas`) and **`GET`/`PATCH /api/explore/area`** are built. A never-saved household reads `{place: null, revision: 1}` (D6), and the read never carries `pendingOperation` (D7). The server stores the gazetteer's own copy of the place (D8). Idempotency is the operation ledger, with `Idempotency-Key` required and `If-Match` equal to the body (D9). Every refusal is a terminal 409 with a reason: `stale_revision`, `revision_exhausted`, `operation_mismatch`, `abandoned` or `attempt_failed`. A pending attempt inside its window is the retryable 503.
+- **`GET /api/map/comparison`** reads the stored layer or the UCMR 5 table, never a live upstream build. It makes no outbound call, reads no household table and sends no `sourceName` (D3).
+- **`docs/backend/contracts/b05.openapi.json`** is version `b05-2` (one version for Task 6's public map reads and Task 8's city and ZIP places), with 52 synthetic fixtures, each produced by the real handler. **`test/contractsB05.test.mjs`** (67 tests) runs the handlers against it and against the frontend's own `validPlaces`, `validDiscoveryArea`, `parseMapLayer`, `parseMapDistrict`, `parseMapComparisons` and `compareEvidence`. Those six are transcribed once in `test/helpers/frontendB05.mjs`, now shared by the five per-route suites, which used to carry their own copies (`validPlaces` three times). Its cross-route checks: a `locations.search` candidate saved through `PATCH` and read through `GET` is the same object on all three surfaces, each revision is accepted as the next `If-Match`, and every id `map.layer` gives the client finds its record in `map.comparison`. **No disagreement was found.** No B05 body has a top-level `data` key or a U+2014 (D10). Request and response headers are checked both ways.
+
+## Migrations
+
+**0022 is written and applied nowhere**, and **0019, 0020 and 0021 are still pending** too. 0001 to 0018 are applied to production. All four pending migrations are additive. 0022's apply steps and its tested back-out block (`<!-- backout-0022 -->`) are `YOUR_TODO.md` 2.11. The back-out is tested on PGlite only. Until 0022 is applied, both Explore area verbs answer a non-retryable 503 `feature_unavailable`, and no operation id is claimed. Production enablement of the save also needs the reaper, which is merged: a stale pending attempt is settled to `failed` on the replay path.
+
+## Verification
+
+Gate at the Task 7 docs commit, on `48e4b11` plus Task 7: `node --test test/*.test.mjs` **2,848 passed, 0 failed, 0 skipped, 0 todo**. That is the 2,781 of the follow-ups merge plus the 67 contract tests; the transcription move changed no per-route count. `npm run typecheck` clean. `npm run lint` **0 errors and the 5 pre-existing warnings**. `git diff --check` clean. `vmag211/backend` has since moved to `3d54cdc` (B04 2b), which touches none of Task 7's files. Re-run the gate on the merge.
+
+Task 7's mutation checks, each restored afterwards:
+
+- Renaming `revision_exhausted` in the schema's 409 reason enum failed 3 tests: the coverage test, that fixture, and the save conformance.
+- Making the comparison's coverage `complete` in `lib/mapComparison.js` failed 2: the honesty conformance and the layer-to-comparison agreement.
+- Wrapping the save's answer with a `data` key in `app/api/explore/area/route.js` failed 2: the save conformance and the three-surface agreement.
+- Uppercasing the gazetteer's `place` failed 2.
+
+The earlier tasks' mutations are in their reviews. Everything runs on local fakes or PGlite. No `.env*` was read, no Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Dropped and blocked, and why
+
+- **Dropped:** `community.read` and `map.brief`. They have no consumer, validator or type, and the frontend calls them "reserved contracts". Unblocked by the frontend publishing a validator and a consumer.
+- **Blocked:** `organizations.search`. The blockers are human-written participation content and its verification, a migration, an availability field in the contract (9.3), and a meaning for `complete`. The empty-string loophole is refused on purpose (MP-271).
+- **Blocked:** the summaries trio. The blockers are the record collections (HO-076, HO-104), themselves gated on the sensitive-input decisions; the per-version or per-report `id` ruling; the home-context precedence (9.7); and a retention period.
+- **Task 6 was built after this checkpoint**, once open question 1 was answered. Its forward note from the geography review (N3) is met both ways: a cache-only `getWaterGeo` miss reports `complete: false`, and an anonymous water quarter with a cold cache answers 503.
+
+## Open questions for Vibhav
+
+1. **Public map access (D1). Answered 2026-10-19: (a)**, the cache-only public read, with 60 requests a minute per visitor, a 10-minute shared-cache lifetime and the limiter failing open. The other options were (b) reusing the anonymous bootstrap on `/map` and (c) keeping `/map` owned only.
+2. **City and ZIP search (D4). Answered by Vibhav on 2026-10-19: public-domain Census files, no API and no Mapbox; built as B05 Task 8.** The privacy row for `explore_areas` is revised, because a ZIP is finer than a county.
+3. **The comparison that never aligns (D3).** Confirm shipping it (recommended over the false "Load this layer" message), and decide whether to acquire the UCMR 5 method, release and non-detect qualifiers (HO-074) so alignment is ever possible.
+4. **Retention for `explore_areas` rows. Answered 2026-10-19:** kept until the person clears it or deletes the account. The row holds a county, city or ZIP, never the home address.
+5. **Applying migration 0022. Done 2026-10-19**, with 0019 to 0023 in one paste.
+
+Later, when summaries are planned: per-version or per-report `summary.read` id (digest 4.1), home-context precedence (9.7), and the order of the record-collections work. Separately, who writes and verifies the organizations content, and which set: the 13 NC-08 county-tagged rows in `volunteer_orgs`, or the Charlotte organizations in the frontend fixture. They do not overlap.
+
+## Known limits and deferred minors
+
+- **Air can still show the blocked comparison copy.** While the stored air layer is stale, `/api/map` answers a live air build and the comparison answers 503, until the asynchronous store lands (Task 5 N5).
+- **2,000 comparison ids pass the server cap but exceed common URL limits** at about 780 NC ids, which then fail with a 431. Today's layer is about 290 systems (Task 5 N3, F4).
+- **An empty `ids` array is a 400.** A deep link can send one before the layer loads. It is harmless: the effect re-requests when the ids change (Task 5 N4).
+- **Comparison period labels are raw ISO strings** (Task 5 N6). This is formatting, not honesty.
+- **The gazetteer's 20-candidate cap and exact-first ordering cannot be observed on today's data.** They are argued, not killed by a test. Factor the matcher out when the gazetteer grows (Task 2 N2).
+- **The 9.9 call-site scan is a tripwire, not a guard.** An aliased import evades it. The behaviour tests are the guard (Task 1 N3). The district parser self-check also misses three shapes that share covered paths (Task 1 N4).
+- **Source-provided names (ECHO `FacName`, AirNow `SiteName`) pass through unstripped.** An upstream U+2014 would reach a body. The client's `safeText` strips it at display, but AGENTS.md covers source copy at the API too. Not fixed in B05.
+- **A stale pending save whose reap fails to write stays the retryable 503.** That is the honest "not confirmed" answer (Task 4 observation).
+- **`YOUR_TODO.md` 2.6's "which migrations are applied" query still stops at 0019** (Task 3 nit 7, pre-existing).
+- **`resolveDefaultStore` in `lib/waterGeo.js` memoises per process.** A future route test that calls the geography outside a harness call, with `UPSTASH_*` exported, could pin a real client. Today's convention of always passing `store` avoids this (follow-ups O3).
+- **The Task 4 review's nit N2 also applies to the contract digest** (line 822, "persisted draft"). The drafts are in-memory session state that survives a remount, not a reload. The digest is gitignored scratch and was not edited. The test comments are corrected.
+
+## Next
+
+1. Review Task 7, then merge it onto `vmag211/backend` and re-run the gate on the merge.
+2. Answer open questions 1 to 5. Question 1 alone unblocks Task 6.
+3. Apply 0019 to 0022 as one batch when ready, and deploy the geography fix before relying on the daily pre-build.
+4. Give Yogi `YOUR_TODO.md` Part 4 items 8 to 15 and the B05 contract.
+
+---
+
+# B03 checkpoint: Luna, the conversational MVP
+
+Date: 2026-10-18. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b03-luna-conversational-mvp.md`.
+
+The B02 and B01 checkpoints follow this section unchanged and remain the handoff for everything they cover. Nothing here is a deployment, provider or approval claim. **Luna cannot be used by anybody:** the capability flag is off in every environment and the migration it needs is applied nowhere.
+
+## Six things a reader would otherwise assume wrongly
+
+These are recorded, not decided. Each one is a thing somebody reading "Luna is built" would get wrong.
+
+1. **Luna answers and cites. Luna does not act.** The client's registry (`lib/frontend/production/runtime.ts:58-67`) holds exactly **ten** Luna operations. **Six are built** (`luna.capabilities`, `luna.conversations`, `luna.clear`, `luna.message`, `luna.run`, `luna.cancel`) and **four are deliberately unbuilt**: `luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm` and `luna.operation`. The `proposal` payload that would ride on a message is a **response field this release never emits**, not a fifth unbuilt operation, and it is the half that matters most, because every one of those four operations' controls renders only inside a `message.proposal` block. The absence is reported in the contract's own vocabulary, through `capabilities` answering `available: true` with `tools: []`. That is the supported way and `available: false` is not: `available` is a single boolean for the whole assistant and it feeds the client's `blocked`, which disables the Send button, every starter prompt and every choice button, so reporting the unbuilt half that way would disable the half that was built and turn a scope decision into a dead screen. Because the proposal controls render only inside a `message.proposal` block, never attaching a proposal removes the action surface entirely: no empty state, no disabled button, no placeholder. `docs/backend/contracts/b03.openapi.json` forbids `proposal` on a message, so building the tool half needs a new contract version.
+2. **Luna reads no household data.** Public corpus only. Not "does not today": the household's own tables are seeded with markers in the tests and the assertions are on the bytes that actually left and on every statement the route ran. `noteContext` and `guide` are accepted and validated and then deliberately unused, because the client always sends them and a 400 would make Luna unusable from any screen with a note selected. The reason this is not a feature gap to be closed quietly: **whether household readings and symptom names may reach a free-tier model is Vibhav's decision and it is unresolved.** `capabilities` therefore reports `context: { tasks: false, home: false, projects: false }`, which the client renders as "Tasks off, home records off, projects off", and it is read from nothing: a person who had switched those settings on would otherwise be told Luna uses records it cannot see.
+3. **Nothing has run against a real model or a real Supabase project.** Every provider call in every test goes to a fake that throws on an unexpected host; retrieval goes to a fake RPC; the database is the in-memory fake or PGlite. No `.env*` was read, no production URL was contacted, `scripts/smoke-test.mjs` was not run. The capability flag is off in every environment, so applying the migration would not turn Luna on and deploying this branch would not either.
+4. **Migration 0020 is written and applied nowhere, and 0019 likewise.** Migrations 0001 to 0018 are applied to production (confirmed 2026-10-17; see the B02 section). 0019 and 0020 are not applied anywhere. 0020's apply steps and its tested back-out block are `YOUR_TODO.md` 2.9 with the `<!-- backout-0020 -->` marker, and the back-out is tested on PGlite only, like 0017's and 0018's. Until 0020 is applied every Luna route answers a non-retryable 503 `feature_unavailable`, which is deliberately a different answer from "this household has no conversation".
+5. **Degrade-to-retrieval does not cover a missing provider key.** Ruling L4 promises that a chat model which will not answer degrades to the retrieved cited passages rather than to an error, and it does. It cannot cover a deployment with no key, because `answerFromCorpus` calls `embedQuestion` **before** `retrievePassages`, so with no key nothing is embedded, nothing is retrieved, and there are no passages to fall back to. Two agents established this independently from different angles. The degradation ladder therefore has two rungs owned in different places: "the chat model would not answer" is handled inside the generation, and "this deployment cannot answer at all" is a capability fact decided before a run exists, which is why `messages` refuses with a 503 and `capabilities` reports `available: false` rather than creating runs that must all fail.
+6. **Retention for a conversation turn is undecided.** Like every other retention period in `docs/backend/privacy-and-retention.md`, and this one is more sensitive than most: a turn is free text a person typed. It is why `GET /api/luna/conversations` was changed to write nothing (Ruling L10): opening Settings calls that read too, so starting a conversation there would have manufactured records nobody has decided how long to keep, for a person who never used Luna. `capabilities` states no period, because none is approved; what it does say is true, that the person can end it themselves and that clearing really deletes the turns.
+
+## Two numbers that look like configuration and are product decisions
+
+- **60 questions per conversation per day is a product number, and a green suite is not evidence that it is right.** The window choice is forced (an hourly thread budget above the household's hourly 20 could never bite, so it would be a bound that never binds) and the suite pins only the relationships. The latitude was measured rather than inferred: swapping the limit through 19, 20, 21, 60, 89, 90 and 91 shows 20 failing, 21 passing, 89 passing and 90 failing, so **every integer from 21 to 89 inclusive satisfies the tests**. Anything in that band needs no test change. Vibhav picks the number.
+- **The free-tier ceiling is a product decision disguised as configuration.** The existing app-wide bound is 450 questions a day at roughly two provider requests each, sized against one-shot questions. A conversation re-sends its history every turn, so the same ceiling buys far fewer conversations than it bought questions, and Luna shares the ceiling and the per-household hourly bound with `/api/assistant` deliberately: both spend from one provider quota, and a second window over the same money is not a bound. A household that has used the legacy assistant twenty times this hour cannot ask Luna until the window moves.
+
+## Where B03 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0020 and `lib/luna.js` | Complete locally at `e24c3cc` |
+| 2b. `GET /api/luna/conversations`, `POST /api/luna/conversations/clear` | Complete locally at `f3ea6f4` |
+| 2c. `GET /api/luna/capabilities`, `GET /api/luna/runs/status`, `POST /api/luna/runs/cancel` | Complete locally at `7ffef87` |
+| 2a. `POST /api/luna/messages` | Complete locally at `028441d` |
+| 3. Integration, contracts, tracker, checkpoint | Complete locally; this section |
+
+Commits in order: `92b2ba4`, `988074d`, `934963c`, `e24c3cc` (task 1); `ff1111d`, `f3ea6f4` (task 2b); `2927992`, `11d5bca`, `7ffef87` (task 2c); `0ff6550`, `028441d` (task 2a); `83a2a3b`, `c9c11e4` and this commit (task 3). `7278073` is B02 task 7's limiter-stub fix, which landed between the merge and task 3 and which task 3 consumed. Tasks 2a, 2b and 2c were built in parallel worktrees and cherry-picked onto this branch; the only textual conflict was the shared `ROUTE_COVERAGE` map, exactly as predicted, and it was additive both times. Nothing is merged to main, and main/release approval is still Vibhav's.
+
+## What exists
+
+Migration `0020_luna_conversations.sql` adds `public.luna_conversations`, `public.luna_turns` and `public.luna_runs`: one conversation per household, turns with an explicit order column because the contract has no timestamp on a message and array order is what the client renders, and runs keyed by both the run id and the originating `clientMessageId` because the client looks up by either. Service role only, row level security on with no policy, privileges revoked, owner cascade, following 0017 and 0018.
+
+`lib/luna.js` is the conversation store, the run model and the answer path, and it has no code path that reads household data at all. The run model is the part worth reading twice, because three mechanisms make a generation that the platform kills survivable: the generation gives itself less time than the invocation has, every settle is a compare-and-set from a non-terminal status so an answer that arrives after a cancellation cannot move the run, and a run left unsettled past its staleness window **reads** as failed whatever the row says, so nothing has to notice that a process died.
+
+Six routes, all behind the flag:
+
+- `GET /api/luna/capabilities` reports what the deployment can do, identically for every household because none of it is household data. Three facts can mean Luna cannot answer and they answer differently on purpose: the flag off is a 200 with `available: false` and the reason, 0020 absent is a 503, and the flag on with no provider key is a 200 with `available: false`. The flag is evaluated first because an off capability must read nothing, and discovering that 0020 is absent requires a read.
+- `GET /api/luna/conversations` answers the caller's one conversation, including the `pendingRequest` and `unresolvedOperations` a reload recovers from, or `{ data: null }` when the household has never asked anything (was `{ conversation: null }` until `f2de924`, which disabled the composer for every new household, because the client unwraps an own `data` key and treats any other non-conversation body as invalid). It writes nothing.
+- `POST /api/luna/conversations/clear` deletes the turns rather than marking them, keeps the conversation id and raises the revision, which is the receipt the client accepts and the one that does not strand a live session.
+- `POST /api/luna/messages` does not answer. It validates, stores the person's turn, creates a run, schedules the generation in `after()` and returns the run, with the conversation attached whatever the status so the person's own question is never invisible while they wait.
+- `GET /api/luna/runs/status` reports a run, by its own id or by the client's message id, always answering with the canonical run id. An id with no run is a failed run and never a 404, because the client stops polling only on a terminal status and a 404 would park the attempt for ever.
+- `POST /api/luna/runs/cancel` settles a run and answers with what actually happened to it, including `completed` when the generation won the race.
+
+`docs/backend/contracts/b03.openapi.json` is contract version `b03-1` for those six, with 59 synthetic fixtures, and `test/contractsB03.test.mjs` runs the real handlers through the isolated harness against both the document and the frontend's own validators, transcribed from `lib/frontend/production/luna-service.ts` on `origin/codex/october15-review-refinement`. What that suite adds over the four route suites is agreement: the client validates the conversation returned by five different routes with one function and holds a single conversation pointer, so the suite asserts those five are byte-identical for the same state and that the two run routes answer the same settled run identically. **No disagreement was found**, which is the honest result of the check rather than a reason to skip it.
+
+## Verification
+
+Gate on this commit: `node --test test/*.test.mjs` **2,459 passed, 0 failed, 0 skipped, 0 todo**; `npm run typecheck` clean; `npm run lint` **0 errors and the same 5 pre-existing warnings**; `git diff --check` clean. Task 1's gate was 2,169 passing and the three merged route tasks brought the branch to 2,303; B02 task 7's limiter-stub fix and three later commits from other packages landed while this task was running, which is most of the rest of the difference. B03's own share is the 2,303 plus 80 tests added by this task.
+
+Mutation checks were run rather than assumed, and each task recorded its own. Task 3's thirteen, with what each broke: dropping `unresolvedOperations` from the conversation payload broke 13 tests including the cross-route agreement one; reporting revision 0 broke 58; attaching the conversation to a still-open run broke the run-route agreement test; never attaching it on a cancel broke 8; claiming a tool that is not built broke the capabilities contract constraint; dropping the reason from the off answer broke 5; answering `{}` instead of `{ conversation: null }` broke the documented `oneOf`; answering a bare run from `messages` broke 20 including Ruling L12's own test; keeping the revision on a clear broke 9; and taking each of the three budgets' limiters down in turn broke exactly the one new test that pins that budget's direction and nothing else, which is the evidence that each direction is pinned once and precisely.
+
+Fix round 1 added six more, all caught: removing the owner filter from the capabilities schema probe, making that probe run three times, giving a fixture a `sourceIndex` past its own sources (which the document allows and the client rejects, so it isolates the fixture-validator loop from the schema loop), stopping `claimRun` moving a run to `generating`, and giving each of the two run routes a different staleness window from the other. The last two are worth a note: a window mutated to zero is NOT caught, because the in-memory database answers inside one millisecond so `Date.now() - created_at > 0` is false, and the agreement test therefore catches a wrong window rather than an imperceptibly different one.
+
+Everything runs on local fakes or PGlite. No `.env` file was read, no real Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+**The reviews in this package were subagent reviews of the three route diffs, not of task 3.** Task 3's own work has not been independently reviewed; the evidence is labelled accordingly rather than described as reviewed.
+
+## Rulings made during execution
+
+L10 to L15 were made while the routes were being built and are recorded with their costs in the plan. In short: a conversation read must not write (L10); `capabilities` reports the flag being off as `available: false` rather than refusing, while the acting routes keep the 503 (L11); `POST /api/luna/messages` must return the conversation including the person's own turn (L12); the flag-off fact is evaluated before the schema probe, because off means nothing is read (L13, which corrected the controller's own ordering); the messages route declares `maxDuration = 60`, and the requirement is the ordering `deadline 45s < ceiling 60s < staleness 75s` rather than the numbers (L14); and a per-conversation quota exists because the per-household hourly bound alone lets one household spend more in a day than the app-wide ceiling holds (L15).
+
+Task 3's own two judgements, both recorded because a later reader will wonder:
+
+- **The five-line "find the run, attach the conversation when terminal" shape stays duplicated** across `runs/status` and `runs/cancel` rather than being hoisted into `lib/luna.js`. Judged with all six routes in view rather than two: `POST /api/luna/messages` is the third route that answers a `LunaRun` and it deliberately attaches the conversation on **every** status, so a shared helper would serve two of three and would read as the house rule rather than as the choice those two made. What the duplication risks is the two drifting apart, and that is now pinned behaviourally in the contract suite, which is a better guard than shared code because it tests the thing we actually want.
+- **The limiter fallback directions moved from the route's source to behaviour.** Task 2a had to pin them by reading the route file, because the harness's stub discarded `checkLimit`'s options and no test could provoke an outage. B02 task 7's `LIMITER_UNAVAILABLE` sentinel landed on this branch between the merge and this task, so each budget now has a test that takes its own limiter down and asserts the direction it fails in. What is left of the source-shape test is the half nothing behavioural can reach: the stub ignores the limiter object, so binding the app-wide ceiling to a per-household key would change which window a budget spends from and break no behavioural test.
+
+## Deferred minors, collected from the three route tasks so the final review can triage them
+
+None of these is a defect with a known fix that was skipped; each is a judgement, a cost or a thing a test cannot reach.
+
+1. **`upstream_unavailable` is the code for an unconfirmed outcome.** No `ERROR_CODES` entry means "the outcome is not known", so a clear whose earlier attempt has not settled answers 503 `upstream_unavailable`, retryable, which the client maps to `unknown_outcome` and renders as "The result is not confirmed. Check its status before trying again." Adding a dedicated code is a one-line change to `lib/apiErrors.js` and a change in one route.
+2. **A refused clear consumes its `Idempotency-Key`.** `runOperation` claims the row before the effect, so a 409 leaves a settled failed row and a same-key retry replays the same 409. Harmless for a stale revision or an unknown conversation, where retrying the same input is pointless by construction; for `run_open` the revision is still current, so a retry after the run finished would be meaningful and is refused. The client's own preflight refuses to clear while a request is pending, so this needs a stale view to reach, and the fix on that side is a re-read. The alternative was checked and is worse: checking for an open run before the claim breaks replay in a different race.
+3. **`revision: "4"` is accepted** on the clear, because the shared `parseBoundedInt` takes an integer string as well as a number. The contract declares a number. The value still has to equal the stored revision, so the leniency carries no behavioural risk, and a bespoke check here would be a second way to do what the shared parser does.
+4. **A partially applied 0020 can leave a settled failed ledger row.** The realistic case, none of 0020 applied, writes nothing: `messages` proves the table before claiming the ledger id. If only `luna_conversations` existed, the turn insert would throw inside the operation, which settles that `clientMessageId` as failed and answers the same honest 503. The person's next question has a new id, so nothing is stuck.
+5. **The happy path on `messages` runs five statements before responding**, not the "validate and queue" the ruling's prose implies. All are indexed single-row operations, nowhere near the client's 20 second bound, and the extra reads are what buy a ledger receipt with no content in it and the conversation in every response.
+6. ~~**The capabilities schema probe is not proved to be owner-scoped by a test.**~~ **Closed in fix round 1.** The test now asserts that the probe is the route's only statement and that it is filtered by `profile_id` = the caller, through the shared `auditOwnerScope`, and its name no longer claims more than it asserts. What stays unprovable, and is now written into the `ROUTE_COVERAGE` comment rather than into a line, is the probe's count mode: the query log records a table, an operation and its filters and nothing else, so no test can assert that the probe reads no rows.
+7. **`observedAt` is never emitted on an evidence block.** `assistant_corpus.retrieved` is a `date` column and the client's `sourceInstant` rejects a date-only string, so populating it would mean fabricating a time. The field is optional, so the honest choice is to omit it; displaying a source date later means storing an instant.
+8. **`after()` sending the response before the callback runs is a platform promise**, not something proved here. The derived failed status is what makes a broken promise survivable rather than silent.
+9. **A stale paragraph in `docs/backend/privacy-and-retention.md`.** Its "Assistant: what leaves the app" section still says the code computes `sendContext = process.env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT !== 'false'` and defaults to sending household context. `app/api/assistant/route.js` has compared against `=== 'true'` since `bae920c`, so the paragraph overstates the leak in the safe direction. Not corrected here because it belongs to whoever owns that document next.
+10. **One conversation per household is narrower than the digest's inferred key.** If Luna is later scoped per home, the key changes and migrations here are applied by hand. No data has to move: it is one unique constraint and a pointer column.
+
+## Known limits and open gates
+
+- **Luna is not usable.** The flag is off everywhere and 0020 is applied nowhere. Applying 0020 does not turn it on.
+- **Vibhav's three open decisions, none of them worked around:** whether household readings and symptom names may reach a free-tier model (blocks the context half, not this package); the retention period for a conversation turn; and the per-conversation and app-wide spend numbers.
+- **The model ids must be pinned in the deployment.** An unset `ASSISTANT_CHAT_MODEL` or `ASSISTANT_EMBED_MODEL` now fails loudly rather than selecting a paid OpenAI default, and the route reports the capability unavailable rather than creating runs that must fail, but a deployment should still set both explicitly along with `ASSISTANT_MODEL_KEY`.
+- **The invocation ceiling is a deployment fact.** `export const maxDuration = 60` is declared on the messages route and the ordering `45s < 60s < 75s` is pinned by a test, but a platform that does not honour the declaration would kill every generation mid-answer and report every run failed.
+- **The tool half is a package, not a gap to fill in.** It carries revision-bound proposals, immutable snapshots per revision, per-tool field allowlists, reauthorization at execution and a proposal-to-operation map, and the client's hardest requirement is there too: a `succeeded` or `cancelled` receipt without the canonical conversation is unrecoverable from the UI.
+- **No contract test proves a live integration.** `test/contractsB03.test.mjs` proves the handlers agree with the document and with transcribed validators; it does not prove the frontend branch still has those validators, and the frontend file is not checked out in this repository.
+- Every B02 and B01 limit in the sections below still applies.
+
+## Next
+
+The final review of this package, then Vibhav's three decisions. Nothing in B03 should be deployed or enabled before the retention period for a conversation turn is approved, because turning the flag on starts storing free text that nobody has decided how long to keep.
+
+---
+
+# B02 checkpoint: identity linking and account recovery
+
+Date: 2026-10-17. Branch: `vmag211/backend`. Plan: `docs/backend/plans/b02-identity-linking-and-recovery.md`.
+
+The B01 checkpoint follows this section unchanged and is still the handoff for everything B01 covers. Nothing here is a deployment, provider or approval claim.
+
+## Where B02 stands
+
+| Task | State |
+| --- | --- |
+| 1. Capability proof and recovery schema | Complete locally at `b529f41` |
+| 2. Operation ledger primitive | Complete locally at `6a66347` |
+| 3. `GET /api/account`, recovery feature | Complete locally at `44d0b72` |
+| 4. Link intent via `POST /api/account/commands` | Not started |
+| 5. `POST /api/recovery/request` | Not started |
+| 6. Turnstile verification | Built and reviewed, acceptance blocked on three things, not one: the site key, the SECRET key, and the frontend sending the token field. BE-340's accessible fallback is separately NOT met and needs a product and ops decision no key supplies |
+| 7. `POST /api/recovery/status` | Not started |
+| 8. `POST /api/recovery/complete` | Not started |
+| 9. Device listing and revocation | Not started |
+| 10. Contracts, fixtures, tracker, checkpoint | Not started (this file is the interim checkpoint) |
+
+Commits in order: `6a66347` (task 2, from the previous session), `b529f41` (task 1), `44d0b72` (task 3). **All three are unpushed**; `git log origin/vmag211/backend..HEAD` is the current list. Nothing is merged to main, and main/release approval is still Vibhav's.
+
+## What exists
+
+Migration 0017 adds `public.operations`, the idempotency ledger for all 72 frontend operations, with `recovery` as the one domain allowed a null owner because it runs before sign-in. `lib/operations.js` claims an id with an atomic insert-if-absent, so exactly one of several concurrent callers runs the effect; a pending row past its window reads as `unknown` rather than `pending`, and `unknown` is never reported as failure. `GET /api/operations` replays a settled receipt verbatim, and a stranger's id is byte-identical to a nonexistent one. `listUnresolvedOperations` answers the inventory every initial read carries.
+
+Migration 0018 adds `public.recovery_challenges`. Hashes only: `email_hash`, `nonce_hash` and `restore_token_hash` each accept 64 lowercase hex characters and nothing else, so a plaintext address, nonce or token cannot be written to the column. Service role only: row level security on, zero policies, privileges revoked, so not even the owner reads their own challenge. A verified row must carry a token hash, and `consumed_at` cannot be set on a row that never had one. Only the statuses the frontend accepts are storable; `unknown` is never stored.
+
+`GET /api/account?feature=recovery` returns the contract's `AccountSnapshot` for one feature. The capability is off unless `HALO_FEATURE_RECOVERY` is `on` or `true`, enforced in the handler, and while it is off the route reads neither the database nor the auth provider. When on it reports the linked method as a mask with its verification date, the one open challenge with its expiry, an empty `devices` list and the unresolved operation inventory.
+
+## Verification
+
+Gate at `44d0b72`: `node --test test/*.test.mjs` **1,925 passed, 0 failed, 0 skipped, 0 todo**; `npm run typecheck` clean; `npm run lint` **0 errors, the same 5 existing warnings**; `git diff --check` clean. The starting point for this session was 1,871 passing.
+
+Mutation checks were run rather than assumed, and each is recorded in its commit: removing 0018's `revoke` fails 3 tests, gutting a back-out block in `YOUR_TODO.md` fails 5, making the capability flag return true fails 3, returning the address unmasked fails 2, flattening the revision fails 2, and naming a method the SDK does not have fails the capability probe. Everything runs on local fakes or PGlite. No `.env` file was read, no real Supabase project or production URL was contacted, and `scripts/smoke-test.mjs` was not run.
+
+**The review for both tasks was done in this session. It was not an independent subagent review**, which is what the workflow prefers; the evidence is labelled accordingly rather than described as independent.
+
+## Deliberate departures from the plan, with their cost
+
+Recorded in full in the plan's "Rulings made during execution" section: `recovery_operations` is not built because 0017's generic ledger serves recovery too (cost: a recovery-only retention rule is harder to express, and is logged as an open retention decision rather than designed around); the schema ships as 0018 rather than inside 0017 so the ledger can be applied without the recovery schema; and task 1's capability proof is a presence proof, not an end-to-end exchange, because that needs provider access the local boundary excludes.
+
+## Corrections made to existing documents
+
+The spec was being reported as missing. It is not: the complete 521,027-byte working spec is in this repository's git objects on `origin/codex/october15-review-refinement`, sha256 `fc1fec4b...415be86`, which matches the figure in Yogi's wiring packet manifest and was verified this session. `WORKFLOW.md` step 2 now gives the command to read it, `YOUR_TODO.md` Part 3 item 2 is resolved rather than blocking, and the tracker header says which rows came from which source. The stale `Spec text not received` blockers on the DS/MP/UI/AC/ST/WF/AG/MA/VR placeholder rows are marked stale in the header but deliberately not mass-edited: re-baselining the tracker against all 1,630 named requirements is its own task.
+
+`YOUR_TODO.md` gained apply steps and tested back-out blocks for 0017 and 0018 as sections 2.3 and 2.4 (the old 2.3 is now 2.5). 0017's back-out existed only as a comment in the migration and was never in the file the back-out test runs, so it was untested until now.
+
+## Known limits and open gates
+
+- **Recovery is not usable.** Tasks 4, 5, 7, 8 and 9 do not exist, so nothing can link an address or recover an account yet. The flag is off and applying 0018 does not turn it on.
+- `recovery.devices` is always an empty list. That is not a claim that a household has no devices; task 9 populates it.
+- The end-to-end Supabase session-minting exchange is unproven. Task 8 depends on it and keeps the stated fallback.
+- **0015 and 0016 are applied to production** (confirmed 2026-10-17 by the state query in `YOUR_TODO.md` 2.6: `save_household` present, the four checks present, the revoke in effect, `home_contexts` and `daily_scores.home_context_id` present). They were applied after `baseline-audit.deployed.json` was captured, so that file records the pre-migration catalog and is now stale. 0015's four checks were validated the same day (`m15_validated` 4), so 0015 and 0016 are complete there. **0017 and 0018 are also applied to production** (2026-10-17, each verified with every column true, including that the revoke closed `anon` and `authenticated`). Migrations 0001 to 0018 are therefore all applied. Both back-out blocks are tested on PGlite only, unlike the 0015 and 0016 blocks which passed a throwaway-project trial, and they now matter more because both tables are live. Applying them activated nothing: the routes that read these tables are unpushed, `origin/main` does not reference them, and recovery stays behind a flag that is off.
+- Vibhav's blockers are unchanged and were not worked around: no `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in any environment (BE-340, blocks task 6), no backup or restore coverage on the current Supabase plan (BE-307), no recorded recovery objectives (BE-360), and no approved retention periods, including none for a consumed or expired challenge or for settled recovery receipts.
+- **One unexplained test failure, seen once and not reproduced.** On a docs-only commit, `routeIsolation.test.mjs` "a request with a junk or foreign-looking token never reaches household data" failed in a full-suite run. It then passed 20 consecutive runs (12 of that file alone, 8 full-suite), and the assertion detail was not captured, so the cause is unknown. Nothing is being claimed about it: it is recorded here because an intermittent failure in an identity-isolation test deserves a prior sighting if it happens again. That test asserts a 401 and an empty query log for three bad tokens across four routes, so a limiter answering 429 or late async work reaching the log are the shapes worth checking first.
+- Every B01 limit in the section below still applies.
+
+## Next
+
+Task 4, the link intent, in its own commit with its own review. It must attach a verified email to the signed-in anonymous identity while leaving `auth.users.id`, `profiles.id` and every owned row untouched, treat an address already linked elsewhere as a collision and never a merge, and keep link and recover on separate code paths.
+
+---
+
 # B01 continuation checkpoint
 
 Date: 2026-10-11. Branch: `vmag211/backend`.
 
-This is the current handoff. `docs/backend-progress.md` records the older September baseline. B01 implementation began at `7894bd7`; the last implementation commit before the work was resumed in a later session was `4b07435` (Task 9c), with carries in `b5bf647`. This continuation began at `4b07435`, committed Task 10 at `d492e9e` and committed Task 11 at `405f2b9`, the commit that first contained this checkpoint. Later commits on the branch are review fixes to Tasks 10 and 11; `git log 405f2b9..HEAD` lists them. Push state: the controller pushes `vmag211/backend` after each reviewed task, so `git log origin/vmag211/backend..HEAD` shows what is not pushed yet. Nothing was merged to main. Main/release approval is still Vibhav's decision.
+This was the current handoff until the B02 section above was added, and it remains the authority for everything B01 covers. `docs/backend-progress.md` records the older September baseline. B01 implementation began at `7894bd7`; the last implementation commit before the work was resumed in a later session was `4b07435` (Task 9c), with carries in `b5bf647`. This continuation began at `4b07435`, committed Task 10 at `d492e9e` and committed Task 11 at `405f2b9`, the commit that first contained this checkpoint. Later commits on the branch are review fixes to Tasks 10 and 11; `git log 405f2b9..HEAD` lists them. Push state: the controller pushes `vmag211/backend` after each reviewed task, so `git log origin/vmag211/backend..HEAD` shows what is not pushed yet. Nothing was merged to main. Main/release approval is still Vibhav's decision.
 
 ## What is complete locally
 
@@ -32,13 +749,13 @@ The pre-existing untracked `components/onboarding/mobile-review.css` is unrelate
 
 ## Migrations and human checks
 
-**0015 and 0016 are written and locally tested but NOT applied anywhere**: not to production, and not to any staging or disposable project by this work. Deployed state remains unverified. Do not run `supabase/baseline/reconstructed_baseline.sql` on the real project: it is a local reconstruction with auth stubs.
+**0015 and 0016 were not applied anywhere at the time this B01 section was written.** They have since been applied to production (2026-10-17); see the B02 section above. Nothing in this B01 section applied them. Do not run `supabase/baseline/reconstructed_baseline.sql` on the real project: it is a local reconstruction with auth stubs.
 
-1. Run `docs/backend/baseline-audit.sql` read-only in the intended Supabase project and save the schema-only JSON as `docs/backend/baseline-audit.deployed.json`. Review grants/RLS, especially the assumed public utility RLS, and compare with the reconstruction.
+1. **Done 2026-10-17**, findings in `docs/backend/baseline-audit.deployed.json`. That capture predates the 0015 and 0016 apply, so it now records the pre-migration schema and is marked superseded in the file; re-run `baseline-audit.sql` to capture the post-migration catalog.
 2. Check legacy push endpoints and browser writes as described in `YOUR_TODO.md`.
-3. Try 0015 then 0016 on a disposable Supabase project (required before 0016), including the checks, both "If you need to back out" blocks and re-applying, as `YOUR_TODO.md` Part 2 lists; take a production backup first. Review production major-version differences from PGlite/Postgres 18. Then coordinate deployment/application with Vibhav; do not infer authorization from this checkpoint.
+3. **Done.** The throwaway-project trial passed at Postgres 17.6 for 0015 and 0016 (including both back-out blocks and re-applying), Vibhav applied 0015 and 0016 to production on 2026-10-17 and validated 0015's four checks, then applied 0017 and 0018 the same day, each with its verification query returning every column true. 0017 and 0018 had no disposable-project trial of their own: each is a single `create table` that touches nothing existing, and their back-outs are tested on PGlite only. Do not infer authorization to apply anything else from this checkpoint.
 4. Review the recovery ADR and privacy disclosure. No choice or retention period is approved. B05 sensitive input remains disabled until both decisions are approved and selected safeguards pass tests.
-5. Supply full spec text starting with the remainder of BE-032, BE-033 onward and DS/MP/UI/AC/ST/WF/AG/MA/VR/feature packets under `docs/product/`.
+5. **Resolved:** the complete working spec is in this repository's git objects on `origin/codex/october15-review-refinement` at `docs/product/ai/HALO_BACKEND_WORKING_SPEC.md`, sha256 `fc1fec4b...415be86`, verified 2026-10-17. `WORKFLOW.md` step 2 has the command to read it. Nothing further is needed from Vibhav here.
 
 ## Unresolved gates and known limits
 
@@ -49,7 +766,7 @@ The pre-existing untracked `components/onboarding/mobile-review.css` is unrelate
 - History reads are bounded before home filtering; very large earlier-home datasets can consume the read cap. `context=all` returns one point per date/home. Legacy unlinked readings are assumed current; pre-context historical moves cannot be reconstructed.
 - The onboarding replay's four location fields reflect the saved context; other top-level utility/attribute fields still echo the request. Numeric but out-of-range geocoder points can reach SQL and return 500. Today's cache/assistant/source reads remain household-wide. These carried 9c concerns are not changes in this continuation.
 - Profile PATCH's transitional located/no-context race and partial-0016 fallback can leave attributes inconsistent; complete rollout minimizes those already documented windows. Backfill retries can create duplicate date rows; history collapses latest refreshes.
-- Migration 0015 can report success after a partial privilege revoke; the manual privilege check is necessary. TRUNCATE/REFERENCES/TRIGGER grants on four older tables and multidimensional symptom-array checks remain deferred hardening items.
+- Migration 0015 can report success after a partial privilege revoke; the manual privilege check is necessary. The TRUNCATE/REFERENCES/TRIGGER grants are no longer a vague deferred item: the 2026-10-17 post-migration catalog shows `anon` and `authenticated` holding all three on every public table, and row level security does not govern TRUNCATE, so an authenticated role that could reach raw SQL could empty `symptom_logs` outright (proved locally; DELETE is denied, TRUNCATE is not). It is not reachable through the deployed surface, because PostgREST has no TRUNCATE verb and the two functions those roles may execute return trigger types Postgres refuses to invoke directly. The tested remedy in `YOUR_TODO.md` 2.7 was applied to production on 2026-10-17, so the privileges are gone. Multidimensional symptom-array checks remain a deferred hardening item.
 - Some older backend copy still has em dashes; new app-facing text in this continuation has none. Approved frontend/archive files were not changed.
 
 ## Next package

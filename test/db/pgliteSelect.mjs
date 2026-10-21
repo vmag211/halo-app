@@ -4,8 +4,11 @@
  *
  *   h.db.from = (name) => (name === 'daily_scores' ? pgliteSelect(db, name, h.db.queryLog) : fakeFrom(name));
  *
- * Only what the history reads use is supported: select(columns, { count: 'exact' }), eq, gte, lte,
- * is(column, null), order, limit and maybeSingle. Anything else throws, so a route that starts
+ * Only what the history reads, the daily maxima recorder and the privacy export builder
+ * (lib/privacyExport.js, for test/contractsB07.test.mjs) use is supported: select(columns,
+ * { count: 'exact', head }), eq, neq, gt, gte, lt, lte, in, is(column, null),
+ * not(column, 'is', null), order, limit and maybeSingle. A head select answers the count with null
+ * data, as PostgREST does. Anything else throws, so a route that starts
  * using more fails loudly here instead of reading something else.
  *
  * Rows come back as PostgREST sends them (json_build_object: a date as 'YYYY-MM-DD', a timestamp
@@ -25,7 +28,7 @@ function identifier(name) {
 
 export function pgliteSelect(db, table, log = null) {
   const name = identifier(table);
-  const state = { columns: null, count: null, where: [], params: [], filters: [], orders: [], limit: null, single: false };
+  const state = { columns: null, count: null, head: false, where: [], params: [], filters: [], orders: [], limit: null, single: false };
 
   const compare = (op, sql) => (column, value) => {
     const col = identifier(column);
@@ -37,14 +40,33 @@ export function pgliteSelect(db, table, log = null) {
 
   const builder = {
     select(columns, { count = null, head = false } = {}) {
-      if (head) throw new Error('pgliteSelect: head selects are not supported');
+      if (head && count !== 'exact') throw new Error('pgliteSelect: a head select must count exactly');
       state.columns = String(columns).split(',').map(identifier);
       state.count = count;
+      state.head = head;
       return builder;
     },
     eq: compare('eq', '='),
+    neq: compare('neq', '<>'),
+    gt: compare('gt', '>'),
     gte: compare('gte', '>='),
+    lt: compare('lt', '<'),
     lte: compare('lte', '<='),
+    in(column, values) {
+      if (!Array.isArray(values)) throw new Error('pgliteSelect: in() takes an array');
+      const col = identifier(column);
+      state.params.push(values.map(String));
+      state.where.push(`"${col}"::text = any($${state.params.length}::text[])`);
+      state.filters.push({ type: 'cmp', column: col, op: 'in', value: values });
+      return builder;
+    },
+    not(column, op, value) {
+      if (op !== 'is' || value !== null) throw new Error('pgliteSelect: only not(column, \'is\', null) is supported');
+      const col = identifier(column);
+      state.where.push(`"${col}" is not null`);
+      state.filters.push({ type: 'not', node: { type: 'cmp', column: col, op: 'is', value: null } });
+      return builder;
+    },
     is(column, value) {
       if (value !== null) throw new Error('pgliteSelect: only is(column, null) is supported');
       const col = identifier(column);
@@ -68,7 +90,7 @@ export function pgliteSelect(db, table, log = null) {
       return run().then(onFulfilled, onRejected);
     },
   };
-  for (const method of ['insert', 'upsert', 'update', 'delete', 'neq', 'gt', 'lt', 'in', 'not', 'or', 'match', 'range', 'single', 'like', 'ilike']) {
+  for (const method of ['insert', 'upsert', 'update', 'delete', 'or', 'match', 'range', 'single', 'like', 'ilike']) {
     builder[method] = () => { throw new Error(`pgliteSelect: .${method}() is not supported`); };
   }
 
@@ -93,7 +115,7 @@ export function pgliteSelect(db, table, log = null) {
           }
           return { data: data[0] ?? null, count, error: null };
         }
-        return { data, count, error: null };
+        return { data: state.head ? null : data, count, error: null };
       });
     } catch (error) {
       return { data: null, count: null, error: { code: error.code ?? null, message: error.message, details: error.detail ?? null, hint: error.hint ?? null } };
