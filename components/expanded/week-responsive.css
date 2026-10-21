@@ -102,5 +102,6 @@
 .halo-f-app[data-contrast=high] .mw-workspace.mw-dashboard .mw-days .selected :is(strong,small,.mw-day-count) { color:var(--halo-card); }
 @media(forced-colors:active) {
   .mw-filter-button { background:Canvas; color:ButtonText; border:1px solid ButtonText; }
+  .mw-workspace.mw-dashboard .mw-days .selected { background:Highlight; }
   .mw-workspace.mw-dashboard .mw-days .selected :is(strong,small,.mw-day-count) { color:HighlightText; }
 }

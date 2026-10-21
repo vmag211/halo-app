@@ -14,6 +14,8 @@
 }
 .halo-settings .hp-panel-heading h2 { margin:0; font:650 calc(1.38rem * var(--halo-text-scale))/1.25 var(--font-instrument),sans-serif; letter-spacing:-.03em; }
 .halo-settings .hp-panel-heading { padding:14px 0 23px; }
+/* The heading takes focus only to announce the opened section; it is not a control. */
+.halo-settings .hp-panel-heading h2:focus { outline:none; }
 .halo-settings .hp-setting-search { padding:3px 12px; border:1px solid var(--halo-border); border-radius:11px; background:var(--halo-card); }
 .hp-search-clear { display:flex; align-items:center; gap:5px; border:0; background:none; color:var(--halo-primary); font:500 calc(.75rem * var(--halo-text-scale))/1.3 var(--font-instrument),sans-serif; min-height:44px; margin-left:auto; cursor:pointer; }
 .halo-settings .hp-settings-list { display:grid; gap:23px; padding-top:24px; }

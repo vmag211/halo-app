@@ -29,3 +29,18 @@ test('unresolved alert updates reload in reconciliation mode without another mut
  await expect(alerts.getByRole('button',{name:'Retry or check status',exact:true})).toBeVisible();
  await alerts.getByRole('button',{name:'Retry or check status',exact:true}).click();await expect(alerts.locator('[data-unread=true]')).toHaveCount(0);expect(checks).toBe(1);expect(writes).toBe(0);expect(network.blocked).toEqual([]);
 });
+
+test('completed dismiss and undo confirm without offering a retry, and the last dismissal still shows the empty inbox',async({page})=>{
+ let items=[{...notice}];
+ const network=await mockProduction(page,{
+  '/api/alerts':route=>jsonRoute(route,inbox(items)),
+  '/api/alerts/state':async route=>{const input=route.request().postDataJSON();items=items.map(item=>({...item,...input.patch,revision:item.revision+1}));await jsonRoute(route,{operationId:input.operationId,status:'succeeded',items,unresolvedOperations:[]});},
+ });
+ await page.goto('/plan');await page.getByRole('button',{name:'Alerts, 1 unread',exact:true}).click();const alerts=page.locator('.halo-alerts');
+ await alerts.getByRole('button',{name:`Dismiss alert: ${notice.title}`,exact:true}).click();
+ await expect(alerts.getByText('Alert dismissed.',{exact:true})).toBeVisible();await expect(alerts.getByRole('heading',{name:'You’re all caught up.'})).toBeVisible();
+ await expect(alerts.getByRole('button',{name:'Retry or check status',exact:true})).toHaveCount(0);
+ await alerts.getByRole('button',{name:'Undo',exact:true}).click();await expect(alerts.getByText('Alert restored.',{exact:true})).toBeVisible();await expect(alerts.locator('.hp-alert-item')).toHaveCount(1);
+ await expect(alerts.getByRole('button',{name:'Retry or check status',exact:true})).toHaveCount(0);
+ expect(network.blocked).toEqual([]);
+});
