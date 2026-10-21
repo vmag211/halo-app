@@ -206,6 +206,8 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
   async function write(key: string, record: HomeRecord, checkCurrent?:()=>boolean) {
     if (service) {
       if (checkCurrent && !checkCurrent()) { setMessage('The reviewed information changed. Reopen the review. Your draft is kept.'); return false; }
+      // A collection switched off on the server (503 feature_unavailable) cannot be loaded into readiness: say so.
+      if (statesRef.current[key]?.featureUnavailable) { setMessage('Saving these records is not available yet. Nothing was saved, and your draft is kept.'); return false; }
       if (statesRef.current[key]?.status !== 'ready') { setMessage('Load the current records before saving. Your draft is kept.'); void loadCollection(key); return false; }
       const current = recordsRef.current[key]?.find(item => item.id === record.id);
       if (current && current.revision !== record.revision) { setMessage('This record changed. Your draft is kept. Review the latest version before saving.'); return false; }
