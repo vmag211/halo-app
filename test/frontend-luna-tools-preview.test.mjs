@@ -53,6 +53,7 @@ test('Natural calendar dates use a disclosed timezone anchor and deterministic M
   assert.equal(lunaCalendarAnchor(new Date('2026-10-11T02:00:00Z'), timezone), '2026-10-10');
   assert.equal(resolveLunaCalendarDate('Saturday', { anchor, timezone }).date, '2026-10-17');
   assert.equal(resolveLunaCalendarDate('tomorrow', { anchor, timezone }).date, '2026-10-12');
+  assert.equal(resolveLunaCalendarDate('tomorrow', { anchor, timezone }).explanation, 'Tomorrow, based on 2026-10-11 in Eastern Time.', 'the zone is named for people, not as its IANA id');
   assert.equal(resolveLunaCalendarDate('Move that to Sunday', { anchor, timezone, referenceDate: '2026-10-17' }).date, '2026-10-18');
   assert.equal(resolveLunaCalendarDate('Move that to Monday', { anchor, timezone, referenceDate: '2026-10-17' }).date, '2026-10-12');
   assert.ok(resolveLunaCalendarDate('next Saturday', { anchor, timezone }).ambiguous);
