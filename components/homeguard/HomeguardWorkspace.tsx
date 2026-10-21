@@ -18,7 +18,7 @@ import { WorkspaceArtworkProvider, workspaceArtwork } from './WorkspaceArtwork';
 import './workspace-editorial.css';
 import { collectionsOff, homeguardOffMessage } from '@/lib/frontend/collection-availability';
 
-const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
+const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Home care' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
   const search = useSearchParams(); const router = useRouter(); const state = useHomeWorkspace();
   const didOpen = useRef(false);

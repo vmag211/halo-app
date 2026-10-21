@@ -91,6 +91,10 @@
 .mw-danger { color:light-dark(#a63131,#ffb2b2) !important; }
 .mw-form :is(p,details) { overflow-wrap:anywhere; }
 .mw-form details summary { min-height:44px; cursor:pointer; }
+/* The workspace's flex summaries hide the native marker, so a plain-text disclosure gets the same chevron cue. */
+.mw-form details > summary:not(:has(svg))::after { content:''; flex-shrink:0; width:7px; height:7px; margin:-4px 4px 0 auto; border-right:2px solid var(--halo-secondary); border-bottom:2px solid var(--halo-secondary); transform:rotate(45deg); }
+.mw-form details[open] > summary:not(:has(svg))::after { margin-top:4px; transform:rotate(-135deg); }
+@media(forced-colors:active) { .mw-form details > summary:not(:has(svg))::after { border-color:CanvasText; } }
 .mw-form fieldset { min-width:0; margin:0; border:0; padding:0; }
 .mw-symptoms { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
 .mw-form .mw-symptoms button { padding:8px; font-size:calc(.78rem * var(--halo-text-scale)); }

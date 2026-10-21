@@ -28,6 +28,10 @@ test('preparation respects exact origins, 14-day horizon and saved-action dedupl
  const plans=preparationPlans([a,action('far','2026-11-01','saved','Outdoors'),action('past','2026-10-01','saved','Outdoors')],{}, {exploreEngagements:[record]},'2026-10-12','UTC');assert.equal(plans.length,1);assert.equal(plans[0].place,'Park entrance');assert.equal(plans[0].status,'Considering');assert.equal(plans[0].checks.length,3);
  const updated=preparationPlans([{...a,revision:2}],{}, {exploreEngagements:[record]},'2026-10-12','UTC');assert.notEqual(updated[0].signature,plans[0].signature);
 });
+test('a plain task in Before you begin shows its status in the Status control words, not the stored key',()=>{
+ const plans=preparationPlans([action('kit','2026-10-14','saved','Homeguard'),action('wait','2026-10-15','waiting','Homeguard')],{},{},'2026-10-12','UTC');
+ assert.deepEqual(plans.map(plan=>plan.status),['Saved','Waiting']);
+});
 test('calendar-zone instant, not stored wall date, determines earlier attention',()=>{
  const a=action('timed','2026-10-12');const items=homepageAttention([a],{'personal:timed':meta({time:'01:00',zone:'UTC'})},[],{},'2026-10-12','America/Los_Angeles');assert.equal(items[0].date,'2026-10-11');
 });

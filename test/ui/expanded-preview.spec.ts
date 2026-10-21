@@ -44,7 +44,7 @@ test('compact Home workspace selector preserves every destination and draft cont
   await page.goto(`${root}&tab=home&destination=tests&homeView=new`);
   await page.getByLabel('Test label (required)').fill('Retained home workspace draft');
   const selector = page.getByRole('combobox', { name: 'Home workspace', exact: true });
-  await expect(selector.locator('option')).toHaveText(['Tests', 'Maintenance', 'Food and Garden', 'Summary']);
+  await expect(selector.locator('option')).toHaveText(['Tests', 'Home care', 'Food and Garden', 'Summary']);
   for (const section of ['maintenance', 'food', 'summary', 'tests']) {
     await selector.selectOption(section);
     await expect(page.locator('.hg-workspace')).toHaveAttribute('data-home-section', section);
