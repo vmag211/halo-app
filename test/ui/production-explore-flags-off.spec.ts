@@ -74,3 +74,19 @@ test('Ask a question keeps copy-only drafting and says sending and lookup are no
   expect(network.requests.filter(request => request.method === 'POST')).toEqual([]);
   expect(network.blocked).toEqual([]);
 });
+
+test('My volunteering and a kept question say saving is not available yet, and send nothing', async ({ page }) => {
+  const network = await mockProduction(page, flagsOff);
+  await page.goto('/app/explore/activities');
+  await page.locator('summary').filter({ hasText: 'My volunteering' }).click();
+  await expect(page.getByText('Saving volunteering commitments is not available yet.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Your commitments will appear here', { exact: false })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add my own opportunity' })).toBeDisabled();
+  await page.goto('/app/explore/community');
+  await page.getByRole('button', { name: /Keep this question in My notes/ }).click();
+  await page.getByRole('button', { name: 'Save note' }).click();
+  await expect(page.getByText('Saving these records is not available yet. Nothing was saved, and your draft is kept.')).toBeVisible();
+  await expect(page.getByText('Load the current records before saving.', { exact: false })).toHaveCount(0);
+  expect(network.requests.filter(request => request.method === 'POST')).toEqual([]);
+  expect(network.blocked).toEqual([]);
+});

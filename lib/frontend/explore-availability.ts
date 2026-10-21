@@ -6,5 +6,6 @@
 export const listingsOff = 'Local listings are not available yet. Use the organizers’ official sites below.';
 export const organizationsOff = 'Organization profiles are not available yet. Use the official resources below.';
 export const projectsOff = 'Project ideas are not available yet. The rest of Explore still works.';
+export const commitmentsOff = 'Saving volunteering commitments is not available yet. Use the organizer’s official site to sign up.';
 export const notesOff = 'Saving private notes is not available yet. Nothing in your notebook was changed.';
 export const outreachOff = 'Sending from HALO is not available yet. Nothing was sent. Copy the message and send it from your own email.';
