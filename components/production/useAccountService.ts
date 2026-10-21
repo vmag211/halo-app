@@ -4,12 +4,14 @@ import {useProductionRuntime} from './ProductionContext';
 import {FrontendServiceError,serviceMessage} from '@/lib/frontend/production/runtime';
 import {validAccountReceipt,validAccountSnapshot,type AccountFeature,type AccountReceipt,type AccountSnapshot} from '@/lib/frontend/production/account-service';
 export function useAccountService(feature:AccountFeature) {
- const runtime=useProductionRuntime()!,[snapshot,setSnapshot]=useState<AccountSnapshot|null>(null),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[message,setMessage]=useState(''),[unknown,setUnknown]=useState<string[]>([]),[attempt,setAttempt]=useState(0);
+ const runtime=useProductionRuntime()!,[snapshot,setSnapshot]=useState<AccountSnapshot|null>(null),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[message,setMessage]=useState(''),[unknown,setUnknown]=useState<string[]>([]),[attempt,setAttempt]=useState(0),[off,setOff]=useState(false);
  const alive=useRef(true),lock=useRef(false),readVersion=useRef(0),requests=useRef(new Set<AbortController>()),current=useRef(snapshot);
  useLayoutEffect(()=>{current.current=snapshot;},[snapshot]);
  useEffect(()=>{alive.current=true;const active=requests.current;return()=>{alive.current=false;for(const request of active)request.abort();};},[]);
  useEffect(()=>{const controller=new AbortController(),version=++readVersion.current;requests.current.add(controller);queueMicrotask(()=>{if(!controller.signal.aborted)setLoading(true);});
-  void runtime.request<unknown>('account.read',{feature},{signal:controller.signal}).then(value=>{if(controller.signal.aborted||version!==readVersion.current)return;if(!validAccountSnapshot(value,feature))throw new Error('invalid');setSnapshot(value);setUnknown(value.unresolvedOperations);setMessage('');},error=>{if(!controller.signal.aborted&&version===readVersion.current)setMessage(serviceMessage(error));}).catch(()=>{if(!controller.signal.aborted&&version===readVersion.current)setMessage('Account information could not be verified. Please refresh.');}).finally(()=>{requests.current.delete(controller);if(!controller.signal.aborted&&version===readVersion.current)setLoading(false);});
+  void runtime.request<unknown>('account.read',{feature},{signal:controller.signal}).then(value=>{if(controller.signal.aborted||version!==readVersion.current)return;if(!validAccountSnapshot(value,feature))throw new Error('invalid');setSnapshot(value);setUnknown(value.unresolvedOperations);setMessage('');setOff(false);},error=>{if(!controller.signal.aborted&&version===readVersion.current){
+   // A capability switched off is a settled answer, not an outage: no retry is offered for it.
+   const disabled=error instanceof FrontendServiceError&&error.reason==='feature_unavailable';setOff(disabled);setMessage(disabled?'This is not available yet. Your existing records are unchanged.':serviceMessage(error));}}).catch(()=>{if(!controller.signal.aborted&&version===readVersion.current)setMessage('Account information could not be verified. Please refresh.');}).finally(()=>{requests.current.delete(controller);if(!controller.signal.aborted&&version===readVersion.current)setLoading(false);});
   return()=>controller.abort();
  },[runtime,feature,attempt]);
  function accept(value:unknown,id:string):AccountSnapshot|null {
@@ -29,5 +31,5 @@ export function useAccountService(feature:AccountFeature) {
   finally{requests.current.delete(controller);lock.current=false;if(alive.current)setBusy(false);}
  }
  async function reconcile(id:string){if(lock.current)return;const controller=new AbortController();requests.current.add(controller);lock.current=true;setBusy(true);try{const value=await runtime.request('operations.read',{operationId:id,domain:'account',feature},{signal:controller.signal});if(alive.current)accept(value,id);}catch(error){if(alive.current)setMessage(serviceMessage(error));}finally{requests.current.delete(controller);lock.current=false;if(alive.current)setBusy(false);}}
- return {snapshot,busy,loading,message,unknown,run,reconcile,setMessage,retry:()=>setAttempt(value=>value+1),disabled:busy||loading||!!unknown.length||!snapshot?.enabled};
+ return {snapshot,busy,loading,message,unknown,off,run,reconcile,setMessage,retry:()=>setAttempt(value=>value+1),disabled:busy||loading||!!unknown.length||!snapshot?.enabled};
 }
