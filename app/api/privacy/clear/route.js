@@ -17,6 +17,7 @@ import {
   privacyUnavailable,
 } from '@/lib/privacyStore';
 import { sweepAttachmentObjects } from '@/lib/attachmentStore';
+import { readIfMatch } from '@/lib/ifMatch';
 
 /**
  * POST /api/privacy/clear (`privacy.clear`, B07 plan, Task 6)
@@ -216,7 +217,7 @@ export async function POST(request) {
     if (key.value !== operationId.value) {
       return badField('operationId', 'idempotency_key_mismatch', MESSAGES.idempotencyMismatch, requestId);
     }
-    if (request.headers.get('if-match') !== null) {
+    if (readIfMatch(request) !== null) {
       return badField('If-Match', 'precondition_unsupported', MESSAGES.ifMatch, requestId);
     }
 

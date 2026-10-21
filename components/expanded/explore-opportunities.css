@@ -16,7 +16,9 @@
 .halo-explore .ex-opportunity-intro h3 { font:550 calc(1.35rem * var(--halo-text-scale))/1.2 var(--font-fraunces),Georgia,serif; text-align:left; }
 .halo-explore .ex-opportunity-intro p { font-size:calc(.8rem * var(--halo-text-scale)); color:var(--halo-secondary); }
 .ex-opportunity-search { display:flex; gap:9px; align-items:center; min-width:0; border-bottom:1px solid var(--halo-border); padding:6px 0; }
-.halo-explore .ex-opportunity-search input { border:0; border-radius:0; background:transparent; padding-inline:0; }
+.halo-explore .ex-opportunity-search input[type="search"] { border:0; border-radius:0; background:transparent; padding-inline:0; }
+/* .halo-explore label (explore.css) and its bordered input otherwise win the tie and stack the icon above a boxed input. */
+.halo-explore label.ex-opportunity-search { display:flex; }
 .ex-opportunity-search > svg { flex:none; color:var(--halo-primary); }
 .ex-opportunity-search .ex-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; clip-path:inset(50%); }
 .halo-explore .ex-program-directory .ex-local-route { grid-template-columns:65px minmax(0,1fr); gap:12px; }

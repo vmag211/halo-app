@@ -601,7 +601,7 @@ function createProductionRuntime(input) {
         const headers = {Accept:'application/json'};
         if(credential) headers.Authorization = `Bearer ${credential.accessToken}`;
         if(input.homeContextId && !input.publicAccess) headers['X-Halo-Home-Context'] = input.homeContextId;
-        if(options.expectedRevision !== undefined) headers['If-Match'] = String(options.expectedRevision);
+        if(options.expectedRevision !== undefined) headers['X-Halo-If-Match'] = String(options.expectedRevision);
         if(operationId) headers['Idempotency-Key'] = operationId;
         const multipart=typeof FormData!=='undefined'&&body instanceof FormData;
         if(mutation&&!multipart) headers['Content-Type']='application/json';
@@ -749,8 +749,9 @@ test('client: a never-saved read gives a usable revision, a search result saves,
   await ui.applyPlace(null);
   assert.deepEqual(ui.drafts, { area: blankArea, areaRevision: 4, areaOperation: null }, 'clear');
   const saves = log.filter((entry) => entry.method === 'PATCH');
-  assert.deepEqual(saves.map((entry) => [entry.headers['If-Match'], entry.body.revision]), [['1', 1], ['2', 2], ['3', 3]],
+  assert.deepEqual(saves.map((entry) => [entry.headers['X-Halo-If-Match'], entry.body.revision]), [['1', 1], ['2', 2], ['3', 3]],
     'each save carried the revision the previous one returned');
+  assert.ok(saves.every((entry) => !('If-Match' in entry.headers)), 'never a standard If-Match (lib/ifMatch.js)');
   for (const entry of saves) assert.match(entry.headers['Idempotency-Key'], UUID);
   // A reload reads what was saved.
   const reloaded = chooser(clientRuntime(h, 'alice'));
@@ -872,4 +873,13 @@ test('client: a conflict clears the parked operation, and a re-read lets the nex
   assert.equal(phone.error, '');
   assert.deepEqual(phone.drafts, { area: MECK, areaRevision: 3, areaOperation: null });
   assert.deepEqual(h.blockedFetches, []);
+});
+
+test('X-Halo-If-Match, the header the client sends (lib/ifMatch.js), is checked like If-Match and wins over it', async () => {
+  const h = harness({ alice: rowOf(WAKE, 2) });
+  const mismatch = await expectEnvelope(await save(h, 'alice', { place: MECK, revision: 2, ifMatch: null, headers: { 'x-halo-if-match': '3' } }), { status: 400, code: 'validation_failed', retryable: false });
+  assert.deepEqual(mismatch.field_errors.map((e) => [e.field, e.code]), [['revision', 'precondition_mismatch']]);
+  const shadowed = await expectEnvelope(await save(h, 'alice', { place: MECK, revision: 2, ifMatch: '2', headers: { 'x-halo-if-match': '3' } }), { status: 400, code: 'validation_failed', retryable: false });
+  assert.deepEqual(shadowed.field_errors.map((e) => [e.field, e.code]), [['revision', 'precondition_mismatch']], 'the custom header is the one read');
+  await expectArea(await save(h, 'alice', { place: MECK, revision: 2, ifMatch: null, headers: { 'x-halo-if-match': '2' } }), { place: MECK, revision: 3 }, 'saved');
 });

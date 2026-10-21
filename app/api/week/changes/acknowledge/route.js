@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   ABANDONED_REASON,
   OPERATION_INPUT_MISMATCH,
@@ -163,7 +164,7 @@ export async function POST(request) {
 
     // No precondition exists to match (H21, trap T12), and a client sending one
     // does not know what it is asking for.
-    if (request.headers.get('if-match') !== null) {
+    if (readIfMatch(request) !== null) {
       return validationError(
         [{ field: 'If-Match', code: 'precondition_unsupported', message: MESSAGES.ifMatch }],
         requestId,

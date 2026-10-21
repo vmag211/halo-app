@@ -5,6 +5,7 @@ import { readJsonBody } from '@/lib/validate';
 import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
 import { EXPORT_GROUPS, PRIVACY_SCOPES, fingerprintTables } from '@/lib/privacyInventory';
 import { mintReviewToken } from '@/lib/privacyToken';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   isPrivacyUnavailable,
   openPrivacy,
@@ -117,7 +118,7 @@ export async function POST(request) {
     if (!allowed) return apiError({ status: 429, code: ERROR_CODES.RATE_LIMITED, message: LIMITED_MESSAGE, requestId });
 
     // No privacy call sends a precondition (digest section 1); one that does is confused.
-    if (request.headers.get('if-match') !== null) {
+    if (readIfMatch(request) !== null) {
       return validationError(
         [fieldError('If-Match', 'unexpected_header', 'Privacy reviews do not take an If-Match header.')],
         requestId,

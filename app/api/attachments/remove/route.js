@@ -4,6 +4,7 @@ import { apiError, internalError, loggableError, requestIdFor, validationError, 
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { readWorkspaceCollections } from '@/lib/workspaceStore';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   ATTACHMENT_COLLECTIONS,
   ATTACHMENT_KINDS,
@@ -104,7 +105,7 @@ export async function POST(request) {
     if (key.value !== operationId.value) {
       return validationError([{ field: 'operationId', code: 'idempotency_key_mismatch', message: MESSAGES.idempotencyMismatch }], requestId);
     }
-    const ifMatch = request.headers.get('if-match');
+    const ifMatch = readIfMatch(request);
     if (ifMatch !== null && ifMatch.trim() !== String(revision)) {
       return validationError([{ field: 'If-Match', code: 'precondition_mismatch', message: MESSAGES.ifMatch }], requestId);
     }

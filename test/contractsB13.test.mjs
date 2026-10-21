@@ -188,7 +188,8 @@ test('a decision forced past the screen: the runtime\'s own headers are accepted
   // The exact call confirm() makes (ProductionSourceOperations.tsx:27).
   const value = await w.runtimeFor('reviewer').request('sourceOps.command', command, { idempotencyKey: command.operationId, expectedRevision: command.sourceRevision });
   const sent = w.sent.at(-1);
-  assert.equal(sent.headers['If-Match'], '1');
+  assert.equal(sent.headers['X-Halo-If-Match'], '1');
+  assert.equal(sent.headers['If-Match'], undefined, 'never a standard If-Match (lib/ifMatch.js)');
   assert.equal(sent.headers['Idempotency-Key'], command.operationId);
   view.accept(value, command.operationId);
   const after = screen.render();
