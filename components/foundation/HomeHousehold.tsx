@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowUpRight, Backpack, Droplets, House, Leaf, ShieldCheck } from 'lucide-react';
 import { homeMemberKeys, memberCatalog, type HomeMemberKey } from '@/lib/frontend/home-household';
-import { factorColor, factorReadings } from '@/lib/frontend/factor-preview';
+import { factorColor, factorInlineName, factorReadings } from '@/lib/frontend/factor-preview';
 import type { FoundationScenario } from '@/lib/frontend/foundation-preview';
 import SeverityPill from '@/components/ui/SeverityPill';
 import { Callout } from '@/components/ui/Foundation';
@@ -90,7 +90,7 @@ export function HomeMemberGuidance({ member, scenario, memberHref, factorHref, p
         <h3>{action.title}</h3><p>{action.body}</p>
         <div className="halo-home-evidence"><div><span>{noReading ? 'No reading to interpret' : action.factor === 'mold' ? 'Outdoor context only' : runtime ? 'Your home evidence' : 'Your home evidence'}</span><strong>{noReading ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`}</strong><small>{noReading ? 'General information remains available' : factor.asOf}</small></div><SeverityPill severity={noReading ? 'no_data' : factor.severity} /></div>
         <details><summary>What this can and cannot tell you</summary><p>{action.factor === 'lead' ? 'Building age is an estimate, not a tap-water test or a confirmed pipe material.' : action.factor === 'radon' ? 'The county zone describes regional potential. HALO has no indoor radon measurement for this home.' : action.factor === 'pfas' ? 'The utility sample has its own date. It does not measure PFAS at your tap today or anyone’s individual exposure.' : 'This is weather-based context, not a measurement of mold or humidity inside this home.'}</p><a href={action.sourceUrl} target="_blank" rel="noopener noreferrer">{action.sourceLabel}</a></details>
-        <Link href={factorHref(action.factor)} prefetch={false}>Explore {factor.shortTitle.toLowerCase()}</Link>
+        <Link href={factorHref(action.factor)} prefetch={false}>Explore {factorInlineName(factor)}</Link>
       </section></Reveal>;
     })}</div>
     <section className="halo-home-member-limits" data-motion-surface="household-limits"><ShieldCheck size={23} aria-hidden="true" /><h2>About the person, not a personal score.</h2><p>HALO knows selected household categories, not names, medical histories, or individual exposure. These are educational suggestions, not a diagnosis or treatment plan. Speak with a qualified professional about individual health concerns.</p></section>

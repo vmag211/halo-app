@@ -44,7 +44,9 @@ test('failed, refused and ungrounded service outcomes remain distinct without fa
  await send('Explain the available sources.');await expect(panel).toContainText('Sources are unavailable. Your question is kept.');await expect(input).toHaveValue('Explain the available sources.');
  await send('Can you diagnose this?');await expect(panel.getByRole('log')).toContainText('I cannot diagnose or recommend treatment.');
  await send('Find an unsupported answer.');await expect(panel.getByRole('log')).toContainText('No reliable source is available for this question.');
- await send('Trigger a request limit.');await expect(panel).not.toContainText('private database details');await expect(input).toHaveValue('Trigger a request limit.');await expect(panel.getByRole('button',{name:'Check existing request'})).toBeVisible();expect(network.blocked).toEqual([]);
+ await send('Trigger a request limit.');await expect(panel).not.toContainText('private database details');await expect(input).toHaveValue('Trigger a request limit.');
+ // The route refuses a rate-limited message before any run exists (app/api/luna/messages/route.js), so there is nothing to check: the draft stays and can be sent again.
+ await expect(panel).toContainText('Please wait before trying again.');await expect(panel.getByRole('button',{name:'Check existing request'})).toHaveCount(0);await expect(panel.getByRole('button',{name:'Send message',exact:true})).toBeEnabled();expect(network.blocked).toEqual([]);
 });
 
 test('pending questions cancel through the service and late answers never replace the retained draft',async({page})=>{
