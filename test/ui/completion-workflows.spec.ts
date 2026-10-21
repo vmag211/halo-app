@@ -11,7 +11,7 @@ async function beginHome(page:Page){await openSettings(page,'Home & household');
 test('Learn searches glossary and topics, filters and handles error and empty results',async({page})=>{
  await page.goto(root);await openSettings(page,'About & help');const library=page.getByRole('region',{name:'Learn & sources'});
  await library.getByRole('searchbox').fill('non-detect');await expect(library.locator('summary')).toHaveText(['Non-detect']);await library.locator('summary').click();await expect(library).toContainText('not the same as a measured zero');
- await library.getByRole('button',{name:'Clear search',exact:true}).click();await library.getByRole('combobox').selectOption('radon');await expect(library.locator('summary')).toHaveText(['Radon']);
+ await library.getByRole('button',{name:'Clear search',exact:true}).click();await library.getByRole('combobox',{name:'Show topic',exact:true}).selectOption('radon');await expect(library.locator('summary')).toHaveText(['Radon']);
  await library.getByRole('searchbox').fill('unfindable');await expect(library).toContainText('No matching topics');await scenario(page,'Learning catalogue','error');await expect(library).toContainText('could not be loaded');await library.getByRole('button',{name:'Reload learning topics'}).click();await expect(library).toContainText('No matching topics');
 });
 test('home change validates, requires review, preserves historical records and removes old readings',async({page})=>{

@@ -4,7 +4,8 @@ self.addEventListener('push', event => {
   try { payload = event.data ? event.data.json() : {}; } catch { /* A generic notification is safe without private payload parsing. */ }
   const path = typeof payload.path === 'string' && /^\/(?:plan|today|home|act|settings)(?:\?[^#]*)?$/.test(payload.path) ? payload.path : '/plan';
   event.waitUntil(self.registration.showNotification('HALO', {
-    body: 'You have an update in HALO.', icon: '/halo-logo-mark.png', badge: '/halo-logo-mark.png',
+    // The mark is a near-black alpha mask: right for the monochrome badge, invisible as a full icon on dark shades.
+    body: 'You have an update in HALO.', icon: '/halo-icon.png', badge: '/halo-logo-mark.png',
     tag: typeof payload.id === 'string' ? payload.id.slice(0,120) : undefined, data: { path },
   }));
 });

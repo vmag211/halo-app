@@ -10,7 +10,7 @@ function savingSettings(){
  const state={current:structuredClone(settingsSnapshot) as typeof settingsSnapshot&{display:Record<string,unknown>},saves:[] as Record<string,unknown>[],matches:[] as (string|undefined)[]};
  const route=async(route:import('@playwright/test').Route)=>{
   if(route.request().method()==='GET'){await jsonRoute(route,state.current);return;}
-  const input=route.request().postDataJSON();state.saves.push(input);state.matches.push(route.request().headers()['if-match']);
+  const input=route.request().postDataJSON();state.saves.push(input);state.matches.push(route.request().headers()['x-halo-if-match']);
   expect(route.request().headers()['idempotency-key']).toBe(input.operationId);
   state.current={...state.current,revision:state.current.revision+1,values:input.values,display:input.display,calendar:input.calendar};
   await jsonRoute(route,{operationId:input.operationId,status:'succeeded',snapshot:state.current});
@@ -31,6 +31,8 @@ for(const viewport of [{width:390,height:844,name:'phone'},{width:1440,height:90
   const menu=page.getByRole('dialog',{name:'Appearance',exact:true});await expect(menu).toBeVisible();
   await expect(button).toHaveAttribute('aria-expanded','true');
   await expect(menu.getByRole('radio',{name:'Dark',exact:true})).toBeFocused();
+  // Ambient animation is always on, so the menu has only the contrast switch.
+  await expect(menu.getByRole('switch')).toHaveCount(1);await expect(menu.getByText('Ambient animation')).toHaveCount(0);
   const box=(await menu.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(viewport.width);expect(box.y+box.height).toBeLessThanOrEqual(viewport.height);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
   await shot(page,`header-appearance-${viewport.name}-dark.png`,info);
@@ -38,7 +40,7 @@ for(const viewport of [{width:390,height:844,name:'phone'},{width:1440,height:90
   await menu.getByRole('radio',{name:'Light',exact:true}).check();
   await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','light');
   expect(settings.state.saves).toHaveLength(1);expect(settings.state.matches).toEqual(['1']);
-  expect(settings.state.saves[0]).toMatchObject({group:'display',values:settingsSnapshot.values,calendar:settingsSnapshot.calendar,display:{appearance:'light',ambient:false,scale:'100',motion:'reduce',contrast:false,palette:'ocean'}});
+  expect(settings.state.saves[0]).toMatchObject({group:'display',values:settingsSnapshot.values,calendar:settingsSnapshot.calendar,display:{appearance:'light',ambient:true,scale:'100',motion:'reduce',contrast:false,palette:'ocean'}});
   await expect(menu.getByRole('status')).toHaveText('Saved.');
   await menu.getByRole('radio',{name:'Forest',exact:true}).check();
   await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-palette','forest');
@@ -72,4 +74,19 @@ test('a lost header save keeps the canonical appearance and offers a status chec
  await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-palette','ocean');
  await expect(menu.getByRole('radio',{name:'Ocean',exact:true})).toBeChecked();
  expect(saves).toBe(1);expect(network.blocked).toEqual([]);
+});
+
+test('at the largest text size the menu wraps whole segments instead of breaking their words',async({page})=>{
+ const network=await mockProduction(page,{'/api/settings':route=>jsonRoute(route,{...settingsSnapshot,display:{...settingsSnapshot.display,appearance:'light',scale:'150'}})});
+ for(const width of [375,320]){
+  await page.setViewportSize({width,height:844});
+  await page.goto('/today');await page.locator('.halo-f-header').getByRole('button',{name:'Appearance',exact:true}).click();
+  const menu=page.getByRole('dialog',{name:'Appearance',exact:true});await expect(menu.getByRole('radio',{name:'150%',exact:true})).toBeChecked();
+  const lines=await menu.locator('fieldset label > span:last-of-type').evaluateAll(spans=>spans.map(span=>{const range=document.createRange();range.selectNodeContents(span);return [span.textContent,new Set([...range.getClientRects()].map(rect=>Math.round(rect.top))).size] as const;}));
+  expect(lines.length).toBe(12);
+  for(const [label,count] of lines)expect(count,`${label} at ${width}px`).toBe(1);
+  const box=(await menu.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  expect(network.blocked).toEqual([]);
+ }
 });

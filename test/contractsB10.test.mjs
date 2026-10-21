@@ -420,7 +420,7 @@ test('home, tomorrow: three periods in America/New_York, Issued with the model r
   assert.equal(s.live.error, null);
   assert.deepEqual(s.cards.map((c) => [c.name, c.from, c.to]), [['Morning', '08:00', '12:00'], ['Afternoon', '12:00', '17:00'], ['Evening', '17:00', '21:00']]);
   assert.equal(s.forecastZone, 'America/New_York');
-  assert.equal(s.notices.issuedLine, `Times in America/New_York. Issued ${FORECAST_RUN}.`);
+  assert.equal(s.notices.issuedLine, 'Times in Eastern Time. Issued Oct 19, 08:00.');
   for (const [row, cell] of Object.entries(s.text.coverage)) {
     assert.equal(typeof cell, 'string', row);
     assert.ok(cell.startsWith('For your home area:'), `${row}: ${cell}`);
@@ -428,7 +428,7 @@ test('home, tomorrow: three periods in America/New_York, Issued with the model r
   assert.equal(s.text.sourceName, 'Open-Meteo, EPA AirNow and the National Weather Service, for your home area');
   assert.match(s.text.notices, /^No National Weather Service alerts are active for this area as of 16:07 EDT\./);
   assert.equal(s.text.horizon, '2026-10-19 through 2026-10-25');
-  assert.equal(s.text.expiry, cw.last().body.expiresAt);
+  assert.equal(s.text.expiry, fe.forecastIssued(cw.last().body.expiresAt, 'America/New_York'));
   assert.equal(s.far, false);
   assert.equal(s.expired, false);
   assert.equal(s.changed, false);
@@ -639,7 +639,7 @@ test('while the run is unknown the last confirmed forecast is served stale: same
   const s = await screen(cw, { period: 'Afternoon', now: later });
   keep('forecastRead-stale', 200, cw.last().body);
   assert.equal(cw.w.count('forecast'), 0, 'the unknown run is never fetched');
-  assert.equal(s.notices.issuedLine, `Times in America/New_York. Issued ${FORECAST_RUN}.`, 'the served run keeps its own issue time (F17)');
+  assert.equal(s.notices.issuedLine, 'Times in Eastern Time. Issued Oct 19, 08:00.', 'the served run keeps its own issue time (F17)');
   assert.equal(s.live.data.expiresAt, new Date(later + 30 * 60_000).toISOString());
   assert.match(s.text.coverage.Weather, /A newer model run is not yet confirmed, so this is the last confirmed run\./);
   assert.equal(s.selectionSignature, fresh.selectionSignature, 'no false "forecast changed"');

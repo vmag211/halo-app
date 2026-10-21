@@ -88,7 +88,7 @@ function AddKitchenFood({ food, ...props }: WorkspaceProps & { food?: CatalogueF
   const [error, setError] = useState('');
   const Icon = icons[guide.icon];
   return <div className="hg-stack hg-pantry"><BackToFoods navigate={props.navigate} /><PageIntro eyebrow="YOUR KITCHEN" title={food ? `Add ${food.name.toLowerCase()}` : 'Add your food'} description="Choose where to keep it. Add any other details when you need them." icon={<Icon />} />
-    <section className="hg-card hg-food-add-form"><RecordForm submitLabel="Add to my kitchen" onCancel={() => props.navigate('pantry')} onSubmit={async () => {
+    <section className="hg-card hg-food-add-form"><RecordForm onConfirmed={id => { setCurrentStorage(draft.storage); clearDraft(); props.navigate('pantry-note', id); }} submitLabel="Add to my kitchen" onCancel={() => props.navigate('pantry')} onSubmit={async () => {
     const values = { title: cleanFoodNote(draft.title), question: cleanFoodNote(draft.question), origin: draft.origin, guideId: guide.id, storage: draft.storage };
     const validation = validatePantryItem(values); if (validation || !validFoodStorage(draft.storage)) { setError(validation || 'Choose a storage section.'); return; }
     const now = new Date().toISOString();
@@ -132,7 +132,7 @@ function FoodNoteForm({ guide, origin, suggestedQuestion, existing, onSaved, onC
   const [, setCurrentStorage] = useHomeDraft<FoodStorage>('pantry-storage', 'fridge');
   const [draft, setDraft, clearDraft] = useHomeDraft(`pantry:${existing?.id ?? `${guide.id}:${origin}`}`, { title: existing?.title ?? '', question: existing?.question ?? suggestedQuestion, origin: existing?.origin ?? origin, storage: existing?.storage });
   const [error, setError] = useState('');
-  return <><RecordForm submitLabel={existing ? 'Save changes' : 'Save food note'} onCancel={onCancel} onSubmit={async () => {
+  return <><RecordForm onConfirmed={id => { clearDraft(); setError(''); onSaved(id); }} submitLabel={existing ? 'Save changes' : 'Save food note'} onCancel={onCancel} onSubmit={async () => {
     const values = { title: cleanFoodNote(draft.title), question: cleanFoodNote(draft.question), origin: draft.origin, guideId: guide.id, ...(existing?.storage ? { storage: draft.storage } : {}) };
     const validation = validatePantryItem(values); if (validation) { setError(validation); return; }
     const now = new Date().toISOString();

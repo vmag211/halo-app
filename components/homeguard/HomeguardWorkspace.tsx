@@ -16,8 +16,9 @@ import './homeguard-workspace.css';
 import WorkspaceFeedback from '@/components/expanded/WorkspaceFeedback';
 import { WorkspaceArtworkProvider, workspaceArtwork } from './WorkspaceArtwork';
 import './workspace-editorial.css';
+import { collectionsOff, homeguardOffMessage } from '@/lib/frontend/collection-availability';
 
-const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
+const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Home care' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
   const search = useSearchParams(); const router = useRouter(); const state = useHomeWorkspace();
   const didOpen = useRef(false);
@@ -31,7 +32,9 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   // A ready auxiliary collection must not turn still-pending tests into an empty list.
   // Other ready collections remain usable while their independent reads finish.
   const productionLoading = pendingCollections.length > 0 && (requiredCollections.every(key => !state.collections[key]) || section === 'tests' && pendingCollections.includes('tests') && !state.collections.tests);
-  const productionFailure = state.mode === 'production' && requiredCollections.find(key => state.collectionStates[key]?.status === 'error');
+  // A switched-off capability (503 feature_unavailable) is settled: say so once, with no retry.
+  const productionFailure = state.mode === 'production' && requiredCollections.find(key => state.collectionStates[key]?.status === 'error' && !state.collectionStates[key].featureUnavailable);
+  const productionOff = state.mode === 'production' && collectionsOff(state.collectionStates, requiredCollections);
   const incomplete = state.mode === 'production' && requiredCollections.some(key => state.collectionStates[key]?.status === 'ready' && !state.collectionStates[key].complete);
   const go: WorkspaceProps['go'] = (destination, nextView = 'list', id) => {
     const url = new URL(href('home', destination), window.location.origin);
@@ -43,9 +46,11 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   useEffect(() => {
     const isFirstOpen = !didOpen.current;
     const sectionChanged = previousSection.current !== section;
-    didOpen.current = true;
-    previousSection.current = section;
     const frame = requestAnimationFrame(() => {
+      // Record the entry only once it is handled: a cancelled frame (Strict Mode's
+      // effect replay, or a quick re-render) must not turn first entry into a revisit.
+      didOpen.current = true;
+      previousSection.current = section;
       // Preserve early keyboard/pointer focus, including a scrollable table. A
       // new route's heading must not interrupt an already focused control.
       const active = document.activeElement;
@@ -54,9 +59,14 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
       heading?.focus({ preventScroll: true });
       // Keep the workspace switcher and return path in view on entry. Within a
       // workspace, bring the requested record/editor into view instead.
-      const target = isFirstOpen || sectionChanged
+      const entry = isFirstOpen || sectionChanged;
+      const target = entry
         ? document.querySelector('.hg-workspace-nav')
         : heading?.closest('.hg-intro') ?? heading;
+      // A switcher already in full view is left where it is: scrolling it anyway jumped a freshly
+      // loaded page by the height of the refresh bar just after it appeared.
+      const box = target?.getBoundingClientRect(), headerBottom = document.querySelector('.halo-f-header')?.getBoundingClientRect().bottom ?? 0;
+      if (entry && box && box.top >= headerBottom && box.bottom <= window.innerHeight) return;
       target?.scrollIntoView({ block: 'start', behavior: 'instant' });
     });
     return () => cancelAnimationFrame(frame);
@@ -69,6 +79,7 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     </div>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}
     <WorkspaceFeedback />
     {productionFailure && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
+    {productionOff && <p className="hg-notice" role="status">{homeguardOffMessage}</p>}
     {!productionLoading && pendingCollections.length > 0 && <HaloLoading label="Loading remaining home records" />}
     {incomplete && <p className="hg-notice">Some records are not included in this view. Reload the complete collection before exporting or clearing it.</p>}
     {state.scenario === 'stale' && <p className="hg-notice">Some sources are out of date. Check their original dates.</p>}

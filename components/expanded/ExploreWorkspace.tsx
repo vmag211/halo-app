@@ -24,6 +24,10 @@ import './explore-refinement.css';
 
 type Props = { destination?: string; href: (tab: string, destination?: string) => string; mapHref: (layer: string) => string; environmentAvailable?: boolean };
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
+// The app's route pages render nothing, so Next has no new segment to scroll to: an in-app move between
+// Explore views kept the previous scroll and opened forms and sections partway down. The workspace can
+// remount across that move, so the request outlives the instance that made it.
+let pendingTop = false;
 export default function ExploreWorkspace({ destination, href, mapHref, environmentAvailable = true }: Props) {
   const router = useRouter(); const query = useSearchParams(); const workspace = useHomeWorkspace(); const heading = useRef<HTMLHeadingElement>(null);
   const navigationRevision = useRef(0);
@@ -32,14 +36,23 @@ export default function ExploreWorkspace({ destination, href, mapHref, environme
   const showArea = !section || section === 'community' || (view === 'list' && (section === 'opportunities' || section === 'projects'));
   const go: Go = (next, nextView = 'list', record) => {
     // Record intent before the asynchronous route transition can finish.
-    navigationRevision.current++;
-    router.push(`${href('act', next)}${nextView !== 'list' ? `&exploreView=${encodeURIComponent(nextView)}` : ''}${record ? `&exploreRecord=${encodeURIComponent(record)}` : ''}`);
+    navigationRevision.current++; pendingTop = true;
+    const target = `${href('act', next)}${nextView !== 'list' ? `&exploreView=${encodeURIComponent(nextView)}` : ''}${record ? `&exploreRecord=${encodeURIComponent(record)}` : ''}`;
+    // A move that only changes the query stays on the page: router.push would refetch the page segment, whose
+    // key includes the query, and remount the whole preview when it lands, closing sheets and menus opened in
+    // the meantime. Next keeps useSearchParams in step with the native history API, as the preview's tabs do.
+    const url = new URL(target, window.location.href);
+    if (url.pathname === window.location.pathname) window.history.pushState({ _foundationSheet: false }, '', url);
+    else router.push(target);
   };
   const captureNavigation = () => {
     const revision = navigationRevision.current;
     return () => navigationRevision.current === revision;
   };
-  useEffect(() => { if (section) heading.current?.focus({ preventScroll: true }); }, [section, view, id]);
+  useEffect(() => {
+    if (pendingTop) { pendingTop = false; window.scrollTo(0, 0); }
+    if (section) heading.current?.focus({ preventScroll: true });
+  }, [section, view, id]);
   return <div className="halo-explore" data-explore-section={section ?? 'overview'}>
     <header className="ex-workbench-header">
       <div className="ex-workbench-bar">

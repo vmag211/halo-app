@@ -1560,10 +1560,13 @@ test('challengeStatus: the clock expires a live-looking row and NEVER revives a 
   // it is what stops a row somebody marked dead coming back as a live
   // challenge because its window was later moved forward.
   const now = Date.now();
+  // One millisecond before the `now` passed in, not before a later clock read:
+  // ago(1) drifts past `now` when the machine is busy.
+  const justExpired = new Date(now - 1).toISOString();
   assert.equal(lib.challengeStatus(row({ status: 'pending' }), { now }), 'pending');
-  assert.equal(lib.challengeStatus(row({ status: 'pending', expires_at: ago(1) }), { now }), 'expired');
+  assert.equal(lib.challengeStatus(row({ status: 'pending', expires_at: justExpired }), { now }), 'expired');
   assert.equal(lib.challengeStatus(row({ status: 'verified' }), { now }), 'verified');
-  assert.equal(lib.challengeStatus(row({ status: 'verified', expires_at: ago(1) }), { now }), 'expired');
+  assert.equal(lib.challengeStatus(row({ status: 'verified', expires_at: justExpired }), { now }), 'expired');
   for (const status of ['expired', 'collision', 'failed']) {
     assert.equal(
       lib.challengeStatus(row({ status, expires_at: future(60 * 60 * 1000) }), { now }),

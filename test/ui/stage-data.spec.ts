@@ -35,6 +35,29 @@ test('server card scores show on air, UV and pollen; mold shows as an estimate, 
   await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('Estimate only');
 });
 
+test('pollen out of season everywhere reads Out of season on the card, the detail and household guidance', async ({ page }) => {
+  const off = { value: null, severity: 'no_data', out_of_season: true };
+  const base = scoredReading();
+  await mockStage(page, { overrides: { '/api/daily-score': route => jsonRoute(route, { ...base,
+    pollen: { tree: null, grass: null, weed: null, dominant: null, severity: 'no_data', sentence: 'Tree, grass and weed pollen are all out of season where you live.', categories: { tree: off, grass: off, weed: off } },
+    score: { ...base.score, is_partial: true, missing_inputs: ['pollen'], included_inputs: ['air', 'uv', 'mold'], inputs: { ...base.score.inputs, pollen: null }, factor_scores: { ...base.score.factor_scores, pollen: null } } }) } });
+  await page.goto('/today');
+  const card = page.getByRole('link', { name: /^Pollen\. Out of season\. Out of season Tree, grass and weed\./ });
+  await expect(card).toBeVisible();
+  await expect(card.locator('.halo-severity')).toHaveCount(0);
+  await expect(page.locator('.halo-ph-legend').getByText('Out of season')).toBeVisible();
+  await card.click();
+  await expect(page.locator('.halo-ph-detail-score .halo-ph-kicker')).toHaveText('Pollen season');
+  await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('Out of season');
+  await expect(page.getByRole('heading', { name: 'Tree, grass and weed pollen are all out of season where you live.' })).toBeVisible();
+  await expect(page.locator('.halo-ph-pollen-list')).toContainText('Out of season');
+  await expect(page.locator('body')).not.toContainText('There is no reading to explain yet.');
+  await expect(page.locator('body')).not.toContainText('A missing reading is not a zero.');
+  await page.goto('/family');
+  await expect(page.locator('.halo-family-guidance-item', { hasText: 'Pollen' }).first()).toContainText('Out of season Tree, grass and weed');
+  await expect(page.getByRole('link', { name: 'Explore UV' })).toBeVisible();
+});
+
 test('production displays actual partial readings, zero UV, model provenance, and no fixture data', async ({ page }) => {
   const { requests, blocked } = await mockStage(page, { overrides: { '/api/daily-score': route => jsonRoute(route, reading()) } });
   await page.goto('/today');
@@ -173,4 +196,13 @@ test('rate-limit countdown expires after a successful soft refresh clears the er
   await page.clock.fastForward(301_000);
   await expect(refresh).toHaveText('Refresh readings');
   await expect(refresh).toBeEnabled();
+});
+
+test('a missing reading says No data, without a unit after it', async ({ page }) => {
+  await mockStage(page);
+  for (const factor of ['air', 'pfas', 'radon']) {
+    await page.goto(`/factors/${factor}`);
+    await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('No data');
+    await expect(page.locator('.halo-ph-reading-capsule')).toHaveText('No data');
+  }
 });

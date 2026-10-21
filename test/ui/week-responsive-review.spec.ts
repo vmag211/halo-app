@@ -77,7 +77,7 @@ test('one reminder manager retains requested tasks and exact schedule access',as
   await expect(page.locator('.mw-reminder-panel')).toHaveCount(0);
   await page.locator('.mw-automation-tools > summary').click();
   await page.getByRole('button',{name:/^Reminders/}).click();
-  await expect(page.locator('#homepage-hub')).toContainText('1 requested task reminders');
+  await expect(page.locator('#homepage-hub')).toContainText(/1 requested task reminder(?!s)/);
   await expect(page.locator('#homepage-hub')).toContainText('Scheduling and delivery are not confirmed.');
   await page.locator('#homepage-hub').getByRole('button',{name:/^Check the new radon result/}).click();
   await expect(detail.getByLabel('Task title',{exact:true})).toHaveValue('Check the new radon result');
@@ -108,4 +108,22 @@ for(const appearance of ['light','dark'])test(`calendar and filter sheet fit enl
   await page.screenshot({path:info.outputPath(`week-filters-${appearance}-320.png`)});
   await page.goBack();
   await page.screenshot({path:info.outputPath(`week-overview-${appearance}-320.png`),fullPage:true});
+});
+
+test('time zones read as names, while the stored value stays the IANA id',async({page})=>{
+  await page.goto(root);
+  await addTask(page,'Timed radon check');
+  await page.locator('.mw-task-open').filter({hasText:'Timed radon check'}).click();
+  const detail=page.locator('#week-task-detail');
+  await detail.getByText('Time, repeat & preparation',{exact:true}).click();
+  await detail.getByLabel('Time (optional)',{exact:true}).fill('09:30');
+  const zone=detail.getByRole('combobox',{name:'Timezone',exact:true});
+  await expect(zone).toHaveValue('America/New_York');expect(await zone.evaluate(select=>(select as HTMLSelectElement).selectedOptions[0]?.textContent)).toBe('Eastern Time (New York)');
+  await zone.selectOption('America/Chicago');await expect(zone).toHaveValue('America/Chicago');
+  await detail.getByLabel('Request a reminder',{exact:true}).check();
+  await detail.getByRole('button',{name:'Save task',exact:true}).click();
+  await page.locator('.mw-automation-tools > summary').click();
+  await page.getByRole('button',{name:/^Reminders/}).click();
+  const hub=page.locator('#homepage-hub');
+  await expect(hub).toContainText('09:30 Central Time');await expect(hub).not.toContainText('America/');
 });

@@ -1,7 +1,7 @@
 import {BookOpen,Compass,Sparkles} from 'lucide-react';
 import type {LunaMessage} from '@/lib/frontend/production/luna-service';
 
-const clean=(value:string)=>value.replace(/\u2014/g,',');
+const clean=(value:string)=>value.replace(/[^\S\n]*\u2014[^\S\n]*/g,', ');
 const labels={fact:'From the source',interpretation:'Luna’s interpretation','next-step':'Suggested next step'};
 const icons={fact:BookOpen,interpretation:Sparkles,'next-step':Compass};
 

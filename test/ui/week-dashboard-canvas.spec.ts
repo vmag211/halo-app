@@ -23,6 +23,8 @@ for(const appearance of ['light','dark'])test(`calendar-first canvas, paired too
 });
 
 test('weekly effort uses supplied values and opens a day without rescheduling anything',async({page})=>{
+  // The connected example is dated next Saturday; pin a Monday so that Saturday is the 17th.
+  await page.clock.setFixedTime(new Date('2026-10-12T16:00:00Z'));
   await page.goto(root);await connected(page);
   await page.locator('.mw-week-details > summary').click();await expect(page.locator('.mw-effort-open strong')).toHaveText('1h 45m planned');
   await page.getByRole('button',{name:/Plan effort/}).click();

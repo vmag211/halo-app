@@ -40,6 +40,8 @@ test('PDF generation can be cancelled and retried without discarding selections'
   let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
   await page.route('**/fonts/instrument-sans-report.ttf', async route => { await held; await route.continue().catch(() => {}); });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
+  // A server-rendered button is inert until hydration, which writes the review settings into the URL.
+  await page.waitForURL(/[?&]palette=/);
   await page.getByRole('button', { name: 'Create household PDF' }).click();
   await expect(page.getByRole('progressbar', { name: 'PDF creation progress' })).toBeVisible();
   await page.getByRole('button', { name: 'Cancel PDF creation' }).click();

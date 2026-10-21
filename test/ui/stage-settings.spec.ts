@@ -36,7 +36,9 @@ test('invalid home input and failed saves retain the draft; retry sends canonica
  await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByText('Changes saved.',{exact:true})).toBeVisible();expect(bodies).toEqual([{year:'',water:'well',tenure:'renter'},{year:'',water:'well',tenure:'renter'}]);expect(network.blocked).toEqual([]);
 });
 test('opening home-location review preserves unsaved answers and never changes a home by itself',async({page})=>{
- const network=await mockProduction(page,{'/api/account':route=>jsonRoute(route,unavailableHome)});await page.goto('/settings?open=home');const toddler=page.getByRole('checkbox',{name:'Toddlers',exact:true});await toddler.check();await page.getByText('Home location',{exact:true}).click();await expect(page.getByLabel('City or ZIP code',{exact:true})).toBeVisible();await expect(toddler).toBeChecked();await expect(page).toHaveURL(/\/settings\?open=home$/);
+ const network=await mockProduction(page,{'/api/account':route=>jsonRoute(route,unavailableHome)});await page.goto('/settings?open=home');const toddler=page.getByRole('checkbox',{name:'Toddlers',exact:true});await toddler.check();await page.getByText('Home location',{exact:true}).click();
+ // The transition is switched off here (enabled:false), so the disclosure offers the onboarding address change instead of a disabled search.
+ await expect(page.getByRole('link',{name:'Change address',exact:true})).toHaveAttribute('href','/onboarding?change=1');await expect(page.getByLabel('City or ZIP code',{exact:true})).toHaveCount(0);await expect(toddler).toBeChecked();await expect(page).toHaveURL(/\/settings\?open=home$/);
  await page.getByRole('button',{name:'All settings',exact:true}).click();await page.locator('[data-setting-panel="home"]').click();await expect(toddler).toBeChecked();expect(network.requests.filter(request=>['PUT','PATCH','POST','DELETE'].includes(request.method))).toEqual([]);expect(network.blocked).toEqual([]);
 });
 test('unavailable settings cannot save and disconnect keeps a pending save unresolved until a status check',async({page})=>{

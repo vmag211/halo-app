@@ -1,6 +1,8 @@
 .mw-workspace { --mw-accent:var(--halo-primary); --mw-paper:light-dark(#f9fcf8,#102a36); display:grid; gap:18px; min-width:0; text-align:left; font:400 calc(.9rem * var(--halo-text-scale))/1.5 var(--font-instrument),Arial,sans-serif; }
 .mw-workspace h2,.mw-workspace h3,.mw-workspace h4,.mw-workspace p { margin:0; }
 .mw-workspace h3 { font-size:calc(1.12rem * var(--halo-text-scale)); font-weight:650; }
+/* Follow-through subheadings are h3 for the outline but keep their small inline look. */
+.mw-workspace .mw-followup > h3 { font-size:inherit; font-weight:inherit; }
 .mw-workspace small,.mw-muted { color:var(--halo-secondary); font-size:calc(.78rem * var(--halo-text-scale)); }
 .mw-intro { position:relative; padding:3px 0 0; overflow:hidden; }
 .mw-eyebrow { color:var(--halo-primary); font-size:calc(.7rem * var(--halo-text-scale)); font-weight:650; letter-spacing:.045em; }
@@ -89,6 +91,10 @@
 .mw-danger { color:light-dark(#a63131,#ffb2b2) !important; }
 .mw-form :is(p,details) { overflow-wrap:anywhere; }
 .mw-form details summary { min-height:44px; cursor:pointer; }
+/* The workspace's flex summaries hide the native marker, so a plain-text disclosure gets the same chevron cue. */
+.mw-form details > summary:not(:has(svg))::after { content:''; flex-shrink:0; width:7px; height:7px; margin:-4px 4px 0 auto; border-right:2px solid var(--halo-secondary); border-bottom:2px solid var(--halo-secondary); transform:rotate(45deg); }
+.mw-form details[open] > summary:not(:has(svg))::after { margin-top:4px; transform:rotate(-135deg); }
+@media(forced-colors:active) { .mw-form details > summary:not(:has(svg))::after { border-color:CanvasText; } }
 .mw-form fieldset { min-width:0; margin:0; border:0; padding:0; }
 .mw-symptoms { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
 .mw-form .mw-symptoms button { padding:8px; font-size:calc(.78rem * var(--halo-text-scale)); }

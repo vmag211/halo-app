@@ -17,3 +17,4 @@ export function useProductionForecast(date:string,place:string){
  return {...read,data:valid?value:null,error:read.error??(value&&!valid?'Forecast information could not be verified.':null)};
 }
 export function forecastTime(instant:string,zone:string){return new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(instant));}
+export function forecastIssued(instant:string,zone:string){return `${new Intl.DateTimeFormat('en-US',{timeZone:zone,month:'short',day:'numeric'}).format(new Date(instant))}, ${forecastTime(instant,zone)}`;}

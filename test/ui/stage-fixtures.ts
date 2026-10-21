@@ -54,6 +54,8 @@ export async function mockStage(page: Page, options: StageMockOptions = {}) {
     if (url.pathname === '/api/assistant' && options.assistant) { await options.assistant(route, url); return; }
     if (request.method() === 'GET') {
       if (url.pathname === '/api/profile') { await jsonRoute(route, stageProfile); return; }
+      // Every capability on, so existing specs load exactly as before; a spec overrides this to test a switched-off one.
+      if (url.pathname === '/api/frontend/capabilities') { await jsonRoute(route, { capabilities: Object.fromEntries(['tasks', 'workspace', 'attachments', 'summaries', 'projects', 'outreach', 'participation', 'luna', 'recovery'].map(name => [name, true])) }); return; }
       if (url.pathname === '/api/daily-score') { await jsonRoute(route, { air: null, uv: null, pollen: null, mold: null, score: null, retrieved_at: '2026-10-01T14:00:00Z' }); return; }
       if (url.pathname === '/api/home-guard') { await jsonRoute(route, { water: null, radon: null, lead: null, score: null, assembled_at: '2026-10-01T14:00:00Z' }); return; }
       if (url.pathname === '/api/history') { await jsonRoute(route, { from: '2026-09-25', to: '2026-10-01', count: 0, history: [] }); return; }

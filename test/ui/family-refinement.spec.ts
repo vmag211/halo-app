@@ -78,3 +78,22 @@ test('factor scenes are distinct, source education works, and active tab returns
   await expect(page.getByTestId('factor-scorecard')).toHaveCount(4);
   await expect(page.locator('.halo-f-assistant')).toHaveCSS('width', '44px');
 });
+
+test('factor-colored text links keep 4.5:1 contrast in light mode', async ({ page }) => {
+  const ratios = async () => page.evaluate(() => {
+    const rgb = (c: string) => { const ctx = document.createElement('canvas').getContext('2d')!; ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+    const lum = (c: number[]) => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const background = (el: Element | null): number[] => { while (el) { const c = getComputedStyle(el).backgroundColor; if (c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return rgb(c); el = el.parentElement; } return [255, 255, 255]; };
+    return [...document.querySelectorAll('.halo-family-guidance-item > a, .halo-home-member-action a, .halo-ph-definition summary span')].map(el => {
+      const a = lum(rgb(getComputedStyle(el).color)), b = lum(background(el));
+      return { text: el.textContent, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+    });
+  });
+  for (const path of ['/foundation/preview/family', '/foundation/preview/household/adult', '/foundation/preview/factor/pollen']) {
+    await page.goto(`${path}?appearance=light&motion=reduce&time=day`);
+    await expect(page.locator('.halo-family-guidance-item > a, .halo-home-member-action a, .halo-ph-definition summary span').first()).toBeAttached();
+    const found = await ratios();
+    expect(found.length).toBeGreaterThan(0);
+    for (const item of found) expect(item.ratio, `${path} ${item.text}`).toBeGreaterThanOrEqual(4.5);
+  }
+});

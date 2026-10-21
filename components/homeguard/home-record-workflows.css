@@ -4,6 +4,7 @@
 .hg-workspace .hg-test-entry-tools .hg-link { min-height:112px; padding:16px; border-radius:var(--halo-control-radius,10px); background:var(--halo-card); }
 .hg-test-entry-tools .hg-link:first-child { border-color:var(--halo-primary); }
 .hg-test-entry-tools .hg-work-art { width:42px; height:42px; }
+.hg-test-entry-tools .hg-link > .hg-work-art { flex:none; }
 .hg-workspace :is(.hg-test-library,.hg-care-workbench,.hg-test-editor,.hg-observation-editor,.hg-test-detail) > .hg-intro { min-height:0; padding:0 0 18px; border:0; background:none; overflow:visible; }
 :is(.hg-test-library,.hg-care-workbench,.hg-test-editor,.hg-observation-editor,.hg-test-detail) > .hg-intro > .hg-work-art { display:none; }
 .hg-workspace :is(.hg-test-library,.hg-care-workbench,.hg-test-editor,.hg-observation-editor) .hg-intro h2 { margin:8px 0; font-size:calc(1.5rem * var(--halo-text-scale)); letter-spacing:-.035em; }
@@ -29,5 +30,6 @@
 .hg-observation-intent > svg { color:var(--halo-primary); flex:none; }
 .hg-observation-intent p { font-size:calc(.8rem * var(--halo-text-scale)); color:var(--halo-secondary); margin:6px 0; }
 @media(min-width:1200px) { .hg-care-columns { grid-template-columns:repeat(2,minmax(0,1fr)); gap:32px; } .hg-test-library-filters { grid-template-columns:minmax(0,1fr) minmax(220px,.7fr); align-items:start; } .hg-test-editor .hg-form,.hg-observation-editor .hg-form { max-width:720px; } }
-@media(max-width:359px) { .hg-test-entry-tools { grid-template-columns:minmax(0,1fr); } }
+/* Two cards side by side leave a phone only a word per line; stack them until there is room. */
+@media(max-width:479px) { .hg-test-entry-tools { grid-template-columns:minmax(0,1fr); } .hg-workspace .hg-test-entry-tools .hg-link { min-height:0; } }
 .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .hg-test-entry-tools { grid-template-columns:minmax(0,1fr); }

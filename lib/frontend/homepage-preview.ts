@@ -39,6 +39,8 @@ export function weeklyHomepageRecap(actions:PreviewAction[],metas:Record<string,
 
 export type PreparationPlan={id:string;signature:string;title:string;date:string;action?:PreviewAction;route?:WeekActivityRoute;label:string;place:string;url:string|null;instructions:string[];checks:string[];status:string};
 /** No forecast, registration or preparedness state is inferred from a plan. */
+// The same words as the task Status control, never the raw stored key.
+const actionStateLabels:Record<string,string>={saved:'Saved',waiting:'Waiting',completed:'Completed'};
 export function preparationPlans(actions:PreviewAction[],metas:Record<string,WeekMeta>,collections:WeekActivityCollections,today:string,zone:string):PreparationPlan[]{
   const result:PreparationPlan[]=[];const end=dayAdd(today,13);
   for(const a of actions){const m=meta(a,metas),date=actionDisplayDay(a,m,zone);if(a.state==='completed'||m.archived||m.paused||!usable(date)||date<today||date>end||actionCategory(a)==='Personal')continue;
@@ -47,7 +49,7 @@ export function preparationPlans(actions:PreviewAction[],metas:Record<string,Wee
     const place=engagement?text(engagement.place):'';
     const checks=context.kind==='volunteering'?['Review organizer instructions','Check the meeting point and access','Check registration and supplies']:context.kind==='project'?['Read this step and its safety notes','Gather materials and permissions','Choose a suitable place']:context.kind==='test'?['Review provider instructions','Check collection and delivery arrangements']:actionCategory(a)==='Outdoors'?['Check current official conditions','Review access and preparation']:['Review the original instructions','Gather what you need'];
     const instructions=(context.instructions??(context.preparation?[context.preparation]:[])).map(text);
-    result.push({id:a.id,title:text(a.title),date,action:a,route:context.recordHref,label:context.label,place,url:engagement?safePublicLink(text(engagement.url)):context.sourceLinks?.[0]?.url??null,instructions,checks,status:engagement?text(engagement.status):a.state,
+    result.push({id:a.id,title:text(a.title),date,action:a,route:context.recordHref,label:context.label,place,url:engagement?safePublicLink(text(engagement.url)):context.sourceLinks?.[0]?.url??null,instructions,checks,status:engagement?text(engagement.status):actionStateLabels[a.state]??a.state,
       signature:JSON.stringify([a.id,a.revision,m.time,m.zone,date,engagement?.revision,place,instructions])});
   }
   for(const r of rows(collections,'exploreEngagements')){const date=text(r.date);if(!usable(date)||date<today||date>end||['Participated','Follow-up','Closed'].includes(text(r.status))||actions.some(a=>a.key===`explore:commitment:${text(r.id)}`))continue;

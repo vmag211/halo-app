@@ -1,4 +1,5 @@
 import { validActionDate } from './expanded-preview';
+import { readableCalendarDate } from './date-input';
 import type { FactorKey } from './factor-preview';
 
 export type MaintenanceEvent = { id: string; kind: 'completed' | 'skipped' | 'snoozed' | 'paused' | 'resumed' | 'replaced' | 'cadence changed'; date: string; due: string; note: string };
@@ -91,7 +92,7 @@ export function maintenanceTransition(asset: HomeAsset, kind: MaintenanceEvent['
 }
 export function scheduleDescription(asset: HomeAsset): string {
   const unit = asset.interval === 1 ? asset.unit.slice(0, -1) : asset.unit;
-  return `Every ${asset.interval} ${unit}, ${asset.policy === 'calendar' ? 'on the fixed calendar schedule' : 'after the recorded completion'}. ${asset.endDate ? `Ends ${asset.endDate}.` : 'No end date.'}`;
+  return `Every ${asset.interval} ${unit}, ${asset.policy === 'calendar' ? 'on the fixed calendar schedule' : 'after the recorded completion'}. ${asset.endDate ? `Ends ${readableCalendarDate(asset.endDate)}.` : 'No end date.'}`;
 }
 export type SummarySection = 'scores' | 'factors' | 'tests' | 'actions' | 'maintenance' | 'observations' | 'gardens';
 export type SummarySelection = {

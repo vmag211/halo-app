@@ -51,3 +51,10 @@ test('drift: the transcribed catch matches HomeWorkspaceState',()=>{
   const journal=readFileSync(new URL('../components/expanded/WeekJournal.tsx',import.meta.url),'utf8');
   assert.ok(journal.includes("{view!=='off'&&<button"),'no Try again when the feature is off');
 });
+
+test('an upload refused up front with 403 feature_unavailable stays a settled permission failure, marked off',async()=>{
+  const runtime=make(async()=>Response.json({...off,error:'Private files are not available yet. Nothing was saved.'},{status:403}));
+  await assert.rejects(runtime.request('attachments.upload',{},{idempotencyKey:'op-2'}),e=>e.code==='permission'&&e.reason==='feature_unavailable');
+  const other=make(async()=>Response.json({error:'x',code:'forbidden',message:'x'},{status:403}));
+  await assert.rejects(other.request('attachments.upload',{},{idempotencyKey:'op-3'}),e=>e.code==='permission'&&e.reason===undefined);
+});

@@ -68,6 +68,13 @@ export const airStations = [
   {id:'air-2',name:'Piedmont monitoring station (sample)',lat:35.41,lng:-80.20,aqi:87,severity:'moderate',dominant_pollutant:'Ozone',last_reading_at:'2026-10-01T10:00:00Z',agency:'Sample state monitoring agency'},
   {id:'air-3',name:'Sandhill monitoring station (sample)',lat:34.96,lng:-79.65,aqi:106,severity:'elevated',dominant_pollutant:'PM2.5',last_reading_at:'2026-09-30T21:00:00Z',agency:'Sample state monitoring agency'},
 ] as const;
+/** Over a supplied limit exactly as the server counts it (lib/mapData.js waterCounts): the reported value
+ * above the limit. The one-decimal ratio rounds 4.1 ppt against 4 ppt to 1.0, so it is only a fallback. */
+export function exceedsLimit(reading: Reading | undefined) {
+  if (!reading) return false;
+  if (typeof reading.value_ppt === 'number' && typeof reading.limit_ppt === 'number') return reading.value_ppt > reading.limit_ppt;
+  return (reading.ratio ?? 0) > 1;
+}
 export function waterSeverity(feature: WaterFeature, compound: Compound): MapSeverity {
   if (compound === 'overall') return feature.overall_severity;
   if (compound === 'hazard') return feature.hazard_index?.severity ?? 'no_data';
@@ -82,7 +89,7 @@ export function waterMapReading(feature: WaterFeature, compound: Compound) {
   }
   const readings = Object.values(feature.contaminants);
   if (!readings.some(r => r.value_ppt !== undefined)) return 'No comparable result';
-  const count = readings.filter(r => (r.ratio ?? 0) > 1).length;
+  const count = readings.filter(exceedsLimit).length;
   return count ? `${count} over limit` : 'No over-limit detection';
 }
 export function waterSampleDate(feature: WaterFeature, compound: Compound) {

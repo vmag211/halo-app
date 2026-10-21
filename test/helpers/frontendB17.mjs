@@ -72,12 +72,13 @@ export function outreachScreen(runtime, { notes: noteRecords = [], area = { plac
  const duplicate=attempts.some(item=>item.to===letter.email.trim()&&item.subject===clean(letter.subject.trim())&&item.body===body&&['queued','unknown','submitted'].includes(item.status));
  const historyReady=validOutreachHistory(history.data)&&history.data.complete;
  const blocked=busy||history.loading||Boolean(history.error)||!historyReady||typeof navigator!=='undefined'&&!navigator.onLine;
-    return { account, available, active, letter, context, evidence, selectedEvidence, evidenceStale, body, signature, stale, ready, unknown, duplicate, historyReady, blocked, pending };
+ const off=connection.off||history.off||evidenceRead.off;
+    return { account, available, active, letter, context, evidence, selectedEvidence, evidenceStale, body, signature, stale, ready, unknown, duplicate, historyReady, blocked, pending, off };
   }
 
   async function resource(operation, input) {
     try { return { data: await tracked.request(operation, input, { signal: new AbortController().signal }), error: null, loading: false }; }
-    catch (error) { return { data: null, error: serviceMessage(error), loading: false }; }
+    catch (error) { return { data: null, error: serviceMessage(error), loading: false, off: error instanceof FrontendServiceError && error.reason === 'feature_unavailable' }; }
   }
 
   return {
@@ -98,8 +99,8 @@ export function outreachScreen(runtime, { notes: noteRecords = [], area = { plac
     confirmRecipient() { const { context } = derive(); this.update({ reviewedFor: context }); },
     /** Chooses a public source entry (`:78`). */
     chooseEvidence(entry) { const { active, context, evidence } = derive(); s.publicContext = { ...s.publicContext, [active]: { context, revision: evidence.revision, entry } }; },
-    /** The lookup button's disabled rule (`:73`): `disabled={busy||!areaLabel(area)||active==='Landlord'}`. */
-    lookupDisabled() { const { active } = derive(); const { busy, area } = s; return busy||!areaLabel(area)||active==='Landlord'; },
+    /** The lookup button's disabled rule: `disabled={off||busy||!areaLabel(area)||active==='Landlord'}`. */
+    lookupDisabled() { const { active, off } = derive(); const { busy, area } = s; return off||busy||!areaLabel(area)||active==='Landlord'; },
     /** "Use this contact" is offered only for a contact with an email (`:73`, `contact.email&&`). */
     usable(contact) { return Boolean(contact.email); },
     async lookup() {
@@ -159,7 +160,8 @@ export const FRAGMENTS = Object.freeze([
   "setAttempts(old=>[result,...old.filter(item=>item.id!==result.id)]);if(!['queued','unknown'].includes(result.status))setPending(null);",
   "await runtime.request('outreach.send',{reviewId:review.id,reviewRevision:review.revision},{idempotencyKey:attempt.id,expectedRevision:review.revision});if(!validOutreachAttempt(result)||result.id!==attempt.id||result.to!==attempt.review.to||result.subject!==attempt.review.subject||result.body!==attempt.review.body||result.from!==attempt.review.from)throw new Error('invalid send receipt');accept(result);}catch(error){if(error instanceof FrontendServiceError&&error.code!=='unknown_outcome')setPending(null);setMessage(serviceMessage(error));}",
   "await runtime.request('outreach.status',{id});if(!validOutreachAttempt(result)||result.id!==id)throw new Error('invalid send status');accept(result);",
-  "disabled={busy||!areaLabel(area)||active==='Landlord'}",
+  "disabled={off||busy||!areaLabel(area)||active==='Landlord'}",
+  'const off=connection.off||history.off||evidenceRead.off;',
   'contact.email&&',
   "=>value.replace(/\\u2014/g,',');",
 ]);

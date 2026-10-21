@@ -30,7 +30,7 @@ test('source-backed replies render as text, unsafe URLs are rejected, and privac
  });
  const panel=await openLuna(page);await panel.getByRole('button',{name:'Context & privacy'}).click();await expect(panel).toContainText('Tasks on, home records off, projects on.');await expect(panel).toContainText('Journal text and private task preparation stay excluded.');await expect(panel).toContainText(caps.retentionSummary);
  await panel.getByLabel('Message Luna').fill('Explain the available readings.');await panel.getByRole('button',{name:'Send message',exact:true}).click();
- await expect(panel.getByRole('log')).toContainText('Outdoor air is context,not an individual exposure test. <script>unsafe</script>');await expect(panel.locator('script')).toHaveCount(0);await panel.getByText('Sources and scope',{exact:true}).click();await expect(panel.getByRole('link',{name:'EPA,air information'})).toHaveAttribute('href','https://www.epa.gov/air-research');await expect(panel).not.toContainText('\u2014');
+ await expect(panel.getByRole('log')).toContainText('Outdoor air is context, not an individual exposure test. <script>unsafe</script>');await expect(panel.locator('script')).toHaveCount(0);await panel.getByText('Sources and scope',{exact:true}).click();await expect(panel.getByRole('link',{name:'EPA, air information'})).toHaveAttribute('href','https://www.epa.gov/air-research');await expect(panel).not.toContainText('\u2014');
  await panel.getByLabel('Message Luna').fill('Check another source.');await panel.getByRole('button',{name:'Send message',exact:true}).click();await expect(panel.getByRole('button',{name:'Check existing request'})).toBeVisible();await expect(panel.locator('a[href^="javascript:"]')).toHaveCount(0);await expect(panel.getByRole('log')).toContainText('Outdoor air is context');expect(posted).toBe(2);expect(network.blocked).toEqual([]);
 });
 
@@ -44,7 +44,9 @@ test('failed, refused and ungrounded service outcomes remain distinct without fa
  await send('Explain the available sources.');await expect(panel).toContainText('Sources are unavailable. Your question is kept.');await expect(input).toHaveValue('Explain the available sources.');
  await send('Can you diagnose this?');await expect(panel.getByRole('log')).toContainText('I cannot diagnose or recommend treatment.');
  await send('Find an unsupported answer.');await expect(panel.getByRole('log')).toContainText('No reliable source is available for this question.');
- await send('Trigger a request limit.');await expect(panel).not.toContainText('private database details');await expect(input).toHaveValue('Trigger a request limit.');await expect(panel.getByRole('button',{name:'Check existing request'})).toBeVisible();expect(network.blocked).toEqual([]);
+ await send('Trigger a request limit.');await expect(panel).not.toContainText('private database details');await expect(input).toHaveValue('Trigger a request limit.');
+ // The route refuses a rate-limited message before any run exists (app/api/luna/messages/route.js), so there is nothing to check: the draft stays and can be sent again.
+ await expect(panel).toContainText('Please wait before trying again.');await expect(panel.getByRole('button',{name:'Check existing request'})).toHaveCount(0);await expect(panel.getByRole('button',{name:'Send message',exact:true})).toBeEnabled();expect(network.blocked).toEqual([]);
 });
 
 test('pending questions cancel through the service and late answers never replace the retained draft',async({page})=>{

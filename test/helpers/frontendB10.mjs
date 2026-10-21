@@ -7,7 +7,7 @@
  *   useProductionForecast after its hook call: the envelope's data, the
  *   validator and the error it shows), as `productionForecast(read)`, where
  *   `read` is what useProductionResource returned;
- * - `components/production/WeekSources.tsx:19` (forecastTime);
+ * - `components/production/WeekSources.tsx:19` (forecastTime) and `:20` (forecastIssued);
  * - `components/expanded/WeekOutdoors.tsx:32` (the screen's pure decisions:
  *   far, available, periods, currentPeriod, selectionSignature, existing,
  *   expired, changed, needsReview), verbatim as the body of
@@ -43,6 +43,10 @@
  * test/forecastSnapshot.test.mjs read the files at test time, so a change to
  * any of those frontend lines fails them.
  */
+import { loadFrontend } from '../frontend-test-loader.mjs';
+
+/** The screen's readable zone name, loaded from the frontend module itself (lib/frontend/week-preview.ts). */
+const { zoneName } = await loadFrontend('week-preview');
 
 // ------------------------------------------- transcribed: WeekSources.tsx
 
@@ -54,6 +58,7 @@ export function productionForecast(read){
 }
 
 export function forecastTime(instant,zone){return new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(instant));}
+export function forecastIssued(instant,zone){return `${new Intl.DateTimeFormat('en-US',{timeZone:zone,month:'short',day:'numeric'}).format(new Date(instant))}, ${forecastTime(instant,zone)}`;}
 
 // ------------------------------------------- transcribed: WeekOutdoors.tsx
 
@@ -77,12 +82,13 @@ export function emptyStateMessage(far,review,copy){
 
 /** The production branches of the text the screen renders from a validated body. */
 export function forecastScreenText(live,p){
+ const forecastZone=live.data?.zone??'UTC';
  const sourceName=live.production?(live.data?.source??'Unavailable'):null;
- const issued=live.production?live.data?.issuedAt:null;
+ const issued=live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):null;
  const cells=p?{air:p.air===null?'Unavailable':`${p.air} AQI`,uv:p.uv===null?'Unavailable':`${p.uv} UV index`,pollen:p.pollen??'Unavailable',weather:p.weather,tradeoff:p.tradeoff}:null;
  const coverage=Object.fromEntries(['Air','UV','Pollen','Weather'].map(f=>[f,(live.data?.coverage[f]??'Unavailable')]));
  const horizon=(live.data?`${live.data.horizonStart} through ${live.data.horizonEnd}`:'Unavailable');
- const expiry=(live.data?.expiresAt??'Unavailable');
+ const expiry=(live.data?.expiresAt?forecastIssued(live.data.expiresAt,forecastZone):'Unavailable');
  const notices=live.data?.warningStatus??'Warnings unavailable. Check the official site.';
  return {sourceName,issued,cells,coverage,horizon,expiry,notices};
 }
@@ -120,7 +126,7 @@ export async function resourceRead(runtime,operation,input,serviceMessage){
 /** Line 44: the loading and error row above the periods, and the notices shown with periods. */
 export function forecastNotices(live,{forecastZone,expired,changed,needsReview,copy}){
  const status=live.production&&(live.loading||live.error)?{loading:live.loading?'Loading forecast':null,message:live.loading?null:live.error,retry:!!live.error&&'Retry forecast'}:null;
- const issuedLine=`Times in ${forecastZone}. Issued ${live.production?live.data?.issuedAt:''}.`;
+ const issuedLine=`Times in ${zoneName(forecastZone)}. Issued ${live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):''}.`;
  const expiredNotice=expired?{message:copy.forecastExpired,control:'Refresh forecast'}:null;
  const changedNotice=changed?{message:copy.forecastChanged,detail:live.production?live.data?.changedMessage:null,control:needsReview?'I reviewed these changes':'Changes reviewed'}:null;
  return {status,issuedLine,expiredNotice,changedNotice};
@@ -158,6 +164,13 @@ export const TRANSCRIPTIONS = Object.freeze([
     strip: [['export ', ''], ['(instant:string,zone:string)', '(instant,zone)']],
   },
   {
+    fn: forecastIssued,
+    file: 'components/production/WeekSources.tsx',
+    line: 20,
+    lines: 1,
+    strip: [['export ', ''], ['(instant:string,zone:string)', '(instant,zone)']],
+  },
+  {
     fn: outdoorDecisions,
     file: 'components/expanded/WeekOutdoors.tsx',
     line: 32,
@@ -181,7 +194,7 @@ export const FRAGMENTS = Object.freeze([
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "['Air','UV','Pollen','Weather']" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "(live.data?.coverage[f]??'Unavailable')" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "(live.data?`${live.data.horizonStart} through ${live.data.horizonEnd}`:'Unavailable')" },
-  { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "(live.data?.expiresAt??'Unavailable')" },
+  { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "(live.data?.expiresAt?forecastIssued(live.data.expiresAt,forecastZone):'Unavailable')" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "live.data?.warningStatus??'Warnings unavailable. Check the official site.'" },
 ]);
 
@@ -207,7 +220,7 @@ export const FRAGMENTS_T9 = Object.freeze([
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production&&(live.loading||live.error)' },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Loading forecast', source: '<HaloLoading label="Loading forecast" />' },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Retry forecast', source: '{live.error&&<button className="mw-text" type="button" onClick={live.retry}>Retry forecast</button>}' },
-  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Times in ', source: '<p className="mw-muted">Times in {forecastZone}. Issued {live.production?live.data?.issuedAt:' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Times in ', source: '<p className="mw-muted">Times in {zoneName(forecastZone)}. Issued {live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):' },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Refresh forecast', source: "{expired&&<div className=\"we-notice\" role=\"status\"><p>{copy.forecastExpired}</p><button className=\"mw-text\" type=\"button\" onClick={()=>{if(live.production)live.retry();else setReview({...review,forecast:'current'});setAcknowledged('');}}>Refresh forecast</button></div>}" },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production?live.data?.changedMessage:', source: "{changed&&<div className=\"we-notice\" role=\"status\"><p>{copy.forecastChanged}</p><p>{live.production?live.data?.changedMessage:" },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: "needsReview?'I reviewed these changes':'Changes reviewed'" },

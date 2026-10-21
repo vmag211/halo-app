@@ -19,6 +19,7 @@ import { SaveExplore } from './ExploreShared';
 import ExploreOutcome from './ExploreOutcome';
 import './explore-project-guides.css';
 import { useProductionProjectGeneration } from './ProductionProjectGeneration';
+import { useHydrated } from '@/lib/frontend/use-hydrated';
 import { useProductionResource, useProductionRuntime } from '@/components/production/ProductionContext';
 import { validProjectGuide } from '@/lib/frontend/production/explore-service';
 import {FrontendServiceError,serviceMessage} from '@/lib/frontend/production/runtime';
@@ -45,6 +46,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
   const [resultError, setResultError] = useState<{ id: string; message: string } | null>(null);
   const generation = useProjectGeneration(environmentAvailable);
   const runtime=useProductionRuntime();
+  const hydrated=useHydrated();
   const guideRead=useProductionResource<unknown>('projects.guide',{id},Boolean(runtime&&id&&view==='detail'));
   const record = collection.records.find(item => item.id === id);
   const project = runtime&&record?validProjectGuide(record.guide)&&record.guide.id===record.guideId&&record.guide.version===record.guideVersion?record.guide:undefined:generation.findGuide(id) ?? (runtime&&validProjectGuide(guideRead.data)?guideRead.data:undefined);
@@ -66,7 +68,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
       {collection.records.length > 0 && <details className="ex-project-continuation"><summary>My projects ({collection.records.length})</summary>{collection.records.map(item => <button className="ex-text-button" key={item.id} onClick={() => go('projects', 'detail', item.id)}>{item.title} · {item.status}<ArrowRight size={16} aria-hidden="true" /></button>)}</details>}
       {generation.batch.items.length > 0 && <div className="ex-generated-controls"><div className="ex-guide-find"><label><Search size={17} aria-hidden="true" /><span className="ex-sr">Find a project</span><input type="search" value={query} placeholder="Find an idea in this set" onChange={event => setQuery(event.target.value)} /></label><label>Focus<select value={cause} onChange={event => setCause(event.target.value)}>{projectGuideCauses.map(item => <option key={item}>{item}</option>)}</select></label></div><button className="ex-text-button" disabled={generation.busy} onClick={() => generation.regenerate()}><RefreshCw size={16} aria-hidden="true" />Refresh ideas</button></div>}
       <ProjectGenerationStatus generation={generation} />
-      <div className="ex-generated-list" aria-label="Generated project ideas" aria-busy={generation.busy}>{available.map(item => <SuggestedProject key={item.id} item={item} guide={generation.findGuide(item.id)!} go={go} />)}</div>
+      <div className="ex-generated-list" role="group" aria-label="Generated project ideas" aria-busy={generation.busy}>{available.map(item => <SuggestedProject key={item.id} item={item} guide={generation.findGuide(item.id)!} go={go} />)}</div>
       {!available.length && !generation.busy && Boolean(generation.batch.generation) && <div className="ex-empty"><h4>No projects match these choices</h4><p>Broaden your search or adjust your preferences.</p><button className="ex-text-button" onClick={() => { setQuery(''); setCause('All projects'); }}>Clear project filters</button></div>}
       <GenerationDetails generation={generation} />
       {generation.fitOpen && <ProjectFitSheet generation={generation} />}
@@ -81,7 +83,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
   const validSelected = selected.filter(index => index>=0&&index<project.steps.length&&Number.isInteger(index));
   const action = state?.actions.find(item => item.key === keyFor(current));
   const completed = project.steps.filter((_, index) => state?.actions.some(item => item.key === keyFor(index) && item.state === 'completed')).length;
-  const disabled = workspace.pending || starting || workspace.scenario === 'offline'||Boolean(state?.pending||state?.unknownOperation||state?.readiness!=='ready');
+  const disabled = !hydrated || workspace.pending || starting || workspace.scenario === 'offline'||Boolean(state?.pending||state?.unknownOperation||state?.readiness!=='ready');
   const paused = record?.status === 'Paused';
   const currentOutcome = Object.hasOwn(workspace.drafts, `explore:project-outcome:${id}`) ? outcome : record?.outcome ?? '';
   const needsReview = record?.status === 'Completed' && completed !== project.steps.length;
@@ -178,7 +180,7 @@ function useProjectGeneration(environmentAvailable = true) {
   // Keep the request and preferences, not stale reasons from a different home or
   // record revision. This changes unsaved suggestions, never owned project plans.
   const activeBatch = batch.contextKey !== context.key ? createProjectGeneration(context, batch.constraints, batch.request, batch.generation, false) : batch;
-  return production ?? { production:false,pendingGeneration:false,canRetry:false, context, batch: activeBatch, fitOpen, setFitOpen, regenerate, busy, message, cancel, retry, serviceState, setServiceState,findGuide:findProjectGuide };
+  return production ?? { production:false,off:false,pendingGeneration:false,canRetry:false, context, batch: activeBatch, fitOpen, setFitOpen, regenerate, busy, message, cancel, retry, serviceState, setServiceState,findGuide:findProjectGuide };
 }
 type Generation = ReturnType<typeof useProjectGeneration>;
 
@@ -201,9 +203,9 @@ function SuggestedProject({ item, guide, go }: { item: ProjectSuggestion; guide:
 
 function ProjectInterestInput({ generation }: { generation: Generation }) {
   const [request, setRequest] = useHomeDraft('explore:project-direct-interest', '');
-  return <form className="ex-project-interest" onSubmit={event => { event.preventDefault(); if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); else generation.regenerate(); }}>
+  return <form className="ex-project-interest" onSubmit={event => { event.preventDefault(); if (generation.off) return; if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); else generation.regenerate(); }}>
     <label>What interests you right now?<textarea rows={2} maxLength={500} value={request} onChange={event => setRequest(event.target.value)} placeholder="A solar experiment, native plants, or something to try with friends..." /></label>
-    <div><button className="ex-button" type="submit" disabled={generation.busy}>{request.trim() ? 'Generate a few ideas' : 'Generate project ideas'}<ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" type="button" disabled={generation.busy} onClick={() => generation.setFitOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Preferences</button></div>
+    <div><button className="ex-button" type="submit" disabled={generation.busy||generation.off}>{request.trim() ? 'Generate a few ideas' : 'Generate project ideas'}<ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" type="button" disabled={generation.busy||generation.off} onClick={() => generation.setFitOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Preferences</button></div>
   </form>;
 }
 

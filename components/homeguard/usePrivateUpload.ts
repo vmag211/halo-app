@@ -36,7 +36,7 @@ export function usePrivateUpload() {
       if (!alive.current) return null;
       const uncertain = !(error instanceof FrontendServiceError) || ['unknown_outcome', 'invalid_response', 'aborted'].includes(error.code);
       if (uncertain) setUnknown(true); else if (!unknown) { workspace.resolvePendingOperation(operation.current); operation.current = ''; }
-      setMessage(uncertain ? 'The upload result is not confirmed. Check its status before uploading again.' : serviceMessage(error)); return null;
+      setMessage(uncertain ? 'The upload result is not confirmed. Check its status before uploading again.' : error instanceof FrontendServiceError && error.reason === 'feature_unavailable' ? 'Private files are not available yet. Nothing was uploaded. Your draft is kept.' : serviceMessage(error)); return null;
     } finally { locked.current = false; if (alive.current) setBusy(false); }
   }
   return { attachment, busy, unknown, message, upload, setMessage, stop: () => request.current?.abort(), reset: () => { if (locked.current || unknown) return false; setAttachment(null); operation.current = ''; setMessage(''); return true; } };

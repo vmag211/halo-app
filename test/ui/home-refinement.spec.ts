@@ -74,6 +74,8 @@ for (const appearance of ['light', 'dark']) test(`garden tools and linked-test a
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(320);
   }
+  // A server-rendered button is inert until hydration, which writes the review settings into the URL.
+  await page.waitForURL(/[?&]palette=/);
   await page.getByRole('button', { name: 'Link an existing test', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Connect a test', exact: true })).toBeVisible();
   await expect(page.getByLabel('Site label')).toHaveCount(0);

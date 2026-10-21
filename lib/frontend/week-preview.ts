@@ -2,6 +2,12 @@ import { validActionDate, type PreviewAction } from './expanded-preview';
 
 export type WeekMeta = { note: string; paused: boolean; archived: boolean; completedOn: string; time: string; duration: number; estimateSet?: boolean; zone: string; recurrence: 'none' | 'weekly' | 'after-completion'; reminder: boolean; history: string[] };
 export const emptyWeekMeta: WeekMeta = { note:'', paused:false, archived:false, completedOn:'', time:'', duration:60, zone:'America/New_York', recurrence:'none', reminder:false, history:[] };
+/** "1 task", "2 tasks": a count with the noun form that matches it. */
+/** A readable time zone name ("Eastern Time"); the IANA id stays the stored value. */
+export function zoneName(zone:string){if(zone==='UTC'||zone==='Etc/UTC')return 'UTC';try{return new Intl.DateTimeFormat('en-US',{timeZone:zone,timeZoneName:'longGeneric'}).formatToParts(new Date(0)).find(part=>part.type==='timeZoneName')?.value||zone;}catch{return zone;}}
+/** A zone choice that stays distinct when places share a name: "Eastern Time (New York)". */
+export function zoneOptionLabel(zone:string){const name=zoneName(zone),city=zone.includes('/')?zone.slice(zone.lastIndexOf('/')+1).replaceAll('_',' '):'';return city&&name!==zone?`${name} (${city})`:name;}
+export const countLabel=(n:number,one:string,many:string)=>`${n} ${n===1?one:many}`;
 export function dayAdd(day: string, amount: number) { const d=new Date(`${day}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+amount);return d.toISOString().slice(0,10); }
 export function weekStart(day: string) {return dayAdd(day,-((new Date(`${day}T12:00:00Z`).getUTCDay()+6)%7));}
 export function calendarDays(day: string, month=false) {const first=month?`${day.slice(0,7)}-01`:day;const start=weekStart(first);return Array.from({length:month?42:7},(_,i)=>dayAdd(start,i));}

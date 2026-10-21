@@ -35,6 +35,8 @@
 .halo-environment-scoreline > div:last-child > strong { flex-basis:100%; font-size:calc(.93rem * var(--halo-text-scale)); font-weight:650; }
 .halo-environment-scoreline small { flex-basis:100%; color:#deedf3; font-size:calc(.73rem * var(--halo-text-scale)); line-height:1.4; }
 .halo-environment-scoreline .halo-score-orbit-key { font-size:calc(.66rem * var(--halo-text-scale)); color:#c7e0e9; line-height:1.5; }
+/* The scoreline always sits on the dark scene: the outlined No data pill must not take the light theme's dark grey. */
+.halo-f-app:not([data-contrast="high"]) .halo-environment-scoreline .halo-severity[data-severity="no_data"] { color:#deedf3; }
 .halo-environment-updated { margin:0; color:var(--halo-secondary); font-size:calc(.72rem * var(--halo-text-scale)); }
 .halo-environment-evidence { min-width:0; display:grid; gap:12px; align-content:start; }
 .halo-f-app .halo-environment-briefing .halo-ph-section-label { display:flex; justify-content:space-between; margin:0; align-items:center; gap:12px; }

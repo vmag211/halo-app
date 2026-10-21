@@ -17,6 +17,9 @@ type State = {
   mode: 'preview' | 'production'; service?: HomeWorkspaceService;
   collectionStates: Record<string, CollectionState>;
   unknownOperations: { operationId: string; message: string }[];
+  /** Synchronous reads for a form that needs to know whether its own save ended unconfirmed, and how it settled. */
+  unknownOperationIds: () => string[];
+  operationOutcome: (operationId: string) => OperationOutcome | undefined;
   retry: (collection?: string) => Promise<void>; reconcile: (operationId: string) => Promise<boolean>;
   applyCanonical: (change: { drafts?: Record<string, unknown>; collections?: Collections }) => void;
   getRecord: (collection: string, id: string) => HomeRecord | undefined;
@@ -32,6 +35,7 @@ type State = {
   setDraft: (key: string, update: (previous: unknown) => unknown) => void;
   clearDraft: (key: string, expected?: unknown) => void; reset: () => void;
 };
+export type OperationOutcome = { status: 'succeeded' | 'failed'; collection?: string; recordId?: string };
 const Context = createContext<State | null>(null);
 const sharedCollectionKeys = ['tests', 'assets', 'observations', 'gardens', 'usage', 'pantryItems', 'foodQuestions', 'fishNotes', 'foodFollows', 'growerInquiries', 'homeTransitions', 'exploreNotes', 'exploreOutcomes', 'exploreProjects', 'exploreEngagements', 'weekJournal'];
 function initialCollections(): Collections {
@@ -58,6 +62,7 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
   const statesRef = useRef(collectionStates);
   const unknownRef = useRef(new Map<string, HomeWorkspaceCommand | { kind: 'recovered'; operationId: string; domain: 'workspace' | 'attachments' }>());
   const resolvedOperations = useRef(new Set<string>());
+  const outcomes = useRef(new Map<string, OperationOutcome>());
   const loadVersions = useRef(new Map<string, number>());
   const requests = useRef(new Set<AbortController>());
   const scenarioRef = useRef(scenario);
@@ -102,11 +107,12 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     }
     if (change.drafts) setDrafts(previous => ({ ...previous, ...change.drafts }));
   }
-  async function loadCollection(key: string, force = false) {
+  async function loadCollection(key: string, force = false, background = false) {
     if (!service || !alive.current || (!force && statesRef.current[key])) return;
     const version = (loadVersions.current.get(key) ?? 0) + 1; loadVersions.current.set(key, version);
     const request = new AbortController(); requests.current.add(request);
-    collectionState(key, { ...statesRef.current[key], status: 'loading', complete: false });
+    // A background refresh keeps the records usable while the latest copy is fetched.
+    if (!background) collectionState(key, { ...statesRef.current[key], status: 'loading', complete: false });
     try {
       const snapshot: HomeCollectionSnapshot = await service.load(key, request.signal);
       if (!alive.current || request.signal.aborted || loadVersions.current.get(key) !== version) return;
@@ -135,10 +141,10 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     generation.current++; scenarioRef.current = next; changeScenario(next); setMessage('');
     if (next === 'empty') commit(Object.fromEntries(Object.keys(recordsRef.current).map(key => [key, []])));
   }
-  function unresolved(command: HomeWorkspaceCommand | { kind: 'recovered'; operationId: string; domain: 'workspace' | 'attachments' }, message: string) {
+  function unresolved(command: HomeWorkspaceCommand | { kind: 'recovered'; operationId: string; domain: 'workspace' | 'attachments' }, message: string, announce = true) {
     unknownRef.current.set(command.operationId, command);
     setUnknownOperations([...unknownRef.current.keys()].map(operationId => ({ operationId, message })));
-    setMessage(message);
+    if (announce) setMessage(message);
   }
   function applyReceipt(command: HomeWorkspaceCommand | { kind: 'recovered'; operationId: string; domain: 'workspace' | 'attachments' }, receipt: HomeWorkspaceReceipt): boolean {
     if (receipt.operationId !== command.operationId || !['succeeded', 'failed', 'pending', 'unknown'].includes(receipt.status)) {
@@ -152,9 +158,16 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     }
     if (receipt.status === 'succeeded') applyCanonical({ collections: receipt.changes });
     resolvedOperations.current.add(command.operationId);
+    outcomes.current.set(command.operationId, { status: receipt.status, ...(command.kind === 'write' ? { collection: command.collection, recordId: command.record.id } : command.kind === 'remove' ? { collection: command.collection, recordId: command.recordId } : {}) });
     unknownRef.current.delete(command.operationId);
     setUnknownOperations(previous => previous.filter(item => item.operationId !== command.operationId));
-    if (receipt.status === 'failed') { setMessage(receipt.message || 'The change was not saved. Your draft is kept.'); return false; }
+    if (receipt.status === 'failed') {
+      setMessage(receipt.message || 'The change was not saved. Your draft is kept.');
+      // A refused revision means this copy is stale. Fetch the latest so it can actually be reviewed;
+      // drafts live separately and are kept.
+      if (receipt.code === 'conflict' && command.kind !== 'recovered') for (const key of command.kind === 'write' || command.kind === 'remove' ? [command.collection] : command.kind === 'remove-notes' ? ['exploreNotes', 'exploreOutcomes'] : []) void loadCollection(key, true, true);
+      return false;
+    }
     for (const [key, revision] of Object.entries(receipt.revisions ?? {})) collectionState(key, { ...statesRef.current[key], status: 'ready', complete: true, revision });
     if (command.kind === 'clear-private') {
       if (command.scope === 'all') commit(Object.fromEntries(Object.keys(recordsRef.current).map(key => [key, []])));
@@ -206,6 +219,8 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
   async function write(key: string, record: HomeRecord, checkCurrent?:()=>boolean) {
     if (service) {
       if (checkCurrent && !checkCurrent()) { setMessage('The reviewed information changed. Reopen the review. Your draft is kept.'); return false; }
+      // A collection switched off on the server (503 feature_unavailable) cannot be loaded into readiness: say so.
+      if (statesRef.current[key]?.featureUnavailable) { setMessage('Saving these records is not available yet. Nothing was saved, and your draft is kept.'); return false; }
       if (statesRef.current[key]?.status !== 'ready') { setMessage('Load the current records before saving. Your draft is kept.'); void loadCollection(key); return false; }
       const current = recordsRef.current[key]?.find(item => item.id === record.id);
       if (current && current.revision !== record.revision) { setMessage('This record changed. Your draft is kept. Review the latest version before saving.'); return false; }
@@ -278,8 +293,10 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
       return true;
     });
   }
-  return <Context.Provider value={{ mode: service ? 'production' : 'preview', service, collectionStates, unknownOperations, retry, reconcile, applyCanonical, getRecord: (key, id) => recordsRef.current[key]?.find(item => item.id === id),
-    trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.'),
+  return <Context.Provider value={{ mode: service ? 'production' : 'preview', service, collectionStates, unknownOperations, unknownOperationIds: () => [...unknownRef.current.keys()], operationOutcome: operationId => outcomes.current.get(operationId), retry, reconcile, applyCanonical, getRecord: (key, id) => recordsRef.current[key]?.find(item => item.id === id),
+    // An upload in flight blocks other changes, but is not yet a failure: its own form reports the
+    // outcome, so tracking it must not raise a workspace-wide "needs a status check" alert.
+    trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.', false),
     resolvePendingOperation: operationId => { resolvedOperations.current.add(operationId); unknownRef.current.delete(operationId); setUnknownOperations(previous => previous.filter(item => item.operationId !== operationId)); },
     collections, drafts, scenario, message, pending, setScenario, clearMessage: () => { if (!unknownRef.current.size) setMessage(''); }, seed, write, remove, removeNotes,clearPrivate,
     setDraft: (key, update) => setDrafts(previous => ({ ...previous, [key]: update(previous[key]) })),
