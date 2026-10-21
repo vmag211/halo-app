@@ -346,7 +346,7 @@ const LOCK_LINE = " useEffect(()=>{const pending=status.data?.unresolvedOperatio
 const BANNER_JSX = "{(!verified||status.loading||status.error)&&<p role=\"status\">{status.loading?'Checking pending requests…':'Privacy requests are unavailable.'}";
 const CLEAR_ALL_JSX = "<button className=\"hp-link-row hp-danger\" disabled={busy||blocked||!verified||status.loading||!!status.error||!!unknown||unresolved} onClick={()=>void inspect('all')}>";
 /** ProductionContext.tsx:14, the settle of useProductionResource. */
-const SETTLE = '.then(data=>{if(active)setState({scope:requestKey,data,loading:false,error:null});},error=>{if(active)setState({scope:requestKey,data:null,loading:false,error:serviceMessage(error)});});';
+const SETTLE = ".then(data=>{if(active)setState({scope:requestKey,data,loading:false,error:null});},error=>{if(active)setState({scope:requestKey,data:null,loading:false,error:serviceMessage(error),featureUnavailable:error instanceof FrontendServiceError&&error.reason==='feature_unavailable'});});";
 /** runtime.ts:86 */
 const REGISTRY = "'privacy.status': {path:'/api/privacy/status'},";
 
