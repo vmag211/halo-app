@@ -26,8 +26,11 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
 
 test('a notebook that could not load says so instead of looking empty', async ({ page }) => {
   let collectionFails = true;
+  // A failure, not a switched-off capability: feature_unavailable is the settled "not available yet" state
+  // (production-explore-flags-off.spec.ts), which offers no retry.
+  const outage = { error:'The service is temporarily unavailable.', code:'service_unavailable', message:'The service is temporarily unavailable.', field_errors:[], retryable:true };
   const network = await mockProduction(page, {
-    '/api/frontend/workspace': route => collectionFails ? jsonRoute(route, unavailable, 503) : jsonRoute(route, { records:[], revision:1, availability:'ready', complete:true, pendingOperations:[] }),
+    '/api/frontend/workspace': route => collectionFails ? jsonRoute(route, outage, 503) : jsonRoute(route, { records:[], revision:1, availability:'ready', complete:true, pendingOperations:[] }),
   });
   await page.goto('/app/explore/notes?view=main');
   await expect(page.getByRole('heading', { name:'Your notes could not load' })).toBeVisible();
