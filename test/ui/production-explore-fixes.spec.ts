@@ -73,3 +73,19 @@ test('the map source note sits with the layer count, not loose above the tools',
   await expect(page.locator('.halo-map-main > p.halo-map-count')).toHaveCount(0);
   expect(network.blocked).toEqual([]);
 });
+
+test('moving between Explore views starts the new view at its top', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const network = await mockProduction(page);
+  await page.goto('/app/explore');
+  await page.locator('.ex-community-bridge').scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+  await page.locator('.ex-community-bridge').click();
+  await expect(page.getByRole('heading', { name: 'Your community' })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
+  await page.getByRole('button', { name: /Keep this question in My notes/ }).scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: /Keep this question in My notes/ }).click();
+  await expect(page.getByLabel('Title (required)')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
+  expect(network.blocked).toEqual([]);
+});
