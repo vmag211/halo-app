@@ -81,7 +81,7 @@
 .hp-device-banner > span { min-width:0; flex:1; }
 .hp-device-banner strong,.hp-device-banner small { display:block; }
 .hp-device-banner button { flex-basis:100%; border-top:1px solid var(--halo-border); justify-content:space-between; }
-.hp-device-steps ol { margin:0; padding-left:23px; }
+.hp-device-steps ol { margin:0; padding-left:23px; list-style:decimal; }
 .hp-device-steps li { font-size:calc(.83rem * var(--halo-text-scale)); padding-block:7px; }
 .hp-device-steps p { margin-top:12px; }
 .hp-follow,.hp-connection { display:flex; gap:12px; align-items:center; border-bottom:1px solid var(--halo-border); padding:10px 0; }

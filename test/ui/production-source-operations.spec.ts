@@ -15,3 +15,13 @@ test('unknown publication outcome blocks new decisions and refresh restores its 
  const network=await mockStage(page,{overrides:{'/api/operator/sources':route=>jsonRoute(route,current),'/api/operations':async(route,url)=>{statuses++;expect(url.searchParams.get('domain')).toBe('source-operations');expect(url.searchParams.get('operationId')).toBe('earlier-operation');current.unresolvedOperations=[];await jsonRoute(route,{operationId:'earlier-operation',status:'failed'});}}});
  await page.goto('/operations');await expect(page.getByRole('button',{name:'Approve candidate',exact:true})).toBeDisabled();await page.getByRole('button',{name:'Check operation status',exact:true}).click();await expect(page.getByRole('button',{name:'Approve candidate',exact:true})).toBeEnabled();expect(statuses).toBe(1);expect(network.requests.filter(row=>row.method!=='GET')).toEqual([]);expect(network.blocked).toEqual([]);
 });
+
+test('the operator denial keeps phone gutters and a real heading',async({page})=>{
+ await page.setViewportSize({width:375,height:812});
+ await mockStage(page,{overrides:{'/api/operator/sources':route=>jsonRoute(route,{role:'denied',revision:1,sources:[],unresolvedOperations:[],nextCursor:null})}});
+ await page.goto('/operations');const heading=page.getByRole('heading',{name:'Source operations',exact:true,level:1});await expect(heading).toBeVisible();
+ const box=(await page.locator('main.source-ops-review').boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(16);expect(box.x+box.width).toBeLessThanOrEqual(375-16);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+ const size=async(selector:string)=>page.locator(selector).first().evaluate(element=>parseFloat(getComputedStyle(element).fontSize));
+ expect(await size('main.source-ops-review h1')).toBeGreaterThan(await size('main.source-ops-review p'));
+});
