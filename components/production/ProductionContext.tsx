@@ -4,9 +4,7 @@ import type {ProductionRuntime} from '@/lib/frontend/production/runtime';
 import {FrontendServiceError,serviceMessage} from '@/lib/frontend/production/runtime';
 export const ProductionContext = createContext<ProductionRuntime|null>(null);
 export function useProductionRuntime(){return useContext(ProductionContext);}
-/** Aborts superseded reads. Retains no previous identity/home data in a new request.
- * `off` marks a read refused because its capability is switched off (503 feature_unavailable): a settled
- * answer, so a screen can say "not available yet" instead of offering a retry. */
+/** Aborts superseded reads. Retains no previous identity/home data in a new request. `off`: a read refused as feature_unavailable, a settled answer (say "not available yet", offer no retry). */
 export function useProductionResource<T>(operation:string,input:unknown,enabled=true){
  const runtime=useProductionRuntime(),signature=JSON.stringify(input),[attempt,setAttempt]=useState(0);
  const requestKey=`${runtime?.scopeKey??'preview'}:${operation}:${signature}:${attempt}:${enabled}`;
