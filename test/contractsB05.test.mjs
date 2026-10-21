@@ -49,6 +49,7 @@ import {
 } from './helpers/frontendB05.mjs';
 import { airPayload, districtPayload, facilitiesPayload, waterPayload } from '../lib/mapBuild.js';
 import { ARCGIS_WATER_BOUNDARIES } from '../lib/waterGeo.js';
+import { ECHO_METADATA } from './helpers/echoMetadata.mjs';
 
 const { requestHash } = await import('@/lib/operations');
 
@@ -366,6 +367,7 @@ const AIRNOW = [
 ];
 const ECHO = async (url) => {
   const facilities = [{ RegistryID: '110000000001', FacName: 'Example Plant', FacLat: '34.985', FacLong: '-80.549', FacCounty: 'UNION', FacComplianceStatus: 'No Violation Identified', NPDESFlag: 'Y' }];
+  if (String(url).includes('.metadata?')) return { ok: true, json: async () => ECHO_METADATA };
   return { ok: true, json: async () => (String(url).includes('.get_facilities?') ? { Results: { QueryID: 'q1', QueryRows: '1' } } : { Results: { Facilities: facilities } }) };
 };
 const stored = (layer, payload) => ({ layer, assembled_at: new Date().toISOString(), payload });

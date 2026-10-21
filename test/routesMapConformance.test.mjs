@@ -47,6 +47,7 @@ import { buildDistrictView } from '../lib/districtView.js';
 import { inNc08 } from '../lib/geoContainment.js';
 // The client's parsers, transcribed once for every B05 suite (see the helper's header).
 import { parseMapLayer, parseMapDistrict } from './helpers/frontendB05.mjs';
+import { ECHO_METADATA } from './helpers/echoMetadata.mjs';
 
 // ------------------------------------------------------------------- fixtures
 
@@ -249,7 +250,11 @@ test('map facilities, stored layer from the real ECHO builder: every facility pa
       { RegistryID: '110000000001', FacName: 'Monroe Test Plant', FacLat: '34.985', FacLong: '-80.549', FacCounty: 'UNION', FacComplianceStatus: 'Significant Violation', NPDESFlag: 'Y', CWAComplianceStatus: 'Violation Identified', FacQtrsWithNC: '6', FacTotalPenalties: '$12,500', FacDateLastInspection: '03/15/2026' },
       { RegistryID: '110000000002', FacName: 'Albemarle Test Works', FacLat: '35.35', FacLong: '-80.2', FacCounty: 'STANLY', FacComplianceStatus: 'No Violation Identified', AIRFlag: 'Y' },
     ];
-    const body = String(url).includes('.get_facilities?') ? { Results: { QueryID: 'q1', QueryRows: '2' } } : { Results: { Facilities: facilities } };
+    const body = String(url).includes('.metadata?')
+      ? ECHO_METADATA
+      : String(url).includes('.get_facilities?')
+        ? { Results: { QueryID: 'q1', QueryRows: '2' } }
+        : { Results: { Facilities: facilities } };
     return { ok: true, json: async () => body };
   };
   const payload = await facilitiesPayload({ fetchImpl: echo });
@@ -513,7 +518,11 @@ async function sources(url) {
   const href = String(url);
   if (href.startsWith('https://echodata.epa.gov/echo/echo_rest_services.')) {
     const facilities = [{ RegistryID: '110000000001', FacName: 'Monroe Test Plant', FacLat: '34.985', FacLong: '-80.549', FacCounty: 'UNION', FacComplianceStatus: 'No Violation Identified', NPDESFlag: 'Y' }];
-    const body = href.includes('.get_facilities?') ? { Results: { QueryID: 'q1', QueryRows: '1' } } : { Results: { Facilities: facilities } };
+    const body = href.includes('.metadata?')
+      ? ECHO_METADATA
+      : href.includes('.get_facilities?')
+        ? { Results: { QueryID: 'q1', QueryRows: '1' } }
+        : { Results: { Facilities: facilities } };
     return { ok: true, json: async () => body };
   }
   if (href.startsWith('https://www.airnowapi.org/aq/data/?')) {
