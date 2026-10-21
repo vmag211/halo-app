@@ -150,3 +150,44 @@ test('household: a missing session is a 401 envelope that echoes a client reques
   assert.doesNotMatch(JSON.stringify(body), /secret database detail/);
   assert.ok(loggedText(logged).includes(body.request_id));
 });
+
+test('profile: a located household gets its current home as home_context, never a closed or another household\'s home', async () => {
+  const OLD = '11111111-1111-4111-8111-111111111111';
+  const CURRENT = '22222222-2222-4222-8222-222222222222';
+  const BOBS = '33333333-3333-4333-8333-333333333333';
+  const h = harness({
+    tables: haloTables(...ALL, 'home_contexts'),
+    seed: (ids) => ({
+      profiles: [{ id: ids.alice.id, ...PROFILE.alice }, { id: ids.bob.id, ...PROFILE.bob }],
+      household_bands: [],
+      home_contexts: [
+        { id: OLD, profile_id: ids.alice.id, sequence: 1, revision: 1, origin: 'onboard', lat: 35.5, lng: -80.5, county: 'Rowan County', state: 'NC', effective_to: '2026-09-01T00:00:00Z', closed_reason: 'moved' },
+        { id: CURRENT, profile_id: ids.alice.id, sequence: 2, revision: 3, origin: 'move', lat: 35.409, lng: -80.58, county: 'Cabarrus County', state: 'NC', effective_to: null },
+        { id: BOBS, profile_id: ids.bob.id, sequence: 1, revision: 1, origin: 'onboard', lat: 35.227, lng: -80.843, county: 'Mecklenburg County', state: 'NC', effective_to: null },
+      ],
+    }),
+  });
+  const alice = await (await get(h, 'profile', 'alice')).json();
+  assert.equal(alice.home_context.id, CURRENT);
+  assert.equal(alice.home_context.revision, 3);
+  assert.equal(alice.home_context.current, true);
+  const bob = await (await get(h, 'profile', 'bob')).json();
+  assert.equal(bob.home_context.id, BOBS);
+  const read = h.db.queryLog.filter((q) => q.table === 'home_contexts');
+  assert.ok(read.length && read.every((q) => q.filters.some((f) => f.op === 'eq' && f.column === 'profile_id')), 'owner-scoped');
+});
+
+test('profile: no home yet, or a home read that fails, answers the profile without home_context', async (t) => {
+  const logged = muteConsoleError(t);
+  const none = await (await get(harness({ tables: haloTables(...ALL, 'home_contexts') }), 'profile')).json();
+  assert.equal('home_context' in none, false);
+  assert.equal(none.profile.county, 'Cabarrus County');
+  const h = harness({ tables: haloTables(...ALL, 'home_contexts') });
+  breakReads(h, 'home_contexts');
+  const res = await get(h, 'profile');
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal('home_context' in body, false);
+  assert.equal(body.onboarded, true);
+  assert.ok(loggedText(logged).includes('Profile home read failed'));
+});
