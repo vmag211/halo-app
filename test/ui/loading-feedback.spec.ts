@@ -5,6 +5,10 @@ import { test, expect } from '@playwright/test';
 const hosted = process.env.HALO_HOSTED_REVIEW_TEST === '1';
 const appPath = (query: string) => hosted ? `/app?${query}` : `/foundation/preview/expanded?${query}`;
 const toolsPath = (query: string) => hosted ? `/tools?${query}` : `/foundation/preview/expanded?review=tools&${query}`;
+// While a streamed route waits for its stylesheets, the route's own "Opening HALO" fallback is shown and the
+// rendered screen sits in React's hidden reveal container, so a bare `.halo-loading` can briefly match both.
+// The screen's pending panel is addressed directly and waited for until it is the one on screen.
+const pendingPanel = (page: import('@playwright/test').Page) => page.locator('.halo-loading[data-layout="panel"]');
 
 test.beforeEach(async ({page}) => {
   await page.route('**/*', route => {
@@ -34,8 +38,8 @@ test('loading panels fit small screens, enlarged text and each palette', async (
   await page.setViewportSize({width:320,height:780});
   for(const [appearance,palette] of [['dark','ocean'],['light','forest'],['dark','iris']]) {
     await page.goto(toolsPath(`scenario=loading&appearance=${appearance}&palette=${palette}&scale=150&motion=reduce`));
-    const loader=page.locator('.halo-loading');
-    await expect(loader).toContainText('Loading readings');
+    const loader=pendingPanel(page);
+    await expect(loader).toBeVisible();await expect(loader).toContainText('Loading readings');
     const bounds=(await loader.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(321);
     expect(await loader.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
@@ -47,7 +51,8 @@ for (const mode of ['full','device-reduce','app-reduce','forced-colors'] as cons
   test(`pending loading remains truthful and accessible with ${mode}`, async ({page},info) => {
     await page.emulateMedia({reducedMotion:mode==='device-reduce'?'reduce':'no-preference',forcedColors:mode==='forced-colors'?'active':'none'});
     await page.goto(toolsPath(`scenario=loading&motion=${mode==='app-reduce'?'reduce':'full'}`));
-    const loading=page.locator('.halo-loading');
+    const loading=pendingPanel(page);
+    await expect(loading).toBeVisible();
     await expect(loading).toHaveAttribute('role','status');
     await expect(loading).toHaveAttribute('aria-busy','true');
     const orbit=loading.locator('.halo-loading-orbit');
@@ -65,3 +70,20 @@ for (const mode of ['full','device-reduce','app-reduce','forced-colors'] as cons
     await expect(loading).toHaveCount(0);
   });
 }
+
+test('the route fallback and a screen loader are never on screen or announced together', async ({page}) => {
+  // Slow stylesheets hold React's reveal of the streamed screen, the window where both loaders exist in the DOM.
+  await page.route('**/*', async route => {
+    if (route.request().resourceType() === 'stylesheet') await new Promise(resolve => setTimeout(resolve, 1200));
+    await route.fallback();
+  });
+  await page.goto(toolsPath('scenario=loading&motion=reduce'), {waitUntil:'commit'});
+  const seen:number[]=[];
+  for (let sample = 0; sample < 30; sample++) {
+    seen.push(await page.evaluate(() => [...document.querySelectorAll('.halo-loading')].filter(node => !node.closest('[hidden]') && node.getBoundingClientRect().height > 0).length).catch(() => 0));
+    await page.waitForTimeout(100);
+  }
+  expect(Math.max(...seen)).toBeLessThanOrEqual(1);
+  await expect(page.getByRole('status',{name:'Loading readings'})).toBeVisible();
+  await expect(page.getByRole('status',{name:/^(Opening HALO|Loading readings)$/})).toHaveCount(1);
+});
