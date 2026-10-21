@@ -69,3 +69,17 @@ test('declining opportunity details keeps the outdoor draft and never saves a ta
  expect(writes).toBe(0);
  expect(network.blocked).toEqual([]);
 });
+
+test('forecast issue and expiry times read as dates in the forecast zone, not raw timestamps',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-21T13:00:00Z'));
+ const period=(name:string,start:string,end:string)=>({name,start,end,air:null,uv:3.2,pollen:null,weather:'51 to 63 °F, clear sky',tradeoff:'Example tradeoff.',version:'Open-Meteo GFS run 2026-10-20T18Z'});
+ const body={periods:[period('Morning','2026-10-21T12:00:00Z','2026-10-21T16:00:00Z'),period('Afternoon','2026-10-21T16:00:00Z','2026-10-21T21:00:00Z'),period('Evening','2026-10-21T21:00:00Z','2026-10-22T01:00:00Z')],
+  issuedAt:'2026-10-20T18:00:00.000Z',expiresAt:'2026-10-21T19:31:18.391Z',zone:'America/New_York',source:'Open-Meteo and the National Weather Service, for your home area',version:'fc1-test',horizonStart:'2026-10-21',horizonEnd:'2026-10-27',warningStatus:'No alerts.',coverage:{Air:'Not checked.',UV:'Modelled.',Pollen:'Unavailable.',Weather:'Modelled.'}};
+ await mockProduction(page,{'/api/forecast':route=>jsonRoute(route,body)});
+ await page.goto('/app/plan/outdoors');
+ await expect(page.getByText(/Times in America\/New_York\. Issued Oct 20, 14:00\./)).toBeVisible();
+ await page.getByText('Forecast coverage',{exact:true}).click();
+ const expiry=page.locator('dt',{hasText:'Expiry'}).locator('xpath=following-sibling::dd[1]');
+ await expect(expiry).toHaveText('Oct 21, 15:31');
+ expect(await page.locator('body').innerText()).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+});

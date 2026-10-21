@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { LIMITER_UNAVAILABLE } from './helpers/routeHarness.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
-import { productionForecast, forecastScreenText, outdoorDecisions } from './helpers/frontendB10.mjs';
+import { productionForecast, forecastScreenText, forecastIssued, outdoorDecisions } from './helpers/frontendB10.mjs';
 import {
   FIXTURES,
   FORECAST_NOW as NOW,
@@ -165,7 +165,7 @@ test('a household with a home gets a populated snapshot; the providers get the 2
   // What the screen then shows: three periods, Issued is the run, coverage names the home area.
   const live = { ...productionForecast({ data: body, error: null }), production: true };
   const shown = forecastScreenText(live, body.periods[1]);
-  assert.equal(shown.issued, RUN);
+  assert.equal(shown.issued, forecastIssued(RUN, body.zone));
   assert.equal(shown.cells.air, 'Unavailable', 'AirNow is daily, so no number per period (F6)');
   assert.match(shown.coverage.Air, /ozone Good \(AQI 41\)/);
   assert.match(shown.coverage.Air, /PM2\.5 Moderate \(category only, no AQI number issued\)/);

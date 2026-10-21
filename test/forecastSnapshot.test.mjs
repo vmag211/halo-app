@@ -147,7 +147,7 @@ const transcribed = (t) => {
 };
 
 test('drift: each transcribed function equals its frontend source with only the recorded annotations removed', async () => {
-  assert.equal(TRANSCRIPTIONS.length, 3);
+  assert.equal(TRANSCRIPTIONS.length, 4);
   for (const t of TRANSCRIPTIONS) {
     const sourceText = await readFile(new URL(`../${t.file}`, import.meta.url), 'utf8');
     assert.equal(stripped(t, sourceText), transcribed(t), `${t.file}:${t.line} changed; re-transcribe it`);
@@ -622,7 +622,7 @@ test('F17: issuedAt is the model run initialisation, never the fetch or the answ
   assert.equal(body.issuedAt, '2026-10-19T06:00:00.000Z');
   assert.notEqual(Date.parse(body.issuedAt), Date.parse(FETCHED));
   assert.notEqual(Date.parse(body.issuedAt), NOW);
-  assert.equal(onScreen(body, { date: '2026-10-20' }).text.issued, '2026-10-19T06:00:00.000Z');
+  assert.equal(onScreen(body, { date: '2026-10-20' }).text.issued, 'Oct 19, 02:00', 'the run time, in the forecast zone (06:00Z is 02:00 EDT)');
 });
 
 test('F17, F21: run_unknown is a 503 with a positive retryAfter, exact when the adapter knows it', () => {
