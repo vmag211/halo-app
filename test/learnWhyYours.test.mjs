@@ -39,7 +39,7 @@ test('no reading context → null, never a generic filler line', () => {
 });
 
 test('pfas and radon keep their existing wording', () => {
-  assert.match(composeWhyYours('pfas', q({ contaminant: 'PFOS', value: 7.3, limit: 4 })), /PFOS at 7\.3 ppt — about 1\.8× the federal limit of 4 ppt/);
+  assert.match(composeWhyYours('pfas', q({ contaminant: 'PFOS', value: 7.3, limit: 4 })), /PFOS at 7\.3 ppt, about 1\.8× the federal limit of 4 ppt/);
   assert.match(composeWhyYours('radon', q({ county: 'Cabarrus County', zone: 3 })), /Zone 3 radon area/);
 });
 

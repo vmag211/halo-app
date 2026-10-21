@@ -392,7 +392,7 @@ export async function GET(request) {
         } else if (unnamed.length > 0) {
           message = `${formatList(
             unnamed
-          )} could not be scored — no enforceable limit or published health benchmark exists for ${
+          )} could not be scored: no enforceable limit or published health benchmark exists for ${
             unnamed.length === 1 ? 'it' : 'them'
           }. The score below reflects only what could be evaluated.`;
         }
@@ -491,7 +491,7 @@ export async function GET(request) {
         radon_risk: radonRisk,
         water_risk: null,
         reason:
-          'No score can be calculated for a private well or spring. Nobody has tested this water, so there is no measurement to score — complete the testing plan first.'
+          'No score can be calculated for a private well or spring. Nobody has tested this water, so there is no measurement to score. Complete the testing plan first.'
       };
     } else {
       const waterRisk = waterRiskDetail ? waterRiskDetail.risk : null;

@@ -606,9 +606,11 @@ test('the refusal is not weaker than /api/assistant\'s: the same structural chec
     const body = assertLunaRun(await (await send(h, 'alice', message({ text }))).json());
     assert.equal(body.conversation.messages[1].text, LUNA_DIAGNOSTIC_REFUSAL, text);
   }
-  // Same standard, Luna's own sentence: the legacy constant carries an em dash
-  // and offers to read household readings, which Luna cannot do (Ruling L2).
-  assert.ok(DIAGNOSTIC_REFUSAL.includes('\u2014'));
+  // Same standard, Luna's own sentence: the legacy constant offers to read
+  // household readings, which Luna cannot do (Ruling L2). Neither carries an
+  // em dash (the legacy one lost it on 2026-10-21).
+  assert.notEqual(LUNA_DIAGNOSTIC_REFUSAL, DIAGNOSTIC_REFUSAL);
+  assert.equal(DIAGNOSTIC_REFUSAL.includes('\u2014'), false);
   assert.equal(LUNA_DIAGNOSTIC_REFUSAL.includes('\u2014'), false);
   assert.ok(/clinician/.test(LUNA_DIAGNOSTIC_REFUSAL), 'and it still points at a person who can help');
 });
