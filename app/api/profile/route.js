@@ -44,7 +44,8 @@ import {
  *     logged.
  *   - not located (not onboarded): the profile write below, as before.
  * Saved through a home, the answer adds `home_context` (lib/homeContext.js
- * contextSummary); otherwise it is exactly as before. Until 0016 is applied
+ * contextSummary); otherwise it is exactly as before. GET adds the same
+ * `home_context` for a located household's current home. Until 0016 is applied
  * (PGRST205 or 42P01 for the table, PGRST202 or 42883 for the functions) the
  * PATCH is the profile write below, unchanged, and one warning is logged per
  * process.
@@ -118,9 +119,22 @@ export async function GET(request) {
         console.error(`Profile household read failed (request ${requestId}):`, error.message);
       },
     });
+    // The current home, as the PATCH answers it, so the app can attach home-owned records (a
+    // Homeguard test's home context) to it. None before 0016 or before a home exists; a failed read
+    // is logged and the answer goes without it, as it did before.
+    let homeContext = null;
+    if (body.onboarded) {
+      try {
+        const current = await readCurrentHomeContext(supabaseAdmin, userId);
+        if (!current.unavailable) homeContext = contextSummary(current.context);
+      } catch (error) {
+        console.error(`Profile home read failed (request ${requestId}):`, error.message);
+      }
+    }
+    const answer = homeContext ? { ...body, home_context: homeContext } : body;
     // A composition that could not be read looks like "no composition yet", so say which it is.
     return NextResponse.json(
-      bandsFailed ? { ...body, unavailable: true, reason: 'household_unavailable' } : body,
+      bandsFailed ? { ...answer, unavailable: true, reason: 'household_unavailable' } : answer,
       { headers: { 'X-Request-Id': requestId } },
     );
   } catch (err) {
