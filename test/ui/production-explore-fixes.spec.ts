@@ -89,3 +89,14 @@ test('moving between Explore views starts the new view at its top', async ({ pag
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
   expect(network.blocked).toEqual([]);
 });
+
+test('the hub map preview says when a layer has no mapped records instead of showing a bare map', async ({ page }) => {
+  // Live, 2026-10-21: the stored facilities layer was complete with 0 features until the daily rebuild.
+  const network = await mockProduction(page, { '/api/map': (route, url) => jsonRoute(route, url.searchParams.get('layer') === 'facilities'
+    ? { count:0, layer:'facilities', scope:'NC-08', features:[], selection:'Active major facilities and repeat violators.', assembled_at:'2026-10-21T01:24:01.962Z', prebuilt:true }
+    : { layer:url.searchParams.get('layer') ?? 'water', features:[], assembled_at:'2026-10-13T14:00:00Z' }) });
+  await page.goto('/app/explore');
+  await page.getByLabel('Preview map layer').selectOption('facilities');
+  await expect(page.locator('.ex-map-layer-description')).toHaveText('No mapped records in this layer right now. Open the map for its source note.');
+  expect(network.blocked).toEqual([]);
+});
