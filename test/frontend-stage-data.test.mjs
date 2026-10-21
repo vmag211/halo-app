@@ -268,3 +268,20 @@ test('pollen types out of season read "Out of season", not "No data"', () => {
   assert.match(all.readings.pollen.sentence, /out of season/);
   assert.equal(all.readings.pollen.score, null);
 });
+test('pollen out of season everywhere is a named state, not a gap, and is never zero risk', () => {
+  const off = { value: null, severity: 'no_data', out_of_season: true };
+  const all = buildStageData({ pollen: { tree: null, grass: null, weed: null, severity: 'no_data', categories: { tree: off, grass: off, weed: off } } }, null, null).readings.pollen;
+  assert.deepEqual(all.unscored, { label: 'Out of season', kicker: 'Pollen season' });
+  assert.equal(all.severity, 'no_data');
+  assert.equal(all.unit, 'Tree, grass and weed');
+  assert.ok(all.disclosures.some(text => /not counted as zero risk/.test(text)));
+  assert.ok(!all.disclosures.some(text => /not supplied/.test(text)));
+  // One type out of season with no index elsewhere is still a gap.
+  const one = buildStageData({ pollen: { categories: { tree: off, grass: { value: null }, weed: { value: null } } } }, null, null).readings.pollen;
+  assert.equal(one.unscored, undefined);
+  assert.equal(one.reading, 'No data');
+});
+test('the mold card reads Estimate, Weather based, without repeating "estimate"', () => {
+  const mold = buildStageData({ mold: { risk: 'moderate', severity: 'moderate' } }, null, null).readings.mold;
+  assert.equal(`${mold.reading} ${mold.unit}`, 'Estimate Weather based');
+});

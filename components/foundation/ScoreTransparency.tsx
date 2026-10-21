@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowUpRight, Info } from 'lucide-react';
 import { ProvenancePill } from '@/components/ui/Foundation';
-import type { FactorKey, FactorReading } from '@/lib/frontend/factor-preview';
+import { readingMissing, type FactorKey, type FactorReading } from '@/lib/frontend/factor-preview';
 import type { StageOverview } from '@/lib/frontend/stage-data';
 import './score-transparency.css';
 
@@ -16,7 +16,7 @@ export default function ScoreTransparency({ home, keys, readings, overview, fact
   factorHref: (key: FactorKey) => string;
   missingKeys?: readonly FactorKey[];
 }) {
-  const available = keys.filter(key => readings[key].severity !== 'no_data' && !missingKeys.includes(key)).length;
+  const available = keys.filter(key => !readingMissing(readings[key]) && !missingKeys.includes(key)).length;
   return <details className="halo-score-transparency">
     <summary><Info size={18} aria-hidden="true" /><span>How this score works</span><small>{available} of {keys.length} readings</small></summary>
     <div className="halo-score-explanation">
@@ -34,7 +34,7 @@ export default function ScoreTransparency({ home, keys, readings, overview, fact
       </details>
       <div className="halo-score-source-list" aria-label="Reading sources and dates">{keys.map(key => {
         const factor = readings[key];
-        const missing = factor.severity === 'no_data' || missingKeys.includes(key);
+        const missing = readingMissing(factor) || missingKeys.includes(key);
         return <Link href={factorHref(key)} prefetch={false} key={key} className="halo-score-source-row"><div><strong>{factor.title}</strong><span>{missing ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`}</span><small>{factor.source} · {missing ? 'No current reading' : factor.asOf}</small></div><div><ProvenancePill provenance={missing ? null : factor.provenance} /><ArrowUpRight size={16} aria-hidden="true" /></div></Link>;
       })}</div>
       {overview?.missingInputs.length ? <p className="halo-f-meta">Missing score inputs: {overview.missingInputs.join(', ')}.</p> : null}

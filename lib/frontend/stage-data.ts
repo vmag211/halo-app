@@ -128,17 +128,19 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const hasPollen = pollenRows.some(row => row.value !== null);
   const allOutOfSeason = !hasPollen && pollenRows.every(row => row.outOfSeason);
   const pollenScore = factorScore('pollen', hasPollen);
-  readings.pollen = { ...readings.pollen, score: pollenScore, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : allOutOfSeason ? 'Out of season' : 'No data', unit: dominant ? `${dominant.name} index` : 'Pollen index',
+  readings.pollen = { ...readings.pollen, score: pollenScore, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : allOutOfSeason ? 'Out of season' : 'No data', unit: dominant ? `${dominant.name} index` : allOutOfSeason ? 'Tree, grass and weed' : 'Pollen index',
     severity: hasPollen ? severity(pollen.severity) : 'no_data', asOf: dailyAsOf, source: 'Google Pollen', sentence: hasPollen || allOutOfSeason ? safeText(pollen.sentence) || (allOutOfSeason ? 'Tree, grass and weed pollen are all out of season where you live.' : 'Your pollen category readings are available.') : readings.pollen.sentence,
     detail: 'Tree, grass, and weed retain their own readings. The leading category does not describe every type of pollen.',
     context: context({ value: dominant?.value, severity: hasPollen ? severity(pollen.severity) : null, category: dominant?.name }),
     trend: dailyTrend(history, 'pollen'), trendTitle: 'The leading pollen each day', details: { pollen: { categories: pollenRows } },
-    disclosures: pollenScore === null ? ['A separate pollen score is not supplied with this reading.'] : [],
+    // Out of season is a known state with no index: shown as itself, never as a gap or as zero risk.
+    ...(allOutOfSeason ? { unscored: { label: 'Out of season', kicker: 'Pollen season' } } : {}),
+    disclosures: allOutOfSeason ? ['Out of season is not counted as zero risk. Pollen is left out of the daily score until an index is reported again.'] : pollenScore === null ? ['A separate pollen score is not supplied with this reading.'] : [],
   };
 
   const moldRisk = ['low', 'moderate', 'high'].includes(String(mold.risk)) ? String(mold.risk) : null;
   const moldBasis = record(mold.basis); const humidity = scoreNumber(moldBasis.humidity_pct); const precip = scoreNumber(moldBasis.precip_pct);
-  readings.mold = { ...readings.mold, reading: moldRisk ? 'Estimate' : 'No data', unit: 'Weather estimate', severity: moldRisk ? severity(mold.severity) : 'no_data',
+  readings.mold = { ...readings.mold, reading: moldRisk ? 'Estimate' : 'No data', unit: 'Weather based', severity: moldRisk ? severity(mold.severity) : 'no_data',
     provenance: moldRisk ? 'estimate' : null, asOf: dailyAsOf, source: 'National Weather Service', sentence: moldRisk ? safeText(mold.sentence) || 'Outdoor weather conditions inform this estimate.' : readings.mold.sentence,
     detail: 'This estimate uses outdoor humidity and rain forecasts. It is not a measurement of mold or humidity inside your home.',
     context: context({ risk: moldRisk, severity: moldRisk ? severity(mold.severity) : null, humidity, precip }),

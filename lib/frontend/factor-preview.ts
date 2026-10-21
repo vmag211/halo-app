@@ -59,6 +59,10 @@ export function readPreviewPreferences(params: Record<string, string | string[] 
 export function isFactorKey(value: unknown): value is FactorKey {
   return typeof value === 'string' && factorKeys.some(key => key === value);
 }
+/** A gap in the evidence. A deliberately unscored reading (a weather estimate, or pollen out of season) is known information, not a gap. */
+export function readingMissing(factor: FactorReading) { return factor.severity === 'no_data' && !factor.unscored; }
+/** A factor's short name inside a sentence: lowercase, except acronyms such as UV and PFAS. */
+export function factorInlineName(factor: FactorReading) { return factor.shortTitle === factor.shortTitle.toUpperCase() ? factor.shortTitle : factor.shortTitle.toLowerCase(); }
 export function factorColor(key: FactorKey) { return `var(--factor-${key})`; }
 const week = (values: (number | null)[]): TrendPoint[] => values.map((value, i) => ({ date: `2026-09-${24 + i}`, label: ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'][i], value }));
 
