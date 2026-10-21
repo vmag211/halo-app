@@ -3,7 +3,7 @@ import {appearancePreference,colorPalette,type AppearancePreference,type ColorPa
 import type {SettingsSnapshot} from './production/preferences-service';
 
 export type TextScale='100'|'115'|'130'|'150';
-export type MenuDisplay={appearance:AppearancePreference;palette:ColorPalette;scale:string;motion:'system'|'full'|'reduce';contrast:boolean;ambient:boolean};
+export type MenuDisplay={appearance:AppearancePreference;palette:ColorPalette;scale:string;motion:'system'|'full'|'reduce';contrast:boolean};
 export type MenuChoice=Partial<MenuDisplay>;
 
 /** Exactly the choices SettingsDisplay offers (SettingsPanels.tsx), no more. */
@@ -17,16 +17,19 @@ export const appearanceMenuOptions={
 /** Settings shows a stored 'full' motion as Follow device; the menu does the same. */
 export const motionChoice=(motion:MenuDisplay['motion'])=>motion==='reduce'?'reduce':'system';
 
-export function normalizedDisplay(display:{appearance?:unknown;palette?:unknown;scale?:unknown;motion?:unknown;contrast?:unknown;ambient?:unknown}):MenuDisplay{
+export function normalizedDisplay(display:{appearance?:unknown;palette?:unknown;scale?:unknown;motion?:unknown;contrast?:unknown}):MenuDisplay{
  const scale=['100','115','130','150'].includes(String(display.scale))?String(display.scale):'100';
  const motion=display.motion==='reduce'||display.motion==='full'?display.motion:'system';
- return {appearance:appearancePreference(display.appearance),palette:colorPalette(display.palette),scale,motion,contrast:display.contrast===true,ambient:display.ambient!==false};
+ return {appearance:appearancePreference(display.appearance),palette:colorPalette(display.palette),scale,motion,contrast:display.contrast===true};
 }
 
-/** The same body SettingsWorkspace sends for the display group: canonical values and calendar, display with every key. */
+/**
+ * The same body SettingsWorkspace sends for the display group: canonical values and calendar, display with
+ * every key. Ambient animation is always on, so it is sent as true, as Settings sends it.
+ */
 export function displaySaveInput(snapshot:SettingsSnapshot,choice:MenuChoice){
  const display={...normalizedDisplay(snapshot.display),...choice};
- return {group:'display' as const,values:snapshot.values,display:{scale:display.scale,motion:display.motion,contrast:display.contrast,palette:display.palette,appearance:display.appearance,ambient:display.ambient},calendar:snapshot.calendar};
+ return {group:'display' as const,values:snapshot.values,display:{scale:display.scale,motion:display.motion,contrast:display.contrast,palette:display.palette,appearance:display.appearance,ambient:true},calendar:snapshot.calendar};
 }
 
 /** The fields of a choice the canonical receipt did not keep (a connection without palette keeps Ocean). */
