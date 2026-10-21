@@ -1,0 +1,20 @@
+/* Starter ideas: clearly suggestions, styled apart from saved tasks (dashed edge, no completion control). */
+.mw-starters { display:grid; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid var(--halo-border); }
+.mw-starters .mw-section-head h3 { font-size:calc(.86rem * var(--halo-text-scale)); }
+.mw-starters-note { margin:0; color:var(--halo-secondary); font-size:calc(.76rem * var(--halo-text-scale)); }
+.mw-starters ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.mw-starter { --mw-kind:var(--halo-primary); display:grid; grid-template-columns:30px minmax(0,1fr); gap:10px; padding:12px; border:1px dashed var(--halo-border); border-left:3px solid var(--mw-kind); border-radius:var(--halo-control-radius,9px); background:var(--halo-card); }
+.mw-starter[data-kind="Home"] { --mw-kind:light-dark(#337092,#a1cbea); }
+.mw-starter[data-kind="Personal"] { --mw-kind:var(--halo-secondary); }
+.mw-starter-symbol { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; color:var(--mw-kind); background:var(--halo-page); }
+.mw-starter-body { display:grid; gap:3px; min-width:0; }
+.mw-starter-tag { color:var(--halo-secondary); font-size:calc(.7rem * var(--halo-text-scale)); font-weight:600; letter-spacing:.01em; }
+.mw-starter strong { color:var(--halo-ink); font-size:calc(.88rem * var(--halo-text-scale)); font-weight:650; overflow-wrap:anywhere; }
+.mw-starter p { margin:0; color:var(--halo-secondary); font-size:calc(.78rem * var(--halo-text-scale)); line-height:1.45; }
+.mw-starter-actions { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin-top:4px; }
+.mw-starter-add { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:8px 14px; border:0; border-radius:999px; background:var(--halo-primary); color:var(--halo-on-primary,#fff); font:650 calc(.8rem * var(--halo-text-scale))/1.3 var(--font-instrument),sans-serif; cursor:pointer; }
+.mw-starter-add:disabled,.mw-starters .mw-text:disabled { opacity:.55; cursor:not-allowed; }
+.mw-starter-dismiss { color:var(--halo-secondary); }
+.mw-starters-hide { justify-self:start; color:var(--halo-secondary); }
+@media(prefers-reduced-motion:no-preference) { .halo-f-app:not([data-motion="reduce"]) .mw-starter { animation:mw-rise .25s ease-out both; } }
+@media (forced-colors: active) { .mw-starter { border:1px dashed CanvasText; } .mw-starter-add { background:ButtonText; color:ButtonFace; border:1px solid ButtonText; } }
