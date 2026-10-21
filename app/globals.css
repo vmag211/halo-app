@@ -32,3 +32,9 @@ button:disabled { cursor: default; }
 .halo-status-page p { margin: 0 0 1rem; }
 .halo-status-page a { color: light-dark(#0e5e6f, #2cc4bd); text-decoration: underline; text-underline-offset: 3px; }
 .halo-status-page button { min-height: 44px; margin: 0 0 1rem; padding: 0 20px; border: 0; border-radius: 999px; background: light-dark(#0e5e6f, #2cc4bd); color: light-dark(#fff, #06202a); font-weight: 700; }
+
+/* The HALO mark is a mask over a background colour. Forced colours replace author backgrounds with Canvas,
+ * which would erase the logo, so paint it with the system text colour instead. */
+@media (forced-colors: active) {
+  :root :is(.halo-sidebar-mark, .halo-landing-mark, .halo-logo-mark, .halo-f-logo), :root .halo-app .halo-reveal-logo { background: CanvasText; }
+}

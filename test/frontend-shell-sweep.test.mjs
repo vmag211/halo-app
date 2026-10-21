@@ -35,3 +35,8 @@ test('the public Learn library heading follows the page title without skipping a
 test('the pointer-only sheet grab handle is hidden from assistive technology', () => {
   assert.match(read('components/ui/Foundation.tsx'), /className="halo-f-sheet-grab" aria-hidden="true"/);
 });
+
+test('forced colours keep the masked HALO mark and the selected week day visible', () => {
+  assert.match(read('app/globals.css'), /@media \(forced-colors: active\) \{\n  :root :is\(\.halo-sidebar-mark, \.halo-landing-mark, \.halo-logo-mark, \.halo-f-logo\)[^{]*\{ background: CanvasText; \}/);
+  assert.match(read('components/expanded/week-responsive.css'), /\n  \.mw-workspace\.mw-dashboard \.mw-days \.selected \{ background:Highlight; \}\n  \.mw-workspace\.mw-dashboard \.mw-days \.selected :is\(strong,small,\.mw-day-count\) \{ color:HighlightText; \}\n\}/);
+});
