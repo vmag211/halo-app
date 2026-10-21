@@ -54,7 +54,6 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
   const reviewTools = useSearchParams().get('review') === 'tools' || previewPath === '/tools';
   const workspace = useHomeWorkspace();
   const savedAppearance = workspace.drafts['halo-appearance'];
-  const ambient = workspace.drafts['halo-ambient'] !== false;
   const palette=colorPalette(workspace.drafts['halo-palette']??preferences.palette);
   const [appliedAppearance, setAppliedAppearance] = useState<unknown>(savedAppearance);
   const savedDisplay=workspace.drafts['halo-display'] as SettingsProps['display']|undefined;
@@ -103,7 +102,7 @@ export default function FoundationPreview({ initialScenario, initialFactor, init
       <p>Scene lighting follows the device’s local clock, independently of app appearance. This is decorative scenery, not local weather or a sunrise forecast. Play animations overrides the device preference for this preview only.</p>
       <PreviewHouseholdPicker />
     </details>}
-    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time} ambient={!expanded || ambient}><Product productionRoute={productionRoute} expanded={expanded} key={`${scenario}:${productionRoute ?? ''}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} palette={palette} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} onDisplay={next=>{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=>colorPalette(next.palette));}} /></SceneProvider></ExpandedMode>
+    <ExpandedMode value={expanded}><SceneProvider mode={motion} time={time}><Product productionRoute={productionRoute} expanded={expanded} key={`${scenario}:${productionRoute ?? ''}:${initialMember ?? initialFactor ?? (initialFamily ? 'family' : 'overview')}`} scenario={scenario} initialFactor={initialFactor} initialFamily={initialFamily} initialMember={initialMember} appearance={mode} palette={palette} scale={Number(scale) / 100} contrast={contrast} motion={motion} time={time} onDisplay={next=>{setScale(next.scale);setMotion(next.motion);setContrast(next.contrast);if(next.appearance)setMode(next.appearance);workspace.setDraft('halo-palette',()=>colorPalette(next.palette));}} /></SceneProvider></ExpandedMode>
   </div>;
 }
 

@@ -44,7 +44,6 @@ export type MapRequestRuntime={scopeKey:string;request<T>(operation:string,input
 export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapRequestRuntime;publicAccess?:boolean}={}) {
   const workspace=useHomeWorkspace();
   const homeChanged=Boolean(workspace.collections.homeTransitions?.length);
-  const ambient=workspace.drafts['halo-ambient']!==false;
   const savedAppearance=workspace.drafts['halo-appearance'];
   const [queryPalette,setQueryPalette]=useState<ReturnType<typeof colorPalette>>('ocean');
   const palette=colorPalette(workspace.drafts['halo-palette']??queryPalette);
@@ -91,7 +90,7 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
       <div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={motion} onChange={e=>setMotion(e.target.checked)}/>Reduce motion</label><label className="halo-f-tool-check"><input type="checkbox" checked={contrast} onChange={e=>setContrast(e.target.checked)}/>Higher contrast</label></div>
       <p>The atlas previews map behavior without paid tiles or a token. The production Mapbox renderer and offline storage will be connected only after design approval. Sample values do not describe these communities.</p>
     </details>}
-    <SceneProvider mode={motion?'reduce':'system'} time="live" ambient={ambient}>{initialized&&<MapExperience key={runtime?runtime.scopeKey:`${scenario}:${homeChanged}`} runtime={runtime} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} palette={palette} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
+    <SceneProvider mode={motion?'reduce':'system'} time="live">{initialized&&<MapExperience key={runtime?runtime.scopeKey:`${scenario}:${homeChanged}`} runtime={runtime} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} palette={palette} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
   </div>;
 }
 
