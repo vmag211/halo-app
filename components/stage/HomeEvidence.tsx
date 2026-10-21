@@ -41,8 +41,11 @@ export function HomeEvidence({ factor }: { factor: FactorKey }) {
   }
   if (factor === 'lead') {
     const inventory = record(lead.utility_inventory); const source = record(inventory.source); const url = safeUrl(source.url);
+    const extraText = safeText(lead.text) && safeText(lead.text) !== safeText(lead.sentence);
+    // A heading with nothing under it reads as missing content; show the panel only when it has something to say.
+    if (!extraText && profile?.profile?.home_year != null && !privateWater && !Object.keys(inventory).length) return null;
     return <section className="halo-ph-panel"><span className="halo-ph-kicker">What is known about this home</span><h2>Keep the evidence in context</h2>
-      {safeText(lead.text) && safeText(lead.text) !== safeText(lead.sentence) && <p>{safeText(lead.text)}</p>}
+      {extraText && <p>{safeText(lead.text)}</p>}
       {profile?.profile?.home_year == null && <Link href="/settings?open=home">Add the year your home was built in Settings</Link>}
       {privateWater && <Link href="/factors/pfas#reading-detail">View the private-water testing plan</Link>}
       {Object.keys(inventory).length > 0 && <><h3>Utility-wide service lines</h3><p>{safeText(inventory.utility, 'Your utility')} reported {nonnegative(inventory.needs_replacement)?.toLocaleString('en-US') ?? 'an unknown number of'} service lines needing replacement, and {nonnegative(inventory.unknown)?.toLocaleString('en-US') ?? 'an unknown number'} with unknown material.</p><p>This is utility-wide context, not a finding about your address. It does not change the lead estimate.</p>{url && <a href={url} target="_blank" rel="noopener noreferrer">{safeText(source.name, 'Service-line inventory source')}{isoDate(source.retrieved) ? `, retrieved ${dateLabel(source.retrieved)}` : ''}</a>}</>}

@@ -127,7 +127,7 @@
 .halo-ph-info-note { display:flex; align-items:flex-start; gap:10px; color:var(--ph-muted); font-size:calc(.79rem * var(--halo-text-scale)); }
 .halo-ph-info-note svg { flex-shrink:0; }
 .halo-ph-honesty { display:grid; gap:10px; padding:22px 0; border-block:1px solid var(--halo-border); color:var(--ph-muted); }
-.halo-ph-trend > svg { width:100%; overflow:visible; }
+.halo-ph-trend > svg { display:block; width:100%; max-width:460px; margin-inline:auto; overflow:visible; }
 .halo-ph-trend svg text { font:10px var(--font-instrument),Arial,sans-serif; fill:var(--ph-muted); }
 .halo-ph-chart-grid { stroke:var(--halo-border); stroke-width:.7; }
 .halo-ph-chart-line { stroke-linecap:round; stroke-linejoin:round; }

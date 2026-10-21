@@ -10,7 +10,10 @@ export default function FactorTrend({ points, title, caption, unit, color }: { p
   const [selected, setSelected] = useState(Math.max(0, points.length - 1));
   const available = points.filter(p => p.value !== null && Number.isFinite(p.value));
   if (available.length < 2) return <section className="halo-ph-panel"><h2>{title}</h2><p>Your trend will appear here after a few days of readings.</p></section>;
-  const max = Math.max(1, ...available.map(p => p.value!)) * 1.15;
+  // Round the axis top up to a whole step (65 AQI reads as 70, not 63.2) so the gridline labels stay legible.
+  const headroom = Math.max(1, ...available.map(p => p.value!)) * 1.15;
+  const step = 10 ** Math.floor(Math.log10(headroom));
+  const max = Math.ceil(headroom / step) * step;
   const x = (i: number) => 34 + i / Math.max(1, points.length - 1) * 276;
   const y = (value: number) => 130 - value / max * 106;
   const path = points.map((point, i) => {
