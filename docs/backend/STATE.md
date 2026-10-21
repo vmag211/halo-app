@@ -127,7 +127,15 @@ applied). Use the state query in `YOUR_TODO.md` 2.6 rather than trusting any doc
 
 **0019 to 0023 are applied to production** (2026-10-19, by Vibhav, in one paste of
 `docs/backend/apply/apply-0019-to-0023.sql`; `verify-0019-to-0023.sql` returned
-`all_migrations_ok = true, checks_run = 26, failing = none`). Production still runs `main`, which does
+`all_migrations_ok = true, checks_run = 26, failing = none`).
+
+**0024 to 0033 are applied to production** (2026-10-20, by Vibhav, in one paste of
+`docs/backend/apply/apply-0024-to-0033.sql`; `verify-0024-to-0033.sql` returned
+`all_migrations_ok = true, checks_run = 66, failing = none`, which includes 0024's
+`profiles_reset_complete`, so the reset names every deployed profiles column). Applying them turned
+nothing on: every feature still waits on its key or flag and on the backend deploy.
+
+Production still runs `main`, which does
 not use these tables, so nothing changes for users until the backend branch is deployed. History: (0021 merged 2026-10-18 and amended three times by
 2026-10-19: `save_settings` and the revision and tenure triggers, Rulings S11 to S13; review fixes A
 to D with S15, the save settling its own ledger row; and fixes E and F. It carries no

@@ -7,7 +7,7 @@ Updated 2026-10-17. Part 1 is complete and the throwaway-project trial has passe
 Do these in order. The detail for each lives in the section named; this list does not repeat it. State of
 the branch as of the night run: `docs/backend/STATE.md`.
 
-1. **Apply the ten pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029, 0030, 0031, 0032,
+1. **DONE 2026-10-20**: applied in one paste, verify returned `true, 66, none`. **Apply the ten pending migrations, in order: 0024, 0025, 0026, 0027, 0028, 0029, 0030, 0031, 0032,
    0033.** For each, paste `docs/backend/apply/apply-00NN.sql` in the SQL Editor, then paste
    `docs/backend/apply/verify-00NN.sql` and check the one row says every column is true (anything false:
    stop and send the row). Then run `notify pgrst, 'reload schema';`. Sections 2.14 (0024), 2.15 (0025),
