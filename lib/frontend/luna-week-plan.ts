@@ -1,5 +1,5 @@
 import {validActionDate,type PreviewAction,type ActionRevision} from './expanded-preview';
-import {actionCategory,dayAdd,emptyWeekMeta,weekStart,type WeekMeta} from './week-preview';
+import {actionCategory,dayAdd,weekStart,type WeekMeta} from './week-preview';
 export type LunaWeekPlan={date:string;budget:number|null;items:{id:string;revision:number;key:string;title:string;previousDate:string;date:string;minutes:number}[];unknown:number;commitments:number;metadataSignature:string;explanation:string};
 export function isLunaWeekRequest(request:string){return /\b(week|weekend)\b/i.test(request)&&/\b(plan|organize|arrange|fit|schedule|available|have|review)\b/i.test(request)&&!/^open\b/i.test(request);}
 export function weekMetaSignature(items:{key:string}[],metas:Record<string,WeekMeta>){return JSON.stringify(items.map(i=>{const m=metas[i.key];return [i.key,m?.time??'',m?.zone??'',m?.duration??null,Boolean(m?.estimateSet),Boolean(m?.paused),Boolean(m?.archived)];}));}

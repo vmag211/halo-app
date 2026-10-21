@@ -6,6 +6,8 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   { files: ['checkUtility.js', 'uploadData.js'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
+  // `const { omitted, ...rest } = row` is the idiomatic way to drop a column; it is not dead code.
+  { rules: { '@typescript-eslint/no-unused-vars': ['warn', { ignoreRestSiblings: true }] } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
