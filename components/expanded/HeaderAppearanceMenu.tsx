@@ -68,7 +68,7 @@ export default function HeaderAppearanceMenu({display,onDisplay,offline,onOpenSe
    <fieldset className="halo-appearance-segments"><legend>{copy.scale}</legend><div>{options.scale.map(option=><label key={option.value}><input {...radios('scale',option.value)}/><span>{option.label}</span></label>)}</div></fieldset>
    <fieldset className="halo-appearance-segments"><legend>{copy.motion}</legend><div>{options.motion.map(option=><label key={option.value}><input {...radios('motion',option.value)}/><span>{option.label}</span></label>)}</div></fieldset>
    <label className="hp-toggle halo-appearance-toggle"><span><strong>{copy.contrast}</strong></span><input type="checkbox" role="switch" aria-label={copy.contrast} checked={shown.contrast} aria-disabled={blocked||undefined} onChange={event=>choose({contrast:event.target.checked})}/><span className="hp-switch" aria-hidden="true"><i/></span></label>
-   <footer><p role="status">{status}</p>{production?.unknown&&<button type="button" className="hp-text" disabled={production.pending} onClick={()=>void production.reconcile()}>{copy.status}</button>}<button type="button" className="hp-text" onClick={()=>{setOpen(false);onOpenSettings();}}>{copy.settings}</button></footer>
+   <div className="halo-appearance-footer"><p role="status">{status}</p>{production?.unknown&&<button type="button" className="hp-text" disabled={production.pending} onClick={()=>void production.reconcile()}>{copy.status}</button>}<button type="button" className="hp-text" onClick={()=>{setOpen(false);onOpenSettings();}}>{copy.settings}</button></div>
   </div>}
  </div>;
 }
