@@ -12,7 +12,10 @@
 .halo-loading-copy strong { font-size:calc(.88rem * var(--halo-text-scale,1)); font-weight:600; }
 .halo-loading-copy small { color:var(--halo-secondary,#79afc1); font-size:calc(.78rem * var(--halo-text-scale,1)); }
 .halo-loading[data-layout="panel"],.halo-loading[data-layout="screen"] { position:relative; flex-direction:column; justify-content:center; gap:18px; padding:32px 20px; min-height:220px; text-align:center; overflow:hidden; border:1px solid var(--halo-border,#274450); border-radius:20px; background:radial-gradient(ellipse at 50% 25%,color-mix(in srgb,var(--loading-accent) 10%,transparent),transparent 65%),var(--halo-card,var(--background)); }
-.halo-loading[data-layout="screen"] { min-height:min(58svh,480px); max-width:580px; margin:clamp(20px,7vh,70px) auto; }
+.halo-loading[data-layout="screen"] { width:100%; min-height:min(58svh,480px); max-width:580px; margin:0 auto; }
+/* A full-page loader is not a phone screen: lift the 430px shell so the same card sits centred on any display. */
+.halo-app:is(:has(> .halo-loading[data-layout="screen"]),:has(> .halo-f-main > .halo-loading[data-layout="screen"])) { box-sizing:border-box; display:grid; place-items:center; width:100%; max-width:none; min-height:100svh; margin:0; padding:clamp(16px,5vw,48px); border:0; }
+.halo-app > .halo-f-main:has(> .halo-loading[data-layout="screen"]) { display:grid; place-items:center; width:100%; padding:0; }
 .halo-loading-horizon { width:100px; height:2px; overflow:hidden; border-radius:3px; background:color-mix(in srgb,var(--loading-accent) 15%,transparent); }
 .halo-loading-horizon > span { display:block; width:40%; height:100%; background:var(--loading-accent); border-radius:inherit; }
 /* The existing spinner class covers older pending controls without changing their state. */
