@@ -98,3 +98,12 @@ test('week counts agree with their noun',async()=>{
   assert.equal(countLabel(0,'item','items'),'0 items');
   assert.equal(countLabel(2,'item','items'),'2 items');
 });
+
+test('time zone names are readable and fall back to the id',async()=>{
+  const {zoneName,zoneOptionLabel}=await loadFrontend('week-preview');
+  assert.equal(zoneName('America/New_York'),'Eastern Time');
+  assert.equal(zoneName('UTC'),'UTC');
+  assert.equal(zoneName('Not/AZone'),'Not/AZone');
+  assert.equal(zoneOptionLabel('America/Los_Angeles'),'Pacific Time (Los Angeles)');
+  assert.equal(zoneOptionLabel('UTC'),'UTC');
+});

@@ -19,6 +19,7 @@ import { SaveExplore } from './ExploreShared';
 import ExploreOutcome from './ExploreOutcome';
 import './explore-project-guides.css';
 import { useProductionProjectGeneration } from './ProductionProjectGeneration';
+import { useHydrated } from '@/lib/frontend/use-hydrated';
 import { useProductionResource, useProductionRuntime } from '@/components/production/ProductionContext';
 import { validProjectGuide } from '@/lib/frontend/production/explore-service';
 import {FrontendServiceError,serviceMessage} from '@/lib/frontend/production/runtime';
@@ -45,6 +46,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
   const [resultError, setResultError] = useState<{ id: string; message: string } | null>(null);
   const generation = useProjectGeneration(environmentAvailable);
   const runtime=useProductionRuntime();
+  const hydrated=useHydrated();
   const guideRead=useProductionResource<unknown>('projects.guide',{id},Boolean(runtime&&id&&view==='detail'));
   const record = collection.records.find(item => item.id === id);
   const project = runtime&&record?validProjectGuide(record.guide)&&record.guide.id===record.guideId&&record.guide.version===record.guideVersion?record.guide:undefined:generation.findGuide(id) ?? (runtime&&validProjectGuide(guideRead.data)?guideRead.data:undefined);
@@ -81,7 +83,7 @@ export default function ExploreProjects({ go, view, id, href, environmentAvailab
   const validSelected = selected.filter(index => index>=0&&index<project.steps.length&&Number.isInteger(index));
   const action = state?.actions.find(item => item.key === keyFor(current));
   const completed = project.steps.filter((_, index) => state?.actions.some(item => item.key === keyFor(index) && item.state === 'completed')).length;
-  const disabled = workspace.pending || starting || workspace.scenario === 'offline'||Boolean(state?.pending||state?.unknownOperation||state?.readiness!=='ready');
+  const disabled = !hydrated || workspace.pending || starting || workspace.scenario === 'offline'||Boolean(state?.pending||state?.unknownOperation||state?.readiness!=='ready');
   const paused = record?.status === 'Paused';
   const currentOutcome = Object.hasOwn(workspace.drafts, `explore:project-outcome:${id}`) ? outcome : record?.outcome ?? '';
   const needsReview = record?.status === 'Completed' && completed !== project.steps.length;
