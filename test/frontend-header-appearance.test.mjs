@@ -25,15 +25,20 @@ test('the menu offers exactly the Settings display choices',()=>{
  assert.deepEqual(menu.appearanceMenuOptions.motion.map(o=>[o.value,o.label]),[['system','Follow device'],['reduce','Reduced motion']]);
  assert.match(polish,/motionChoices:\['Follow device','Reduced motion'\]/);
  assert.match(panels,/<option value="system">\{c\.motionChoices\[0\]\}<\/option><option value="reduce">\{c\.motionChoices\[1\]\}<\/option>/);
- for(const key of ['contrast','ambient'])assert.match(panels,new RegExp(`title=\\{c\\.${key}\\}`));
+ assert.match(panels,/title=\{c\.contrast\}/);
+ // Ambient animation is always on: the menu offers no switch for it.
+ assert.ok(!Object.keys(menu.appearanceMenuOptions).includes('ambient'));
+ assert.ok(!/ambient/i.test(read('components/expanded/HeaderAppearanceMenu.tsx')));
  assert.ok(!JSON.stringify(menu.appearanceMenuOptions).includes(EM_DASH));
 });
 
 test('a menu save sends the same display-group body Settings sends',()=>{
  const workspace=read('components/expanded/SettingsWorkspace.tsx');
  // Drift guard: Settings' display save is values plus display (with appearance and ambient) plus calendar.
- assert.match(workspace,/production\.save\(\{group:panel,values:submitted,.*\(panel==='display'\?\{display:\{\.\.\.displayDraft,appearance:appearanceDraft,ambient:ambientDraft\},calendar:calendarDraft\}:\{\}\)\}\)/);
- const current=snapshot({palette:'forest',motion:'full'});
+ // Ambient was a draft before it became always on (vmag211/explore-fixes sends true); either form keeps the body shape.
+ assert.match(workspace,/production\.save\(\{group:panel,values:submitted,.*\(panel==='display'\?\{display:\{\.\.\.displayDraft,appearance:appearanceDraft,ambient:(ambientDraft|true)\},calendar:calendarDraft\}:\{\}\)\}\)/);
+ // A stored off value is not carried forward: ambient animation is always on.
+ const current=snapshot({palette:'forest',motion:'full',ambient:false});
  const body=menu.displaySaveInput(current,{appearance:'dark'});
  assert.deepEqual(Object.keys(body).sort(),['calendar','display','group','values']);
  assert.equal(body.group,'display');
@@ -46,7 +51,7 @@ test('a menu save sends the same display-group body Settings sends',()=>{
 });
 
 test('every menu option produces a body the server accepts and a snapshot the client keeps',()=>{
- const choices=[...menu.appearanceMenuOptions.appearance.map(o=>({appearance:o.value})),...menu.appearanceMenuOptions.palette.map(o=>({palette:o.value})),...menu.appearanceMenuOptions.scale.map(o=>({scale:o.value})),...menu.appearanceMenuOptions.motion.map(o=>({motion:o.value})),{contrast:true},{contrast:false},{ambient:false},{ambient:true}];
+ const choices=[...menu.appearanceMenuOptions.appearance.map(o=>({appearance:o.value})),...menu.appearanceMenuOptions.palette.map(o=>({palette:o.value})),...menu.appearanceMenuOptions.scale.map(o=>({scale:o.value})),...menu.appearanceMenuOptions.motion.map(o=>({motion:o.value})),{contrast:true},{contrast:false}];
  for(const choice of choices){
   const body=menu.displaySaveInput(snapshot(),choice);
   const parsed=parseSettingsSave({...body,operationId:'22222222-2222-4222-8222-222222222222'});
@@ -76,7 +81,7 @@ test('stored full motion reads as Follow device, as Settings shows it, and is ke
 });
 
 test('normalizedDisplay never invents values outside the reviewed sets',()=>{
- assert.deepEqual(menu.normalizedDisplay({appearance:'neon',palette:'neon',scale:'400',motion:'fast',contrast:'yes',ambient:undefined}),{appearance:'system',palette:'ocean',scale:'100',motion:'system',contrast:false,ambient:true});
+ assert.deepEqual(menu.normalizedDisplay({appearance:'neon',palette:'neon',scale:'400',motion:'fast',contrast:'yes',ambient:false}),{appearance:'system',palette:'ocean',scale:'100',motion:'system',contrast:false});
 });
 
 test('the header renders the menu beside Settings in the expanded shell only, never on Settings itself',()=>{
