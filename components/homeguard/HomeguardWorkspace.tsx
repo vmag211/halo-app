@@ -43,9 +43,11 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   useEffect(() => {
     const isFirstOpen = !didOpen.current;
     const sectionChanged = previousSection.current !== section;
-    didOpen.current = true;
-    previousSection.current = section;
     const frame = requestAnimationFrame(() => {
+      // Record the entry only once it is handled: a cancelled frame (Strict Mode's
+      // effect replay, or a quick re-render) must not turn first entry into a revisit.
+      didOpen.current = true;
+      previousSection.current = section;
       // Preserve early keyboard/pointer focus, including a scrollable table. A
       // new route's heading must not interrupt an already focused control.
       const active = document.activeElement;
