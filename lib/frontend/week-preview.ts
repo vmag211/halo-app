@@ -2,6 +2,8 @@ import { validActionDate, type PreviewAction } from './expanded-preview';
 
 export type WeekMeta = { note: string; paused: boolean; archived: boolean; completedOn: string; time: string; duration: number; estimateSet?: boolean; zone: string; recurrence: 'none' | 'weekly' | 'after-completion'; reminder: boolean; history: string[] };
 export const emptyWeekMeta: WeekMeta = { note:'', paused:false, archived:false, completedOn:'', time:'', duration:60, zone:'America/New_York', recurrence:'none', reminder:false, history:[] };
+/** "1 task", "2 tasks": a count with the noun form that matches it. */
+export const countLabel=(n:number,one:string,many:string)=>`${n} ${n===1?one:many}`;
 export function dayAdd(day: string, amount: number) { const d=new Date(`${day}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+amount);return d.toISOString().slice(0,10); }
 export function weekStart(day: string) {return dayAdd(day,-((new Date(`${day}T12:00:00Z`).getUTCDay()+6)%7));}
 export function calendarDays(day: string, month=false) {const first=month?`${day.slice(0,7)}-01`:day;const start=weekStart(first);return Array.from({length:month?42:7},(_,i)=>dayAdd(start,i));}

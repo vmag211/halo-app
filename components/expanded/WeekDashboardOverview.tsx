@@ -5,7 +5,7 @@ import {ArrowUpRight, Check, Flame, House, Sunrise} from 'lucide-react';
 import {useStageRuntime} from '@/components/foundation/StageRuntime';
 import {AnimatedNumber} from '@/components/foundation/SceneExperience';
 import {previewOverviewScore} from '@/lib/frontend/overview-preview';
-import {actionStreak, calendarDays, dayLabel, emptyWeekMeta, type WeekMeta} from '@/lib/frontend/week-preview';
+import {actionStreak, calendarDays, countLabel, dayLabel, emptyWeekMeta, type WeekMeta} from '@/lib/frontend/week-preview';
 import type {PreviewAction} from '@/lib/frontend/expanded-preview';
 
 type Props={href:(tab:string,destination?:string)=>string;scenario:string;actions:PreviewAction[];metas:Record<string,WeekMeta>;date:string;today:string;streak:boolean;onStreak:(value:boolean)=>void};
@@ -28,7 +28,7 @@ export default function WeekDashboardOverview({href,scenario,actions,metas,date,
     })}</div>
     {(streak||completed.some(Boolean))&&<div className="mw-action-rhythm" aria-label="Action rhythm">
       <div className="mw-rhythm-title"><span><Flame size={15} aria-hidden="true"/>{streak?`${actionStreak(completed,today)} day${actionStreak(completed,today)===1?'':'s'} of follow-through`:'This week’s follow-through'}</span><button type="button" aria-pressed={streak} onClick={()=>onStreak(!streak)}>{streak?'Hide streak':'Show streak'}</button></div>
-      <div className="mw-rhythm-days">{days.map(day=>{const count=completed.filter(d=>d===day).length;return <span key={day} data-complete={count>0} data-today={day===today} aria-label={`${dayLabel(day)}, ${count} completed actions`}><small>{dayLabel(day,{weekday:'narrow'})}</small><i aria-hidden="true">{count>0&&<Check size={12}/>}</i></span>;})}</div>
+      <div className="mw-rhythm-days">{days.map(day=>{const count=completed.filter(d=>d===day).length;return <span key={day} data-complete={count>0} data-today={day===today} aria-label={`${dayLabel(day)}, ${countLabel(count,'completed action','completed actions')}`}><small>{dayLabel(day,{weekday:'narrow'})}</small><i aria-hidden="true">{count>0&&<Check size={12}/>}</i></span>;})}</div>
       <small className="mw-rhythm-caption">Completed actions. Check-ins do not count.</small>
     </div>}
   </section>;

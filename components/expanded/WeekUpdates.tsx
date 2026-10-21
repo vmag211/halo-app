@@ -7,7 +7,7 @@ import { ArrowRight, Check, FileCheck2, RefreshCw, TriangleAlert } from 'lucide-
 import { useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { useExpandedPreview } from './ExpandedPreviewState';
 import { type PreviewAction } from '@/lib/frontend/expanded-preview';
-import { actionCategory, dayAdd, dayLabel, type WeekMeta } from '@/lib/frontend/week-preview';
+import { actionCategory, countLabel, dayAdd, dayLabel, type WeekMeta } from '@/lib/frontend/week-preview';
 import { changeEvidenceKey, compareWeekSources, usableWeekChanges, weekSourceSnapshots, type WeekChangeEvidence, type WeekSourceSnapshot } from '@/lib/frontend/week-planning';
 
 type Href=(tab:string,destination?:string)=>string;
@@ -44,7 +44,7 @@ export function WeekUpdateList({manager,actions,onOpen}:{manager:WeekChangeManag
         </div>
       </article>;
     })}
-    {changes.length>3&&<details><summary>{changes.length-3} more changes</summary>{changes.slice(3).map(change=><div className="mw-update-overflow" key={changeEvidenceKey(change)}><strong>{change.title}</strong><p>{change.summary}</p><button className="mw-text" type="button" onClick={()=>onOpen(actions.find(a=>a.id===change.actionId)!)}>Review task</button><button className="mw-text" type="button" onClick={()=>acknowledge(change)}>Reviewed</button></div>)}</details>}
+    {changes.length>3&&<details><summary>{countLabel(changes.length-3,'more change','more changes')}</summary>{changes.slice(3).map(change=><div className="mw-update-overflow" key={changeEvidenceKey(change)}><strong>{change.title}</strong><p>{change.summary}</p><button className="mw-text" type="button" onClick={()=>onOpen(actions.find(a=>a.id===change.actionId)!)}>Review task</button><button className="mw-text" type="button" onClick={()=>acknowledge(change)}>Reviewed</button></div>)}</details>}
     {feedback&&<p role="status">{feedback}</p>}{manager.unknown&&<button className="mw-text" disabled={manager.pending} onClick={()=>void manager.checkStatus()}>Check update status</button>}
   </section>;
 }
