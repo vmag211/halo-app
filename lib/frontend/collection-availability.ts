@@ -11,12 +11,10 @@ export function collectionView(status?: { status: string; featureUnavailable?: b
   return status.featureUnavailable ? 'off' : 'error';
 }
 export const journalOffMessage = 'Check-ins are not available yet. Nothing has changed, and the rest of My Week still works.';
-/** Homeguard's owned records (the `workspace` capability) answered "not available yet". */
-export const homeWorkspaceOffMessage = 'Saving Homeguard records is not available yet. Nothing has changed, and the rest of Homeguard still works.';
-export const homeSaveOffMessage = 'Saving Homeguard records is not available yet. Nothing was saved. Your draft is kept.';
 /** Household summaries are prepared by the `summaries` capability. */
 export const summariesOffMessage = 'Household summaries are not available yet. Nothing has changed, and your selections are kept.';
 /** True when any of these collections settled as switched off. */
 export function collectionsOff(states: Record<string, { status: string; featureUnavailable?: boolean } | undefined>, keys: string[]): boolean {
   return keys.some(key => collectionView(states[key]) === 'off');
 }
+export const homeguardOffMessage = 'Saving Homeguard records is not available yet. Nothing has changed, and the rest of Homeguard still works.';

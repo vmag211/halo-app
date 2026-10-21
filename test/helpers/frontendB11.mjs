@@ -80,7 +80,7 @@ export function homeWorkspace(service) {
       commit({ ...state.collections, [key]: snapshot.records });
       collectionState(key, { status: 'ready', revision: snapshot.revision, complete: snapshot.complete !== false && !snapshot.nextCursor && snapshot.availability !== 'partial', message: snapshot.message });
     } catch (error) {
-      if (loadVersions.get(key) === version) collectionState(key, { ...state.collectionStates[key], status: 'error', complete: false, message: error instanceof Error ? error.message.replaceAll(String.fromCharCode(0x2014), ',') : 'This collection could not load. Try again.' });
+      if (loadVersions.get(key) === version) collectionState(key, { ...state.collectionStates[key], status: 'error', complete: false, ...(error?.reason === 'feature_unavailable' ? { featureUnavailable: true } : {}), message: error instanceof Error ? error.message.replaceAll(String.fromCharCode(0x2014), ',') : 'This collection could not load. Try again.' });
     }
   }
   async function retry(key) {
@@ -138,6 +138,7 @@ export function homeWorkspace(service) {
     finally { locks.delete(operationId); state.pending = false; }
   }
   async function write(key, record) {
+    if (state.collectionStates[key]?.featureUnavailable) { state.message = 'Saving these records is not available yet. Nothing was saved, and your draft is kept.'; return false; }
     if (state.collectionStates[key]?.status !== 'ready') { state.message = 'Load the current records before saving. Your draft is kept.'; void loadCollection(key); return false; }
     const current = state.collections[key]?.find(item => item.id === record.id);
     if (current && current.revision !== record.revision) { state.message = 'This record changed. Your draft is kept. Review the latest version before saving.'; return false; }

@@ -16,7 +16,7 @@ import './homeguard-workspace.css';
 import WorkspaceFeedback from '@/components/expanded/WorkspaceFeedback';
 import { WorkspaceArtworkProvider, workspaceArtwork } from './WorkspaceArtwork';
 import './workspace-editorial.css';
-import { collectionsOff, homeWorkspaceOffMessage } from '@/lib/frontend/collection-availability';
+import { collectionsOff, homeguardOffMessage } from '@/lib/frontend/collection-availability';
 
 const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
@@ -74,7 +74,7 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     </div>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}
     <WorkspaceFeedback />
     {productionFailure && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
-    {productionOff && <p className="hg-notice" role="status">{homeWorkspaceOffMessage}</p>}
+    {productionOff && <p className="hg-notice" role="status">{homeguardOffMessage}</p>}
     {!productionLoading && pendingCollections.length > 0 && <HaloLoading label="Loading remaining home records" />}
     {incomplete && <p className="hg-notice">Some records are not included in this view. Reload the complete collection before exporting or clearing it.</p>}
     {state.scenario === 'stale' && <p className="hg-notice">Some sources are out of date. Check their original dates.</p>}

@@ -67,7 +67,7 @@
 .halo-reading-guide details { border-block:1px solid color-mix(in srgb,var(--factor-accent) 25%,transparent); }
 .halo-reading-guide summary { display:flex; align-items:center; gap:10px; min-height:62px; padding:8px 0; cursor:pointer; font-size:calc(.875rem * var(--halo-text-scale)); font-weight:550; line-height:1.55; }
 .halo-reading-guide summary > svg { flex-shrink:0; color:var(--factor-accent); }
-.halo-reading-open { margin-left:auto; font-size:1.2rem; color:var(--factor-accent); }
+.halo-reading-open { margin-left:auto; font-size:1.2rem; color:color-mix(in srgb,var(--factor-accent) 68%,light-dark(#0c2229,#ffffff)); }
 .halo-reading-guide details[open] .halo-reading-open { rotate:45deg; }
 .halo-f-app .halo-reading-guide details > p { font-size:calc(.94rem * var(--halo-text-scale)); color:var(--ph-muted); line-height:1.7; padding:8px 0; }
 .halo-f-app .halo-reading-guide details > a { display:flex; align-items:center; min-height:44px; font-size:calc(.85rem * var(--halo-text-scale)); text-decoration:underline; text-underline-offset:4px; }
@@ -110,7 +110,7 @@
 .halo-family-reading-value { margin:16px 0; padding:13px 15px; border-left:2px solid var(--factor-accent); background:linear-gradient(90deg,color-mix(in srgb,var(--factor-accent) 7%,transparent),transparent); display:grid; gap:6px; }
 .halo-family-reading-value b { font-size:calc(.9rem * var(--halo-text-scale)); font-weight:550; }
 .halo-family-reading-value > span { color:var(--ph-muted); font-size:calc(.8rem * var(--halo-text-scale)); }
-.halo-family-guidance-item > a,.halo-family-guidance-item details a { color:var(--factor-accent); }
+.halo-family-guidance-item > a,.halo-family-guidance-item details a { color:color-mix(in srgb,var(--factor-accent) 68%,light-dark(#0c2229,#ffffff)); } /* text contrast at least 4.5:1 */
 .halo-family-checklist { display:grid; gap:13px; padding:24px 18px; border-radius:25px; border:1px solid var(--halo-border); background:linear-gradient(150deg,var(--ph-wash),transparent); }
 .halo-family-checklist > .halo-ph-kicker,.halo-family-checklist > p { text-align:center; }
 .halo-family-checklist > label { position:relative; display:flex; align-items:flex-start; gap:12px; min-height:52px; padding:12px 0; cursor:pointer; line-height:1.6; font-size:calc(.94rem * var(--halo-text-scale)); }

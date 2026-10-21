@@ -89,3 +89,21 @@ test('pagination retains unmapped observations and loads the exact continuation 
  await page.getByRole('button',{name:/First unlocated monitor/}).click();await expect(page.getByRole('dialog')).toContainText('0');await expect(page.getByRole('button',{name:'Focus on map'})).toBeDisabled();
  expect(network.forbidden).toEqual([]);
 });
+test('Find a location starts in the search field and the count line matches the layer counts',async({page})=>{
+ // Live NC data, 2026-10-21: 4.1 ppt against a 4 ppt limit has a one-decimal ratio of 1.0 and is over the limit.
+ const reading=(value_ppt:number,ratio:number)=>({value_ppt,limit_ppt:4,ratio,severity:'high',date_iso:'2026-04-10',proposed_for_rescission:false});
+ const system=(pwsid:string,name:string,lat:number,PFOA:object)=>({pwsid,name,lat,lng:-80.4,population:2300,overall_severity:'high',coverage:'partial',latest_sample_iso:'2026-04-10',contaminants:{PFOA},hazard_index:null,detected_unregulated:[]});
+ const layer={layer:'water',assembled_at:'2026-10-13T14:00:00Z',quarters:[],features:[system('NC-1','Edge Utility',35.1,reading(4.1,1)),system('NC-2','Equal Utility',35.2,reading(4,1)),system('NC-3','Over Utility',35.3,reading(8.3,2.1))],counts:{total:3,over_limit:2}};
+ const network=await protect(page,async(route,url)=>json(route,url.pathname==='/api/map'?layer:{error:'not ready'},url.pathname==='/api/map'?200:503));
+ await page.goto('/map');
+ await expect(page.getByText('2 of 3 systems exceed a supplied limit.',{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:'Find a location'}).click();
+ await expect(page.getByRole('searchbox',{name:'Find a location in this layer'})).toBeFocused();
+ await page.keyboard.type('Edge');
+ await expect(page.getByRole('dialog')).toContainText('1 record matching');
+ await expect(page.getByRole('button',{name:/Edge Utility/})).toContainText('1 over limit');
+ await page.getByRole('button',{name:'Close'}).click();
+ await page.getByRole('button',{name:'List'}).click();
+ await expect(page.getByRole('button',{name:'Close'})).toBeFocused();
+ expect(network.forbidden).toEqual([]);
+});

@@ -1,5 +1,8 @@
 import {test,expect,type Locator} from '@playwright/test';
 
+// `/app` is the static hosted review page; a dev or preview server serves the same expanded app here.
+const app=process.env.HALO_HOSTED_REVIEW_TEST==='1'?'/app':'/foundation/preview/expanded/';
+
 test.beforeEach(async({page})=>{
   await page.route('**/*',route=>{const url=new URL(route.request().url());return ['localhost','127.0.0.1'].includes(url.hostname)&&!url.pathname.startsWith('/api/')?route.continue():route.abort();});
 });
@@ -17,7 +20,7 @@ async function cameraRange(camera:Locator){
 }
 
 for(const tab of ['today','home'])test(`${tab} panorama has a clear bounded sweep and retains pause`,async({page})=>{
-  await page.emulateMedia({reducedMotion:'no-preference'});await page.goto(`/app?tab=${tab}&motion=full`);
+  await page.emulateMedia({reducedMotion:'no-preference'});await page.goto(`${app}?tab=${tab}&motion=full`);
   const scene=page.locator('.halo-environment-scene .halo-env'),photo=scene.locator('.halo-env__photo');await expect(scene).toHaveAttribute('data-moving','true');
   const sweep=await cameraRange(photo);expect(sweep.duration).toBe(12000);expect(sweep.travel).toBeGreaterThan(sweep.width*.08);
   const frame=(await scene.boundingBox())!,art=(await photo.boundingBox())!;expect(art.x).toBeLessThanOrEqual(frame.x);expect(art.x+art.width).toBeGreaterThanOrEqual(frame.x+frame.width);
@@ -25,7 +28,7 @@ for(const tab of ['today','home'])test(`${tab} panorama has a clear bounded swee
 });
 
 test('all five week landscapes pan with their water overlay aligned and pause together',async({page})=>{
-  await page.emulateMedia({reducedMotion:'no-preference'});await page.goto('/app?motion=full');
+  await page.emulateMedia({reducedMotion:'no-preference'});await page.goto(`${app}?motion=full`);
   const scene=page.locator('.mw-ambience');await expect(scene).toHaveAttribute('data-moving','true');
   for(const id of ['lake','coast','forest','meadow','cove']){
     if(id!=='lake')await scene.getByRole('button',{name:'Next landscape',exact:true}).click();
@@ -43,7 +46,7 @@ test('all five week landscapes pan with their water overlay aligned and pause to
 });
 
 test('device reduction removes the week camera and keeps scene selection available',async({page})=>{
-  await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/app?motion=full');
+  await page.emulateMedia({reducedMotion:'reduce'});await page.goto(`${app}?motion=full`);
   await expect(page.locator('.mw-ambience-panorama')).toHaveCSS('animation-name','none');
   await page.getByRole('button',{name:'Next landscape',exact:true}).click();await expect(page.locator('.mw-ambience')).toHaveAttribute('data-scene','coast');
   await expect(page.locator('.mw-ambience-panorama')).toHaveCSS('transform','none');

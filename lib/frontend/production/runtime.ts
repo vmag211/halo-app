@@ -1,4 +1,5 @@
 /** Production frontend boundary. No provider keys, review fixtures or automatic write retries. */
+import {readSwitchedOff,type FeatureFlags} from './features';
 export type RequestOptions = { signal?: AbortSignal; idempotencyKey?: string; expectedRevision?: string | number; responseType?: 'json'|'blob' };
 export type Capability = { enabled: boolean; reason?: string };
 export interface ProductionRuntime {
@@ -16,6 +17,7 @@ type Endpoint = { path: string; method?: 'GET'|'POST'|'PATCH'|'DELETE'; public?:
 /** These are explicit frontend contracts, not claims that the backend implements them. */
 export const productionOperations: Readonly<Record<string, Endpoint>> = {
   'capabilities.read': {path:'/api/capabilities'},
+  'features.read': {path:'/api/frontend/capabilities'},
   'sourceOps.read': {path:'/api/operator/sources'},
   'sourceOps.history': {path:'/api/operator/sources/history'},
   'sourceOps.command': {path:'/api/operator/sources/commands',method:'POST'},
@@ -99,6 +101,8 @@ export function serviceMessage(error: unknown): string { return error instanceof
 export function createProductionRuntime(input: {
   identityId: string | null; homeContextId: string | null; contextRevision?: number;
   capabilities?: Record<string,Capability>; publicAccess?: boolean;
+  /** Switched-on capabilities from `features.read`; null or absent means unknown, so every read is sent. */
+  features?: FeatureFlags | null;
   credential: () => Promise<{identityId:string;accessToken:string}|null>;
   fetcher?: typeof fetch; active?: () => boolean; writeAllowed?: () => boolean; timeoutMs?: number;
 }): ProductionRuntime {
@@ -108,6 +112,8 @@ export function createProductionRuntime(input: {
       const endpoint = productionOperations[operation];
       if (!endpoint || input.publicAccess && !endpoint.public) throw new FrontendServiceError('permission',messages.permission);
       if (input.capabilities?.[operation]?.enabled === false) throw new FrontendServiceError('unavailable', messages.unavailable);
+      // A read whose capability is known to be off gets the same settled answer the server would send, without the request.
+      if ((endpoint.method ?? 'GET') === 'GET' && readSwitchedOff(operation, input.features)) throw new FrontendServiceError('unavailable', messages.unavailable, undefined, undefined, undefined, 'feature_unavailable');
       const method = endpoint.method ?? 'GET', mutation = method !== 'GET';
       const operationId = mutation ? options.idempotencyKey ?? crypto.randomUUID() : undefined;
       const controller = new AbortController(); let sent = false;

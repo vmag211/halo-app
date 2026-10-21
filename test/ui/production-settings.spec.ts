@@ -98,3 +98,18 @@ test('Luna turned off reads as unavailable, not as a failed conversation history
  await expect(page.getByRole('button',{name:'Try again',exact:true})).toBeVisible();
  expect(network.blocked).toEqual([]);
 });
+
+test('Settings and the alerts sheet never skip a heading level',async({page})=>{
+ const network=await mockProduction(page);
+ const skips=(root:string)=>page.evaluate(selector=>{let previous=0;const found:string[]=[];for(const heading of document.querySelectorAll(`${selector} :is(h1,h2,h3,h4,h5,h6)`)){if(!heading.getClientRects().length)continue;const level=Number(heading.getAttribute('aria-level')||heading.tagName.slice(1));if(previous&&level>previous+1)found.push(`h${previous} then h${level} ${heading.textContent?.trim()}`);previous=level;}return found;},root);
+ await page.goto('/app/settings');await expect(page.locator('.hp-settings-group')).toHaveCount(2);
+ await expect(page.getByRole('heading',{name:'Your HALO',level:2})).toBeVisible();expect(await skips('body')).toEqual([]);
+ for(const panel of ['home','display','notifications','luna','privacy','about']){
+  await page.goto(`/app/settings?open=${panel}`);await expect(page.locator('.hp-panel-heading h2')).toBeVisible();
+  for(const summary of await page.locator('.halo-settings summary').all())await summary.click();
+  expect(await skips('body'),panel).toEqual([]);
+ }
+ await page.goto('/plan');await page.getByRole('button',{name:/^Alerts/}).first().click();
+ await expect(page.getByRole('heading',{name:'Alerts',level:2})).toBeVisible();expect(await skips('dialog[open]')).toEqual([]);
+ expect(network.blocked).toEqual([]);
+});

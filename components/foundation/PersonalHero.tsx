@@ -7,7 +7,8 @@ import SeverityPill from '@/components/ui/SeverityPill';
 import { Callout, ProvenancePill } from '@/components/ui/Foundation';
 import { learnTopic } from '@/lib/learnContent';
 import { displayText } from '@/lib/frontend/onboarding';
-import { factorColor, factorReadings, homeFactorKeys, personalFactorKeys, previewRiskShares, type FactorKey, type FactorReading } from '@/lib/frontend/factor-preview';
+import { dateLabel } from '@/lib/frontend/stage-values';
+import { factorColor, factorReadings, homeFactorKeys, personalFactorKeys, previewRiskShares, readingMissing, type FactorKey, type FactorReading } from '@/lib/frontend/factor-preview';
 import type { FoundationScenario } from '@/lib/frontend/foundation-preview';
 import EnvironmentalScene from './EnvironmentalScene';
 import { CompactContributionBar, type ScoreSegment } from './SegmentedScore';
@@ -48,6 +49,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
   const severity = overview ? overview.severity : fixture.severity;
   const segments: ScoreSegment[] = keys.filter(key => key !== 'lead').map((key, index) => ({
     key, label: readings[key].shortTitle, color: factorColor(key), href: factorHref(key),
+    ...(runtime && readings[key].severity === 'no_data' && !readingMissing(readings[key]) ? { absentLabel: readings[key].unscored?.label } : {}),
     share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
   }));
   return <div className="halo-ph-overview halo-environment-briefing" data-home={home} data-workspace={home && homeWorkspace}>
@@ -68,8 +70,8 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     <section className="halo-environment-evidence" aria-label={home ? 'Home environmental evidence' : 'Your environmental readings'}>
     <div className="halo-ph-section-label"><h2>{home ? 'Understand the evidence' : 'Your readings'}</h2><span>Open a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
-      const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? factor.severity === 'no_data' : missing || (partial && key === missingKey);
-      return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} unscoredLabel={factor.unscored?.label} /></Reveal>;
+      const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? readingMissing(factor) : missing || (partial && key === missingKey);
+      return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} unscoredLabel={noData ? undefined : factor.unscored?.label} /></Reveal>;
     })}</div>
     <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score. Area evidence does not measure conditions inside your home.' : 'Readings can update at different times. Open a factor for its source, history and practical steps.'} Estimates are identified in each factor.</p>
     </section>
@@ -113,7 +115,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
   const runtime = useStageRuntime();
   const readings = runtime?.readings ?? factorReadings;
   const base = reading ?? readings[factorKey];
-  const missing = runtime ? base.severity === 'no_data' : scenario === 'no-data' || scenario === 'card-no-data' || (scenario === 'partial' && factorKey === 'pollen');
+  const missing = runtime ? readingMissing(base) : scenario === 'no-data' || scenario === 'card-no-data' || (scenario === 'partial' && factorKey === 'pollen');
   const offline = scenario === 'offline';
   const factor: FactorReading = missing && !runtime ? { ...base, score: null, severity: 'no_data', reading: 'No data', unit: '', why: null, householdNote: null, trend: [] } : base;
   const Icon = factorIcons[factorKey];
@@ -129,7 +131,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
     <section className="halo-ph-factor-hero"><EnvironmentalScene variant={factorKey} />
       <div className="halo-ph-scene-content"><div className="halo-ph-scene-top"><span><Icon size={18} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
         <Reveal><div className="halo-ph-detail-score"><span className="halo-ph-kicker">{factorKey === 'lead' ? 'Not part of the score' : factor.score === null && !missing && factor.unscored ? factor.unscored.kicker : 'Factor score'}</span><strong data-empty={factor.score === null}>{factor.score === null ? (missing ? 'No data' : factor.unscored?.label ?? 'Not scored') : <AnimatedNumber value={factor.score} />}</strong>{factor.score !== null && <span>out of 100 · higher is better</span>}</div></Reveal>
-        <div className="halo-ph-reading-capsule"><b>{factor.reading}</b><span>{factor.unit}</span></div><SeverityPill severity={factor.severity} />
+        <div className="halo-ph-reading-capsule"><b>{factor.reading}</b>{!missing && factor.unit && <span>{factor.unit}</span>}</div>{(missing || factor.severity !== 'no_data') && <SeverityPill severity={factor.severity} />}
       </div>
     </section>
     <nav className="halo-ph-page-nav" aria-label="On this factor page"><PreviewSectionLink target="reading-overview">Summary</PreviewSectionLink><PreviewSectionLink target="reading-detail">Details</PreviewSectionLink><PreviewSectionLink target="protection">Tips</PreviewSectionLink><PreviewSectionLink target="reading-sources">References</PreviewSectionLink></nav>
@@ -218,12 +220,12 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
         {ratio !== null ? <><div className="halo-ph-limit" role="img" aria-label={`${row.name}, ${row.value_ppt} parts per trillion, ${ratio.toFixed(1)} times the supplied limit${ratio > 2 ? ', continues beyond the chart' : ''}`}><span style={{ width: `${Math.min(100, ratio * 50)}%` }} data-exceeds={row.exceeds_limit} /><i />{ratio > 2 && <b aria-hidden="true">›</b>}</div>
           <div className="halo-ph-axis"><span>0</span>{live ? <span>{row.is_enforceable === false ? 'Benchmark' : 'Limit'} {row.limit_ppt} ppt</span> : <span>Limit {row.limit_ppt} ppt</span>}<span>2×</span></div></> : <p className="halo-f-meta">No comparison limit supplied. Shown, not scored.</p>}
         {live && <p className="halo-f-meta">{row.is_enforceable === false ? 'Health guidance benchmark, not an enforceable federal limit.' : row.is_enforceable === true ? 'Enforceable limit identified by the supplied dataset.' : 'Comparison status has not been supplied.'}{row.exceeds_limit ? ' Reported above this comparison value.' : ''}</p>}
-        {live && row.date_iso && <p className="halo-f-meta">Sampled {row.date_iso}</p>}
+        {live && row.date_iso && <p className="halo-f-meta">Sampled <time dateTime={row.date_iso}>{dateLabel(row.date_iso)}</time></p>}
         {live && row.proposed_for_rescission && <p className="halo-f-meta">This comparison uses a limit identified by the dataset as proposed for rescission.</p>}
       </div>;
     })}</div>
     {details.water.lithium_ug_l !== null && <div className="halo-ph-unscored"><span><b>Lithium</b><small>Shown, not scored</small></span><strong>{details.water.lithium_ug_l.toFixed(1)} µg/L</strong></div>}
-    <p className="halo-f-meta">The marker uses the limit supplied with the result. No enforceable limit is assigned to lithium here.</p>
+    <p className="halo-f-meta">The marker uses the limit supplied with the result.{details.water.lithium_ug_l !== null ? ' No enforceable limit is assigned to lithium here.' : ''}</p>
     <a className="halo-ph-inline-link" href="#protection">Understand filter options <ArrowUpRight size={16} aria-hidden="true" /></a>
   </section>;
   if (factor.key === 'radon' && details.radon) return <section className="halo-ph-panel">

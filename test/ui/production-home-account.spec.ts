@@ -44,3 +44,17 @@ test('saved summary opens the server-frozen snapshot, not the current home recor
  const network=await mockProduction(page,{'/api/summaries':route=>jsonRoute(route,{items:[archive],complete:true,unresolvedOperations:[]}),'/api/summaries/detail':route=>jsonRoute(route,snapshot),'/api/frontend/workspace':(route,url)=>jsonRoute(route,{records:url.searchParams.get('collection')==='tests'?[{...owned,title:'Newer test title',revision:8}]:[],revision:8,complete:true,pendingOperations:[]})});
  await page.goto('/home?destination=summary');await page.getByText('Saved summaries · 1',{exact:true}).click();await page.getByRole('button',{name:/October private summary/}).click();await page.getByText('Review included information',{exact:true}).click();await expect(page.getByText('Frozen source revision four.',{exact:true})).toBeVisible();await expect(page.locator('.hg-summary-preview')).not.toContainText('Newer test title');expect(network.requests.filter(item=>item.path==='/api/summaries'&&item.method==='POST')).toHaveLength(0);expect(network.blocked).toEqual([]);
 });
+
+test('with the home transition switched off, Settings still offers a working address change',async({page})=>{
+ const off={code:'feature_unavailable',message:'That part of your account is not available yet.',retryable:false};
+ const network=await mockProduction(page,{'/api/account':(route,url)=>url.searchParams.get('feature')==='home'?jsonRoute(route,off,503):jsonRoute(route,{feature:url.searchParams.get('feature'),revision:1,unresolvedOperations:[],enabled:false,reason:'Connection not configured.',recovery:{method:null,challenge:null,devices:[]}})});
+ await page.goto('/app/settings?open=home');await page.getByText('Home location',{exact:true}).click();
+ const flow=page.locator('details[open]').filter({hasText:'Home location'});
+ await expect(flow.getByText('This is not available yet. Your existing records are unchanged.',{exact:true})).toBeVisible();
+ await expect(flow.getByRole('button',{name:'Try again',exact:true})).toHaveCount(0);
+ await expect(flow.getByLabel('City or ZIP code',{exact:true})).toHaveCount(0);
+ await flow.getByRole('link',{name:'Change address',exact:true}).click();
+ await expect(page).toHaveURL(/\/onboarding\?change=1$/);await expect(page.getByRole('heading',{name:'Where do you live?',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Back',exact:true}).click();await expect(page).toHaveURL(/\/settings$/);
+ expect(network.requests.filter(request=>request.method!=='GET')).toEqual([]);expect(network.blocked).toEqual([]);
+});

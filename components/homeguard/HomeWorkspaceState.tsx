@@ -8,7 +8,6 @@ import {recordFingerprint} from '@/lib/frontend/settings-preview';
 import { acceptedHomeReceipt, homeReceiptCoversCommand, validHomeChanges, validHomeRecords, type HomeCollectionSnapshot, type HomeWorkspaceCommand, type HomeWorkspaceReceipt, type HomeWorkspaceService } from '@/lib/frontend/production/home-service';
 import { validProductionCollection } from '@/lib/frontend/production/home-records';
 import { clearHomeDraft } from '@/lib/frontend/home-drafts';
-import { collectionView, homeSaveOffMessage } from '@/lib/frontend/collection-availability';
 
 export type HomeScenario = 'ready' | 'empty' | 'loading' | 'error' | 'offline' | 'stale' | 'conflict' | 'save-error';
 export type HomeRecord = { id: string; title: string; revision: number; homeContextId?:string };
@@ -214,8 +213,8 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
   async function write(key: string, record: HomeRecord, checkCurrent?:()=>boolean) {
     if (service) {
       if (checkCurrent && !checkCurrent()) { setMessage('The reviewed information changed. Reopen the review. Your draft is kept.'); return false; }
-      // A switched-off capability is a settled answer: no reload loop, and nothing is sent.
-      if (collectionView(statesRef.current[key]) === 'off') { setMessage(homeSaveOffMessage); return false; }
+      // A collection switched off on the server (503 feature_unavailable) cannot be loaded into readiness: say so.
+      if (statesRef.current[key]?.featureUnavailable) { setMessage('Saving these records is not available yet. Nothing was saved, and your draft is kept.'); return false; }
       if (statesRef.current[key]?.status !== 'ready') { setMessage('Load the current records before saving. Your draft is kept.'); void loadCollection(key); return false; }
       const current = recordsRef.current[key]?.find(item => item.id === record.id);
       if (current && current.revision !== record.revision) { setMessage('This record changed. Your draft is kept. Review the latest version before saving.'); return false; }

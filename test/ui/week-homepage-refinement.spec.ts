@@ -18,6 +18,8 @@ test('homepage leads with daily work and exposes retained calendar controls on d
   await expect(page.locator('.mw-day-empty')).toHaveText('No plans for this day.');
   const calendar=await page.locator('.mw-calendar').boundingBox(),agenda=await page.locator('.mw-agenda').boundingBox(),overview=await page.locator('.mw-overview').boundingBox();
   expect(calendar!.y).toBeLessThan(agenda!.y);expect(agenda!.y).toBeLessThan(overview!.y);
+  // An empty week opens with starter ideas (bounded in my-week-starters.spec.ts); measure the planner once they are hidden.
+  await page.getByRole('button',{name:'Hide these ideas',exact:true}).click();
   // The primary planning surface remains above the supporting overview stack.
   expect((await page.locator('.mw-dashboard-main').boundingBox())!.height).toBeLessThan(850);
   expect((await page.locator('.mw-workspace').boundingBox())!.height).toBeLessThan(1600);

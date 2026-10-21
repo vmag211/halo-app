@@ -64,7 +64,7 @@ test('a save reached by a direct link is refused locally and never sent', async 
   await page.getByLabel('Home or site context (required)').selectOption(homeId);
   await page.getByLabel('Purpose (required)').fill('Document the level downstairs.');
   await page.getByRole('button', { name:'Save test plan', exact:true }).click();
-  await expect(page.getByText('Saving Homeguard records is not available yet. Nothing was saved. Your draft is kept.').first()).toBeVisible();
+  await expect(page.getByText('Saving these records is not available yet. Nothing was saved, and your draft is kept.').first()).toBeVisible();
   await expect(page.getByLabel('Test label (required)')).toHaveValue('Basement radon');
   await expect(page.getByRole('button', { name:'Check save status' })).toHaveCount(0);
   expect(commands).toEqual([]);
@@ -121,5 +121,25 @@ test('with private files off, a photo upload says so beside the photo and leaves
   await expect(page.getByText('A private file request needs a status check before another change.')).toHaveCount(0);
   await expect(page.getByRole('button', { name:'Check save status' })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name:'Observation label' })).toHaveValue('Damp corner');
+  expect(network.blocked).toEqual([]);
+});
+
+test('known-off capabilities settle every Homeguard screen without sending a read', async ({ page }) => {
+  const reads: string[] = [];
+  const network = await mockProduction(page, {
+    '/api/frontend/capabilities': route => jsonRoute(route, { capabilities:{ workspace:false, attachments:false, summaries:false, tasks:true } }),
+    '/api/frontend/workspace': route => { reads.push(route.request().url()); return jsonRoute(route, workspaceOff, 503); },
+    '/api/summaries': route => { reads.push(route.request().url()); return jsonRoute(route, summariesOff, 503); },
+  });
+  await page.goto('/app/homeguard');
+  await expect(page.locator('#home-workspace').getByRole('status')).toHaveText(notice);
+  for (const section of ['tests', 'maintenance', 'food', 'summary']) {
+    await page.goto(`/app/homeguard/${section}`);
+    await expect(page.locator('.hg-workspace .hg-notice[role="status"]').first()).toHaveText(notice);
+    await expect(page.locator('.hg-workspace').getByRole('button', { name:'Try again' })).toHaveCount(0);
+    await expect(page.getByText('This service is unavailable')).toHaveCount(0);
+  }
+  await expect(page.getByText('Household summaries are not available yet. Nothing has changed, and your selections are kept.')).toBeVisible();
+  expect(reads).toEqual([]);
   expect(network.blocked).toEqual([]);
 });

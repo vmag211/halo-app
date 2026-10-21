@@ -77,7 +77,7 @@ test('one reminder manager retains requested tasks and exact schedule access',as
   await expect(page.locator('.mw-reminder-panel')).toHaveCount(0);
   await page.locator('.mw-automation-tools > summary').click();
   await page.getByRole('button',{name:/^Reminders/}).click();
-  await expect(page.locator('#homepage-hub')).toContainText('1 requested task reminders');
+  await expect(page.locator('#homepage-hub')).toContainText(/1 requested task reminder(?!s)/);
   await expect(page.locator('#homepage-hub')).toContainText('Scheduling and delivery are not confirmed.');
   await page.locator('#homepage-hub').getByRole('button',{name:/^Check the new radon result/}).click();
   await expect(detail.getByLabel('Task title',{exact:true})).toHaveValue('Check the new radon result');

@@ -7,12 +7,15 @@ import { DeletableRecord } from '@/components/homeguard/HomeWorkspaceUI';
 import { useHomeCollection, useHomeDraft, useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { blankEngagement, engagementError, noEngagements, safePublicLink, type Engagement } from '@/lib/frontend/explore-workspace';
 import type { ExploreSection } from '@/lib/frontend/explore-preview';
+import { collectionView } from '@/lib/frontend/collection-availability';
+import { commitmentsOff } from '@/lib/frontend/explore-availability';
 import { SaveExplore, ShareTools } from './ExploreShared';
 
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
 
 export default function VolunteerCommitments({ go, view = 'list', id = '' }: { go: Go; view?: string; id?: string }) {
   const collection = useHomeCollection<Engagement>('exploreEngagements', noEngagements);
+  const workspace = useHomeWorkspace();
   const [filter, setFilter] = useHomeDraft('explore:commitment-filter', 'Active');
   const record = collection.records.find(item => item.id === id);
   if (view === 'new' || view === 'edit') return <CommitmentForm key={record?.id ?? 'new'} record={record} edit={view === 'edit'} save={collection.save} go={go} />;
@@ -20,8 +23,12 @@ export default function VolunteerCommitments({ go, view = 'list', id = '' }: { g
     if (!record) return <div className="ex-empty"><h3>This commitment is unavailable</h3><button className="ex-button" onClick={() => go('opportunities')}>Back to Volunteer</button></div>;
     return <CommitmentDetail record={record} go={go} />;
   }
+  // A list that did not load is not an empty one; switched off on the server is settled and offers no retry.
+  const failed = workspace.mode === 'production' && collection.status?.status === 'error';
+  const off = failed && collectionView(collection.status) === 'off';
+  const loadingList = workspace.mode === 'production' && (!collection.status || collection.status.status === 'loading') && !collection.records.length;
   const matches = collection.records.filter(item => filter === 'All' || (filter === 'Closed' ? item.status === 'Closed' : item.status !== 'Closed'));
-  return <section className="ex-commitments" aria-label="My volunteering commitments"><header className="ex-section-heading"><HandHeart size={24} aria-hidden="true" /><h3>My volunteering</h3><p>Keep organizer details, preparation and what you did together.</p></header><button className="ex-button" onClick={() => go('opportunities', 'new')}><Plus size={17} aria-hidden="true" />Add my own opportunity</button>{collection.records.length > 0 && <label>Commitment view<select value={filter} onChange={event => setFilter(event.target.value)}>{['Active', 'Closed', 'All'].map(value => <option key={value}>{value}</option>)}</select></label>}<div className="ex-commitment-list">{matches.map(item => <DeletableRecord key={item.id} title={item.title} deletion={{ remove: () => collection.remove(item.id), description: 'Remove only this private commitment and its update history. Independent My Week tasks remain. This does not cancel anything with an organizer.' }}><button className="ex-commitment-row" onClick={() => go('opportunities', 'detail', item.id)}><small>{item.cause} · {item.status}</small><strong>{item.title}</strong><span>{item.organizer}</span>{item.date && <small><CalendarDays size={14} aria-hidden="true" /> {item.date}, reported by you</small>}<ArrowRight size={17} aria-hidden="true" /></button></DeletableRecord>)}</div>{!matches.length && <p className="ex-meta">{collection.records.length ? 'No commitments in this view.' : 'Your commitments will appear here after you choose an opportunity.'}</p>}</section>;
+  return <section className="ex-commitments" aria-label="My volunteering commitments"><header className="ex-section-heading"><HandHeart size={24} aria-hidden="true" /><h3>My volunteering</h3><p>Keep organizer details, preparation and what you did together.</p></header><button className="ex-button" disabled={off} onClick={() => go('opportunities', 'new')}><Plus size={17} aria-hidden="true" />Add my own opportunity</button>{collection.records.length > 0 && <label>Commitment view<select value={filter} onChange={event => setFilter(event.target.value)}>{['Active', 'Closed', 'All'].map(value => <option key={value}>{value}</option>)}</select></label>}<div className="ex-commitment-list">{matches.map(item => <DeletableRecord key={item.id} title={item.title} deletion={{ remove: () => collection.remove(item.id), description: 'Remove only this private commitment and its update history. Independent My Week tasks remain. This does not cancel anything with an organizer.' }}><button className="ex-commitment-row" onClick={() => go('opportunities', 'detail', item.id)}><small>{item.cause} · {item.status}</small><strong>{item.title}</strong><span>{item.organizer}</span>{item.date && <small><CalendarDays size={14} aria-hidden="true" /> {item.date}, reported by you</small>}<ArrowRight size={17} aria-hidden="true" /></button></DeletableRecord>)}</div>{off ? <p className="ex-meta" role="status">{commitmentsOff}</p> : failed ? <p className="ex-meta" role="alert">Your commitments could not load. Nothing was changed.{' '}<button className="ex-text-button" onClick={() => void collection.retry()}>Try again</button></p> : loadingList ? <p className="ex-meta" role="status">Opening your commitments...</p> : !matches.length && <p className="ex-meta">{collection.records.length ? 'No commitments in this view.' : 'Your commitments will appear here after you choose an opportunity.'}</p>}</section>;
 }
 
 function CommitmentDetail({ record, go }: { record: Engagement; go: Go }) {

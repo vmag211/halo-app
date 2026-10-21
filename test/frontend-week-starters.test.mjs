@@ -91,3 +91,10 @@ test('an empty day or agenda says completed work is hidden instead of claiming n
   assert.equal(hiddenCompletedCount([done],{...view,filter:'Home'}),0);
   assert.equal(hiddenCompletedCount([{...done,date:''}],view),0,'undated completed work is not a dated plan');
 });
+
+test('week counts agree with their noun',async()=>{
+  const {countLabel}=await loadFrontend('week-preview');
+  assert.equal(countLabel(1,'completed action','completed actions'),'1 completed action');
+  assert.equal(countLabel(0,'item','items'),'0 items');
+  assert.equal(countLabel(2,'item','items'),'2 items');
+});

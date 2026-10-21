@@ -27,6 +27,9 @@ const CHARLOTTE = placeById('us-place:3712000');
 const ZIP_28208 = placeById('us-zcta:28208');
 const UNION = placeById('us-county:37179');
 const UNAVAILABLE = 'This service is unavailable. Try again later.';
+// A 503 feature_unavailable read (flag off, or before 0032) is settled: the screen says not available yet (no retry).
+const LISTINGS_OFF = 'Local listings are not available yet. Use the organizers’ official sites below.';
+const ORGANIZATIONS_OFF = 'Organization profiles are not available yet. Use the official resources below.';
 const VALIDATION = 'Check the highlighted information and try again.';
 const PATHS = { opportunities: '/api/opportunities', detail: '/api/opportunities/detail', organizations: '/api/explore/organizations' };
 const q = (params) => `?${new URLSearchParams(params)}`;
@@ -228,9 +231,9 @@ test('no session is a 401; the flag off is the non-retryable 503 with nothing re
   }
   assert.deepEqual(w.calls, [], 'off by the flag nothing is read');
   const s = await fe.opportunitiesScreen(w.runtime(), { area: MECKLENBURG });
-  assert.deepEqual([s.result, s.status, s.empty], [null, UNAVAILABLE, null]);
+  assert.deepEqual([s.result, s.status, s.empty], [null, LISTINGS_OFF, null]);
   const o = await fe.organizationsScreen(w.runtime(), { area: MECKLENBURG });
-  assert.equal(o.line, UNAVAILABLE);
+  assert.equal(o.line, ORGANIZATIONS_OFF);
 });
 
 test('before 0032 every route is the same 503; a failed directory read is a 500; neither is ever an empty list on screen', async (t) => {
@@ -259,7 +262,7 @@ test('before 0032 every route is the same 503; a failed directory read is a 500;
   const o = await fe.organizationsScreen(failing.runtime(), { area: MECKLENBURG });
   assert.equal(o.line, UNAVAILABLE);
   const s0 = await fe.opportunitiesScreen(before0032.runtime(), { area: MECKLENBURG });
-  assert.deepEqual([s0.status, s0.empty], [UNAVAILABLE, null]);
+  assert.deepEqual([s0.status, s0.empty], [LISTINGS_OFF, null]);
 });
 
 test('malformed queries are 400s with field errors, before anything is read', async () => {

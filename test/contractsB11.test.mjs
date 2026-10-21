@@ -506,6 +506,7 @@ test('drift: the runtime sentences and the provider lines the suite relies on ar
   for (const line of [
     'Check the pending save status before making another change. Your draft is kept.',
     'Load the current records before saving. Your draft is kept.',
+    'Saving these records is not available yet. Nothing was saved, and your draft is kept.',
     'Save status is still unavailable. Your draft remains here. Do not repeat the change.',
     'The save result could not be verified. Check its status before trying another change.',
     'The saved response could not be read. Check its status before trying another change.',
@@ -1237,6 +1238,10 @@ test('client: with the capability off every collection is an error and a save is
   const off = await world({ env: OFF });
   const ws = await loaded(off);
   for (const key of STORED_COLLECTIONS) assert.deepEqual([ws.status(key).status, ws.status(key).message], ['error', SENTENCE.unavailable], key);
+  assert.deepEqual(lockedIds(ws), []);
+  // A save into a switched-off collection says so, rather than asking for a load that can never succeed.
+  assert.equal(await ws.write('exploreNotes', { id: 'note-off', title: 'Kept draft', revision: 0 }), false);
+  assert.equal(ws.state.message, 'Saving these records is not available yet. Nothing was saved, and your draft is kept.');
   assert.deepEqual(lockedIds(ws), []);
   // The provider never sends a save for a collection that did not load; a direct command is the disabled receipt.
   const receipt = await (await off.command(write('tests', test1(off)))).json();
