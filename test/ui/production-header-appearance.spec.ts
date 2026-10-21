@@ -31,6 +31,8 @@ for(const viewport of [{width:390,height:844,name:'phone'},{width:1440,height:90
   const menu=page.getByRole('dialog',{name:'Appearance',exact:true});await expect(menu).toBeVisible();
   await expect(button).toHaveAttribute('aria-expanded','true');
   await expect(menu.getByRole('radio',{name:'Dark',exact:true})).toBeFocused();
+  // Ambient animation is always on, so the menu has only the contrast switch.
+  await expect(menu.getByRole('switch')).toHaveCount(1);await expect(menu.getByText('Ambient animation')).toHaveCount(0);
   const box=(await menu.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(viewport.width);expect(box.y+box.height).toBeLessThanOrEqual(viewport.height);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
   await shot(page,`header-appearance-${viewport.name}-dark.png`,info);
@@ -38,7 +40,7 @@ for(const viewport of [{width:390,height:844,name:'phone'},{width:1440,height:90
   await menu.getByRole('radio',{name:'Light',exact:true}).check();
   await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','light');
   expect(settings.state.saves).toHaveLength(1);expect(settings.state.matches).toEqual(['1']);
-  expect(settings.state.saves[0]).toMatchObject({group:'display',values:settingsSnapshot.values,calendar:settingsSnapshot.calendar,display:{appearance:'light',ambient:false,scale:'100',motion:'reduce',contrast:false,palette:'ocean'}});
+  expect(settings.state.saves[0]).toMatchObject({group:'display',values:settingsSnapshot.values,calendar:settingsSnapshot.calendar,display:{appearance:'light',ambient:true,scale:'100',motion:'reduce',contrast:false,palette:'ocean'}});
   await expect(menu.getByRole('status')).toHaveText('Saved.');
   await menu.getByRole('radio',{name:'Forest',exact:true}).check();
   await expect(page.getByTestId('foundation-product')).toHaveAttribute('data-palette','forest');

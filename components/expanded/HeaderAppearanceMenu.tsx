@@ -11,7 +11,7 @@ import './settings-refinement.css';
 import './header-appearance.css';
 
 const modeIcons={system:Monitor,light:Sun,dark:Moon};
-const copy={button:'Appearance',title:'Appearance',mode:'Mode',palette:'Color theme',scale:'Text size',motion:'Motion',contrast:'Higher contrast',ambient:'Ambient animation',
+const copy={button:'Appearance',title:'Appearance',mode:'Mode',palette:'Color theme',scale:'Text size',motion:'Motion',contrast:'Higher contrast',
  saving:'Saving…',saved:'Saved.',loading:'Your display settings are loading.',offline:'You are offline. Display changes are paused.',kept:'Your settings were saved. This connection kept the default color theme.',status:'Check save status',settings:'All display settings'};
 
 /**
@@ -52,9 +52,8 @@ export default function HeaderAppearanceMenu({display,onDisplay,offline,onOpenSe
   if(blocked)return;
   if(!production){
    const next={...display,...choice};setMessage('');
-   onDisplay({scale:next.scale,motion:next.motion,contrast:next.contrast,palette:next.palette,appearance:next.appearance,ambient:next.ambient});
+   onDisplay({scale:next.scale,motion:next.motion,contrast:next.contrast,palette:next.palette,appearance:next.appearance});
    if(choice.appearance)workspace.setDraft(appearancePreferenceKey,()=>choice.appearance);
-   if(choice.ambient!==undefined)workspace.setDraft('halo-ambient',()=>choice.ambient);
    return;
   }
   setRequested(current=>({...current,...choice}));
@@ -68,7 +67,7 @@ export default function HeaderAppearanceMenu({display,onDisplay,offline,onOpenSe
    <fieldset className="halo-appearance-palettes"><legend>{copy.palette}</legend><div>{options.palette.map(option=><label key={option.value} data-palette={option.value}><input {...radios('palette',option.value)}/><span className="hp-palette-swatch" aria-hidden="true"><i/><i/><i/></span><span>{option.label}</span><Check size={15} aria-hidden="true"/></label>)}</div></fieldset>
    <fieldset className="halo-appearance-segments"><legend>{copy.scale}</legend><div>{options.scale.map(option=><label key={option.value}><input {...radios('scale',option.value)}/><span>{option.label}</span></label>)}</div></fieldset>
    <fieldset className="halo-appearance-segments"><legend>{copy.motion}</legend><div>{options.motion.map(option=><label key={option.value}><input {...radios('motion',option.value)}/><span>{option.label}</span></label>)}</div></fieldset>
-   {([['contrast',copy.contrast],['ambient',copy.ambient]] as const).map(([key,title])=><label key={key} className="hp-toggle halo-appearance-toggle"><span><strong>{title}</strong></span><input type="checkbox" role="switch" aria-label={title} checked={shown[key]} aria-disabled={blocked||undefined} onChange={event=>choose({[key]:event.target.checked})}/><span className="hp-switch" aria-hidden="true"><i/></span></label>)}
+   <label className="hp-toggle halo-appearance-toggle"><span><strong>{copy.contrast}</strong></span><input type="checkbox" role="switch" aria-label={copy.contrast} checked={shown.contrast} aria-disabled={blocked||undefined} onChange={event=>choose({contrast:event.target.checked})}/><span className="hp-switch" aria-hidden="true"><i/></span></label>
    <footer><p role="status">{status}</p>{production?.unknown&&<button type="button" className="hp-text" disabled={production.pending} onClick={()=>void production.reconcile()}>{copy.status}</button>}<button type="button" className="hp-text" onClick={()=>{setOpen(false);onOpenSettings();}}>{copy.settings}</button></footer>
   </div>}
  </div>;
