@@ -20,3 +20,26 @@ test('legacy Luna source lists are not silently promoted to claim-level evidence
  await expect(page.locator('.lc-answer')).toContainText('An older response.');await expect(page.locator('.lc-evidence')).toHaveCount(0);
  await page.getByText('Sources and scope',{exact:true}).click();await expect(page.locator('.lc-sources')).toContainText('not linked to individual statements');
 });
+
+test('a switched-off Luna says so once, with no retry and no conversation-load error',async({page})=>{
+ const off={available:false,providerLabel:'Luna is not available yet',retentionSummary:'You can still use HALO directly.',publicRetrieval:false,context:{tasks:false,home:false,projects:false},tools:[],reason:'Luna is switched off.'};
+ await mockProduction(page,{'/api/luna/capabilities':route=>jsonRoute(route,off),'/api/luna/conversations':route=>jsonRoute(route,{code:'feature_unavailable',error:{code:'feature_unavailable',message:'Luna is not available yet. Nothing was changed.'}},503)});
+ await page.goto('/today');await page.getByRole('button',{name:'Ask Luna',exact:true}).click();
+ const footer=page.locator('.lc-footer');
+ await expect(footer).toContainText('Luna is not available yet. You can still use HALO directly.');
+ await expect(footer).not.toContainText('could not load');
+ await expect(footer.getByRole('button',{name:'Try again'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Find local ways to volunteer'})).toBeDisabled();
+});
+
+test('a rate-limited new message leaves no request to check or cancel',async({page})=>{
+ const caps={available:true,providerLabel:'Luna answers questions from published sources',retentionSummary:'Answers are kept until you clear them.',publicRetrieval:false,context:{tasks:false,home:false,projects:false},tools:[]};
+ const network=await mockProduction(page,{'/api/luna/capabilities':route=>jsonRoute(route,caps),'/api/luna/messages':route=>jsonRoute(route,{error:{code:'rate_limited',message:'limit'}},429)});
+ await page.goto('/today');await page.getByRole('button',{name:'Ask Luna',exact:true}).click();
+ await page.getByLabel('Message Luna').fill('Is the air ok today?');await page.getByRole('button',{name:'Send message'}).click();
+ await expect(page.locator('.lc-footer')).toContainText('Please wait before trying again.');
+ await expect(page.getByRole('button',{name:'Check existing request'})).toHaveCount(0);
+ await expect(page.getByLabel('Message Luna')).toHaveValue('Is the air ok today?');
+ await expect(page.getByRole('button',{name:'Send message'})).toBeEnabled();
+ expect(network.requests.filter(request=>request.path.startsWith('/api/luna/runs'))).toEqual([]);
+});
