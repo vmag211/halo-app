@@ -197,3 +197,12 @@ test('rate-limit countdown expires after a successful soft refresh clears the er
   await expect(refresh).toHaveText('Refresh readings');
   await expect(refresh).toBeEnabled();
 });
+
+test('a missing reading says No data, without a unit after it', async ({ page }) => {
+  await mockStage(page);
+  for (const factor of ['air', 'pfas', 'radon']) {
+    await page.goto(`/factors/${factor}`);
+    await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('No data');
+    await expect(page.locator('.halo-ph-reading-capsule')).toHaveText('No data');
+  }
+});

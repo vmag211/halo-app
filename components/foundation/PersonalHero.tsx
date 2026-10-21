@@ -131,7 +131,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
     <section className="halo-ph-factor-hero"><EnvironmentalScene variant={factorKey} />
       <div className="halo-ph-scene-content"><div className="halo-ph-scene-top"><span><Icon size={18} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
         <Reveal><div className="halo-ph-detail-score"><span className="halo-ph-kicker">{factorKey === 'lead' ? 'Not part of the score' : factor.score === null && !missing && factor.unscored ? factor.unscored.kicker : 'Factor score'}</span><strong data-empty={factor.score === null}>{factor.score === null ? (missing ? 'No data' : factor.unscored?.label ?? 'Not scored') : <AnimatedNumber value={factor.score} />}</strong>{factor.score !== null && <span>out of 100 · higher is better</span>}</div></Reveal>
-        <div className="halo-ph-reading-capsule"><b>{factor.reading}</b><span>{factor.unit}</span></div>{(missing || factor.severity !== 'no_data') && <SeverityPill severity={factor.severity} />}
+        <div className="halo-ph-reading-capsule"><b>{factor.reading}</b>{!missing && factor.unit && <span>{factor.unit}</span>}</div>{(missing || factor.severity !== 'no_data') && <SeverityPill severity={factor.severity} />}
       </div>
     </section>
     <nav className="halo-ph-page-nav" aria-label="On this factor page"><PreviewSectionLink target="reading-overview">Summary</PreviewSectionLink><PreviewSectionLink target="reading-detail">Details</PreviewSectionLink><PreviewSectionLink target="protection">Tips</PreviewSectionLink><PreviewSectionLink target="reading-sources">References</PreviewSectionLink></nav>
