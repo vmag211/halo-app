@@ -64,11 +64,11 @@ export function homeWorkspace(service) {
     }
   }
 
-  async function loadCollection(key, force = false) {
+  async function loadCollection(key, force = false, background = false) {
     if (!force && state.collectionStates[key]) return;
     const version = (loadVersions.get(key) ?? 0) + 1; loadVersions.set(key, version);
     const request = new AbortController();
-    collectionState(key, { ...state.collectionStates[key], status: 'loading', complete: false });
+    if (!background) collectionState(key, { ...state.collectionStates[key], status: 'loading', complete: false });
     try {
       const snapshot = await service.load(key, request.signal);
       if (loadVersions.get(key) !== version) return;
@@ -86,10 +86,10 @@ export function homeWorkspace(service) {
   async function retry(key) {
     await Promise.all((key ? [key] : Object.keys(state.collectionStates)).map(name => loadCollection(name, true)));
   }
-  function unresolved(command, message) {
+  function unresolved(command, message, announce = true) {
     unknown.set(command.operationId, command);
     state.unknownOperations = [...unknown.keys()].map(operationId => ({ operationId, message }));
-    state.message = message;
+    if (announce) state.message = message;
   }
   function applyReceipt(command, receipt) {
     if (receipt.operationId !== command.operationId || !['succeeded', 'failed', 'pending', 'unknown'].includes(receipt.status)) {
@@ -105,7 +105,11 @@ export function homeWorkspace(service) {
     resolved.add(command.operationId);
     unknown.delete(command.operationId);
     state.unknownOperations = state.unknownOperations.filter(item => item.operationId !== command.operationId);
-    if (receipt.status === 'failed') { state.message = receipt.message || 'The change was not saved. Your draft is kept.'; return false; }
+    if (receipt.status === 'failed') {
+      state.message = receipt.message || 'The change was not saved. Your draft is kept.';
+      if (receipt.code === 'conflict' && command.kind !== 'recovered') for (const key of command.kind === 'write' || command.kind === 'remove' ? [command.collection] : command.kind === 'remove-notes' ? ['exploreNotes', 'exploreOutcomes'] : []) void loadCollection(key, true, true);
+      return false;
+    }
     for (const [key, revision] of Object.entries(receipt.revisions ?? {})) collectionState(key, { ...state.collectionStates[key], status: 'ready', complete: true, revision });
     if (command.kind === 'clear-private') {
       if (command.scope === 'all') commit(Object.fromEntries(Object.keys(state.collections).map(key => [key, []])));
@@ -178,7 +182,7 @@ export function homeWorkspace(service) {
     service,
     get unknownOperations() { return state.unknownOperations; },
     applyCanonical,
-    trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.'),
+    trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.', false),
     resolvePendingOperation: operationId => { resolved.add(operationId); unknown.delete(operationId); state.unknownOperations = state.unknownOperations.filter(item => item.operationId !== operationId); },
   };
 }

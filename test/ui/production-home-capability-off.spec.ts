@@ -99,3 +99,27 @@ test('a real outage still reports the failure and offers Try again', async ({ pa
   await expect(page.getByRole('heading', { name:'Start your home record' })).toBeVisible();
   expect(network.blocked).toEqual([]);
 });
+
+test('with private files off, a photo upload says so beside the photo and leaves no stale lock alert', async ({ page }) => {
+  const filesOff = off('Private files are not available yet. Nothing was saved.');
+  const network = await mockProduction(page, { '/api/attachments': route => jsonRoute(route, filesOff, 403) });
+  await page.goto('/app/homeguard/maintenance?homeView=observation');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  await page.locator('input[type=file]').setInputFiles({ name:'damp.png', mimeType:'image/png', buffer:png });
+  const preview = page.getByRole('img', { name:'Selected observation attachment' });
+  const consent = page.getByRole('checkbox', { name:/I reviewed visible faces/ });
+  await expect(preview).toBeVisible();
+  // Consent sits with the photo it covers, not at the top of the form.
+  expect((await consent.boundingBox())!.y).toBeGreaterThan((await preview.boundingBox())!.y);
+  await consent.check();
+  await page.getByRole('textbox', { name:'Observation label' }).fill('Damp corner');
+  await page.getByRole('textbox', { name:'Observed date and time' }).fill('2026-10-20T08:30');
+  await page.getByRole('textbox', { name:/Measurement or observation source/ }).fill('Visual');
+  await page.getByRole('button', { name:'Save observation' }).click();
+  await expect(page.getByText('Private files are not available yet. Nothing was uploaded. Your draft is kept.')).toBeVisible();
+  await expect(page.getByText('This action is not available for this account.')).toHaveCount(0);
+  await expect(page.getByText('A private file request needs a status check before another change.')).toHaveCount(0);
+  await expect(page.getByRole('button', { name:'Check save status' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name:'Observation label' })).toHaveValue('Damp corner');
+  expect(network.blocked).toEqual([]);
+});

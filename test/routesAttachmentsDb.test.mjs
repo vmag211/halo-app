@@ -40,7 +40,8 @@ const NAME = 'PRIVATE-NAME kitchen tap report.jpg';
 const KEY = 'privacy-review-key-for-tests-only-0123456789';
 const OFF = Object.freeze({ HALO_FEATURE_WORKSPACE: 'on' });
 const STORED = 'Private file stored.';
-const NOT_AVAILABLE = 'This action is not available for this account.';
+// The upload 403 is settled (Ruling A6); the screen names the capability, not the account.
+const NOT_AVAILABLE = 'Private files are not available yet. Nothing was uploaded. Your draft is kept.';
 
 let db;
 before(async () => { db = await createDb(); });
