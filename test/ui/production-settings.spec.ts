@@ -84,3 +84,17 @@ test('settings disclosures and connection rows keep their icons, labels and stat
  expect(await page.locator('.hp-device-steps ol').evaluate(element=>getComputedStyle(element).listStyleType)).toBe('decimal');
  expect(network.blocked).toEqual([]);
 });
+
+test('Luna turned off reads as unavailable, not as a failed conversation history',async({page})=>{
+ const offline={error:{code:'feature_unavailable',message:'This feature is not available.'}};
+ const capabilities={available:false,providerLabel:'Not connected',retentionSummary:'No assistant is configured.',publicRetrieval:false,context:{tasks:false,home:false,projects:false},tools:[]};
+ let available=false;
+ const network=await mockProduction(page,{'/api/luna/conversations':route=>jsonRoute(route,offline,503),'/api/luna/capabilities':route=>jsonRoute(route,{...capabilities,available})});
+ await page.goto('/app/settings?open=luna');await expect(page.getByText('Luna is unavailable right now.',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Conversation history could not load/)).toHaveCount(0);
+ // When Luna is on, a failed history load still says so, with a separate retry.
+ available=true;await page.reload();
+ await expect(page.getByText('Conversation history could not load. Try again',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Try again',exact:true})).toBeVisible();
+ expect(network.blocked).toEqual([]);
+});
