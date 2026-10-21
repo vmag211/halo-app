@@ -43,6 +43,10 @@
  * test/forecastSnapshot.test.mjs read the files at test time, so a change to
  * any of those frontend lines fails them.
  */
+import { loadFrontend } from '../frontend-test-loader.mjs';
+
+/** The screen's readable zone name, loaded from the frontend module itself (lib/frontend/week-preview.ts). */
+const { zoneName } = await loadFrontend('week-preview');
 
 // ------------------------------------------- transcribed: WeekSources.tsx
 
@@ -122,7 +126,7 @@ export async function resourceRead(runtime,operation,input,serviceMessage){
 /** Line 44: the loading and error row above the periods, and the notices shown with periods. */
 export function forecastNotices(live,{forecastZone,expired,changed,needsReview,copy}){
  const status=live.production&&(live.loading||live.error)?{loading:live.loading?'Loading forecast':null,message:live.loading?null:live.error,retry:!!live.error&&'Retry forecast'}:null;
- const issuedLine=`Times in ${forecastZone}. Issued ${live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):''}.`;
+ const issuedLine=`Times in ${zoneName(forecastZone)}. Issued ${live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):''}.`;
  const expiredNotice=expired?{message:copy.forecastExpired,control:'Refresh forecast'}:null;
  const changedNotice=changed?{message:copy.forecastChanged,detail:live.production?live.data?.changedMessage:null,control:needsReview?'I reviewed these changes':'Changes reviewed'}:null;
  return {status,issuedLine,expiredNotice,changedNotice};
@@ -216,7 +220,7 @@ export const FRAGMENTS_T9 = Object.freeze([
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production&&(live.loading||live.error)' },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Loading forecast', source: '<HaloLoading label="Loading forecast" />' },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Retry forecast', source: '{live.error&&<button className="mw-text" type="button" onClick={live.retry}>Retry forecast</button>}' },
-  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Times in ', source: '<p className="mw-muted">Times in {forecastZone}. Issued {live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):' },
+  { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Times in ', source: '<p className="mw-muted">Times in {zoneName(forecastZone)}. Issued {live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):' },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'Refresh forecast', source: "{expired&&<div className=\"we-notice\" role=\"status\"><p>{copy.forecastExpired}</p><button className=\"mw-text\" type=\"button\" onClick={()=>{if(live.production)live.retry();else setReview({...review,forecast:'current'});setAcknowledged('');}}>Refresh forecast</button></div>}" },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production?live.data?.changedMessage:', source: "{changed&&<div className=\"we-notice\" role=\"status\"><p>{copy.forecastChanged}</p><p>{live.production?live.data?.changedMessage:" },
   { fn: forecastNotices, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: "needsReview?'I reviewed these changes':'Changes reviewed'" },
