@@ -48,13 +48,11 @@ type WorkspaceProps={href:Href;destination?:string;scoreScenario?:string};
 /** Dates come from the device clock only after hydration, and "today" advances past midnight. */
 export default function MyWeekWorkspace(props:WorkspaceProps){
   const now=useMinuteClock();
-  // Before hydration the hero wallpaper is still rendered, so it can load (or fail) while the page waits.
-  if(now===null)return props.destination?<section className="mw-workspace" aria-label="My Week workspace"><HaloLoading label="Loading My Week" layout="panel"/></section>:<section className="mw-workspace mw-dashboard" aria-label="My Week workspace"><header className="mw-command-header"><WeekAmbience className="mw-ambience-hero"><div className="mw-command-copy"/></WeekAmbience></header><HaloLoading label="Loading My Week" layout="panel"/></section>;
   return <MyWeekPlanner {...props} now={now}/>;
 }
-function MyWeekPlanner({href,destination,scoreScenario='shell',now}:WorkspaceProps&{now:number}){
+function MyWeekPlanner({href,destination,scoreScenario='shell',now}:WorkspaceProps&{now:number|null}){
   const state=useExpandedPreview()!;const workspace=useHomeWorkspace();const preferences=useProductionPreferences();
-  const [zone,setZone]=useHomeDraft('week:zone','America/New_York');const today=lunaCalendarAnchor(new Date(now),zone);
+  const [zone,setZone]=useHomeDraft('week:zone','America/New_York');const today=lunaCalendarAnchor(new Date(now??0),zone);
   const [date,setDate]=useHomeDraft('week:date',today);const [view,setView]=useHomeDraft<'Week'|'Month'|'Agenda'>('week:view','Week');
   const [metas]=useHomeDraft<Record<string,WeekMeta>>('week:metas',{});const [streak,setStreak]=useHomeDraft('week:streak',false);
   const [focus]=useHomeDraft('week:focus','');const [filter,setFilter]=useState('Everything');const [search,setSearch]=useState('');
@@ -151,6 +149,13 @@ function MyWeekPlanner({href,destination,scoreScenario='shell',now}:WorkspacePro
     setNotice(`Next task is on ${dayLabel(next)}. Existing occurrences were kept.`);closeSheet();
   }
   const row=(a:PreviewAction)=>{const activity=resolveWeekActivity(a,workspace.collections,active);return <article className="mw-task" data-kind={actionCategory(a)} data-completed={a.state==='completed'} key={a.id} draggable={!meta(a).paused&&a.state!=='completed'} onDragStart={e=>e.dataTransfer.setData('application/x-halo-action',a.id)}><span className="mw-task-symbol" aria-hidden="true">{activity.image?<ExplorePhoto scene={activity.image}/>:a.state==='completed'?<Check size={19}/>:actionCategory(a)==='Projects'?<Sprout size={19}/>:<Clock3 size={18}/>}</span><button className="mw-task-open" onClick={()=>open(a)}><strong>{a.title}</strong><small>{activity.label} · {meta(a).paused?'Paused':a.state==='completed'?'Completed by you':a.state==='waiting'?'Waiting':displayTime(a)||'Any time'}{a.date&&displayDay(a)!==date?` · ${dayLabel(displayDay(a),{month:'short',day:'numeric'})}`:''}</small>{activity.subtitle&&activity.subtitle!==a.title&&<small className="mw-task-context">{activity.subtitle}</small>}</button><div className="mw-task-actions">{!a.date&&a.state!=="completed"&&!meta(a).paused&&<button className="mw-icon mw-schedule-later" aria-label={`Schedule ${a.title}`} onClick={()=>openMove(a,date)}><CalendarPlus size={17}/></button>}<button className="mw-icon mw-quick-complete" disabled={meta(a).paused} aria-label={`${a.state==='completed'?'Reopen':'Complete'} ${a.title}`} onClick={()=>finishTask(a)}><Check size={16}/></button></div></article>;};
+  // Before hydration there is no device day yet. Render the same hero (so its wallpaper can load or fail
+  // while the page waits, and is kept rather than remounted) and nothing dated.
+  if(now===null)return destination?<section className="mw-workspace" aria-label="My Week workspace"><HaloLoading label="Loading My Week" layout="panel"/></section>:<section className="mw-workspace mw-dashboard" aria-label="My Week workspace">
+    <ExpandedActionStatus quietLoading />
+    <header className="mw-command-header"><WeekAmbience className="mw-ambience-hero"><div className="mw-command-copy"/></WeekAmbience></header>
+    <HaloLoading label="Loading My Week" layout="panel"/>
+  </section>;
   if(destination==='journal'||destination==='patterns'||destination==='recap')return <WeekJournal href={href} initialView={destination}/>;
   if(destination==='outdoors')return <WeekOutdoors href={href}/>;
   return <section className="mw-workspace mw-dashboard" aria-label="My Week workspace">
