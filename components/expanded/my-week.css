@@ -1,6 +1,8 @@
 .mw-workspace { --mw-accent:var(--halo-primary); --mw-paper:light-dark(#f9fcf8,#102a36); display:grid; gap:18px; min-width:0; text-align:left; font:400 calc(.9rem * var(--halo-text-scale))/1.5 var(--font-instrument),Arial,sans-serif; }
 .mw-workspace h2,.mw-workspace h3,.mw-workspace h4,.mw-workspace p { margin:0; }
 .mw-workspace h3 { font-size:calc(1.12rem * var(--halo-text-scale)); font-weight:650; }
+/* Follow-through subheadings are h3 for the outline but keep their small inline look. */
+.mw-workspace .mw-followup > h3 { font-size:inherit; font-weight:inherit; }
 .mw-workspace small,.mw-muted { color:var(--halo-secondary); font-size:calc(.78rem * var(--halo-text-scale)); }
 .mw-intro { position:relative; padding:3px 0 0; overflow:hidden; }
 .mw-eyebrow { color:var(--halo-primary); font-size:calc(.7rem * var(--halo-text-scale)); font-weight:650; letter-spacing:.045em; }
