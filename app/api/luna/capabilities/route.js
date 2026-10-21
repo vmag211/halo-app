@@ -3,6 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { requestIdFor, internalError } from '@/lib/apiErrors';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
 import { LUNA_FEATURE, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
+import { chatModel, embedModel } from '@/lib/assistantRag';
 
 /**
  * GET /api/luna/capabilities  ->  LunaCapabilities
@@ -198,7 +199,18 @@ const notAvailable = (headers) =>
  */
 function providerConfigured() {
   const key = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || '';
-  return key.trim().length > 0;
+  if (key.trim().length === 0) return false;
+  // Both model ids too, exactly as POST /api/luna/messages decides (its
+  // `configured`): an unset id has no default (Ruling L1), so the message
+  // route answers 503 to every question. Reporting `available: true` here
+  // would hand the person a Send button that fails every time they press it.
+  try {
+    embedModel();
+    chatModel();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

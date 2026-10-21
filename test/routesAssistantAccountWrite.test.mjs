@@ -20,7 +20,7 @@ const KEY = { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CO
 const ASK_FIRST = 'Ask a question to get started.';
 
 const model = ({ url }) => {
-  if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(1536).fill(0.01) }] });
+  if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(2048).fill(0.01) }] });
   if (url.includes('/chat/completions')) return Response.json({ choices: [{ message: { content: 'Your reading is on the moderate side [H].' } }] });
   return null;
 };
@@ -227,8 +227,10 @@ test('assistant GET: suggestions as before with a request id header, a 401 envel
   assert.equal(res.status, 200);
   assert.match(res.headers.get('x-request-id'), UUID);
   const body = await res.json();
-  assert.deepEqual(Object.keys(body).sort(), ['disclaimer', 'suggestions']);
+  assert.deepEqual(Object.keys(body).sort(), ['disclaimer', 'sends_household_context', 'suggestions']);
   assert.ok(body.suggestions.length > 0);
+  // The panel's privacy line reads this; unset means household context is not sent.
+  assert.equal(body.sends_household_context, false);
   assert.equal((await ctx.call('alice', '/api/assistant', 'GET', { url: '/api/assistant?page=nowhere' })).status, 200);
   await expectEnvelope(await ctx.h.call('/api/assistant', 'GET', { headers: { 'x-request-id': 'client-trace-0001' } }), { status: 401, code: 'auth_required', requestId: 'client-trace-0001' });
 });
@@ -351,7 +353,7 @@ const sourced = (env) => {
   const ctx = setup({
     env,
     provider: ({ url }) => {
-      if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(1536).fill(0.01) }] });
+      if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(2048).fill(0.01) }] });
       if (url.includes('/chat/completions')) return Response.json({ choices: [{ message: { content: 'Ozone is higher in the afternoon [1].' } }] });
       return null;
     },
@@ -375,4 +377,61 @@ test('household-context gate: with the gate on the household block is built into
   const ctx = sourced({ ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true', ...MODELS });
   assert.equal((await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'How is my air today?' } })).status, 200);
   assert.ok(prompt(ctx).includes('HOUSEHOLD CONTEXT'), 'the household block is present when explicitly enabled');
+});
+
+// ------------------------------------------------- assistant: live-check fixes (2026-10-20)
+
+test('assistant GET reports whether household context is sent, so the panel can say so', async () => {
+  for (const [value, expected] of [[undefined, false], ['false', false], ['TRUE', false], ['true', true]]) {
+    const ctx = setup({ env: value === undefined ? {} : { ASSISTANT_SEND_HOUSEHOLD_CONTEXT: value } });
+    const body = await (await ctx.call('alice', '/api/assistant', 'GET', { url: '/api/assistant?page=today' })).json();
+    assert.equal(body.sends_household_context, expected, JSON.stringify(value));
+  }
+});
+
+test('assistant POST: every provider call shares one deadline, so a hung provider becomes "try again", not a dead request', async () => {
+  const { createRouteHarness } = await import('./helpers/routeHarness.mjs');
+  const { haloTables } = await import('./helpers/tables.mjs');
+  const signals = [];
+  const h = createRouteHarness({
+    tables: haloTables('profiles'),
+    env: { ASSISTANT_MODEL_KEY: 'test-model-key', ...MODELS },
+    seed: (who) => ({ profiles: Object.values(who).map((identity) => ({ id: identity.id })) }),
+    fetch: async (url, init = {}) => {
+      signals.push(init.signal);
+      if (String(url).includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(2048).fill(0.01) }] });
+      return Response.json({ choices: [{ message: { content: 'Ozone peaks in the afternoon [1].' } }] });
+    },
+  });
+  h.db.registerRpc('match_assistant_corpus', () => [
+    { id: '00000000-0000-4000-8000-000000000001', source_label: 'EPA', source_url: 'https://epa.gov/x', retrieved: '2026-01-01', passage: 'Ozone peaks in the afternoon.', similarity: 0.9 },
+  ]);
+  const body = await (await h.call('/api/assistant', 'POST', { as: 'alice', body: { question: 'When does ozone peak?' } })).json();
+  assert.equal(body.grounded, true);
+  assert.equal(signals.length, 2, 'the embedding and the answer');
+  assert.ok(signals.every((signal) => signal instanceof AbortSignal && !signal.aborted));
+  assert.equal(signals[0], signals[1], 'one budget for the whole answer, not one per call');
+});
+
+test('assistant POST: a provider that times out, refuses or answers empty is the retryable "unavailable" answer', async (t) => {
+  quiet(t);
+  for (const chat of [
+    () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); },
+    () => Response.json({ choices: [{ message: { content: '' } }] }),
+    () => new Response('{}', { status: 402 }),
+  ]) {
+    const ctx = setup({
+      env: { ASSISTANT_MODEL_KEY: 'test-model-key', ...MODELS },
+      provider: ({ url }) => (url.includes('/embeddings') ? Response.json({ data: [{ embedding: new Array(2048).fill(0.01) }] }) : chat()),
+    });
+    ctx.h.db.registerRpc('match_assistant_corpus', () => [
+      { id: '00000000-0000-4000-8000-000000000001', source_label: 'EPA', source_url: 'https://epa.gov/x', retrieved: '2026-01-01', passage: 'Ozone peaks in the afternoon.', similarity: 0.9 },
+    ]);
+    const res = await ctx.call('alice', '/api/assistant', 'POST', { body: { question: 'When does ozone peak?' } });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.reason, 'unavailable', 'the only answer the panel offers Retry for');
+    assert.equal(body.answer, null);
+    assert.notEqual(body.message, NO_SOURCE, 'a failed model is not "no reliable source"');
+  }
 });
