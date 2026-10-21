@@ -10,6 +10,7 @@ import MaintenanceWorkspace from './MaintenanceWorkspace';
 import FoodGardenWorkspace from './FoodGardenWorkspace';
 import SummaryWorkspace from './SummaryWorkspace';
 import { useHomeWorkspace } from './HomeWorkspaceState';
+import { collectionView, homeguardOffMessage } from '@/lib/frontend/collection-availability';
 import { Empty, type HomeSection, type WorkspaceProps } from './HomeWorkspaceUI';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import './homeguard-workspace.css';
@@ -68,7 +69,8 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     <div className="hg-workspace-select"><label><span>Home workspace</span><select value={section} onChange={event => go(event.target.value as HomeSection)}>{(Object.keys(sections) as HomeSection[]).map(key => <option value={key} key={key}>{sections[key].name}</option>)}</select></label></div>
     </div>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}
     <WorkspaceFeedback />
-    {productionFailure && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
+    {productionFailure && collectionView(state.collectionStates[productionFailure]) === 'off' && <p className="hg-meta" role="status">{homeguardOffMessage}</p>}
+    {productionFailure && collectionView(state.collectionStates[productionFailure]) !== 'off' && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
     {!productionLoading && pendingCollections.length > 0 && <HaloLoading label="Loading remaining home records" />}
     {incomplete && <p className="hg-notice">Some records are not included in this view. Reload the complete collection before exporting or clearing it.</p>}
     {state.scenario === 'stale' && <p className="hg-notice">Some sources are out of date. Check their original dates.</p>}
