@@ -73,7 +73,7 @@
 .halo-home-evidence strong { font:550 calc(.95rem * var(--halo-text-scale))/1.5 var(--font-onest),sans-serif; }
 .halo-home-member-action summary { cursor:pointer; min-height:48px; align-content:center; font-size:calc(.82rem * var(--halo-text-scale)); font-weight:500; line-height:1.6; padding-block:7px; }
 .halo-home-member-action a,.halo-home-member-back { display:inline-flex; align-items:center; min-height:44px; font-size:calc(.875rem * var(--halo-text-scale)); text-decoration:underline; text-underline-offset:4px; }
-.halo-home-member-action a { color:var(--factor-accent); }
+.halo-home-member-action a { color:color-mix(in srgb,var(--factor-accent) 68%,light-dark(#0c2229,#ffffff)); } /* text contrast at least 4.5:1; the raw accent is for icons */
 .halo-home-member-limits { display:grid; justify-items:center; gap:12px; text-align:center; padding:8px 4px; }
 .halo-home-member-limits > svg { color:var(--halo-primary); }
 .halo-f-app .halo-home-member-limits h2,.halo-f-app .halo-home-member-switch h2 { font-size:calc(1.15rem * var(--halo-text-scale)); line-height:1.5; }

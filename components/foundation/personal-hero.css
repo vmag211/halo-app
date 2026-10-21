@@ -142,7 +142,7 @@
 .halo-ph-why { padding:17px 18px; margin-top:16px; border-left:2px solid var(--factor-accent); background:linear-gradient(90deg,color-mix(in srgb,var(--factor-accent) 6%,transparent),transparent); }
 .halo-ph-tips { list-style:none; margin:0; padding:0; display:grid; gap:0; }
 .halo-ph-tips li { display:flex; align-items:flex-start; gap:14px; padding:18px 0; border-bottom:1px solid color-mix(in srgb,var(--factor-accent) 17%,transparent); }
-.halo-ph-tips li > span { width:24px; padding-top:2px; flex-shrink:0; font-size:calc(.72rem * var(--halo-text-scale)); color:var(--factor-accent); font-weight:700; }
+.halo-ph-tips li > span { width:24px; padding-top:2px; flex-shrink:0; font-size:calc(.72rem * var(--halo-text-scale)); color:color-mix(in srgb,var(--factor-accent) 68%,light-dark(#0c2229,#ffffff)); font-weight:700; }
 .halo-ph-tips code { font-size:calc(.76rem * var(--halo-text-scale)); color:var(--halo-ink); }
 .halo-ph-sources { border-top:1px solid var(--halo-border); padding-top:18px; }
 .halo-f-app .halo-ph-sources a { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; min-height:44px; padding:5px 0; font-size:calc(.77rem * var(--halo-text-scale)); line-height:1.5; }
@@ -206,7 +206,7 @@
 .halo-ph-definition { border-block:1px solid var(--halo-border); padding:4px 0; }
 .halo-ph-definition summary { display:flex; justify-content:space-between; gap:10px; align-items:center; min-height:48px; cursor:pointer; }
 .halo-ph-definition summary h3 { font-size:calc(.8rem * var(--halo-text-scale)); font-weight:550; }
-.halo-ph-definition summary span { font-size:calc(.7rem * var(--halo-text-scale)); color:var(--factor-accent); text-decoration:underline; text-underline-offset:4px; }
+.halo-ph-definition summary span { font-size:calc(.7rem * var(--halo-text-scale)); color:color-mix(in srgb,var(--factor-accent) 68%,light-dark(#0c2229,#ffffff)); text-decoration:underline; text-underline-offset:4px; }
 .halo-ph-definition > p { font-size:calc(.82rem * var(--halo-text-scale)); color:var(--ph-muted); padding:12px 0; }
 .halo-ph-reading-story { min-width:0; }
 .halo-ph-why h3,.halo-ph-household-note h3 { font-size:calc(.87rem * var(--halo-text-scale)); font-weight:550; margin-bottom:8px; }
