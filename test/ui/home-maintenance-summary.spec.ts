@@ -50,32 +50,34 @@ test('maintenance saves a cadence and retains a skipped occurrence without compl
   await skip.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(skip).not.toBeVisible();
   await expect(page.getByText('Last completed: Not recorded')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Next due 2025-04-01' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next due Apr 1, 2025' })).toBeVisible();
+  // Readable for people, ISO for machines.
+  await expect(page.locator('.hg-routine-overview h2 time')).toHaveAttribute('datetime', '2025-04-01');
   await expect(page.locator('.hg-history')).toContainText('Skipped');
   await page.getByRole('button', { name: 'Record completion' }).click();
   const completion = page.getByRole('dialog', { name: 'Record what you completed' });
   await completion.getByLabel('Record date').fill('2025-04-08');
   await completion.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(completion).not.toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Next due 2025-06-08' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next due Jun 8, 2025' })).toBeVisible();
   await expect(page.locator('.hg-history')).toContainText('Skipped');
   await expect(page.locator('.hg-history')).toContainText('Completed');
-  const skippedEntry = page.getByRole('button', { name: 'View skipped occurrence on 2025-02-01' });
+  const skippedEntry = page.getByRole('button', { name: 'View skipped occurrence on Feb 1, 2025' });
   await skippedEntry.click();
   const occurrence = page.getByRole('dialog', { name: 'Occurrence details' });
   await expect(occurrence.getByText('Skipped', { exact: true })).toBeVisible();
-  await expect(occurrence.getByText('2025-02-01', { exact: true })).toHaveCount(2);
+  await expect(occurrence.getByText('Feb 1, 2025', { exact: true })).toHaveCount(2);
   await expect(occurrence.getByText('Waiting for replacement part', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(occurrence).not.toBeVisible();
   await expect(skippedEntry).toBeFocused();
-  await page.getByRole('button', { name: 'View completed occurrence on 2025-04-08' }).click();
-  await expect(occurrence.getByText('2025-04-08', { exact: true })).toBeVisible();
-  await expect(occurrence.getByText('2025-04-01', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'View completed occurrence on Apr 8, 2025' }).click();
+  await expect(occurrence.getByText('Apr 8, 2025', { exact: true })).toBeVisible();
+  await expect(occurrence.getByText('Apr 1, 2025', { exact: true })).toBeVisible();
   await expect(occurrence.getByText('No note recorded', { exact: true })).toBeVisible();
   await occurrence.getByRole('button', { name: 'Back to occurrence history' }).click();
   await expect(occurrence).not.toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Next due 2025-06-08' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next due Jun 8, 2025' })).toBeVisible();
 });
 
 test('moisture keeps a user-entered zero and measured source without a safety result', async ({ page }) => {

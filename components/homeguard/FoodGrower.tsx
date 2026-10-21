@@ -35,7 +35,7 @@ function GrowerPreparation({ resource, ...props }: WorkspaceProps & { resource: 
   const [handoff, setHandoff] = useState(false);
   const patch = (value: Partial<GrowerInquiry>) => setDraft({ ...draft, ...value });
   const confirmed = tests.records.filter(item => item.review === 'user_confirmed');
-  return <><section className="hg-card"><h2>Prepare your question</h2><p>Use this checklist for your conversation. Ask the provider for its sampling or application requirements.</p><RecordForm submitLabel="Save inquiry progress" onSubmit={async event => {
+  return <><section className="hg-card"><h2>Prepare your question</h2><p>Use this checklist for your conversation. Ask the provider for its sampling or application requirements.</p><RecordForm onConfirmed={() => { clearDraft(); setStatus('Private preparation saved. No agency submission was made.'); }} submitLabel="Save inquiry progress" onSubmit={async event => {
     event.preventDefault(); if (draft.followUpDate && draft.contactDate && draft.followUpDate < draft.contactDate) { setStatus('Follow-up cannot be before the contact date.'); return; }
     if (await inquiries.save({ ...draft, id: existing?.id ?? foodId('inquiry'), revision: existing?.revision ?? 0 })) { clearDraft(); setStatus('Private preparation saved. No agency submission was made.'); }
   }}>

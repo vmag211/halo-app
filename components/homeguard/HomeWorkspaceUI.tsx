@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { ArrowUpRight, CalendarPlus, Check, FolderOpen, Trash2 } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/Foundation';
 import { useExpandedPreview } from '@/components/expanded/ExpandedPreviewState';
@@ -39,13 +39,34 @@ export function SourceNote({ children }: { children: ReactNode }) { return <asid
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return <label className="hg-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
-export function RecordForm({ onSubmit, children, submitLabel = 'Save record', onCancel, busy }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<unknown>; children: ReactNode; submitLabel?: string; onCancel?: () => void; busy?: boolean }) {
+export function RecordForm({ onSubmit, children, submitLabel = 'Save record', onCancel, onConfirmed, busy }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<unknown>; children: ReactNode; submitLabel?: string; onCancel?: () => void; onConfirmed?: (recordId: string) => void; busy?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [cancel, setCancel] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const { scenario, pending, unknownOperations } = useHomeWorkspace();
+  // Saves of this form that ended unconfirmed. Until their status is checked the draft is held as sent
+  // (not editable), so a confirmed save can finish exactly as a direct success would.
+  const [awaiting, setAwaiting] = useState<string[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const workspace = useHomeWorkspace();
+  const { scenario, pending, unknownOperations } = workspace;
+  const settle = useRef(onConfirmed);
+  const settling = useRef<string[] | null>(null);
+  useEffect(() => { settle.current = onConfirmed; }, [onConfirmed]);
+  useEffect(() => {
+    if (!awaiting.length || settling.current === awaiting || awaiting.some(id => unknownOperations.some(item => item.operationId === id))) return;
+    settling.current = awaiting;
+    const outcomes = awaiting.map(id => workspace.operationOutcome(id));
+    const recordId = outcomes.at(-1)?.recordId ?? '';
+    // A failed or unknown settlement keeps the draft for a deliberate retry; only a confirmed save closes the form.
+    queueMicrotask(() => {
+      setAwaiting([]);
+      if (!outcomes.every(outcome => outcome?.status === 'succeeded')) return;
+      if (settle.current) settle.current(recordId); else setConfirmed(true);
+    });
+  }, [awaiting, unknownOperations, workspace]);
   const disabled = saving || !!busy || pending;
-  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled || unknownOperations.length) return; setSaving(true); try { await onSubmit(event); } finally { setSaving(false); } }}><fieldset disabled={disabled}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" aria-busy={disabled || undefined} disabled={disabled || unknownOperations.length > 0 || scenario === 'offline'}>{disabled && <LoadingSymbol small />}{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
+  if (confirmed) return <div className="hg-notice" role="status"><p>Saved. Your change was confirmed.</p>{onCancel && <button type="button" className="hg-button-secondary" onClick={onCancel}>Close</button>}</div>;
+  return <><form className="hg-form" onChangeCapture={() => setDirty(true)} onSubmit={async event => { event.preventDefault(); if (disabled || unknownOperations.length) return; setSaving(true); const before = new Set(workspace.unknownOperationIds()); try { await onSubmit(event); } finally { setSaving(false); const added = workspace.unknownOperationIds().filter(id => !before.has(id)); if (added.length) setAwaiting(added); } }}><fieldset disabled={disabled || awaiting.length > 0}>{children}</fieldset><div className="hg-actions"><button className="hg-button" type="submit" aria-busy={disabled || undefined} disabled={disabled || unknownOperations.length > 0 || scenario === 'offline'}>{disabled && <LoadingSymbol small />}{disabled ? 'Saving...' : submitLabel}</button>{onCancel && <button type="button" className="hg-button-secondary" disabled={disabled} onClick={() => dirty ? setCancel(true) : onCancel()}>Cancel</button>}</div>{awaiting.length > 0 && <p className="hg-meta" role="status">This save is not confirmed yet. Check its status. Your draft is kept as sent.</p>}{scenario === 'offline' && <p className="hg-meta">Offline. Your draft is kept here, but changes are not queued.</p>}</form>{cancel && <Confirm title="Leave this form?" onCancel={() => setCancel(false)} onConfirm={() => { setCancel(false); onCancel?.(); }}>Your saved record is unchanged. Unsaved edits may be lost.</Confirm>}</>;
 }
 export function DeleteButton({ label, onClick, disabled, compact = false }: { label: string; onClick: () => void; disabled?: boolean; compact?: boolean }) {
   const { pending, scenario } = useHomeWorkspace();
