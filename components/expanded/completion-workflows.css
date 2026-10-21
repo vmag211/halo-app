@@ -17,6 +17,8 @@
 .hc-choice { display:flex!important; align-items:flex-start; gap:10px!important; min-height:44px; padding:8px 0; }
 .hc-choice input { width:20px; height:20px; flex:0 0 20px; accent-color:var(--halo-primary); }
 .hc-device { display:flex; align-items:center; flex-wrap:wrap; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--halo-border); }
+/* The name and its status read as one stacked block beside the icon, never pushed apart. */
+.hc-device > span { flex:1 1 10rem; min-width:0; display:grid; gap:2px; text-align:left; }
 .hc-history { list-style:none; padding:0; margin:0; }
 .hc-history li { display:grid; gap:4px; padding:12px 0; border-bottom:1px solid var(--halo-border); }
 .hc-state { padding:12px; border-radius:8px; background:color-mix(in srgb,var(--halo-primary) 9%,var(--halo-card)); line-height:1.5; }

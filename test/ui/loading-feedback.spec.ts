@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
 
+// The short /app and /tools aliases exist only in the static hosted-review export. On the dev server /app is the
+// authenticated product, so the same expanded preview is reached through its long review route.
+const hosted = process.env.HALO_HOSTED_REVIEW_TEST === '1';
+const appPath = (query: string) => hosted ? `/app?${query}` : `/foundation/preview/expanded?${query}`;
+const toolsPath = (query: string) => hosted ? `/tools?${query}` : `/foundation/preview/expanded?review=tools&${query}`;
+
 test.beforeEach(async ({page}) => {
   await page.route('**/*', route => {
     const url = new URL(route.request().url());
@@ -9,7 +15,7 @@ test.beforeEach(async ({page}) => {
 
 test('arrival lasts half a second without blocking ready content or replaying on disclosure', async ({page}) => {
   await page.emulateMedia({reducedMotion:'no-preference'});
-  await page.goto('/app?motion=full');
+  await page.goto(appPath('motion=full'));
   const app = page.getByTestId('foundation-product');
   await expect(app).toHaveAttribute('data-animate','true');
   const nav = page.getByRole('navigation',{name:'Main navigation'});
@@ -27,7 +33,7 @@ test('arrival lasts half a second without blocking ready content or replaying on
 test('loading panels fit small screens, enlarged text and each palette', async ({page},info) => {
   await page.setViewportSize({width:320,height:780});
   for(const [appearance,palette] of [['dark','ocean'],['light','forest'],['dark','iris']]) {
-    await page.goto(`/tools?scenario=loading&appearance=${appearance}&palette=${palette}&scale=150&motion=reduce`);
+    await page.goto(toolsPath(`scenario=loading&appearance=${appearance}&palette=${palette}&scale=150&motion=reduce`));
     const loader=page.locator('.halo-loading');
     await expect(loader).toContainText('Loading readings');
     const bounds=(await loader.boundingBox())!;
@@ -40,7 +46,7 @@ test('loading panels fit small screens, enlarged text and each palette', async (
 for (const mode of ['full','device-reduce','app-reduce','forced-colors'] as const) {
   test(`pending loading remains truthful and accessible with ${mode}`, async ({page},info) => {
     await page.emulateMedia({reducedMotion:mode==='device-reduce'?'reduce':'no-preference',forcedColors:mode==='forced-colors'?'active':'none'});
-    await page.goto(`/tools?scenario=loading&motion=${mode==='app-reduce'?'reduce':'full'}`);
+    await page.goto(toolsPath(`scenario=loading&motion=${mode==='app-reduce'?'reduce':'full'}`));
     const loading=page.locator('.halo-loading');
     await expect(loading).toHaveAttribute('role','status');
     await expect(loading).toHaveAttribute('aria-busy','true');

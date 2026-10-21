@@ -120,7 +120,7 @@ export function BottomSheet({ id, title, height, onClose, children, fallbackFocu
     const rect = e.currentTarget.getBoundingClientRect();
     if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) onClose();
   }}>
-    <div className="halo-f-sheet-grab" aria-label={c.drag} onPointerDown={e => { dragStart.current = e.clientY; e.currentTarget.setPointerCapture(e.pointerId); }} onPointerUp={e => { if (dragStart.current !== null && e.clientY - dragStart.current > 60) onClose(); dragStart.current = null; }}><span /></div>
+    <div className="halo-f-sheet-grab" aria-hidden="true" title={c.drag} onPointerDown={e => { dragStart.current = e.clientY; e.currentTarget.setPointerCapture(e.pointerId); }} onPointerUp={e => { if (dragStart.current !== null && e.clientY - dragStart.current > 60) onClose(); dragStart.current = null; }}><span /></div>
     <header className="halo-f-sheet-head"><h2 id={`${id}-title`}>{title}</h2><button className="halo-f-icon" onClick={onClose} aria-label={c.close} autoFocus><X size={22} aria-hidden="true" /></button></header>
     <div className="halo-f-sheet-body">{children}</div>
   </dialog>;

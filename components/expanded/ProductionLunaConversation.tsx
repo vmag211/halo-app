@@ -68,7 +68,6 @@ export default function ProductionLunaConversation({context,onClose,go,currentGu
  async function cancelRequest(){if(!attempt)return;generation.current++;controller.current?.abort();setBusy(false);lock.current=false;const request=attempt;try{const response:unknown=await runtime.request('luna.cancel',{id:request.runId??request.id},{idempotencyKey:`cancel:${request.id}`});if(!validLunaRun(response)||!['cancelled','completed','failed'].includes(response.status))throw new Error('unconfirmed');if(response.conversation)setConversation(response.conversation);setAttempt(null);setNotice('Request stopped. Your question is kept.');}catch{setNotice('Stopped waiting. Cancellation is unconfirmed. Check the existing request; no app action was approved.');}}
  async function act(proposal:LunaProposal,kind:'confirm'|'cancel'|'edit'|'status'){
   if(lock.current||offline||!caps?.available)return;
-  // This async function runs only from an explicit button event; recheck expiry at confirmation, not render time.
   if(kind==='confirm'&&(pendingOperations||Date.parse(proposal.expiresAt)<=Date.now())){setNotice(pendingOperations?'Check the pending change before confirming another.':'This review expired. Ask Luna to prepare it again.');return;}
   lock.current=true;setBusy(true);setNotice('');const operationId=unresolved[proposal.id]??crypto.randomUUID();
   try{
