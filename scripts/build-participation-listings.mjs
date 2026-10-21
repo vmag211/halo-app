@@ -207,7 +207,9 @@ export function checkOrg(problems, org) {
   url(problems, where, 'url', org.url);
   if (!Array.isArray(org.counties) || !org.counties.length) problems.add(where, 'counties must list at least one county or "statewide"');
   else for (const county of org.counties) if (county !== 'statewide' && !COUNTY_NAMES.has(county)) problems.add(where, `counties has ${JSON.stringify(county)}, which is not an NC county name ("Wake County") or "statewide"`);
-  if (!Array.isArray(org.causes) || !org.causes.length) problems.add(where, 'causes must list at least one cause');
+  // The cause tags are HALO's environmental topics; a gardening or beautification group can honestly
+  // have none, and 0004's column defaults to an empty array. A tag that is given must be a known one.
+  if (!Array.isArray(org.causes)) problems.add(where, 'causes must be a list (it may be empty)');
   else for (const cause of org.causes) choice(problems, where, 'cause', cause, CAUSES);
   if (!validDay(org.checked)) problems.add(where, 'checked is not a YYYY-MM-DD date');
 }
