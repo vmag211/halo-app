@@ -152,8 +152,9 @@ export function createProductionRuntime(input: {
           const retry=Number(response.headers.get('Retry-After'));
           // A read refused because its capability is switched off (503 feature_unavailable) is a settled
           // answer, not an outage: mark it so screens can say "not available yet" instead of offering a retry.
-          // Mutations keep their existing outcome authority.
-          const off=!mutation&&response.status===503&&!!json&&typeof json==='object'&&(json as {code?:unknown}).code==='feature_unavailable';
+          // Mutations keep their existing outcome authority; a write refused up front with 403 (attachments,
+          // Ruling A6) stays a settled permission failure, marked so the screen can name the real cause.
+          const off=(!mutation&&response.status===503||response.status===403)&&!!json&&typeof json==='object'&&(json as {code?:unknown}).code==='feature_unavailable';
           throw new FrontendServiceError(code,messages[code],operationId,Number.isFinite(retry)&&retry>0?retry:undefined,undefined,off?'feature_unavailable':undefined);
         }
         if(json===null || typeof json!=='object') throw new FrontendServiceError(mutation?'unknown_outcome':'invalid_response',messages[mutation?'unknown_outcome':'invalid_response'],operationId);

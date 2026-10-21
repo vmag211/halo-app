@@ -80,12 +80,15 @@ test('Homeguard shows the not-available-yet status, not an error with a retry, w
   assert.match(homeguardOffMessage, /not available yet/);
   assert.equal(homeguardOffMessage.includes(String.fromCharCode(0x2014)), false);
   const source = readFileSync(new URL('../components/homeguard/HomeguardWorkspace.tsx', import.meta.url), 'utf8');
-  assert.match(source, /collectionView\(state\.collectionStates\[productionFailure\]\) === 'off' && <p className="hg-meta" role="status">\{homeguardOffMessage\}<\/p>/);
+  // The error-with-retry banner only takes a collection that is not switched off; the settled answer is a status.
+  assert.match(source, /requiredCollections\.find\(key => state\.collectionStates\[key\]\?\.status === 'error' && !state\.collectionStates\[key\]\.featureUnavailable\)/);
+  assert.match(source, /\{productionOff && <p className="hg-notice" role="status">\{homeguardOffMessage\}<\/p>\}/);
 });
 
 test('the Homeguard overview drops its retry when every failed collection is switched off', () => {
   const source = readFileSync(new URL('../components/expanded/HomeOverviewWorkspace.tsx', import.meta.url), 'utf8');
-  assert.match(source, /failed\.every\(key => workspace\.collectionStates\[key\]\?\.featureUnavailable\)/);
-  assert.match(source, /\{switchedOff \? homeguardOffMessage :/);
-  assert.match(source, /\{!loading && !switchedOff && <button className="how-action"/);
+  // A switched-off group is settled (off), never an error; only real failures keep Try again.
+  assert.match(source, /const error = !off && /);
+  assert.match(source, /: !failing \? homeguardOffMessage :/);
+  assert.match(source, /\{!loading && failing && <button className="how-action"/);
 });

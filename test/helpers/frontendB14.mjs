@@ -56,7 +56,7 @@ export function privateUpload(workspace) {
       if (!alive.current) return null;
       const uncertain = !(error instanceof FrontendServiceError) || ['unknown_outcome', 'invalid_response', 'aborted'].includes(error.code);
       if (uncertain) setUnknown(true); else if (!unknown) { workspace.resolvePendingOperation(operation.current); operation.current = ''; }
-      setMessage(uncertain ? 'The upload result is not confirmed. Check its status before uploading again.' : serviceMessage(error)); return null;
+      setMessage(uncertain ? 'The upload result is not confirmed. Check its status before uploading again.' : error instanceof FrontendServiceError && error.reason === 'feature_unavailable' ? 'Private files are not available yet. Nothing was uploaded. Your draft is kept.' : serviceMessage(error)); return null;
     } finally { locked.current = false; if (alive.current) setBusy(false); }
   }
   return {
@@ -163,7 +163,7 @@ export const FRAGMENTS = Object.freeze([
     "setMessage(next.status === 'ready' ? 'Private file stored.' : next.status === 'rejected' ? 'This file did not pass the file checks.' : 'File checks are still in progress.');",
     "const uncertain = !(error instanceof FrontendServiceError) || ['unknown_outcome', 'invalid_response', 'aborted'].includes(error.code);",
     "if (uncertain) setUnknown(true); else if (!unknown) { workspace.resolvePendingOperation(operation.current); operation.current = ''; }",
-    "setMessage(uncertain ? 'The upload result is not confirmed. Check its status before uploading again.' : serviceMessage(error)); return null;",
+    "setMessage(uncertain ? 'The upload result is not confirmed. Check its status before uploading again.' : error instanceof FrontendServiceError && error.reason === 'feature_unavailable' ? 'Private files are not available yet. Nothing was uploaded. Your draft is kept.' : serviceMessage(error)); return null;",
   ].map((text) => ({ file: 'components/homeguard/usePrivateUpload.ts', text })),
   ...[
     "const stored = Array.isArray(record?.attachments) ? record.attachments.filter(item => item && typeof item.id === 'string' && Number.isSafeInteger(item.revision) && ['ready', 'quarantined', 'rejected'].includes(item.status)) : [];",
@@ -191,6 +191,6 @@ export const FRAGMENTS = Object.freeze([
     "next.photo = undefined; next.photoAttachment = { id: attachment.id, revision: attachment.revision, name: 'halo-observation.png', metadataRemoved: true };",
   ].map((text) => ({ file: 'components/expanded/ExploreNotes.tsx', text })),
   ...[
-    "trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.'),",
+    "trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.', false),",
   ].map((text) => ({ file: 'components/homeguard/HomeWorkspaceState.tsx', text, helper: 'frontendB11.mjs' })),
 ]);

@@ -48,6 +48,8 @@
 .halo-f-app[data-refined=true] .halo-ph-page-nav a { min-width:44px; justify-content:center; padding-inline:4px; }
 .halo-f-app[data-refined=true] .halo-map-timeline button { min-height:44px; margin-block:0; border-radius:8px; }
 .halo-f-app[data-refined=true] :is(button,a,summary,input,select,textarea) { scroll-margin-block:100px 135px; }
+/* A record row brought into view (find, deep link, automation) clears the sticky header and bottom navigation too, so its Delete target is never under the nav. */
+.halo-f-app[data-refined=true] .hg-deletable-record { scroll-margin-block:100px 135px; }
 .halo-f-app[data-refined=true].halo-map-app :is(h1,h2,h3,h4) { font-family:var(--font-onest),Arial,sans-serif; }
 .halo-f-app[data-refined=true].halo-map-app { font-variant-numeric:lining-nums tabular-nums; }
 .halo-f-app[data-refined=true] .halo-f-header {

@@ -10,13 +10,13 @@ import MaintenanceWorkspace from './MaintenanceWorkspace';
 import FoodGardenWorkspace from './FoodGardenWorkspace';
 import SummaryWorkspace from './SummaryWorkspace';
 import { useHomeWorkspace } from './HomeWorkspaceState';
-import { collectionView, homeguardOffMessage } from '@/lib/frontend/collection-availability';
 import { Empty, type HomeSection, type WorkspaceProps } from './HomeWorkspaceUI';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
 import './homeguard-workspace.css';
 import WorkspaceFeedback from '@/components/expanded/WorkspaceFeedback';
 import { WorkspaceArtworkProvider, workspaceArtwork } from './WorkspaceArtwork';
 import './workspace-editorial.css';
+import { collectionsOff, homeguardOffMessage } from '@/lib/frontend/collection-availability';
 
 const sections = { tests: { name: 'Tests' }, maintenance: { name: 'Maintenance' }, food: { name: 'Food and Garden' }, summary: { name: 'Summary' } };
 export default function HomeguardWorkspace({ section, href }: { section: HomeSection; href: (tab: string, destination?: string) => string }) {
@@ -32,7 +32,9 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   // A ready auxiliary collection must not turn still-pending tests into an empty list.
   // Other ready collections remain usable while their independent reads finish.
   const productionLoading = pendingCollections.length > 0 && (requiredCollections.every(key => !state.collections[key]) || section === 'tests' && pendingCollections.includes('tests') && !state.collections.tests);
-  const productionFailure = state.mode === 'production' && requiredCollections.find(key => state.collectionStates[key]?.status === 'error');
+  // A switched-off capability (503 feature_unavailable) is settled: say so once, with no retry.
+  const productionFailure = state.mode === 'production' && requiredCollections.find(key => state.collectionStates[key]?.status === 'error' && !state.collectionStates[key].featureUnavailable);
+  const productionOff = state.mode === 'production' && collectionsOff(state.collectionStates, requiredCollections);
   const incomplete = state.mode === 'production' && requiredCollections.some(key => state.collectionStates[key]?.status === 'ready' && !state.collectionStates[key].complete);
   const go: WorkspaceProps['go'] = (destination, nextView = 'list', id) => {
     const url = new URL(href('home', destination), window.location.origin);
@@ -44,9 +46,11 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
   useEffect(() => {
     const isFirstOpen = !didOpen.current;
     const sectionChanged = previousSection.current !== section;
-    didOpen.current = true;
-    previousSection.current = section;
     const frame = requestAnimationFrame(() => {
+      // Record the entry only once it is handled: a cancelled frame (Strict Mode's
+      // effect replay, or a quick re-render) must not turn first entry into a revisit.
+      didOpen.current = true;
+      previousSection.current = section;
       // Preserve early keyboard/pointer focus, including a scrollable table. A
       // new route's heading must not interrupt an already focused control.
       const active = document.activeElement;
@@ -69,8 +73,8 @@ export default function HomeguardWorkspace({ section, href }: { section: HomeSec
     <div className="hg-workspace-select"><label><span>Home workspace</span><select value={section} onChange={event => go(event.target.value as HomeSection)}>{(Object.keys(sections) as HomeSection[]).map(key => <option value={key} key={key}>{sections[key].name}</option>)}</select></label></div>
     </div>{view !== 'list' && <button className="hg-back" onClick={() => go(section)}>Workspace overview</button>}
     <WorkspaceFeedback />
-    {productionFailure && collectionView(state.collectionStates[productionFailure]) === 'off' && <p className="hg-meta" role="status">{homeguardOffMessage}</p>}
-    {productionFailure && collectionView(state.collectionStates[productionFailure]) !== 'off' && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
+    {productionFailure && <div className="hg-error" role="alert"><p>{state.collectionStates[productionFailure].message || 'Some records could not load. Your other records are unchanged.'}</p><button className="hg-button-secondary" onClick={() => void state.retry(productionFailure)}>Try again</button></div>}
+    {productionOff && <p className="hg-notice" role="status">{homeguardOffMessage}</p>}
     {!productionLoading && pendingCollections.length > 0 && <HaloLoading label="Loading remaining home records" />}
     {incomplete && <p className="hg-notice">Some records are not included in this view. Reload the complete collection before exporting or clearing it.</p>}
     {state.scenario === 'stale' && <p className="hg-notice">Some sources are out of date. Check their original dates.</p>}

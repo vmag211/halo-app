@@ -14,6 +14,7 @@ import TestProgress, { type TestProgressStep } from './TestProgress';
 import './records-polish.css';
 import './home-record-workflows.css';
 import { PrivateReportAttachments } from './PrivateAttachments';
+import { collectionView } from '@/lib/frontend/collection-availability';
 
 type Save = (record: TestRecord) => Promise<boolean>;
 const kindLabels = { water: 'Drinking water', radon: 'Radon', lead: 'Lead', soil: 'Soil or garden' };
@@ -44,7 +45,7 @@ export default function TestsWorkspace(props: WorkspaceProps) {
   const record = collection.records.find(item => item.id === props.recordId);
   const view = props.view || 'list';
   if (view === 'new' || view === 'prepare' || view === 'report') return <TestEditor key={view === 'report' ? 'report' : 'new'} {...props} save={collection.save} />;
-  if (view === 'list' || view === 'overview') return <TestsList {...props} records={collection.records} remove={collection.remove} />;
+  if (view === 'list' || view === 'overview') return <TestsList {...props} records={collection.records} remove={collection.remove} status={collection.status} />;
   if (!record) return <Empty title="This test record is unavailable" action={<Button onClick={() => props.navigate('list')}>Back to tests</Button>}>The record may have been removed from this review. No other household record is substituted.</Empty>;
   if (view === 'edit') return <TestEditor key={`edit-${record.id}`} {...props} record={record} save={collection.save} />;
   if (view === 'arranged') return <ArrangementEditor key={`arranged-${record.id}`} {...props} record={record} save={collection.save} />;
@@ -61,8 +62,12 @@ function BackToTest({ navigate, record }: WorkspaceProps & { record: TestRecord 
   return <button className="hg-back" type="button" onClick={() => navigate('detail', record.id)}><ArrowLeft size={16} />Back to test</button>;
 }
 
-function TestsList({ records, navigate, factor, remove }: WorkspaceProps & { records: TestRecord[]; remove: (id: string) => Promise<boolean> }) {
+function TestsList({ records, navigate, factor, remove, status: collectionStatus }: WorkspaceProps & { records: TestRecord[]; remove: (id: string) => Promise<boolean>; status?: { status: string; featureUnavailable?: boolean } }) {
   const contexts = useTestContexts();
+  const workspace = useHomeWorkspace();
+  // A failed or switched-off read is never shown as an empty library (the workspace notice explains it).
+  const loadView = workspace.mode === 'production' ? collectionView(collectionStatus) : 'ready';
+  const unavailable = loadView === 'off' || loadView === 'error';
   const [filters, setFilters] = useHomeDraft(`view:tests:filters:${factor ?? 'all'}`, { search: '', kind: factor === 'radon' || factor === 'lead' ? factor : factor === 'pfas' ? 'water' : 'all', status: 'all', context: 'all', archived: false });
   const { search, kind, status, context, archived } = filters;
   const setSearch = (search: string) => setFilters(previous => ({ ...previous, search }));
@@ -73,11 +78,12 @@ function TestsList({ records, navigate, factor, remove }: WorkspaceProps & { rec
   const visible = records.filter(record => record.archived === archived && (kind === 'all' || record.kind === kind) && (status === 'all' || record.status === status) && (context === 'all' || record.contextId === context) && `${record.title} ${record.provider} ${record.purpose} ${record.rows.map(row => row.analyte).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase()));
   return <div className="hg-stack hg-test-library">
     <PageIntro eyebrow="Homeguard" title="Home tests & reports" description="Keep real-world water, radon, lead and soil tests in one place." icon={<FlaskConical />} />
-    <div className="hg-test-entry-tools">
+    {loadView !== 'off' && <div className="hg-test-entry-tools">
       <WorkspaceLink title="Plan a test" detail="Track a test you arrange outside HALO." artwork="tests" onClick={() => navigate('new')} />
       <WorkspaceLink title="Add a report" detail="Already have results? Start here." artwork="report" onClick={() => navigate('report')} />
-    </div>
+    </div>}
     <p className="hg-inline-meta">HALO keeps your records. It does not perform tests or automatically change your score.</p>
+    {unavailable ? <Empty title={loadView === 'off' ? 'Test records are not available yet' : 'Your test records could not load'}>{loadView === 'off' ? 'Nothing has changed. Tests and reports can be kept here once saving is available.' : 'Use Try again above. Your saved records are unchanged.'}</Empty> : <>
     <section className="hg-stack hg-test-library-filters" aria-label="Filter tests">
       <Field label="Search records"><div className="hg-search"><Search size={17} aria-hidden="true" /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Test name, lab or substance" /></div></Field>
       <details className="hg-filter-details" open={kind !== 'all' || status !== 'all' || context !== 'all' || archived ? true : undefined}><summary>Filter records{kind !== 'all' || status !== 'all' || context !== 'all' || archived ? ' · Active' : ''}</summary><div className="hg-fields">
@@ -89,6 +95,7 @@ function TestsList({ records, navigate, factor, remove }: WorkspaceProps & { rec
     </section>
     <div className="hg-section-head"><h2>{archived ? 'Archived records' : 'Your records'}</h2><span className="hg-meta" role="status">{visible.length} {visible.length === 1 ? 'record' : 'records'}</span>{visible.length > 0 && (search || kind !== 'all' || status !== 'all' || context !== 'all' || archived) && <button type="button" className="hg-text-button" onClick={() => setFilters({ search: '', kind: 'all', status: 'all', context: 'all', archived: false })}>Reset filters</button>}</div>
     {visible.length ? <div className="hg-list">{visible.map(record => <WorkspaceLink key={record.id} deletion={{ remove: () => remove(record.id), description: 'This removes this test, its entered results and correction history. Separate My Week actions and other household records are kept.' }} onClick={() => navigate('detail', record.id)} title={record.title} detail={`${kindLabels[record.kind]} · ${testStatusLabels[record.status]} · ${(record.contextSnapshot?.label ?? contextLabel(record.contextId, contexts))}${record.review === 'needs_clarification' ? ' · Needs clarification' : ''}`} icon={record.status === 'awaiting' ? <CalendarDays /> : <FileText />} />)}</div> : <Empty title={records.length ? 'No records match these filters' : 'Start your home record'} action={<Button onClick={() => records.length ? (setSearch(''), setKind('all'), setStatus('all'), setContext('all'), setArchived(false)) : navigate('new')}>{records.length ? 'Reset filters' : 'Add a test'}</Button>}>{records.length ? 'Try another test kind, context, or search.' : 'Add a planned test or a report you already have.'}</Empty>}
+    </>}
   </div>;
 }
 

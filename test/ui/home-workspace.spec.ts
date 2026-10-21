@@ -54,7 +54,7 @@ test('global review states distinguish loading, failure, empty and offline', asy
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   const control = page.getByLabel('Homeguard workspace state');
   await control.selectOption('loading');
-  await expect(page.getByRole('heading', { name: 'Opening your home workspace' })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Opening your home workspace', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await control.selectOption('error');
   await expect(page.getByRole('heading', { name: 'This section could not load' })).toBeVisible();
