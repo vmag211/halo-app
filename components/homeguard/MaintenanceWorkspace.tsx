@@ -14,13 +14,18 @@ import './records-polish.css';
 import './home-record-workflows.css';
 import { usePrivateUpload } from './usePrivateUpload';
 import { PrivateAttachmentDownload } from './PrivateAttachments';
+import { collectionView } from '@/lib/frontend/collection-availability';
 
 const observationLabels: Record<MoistureObservation['kind'], string> = { dampness: 'Dampness', leak: 'Leak', condensation: 'Condensation', humidity: 'Humidity measurement', other: 'Other observation' };
 
 export default function MaintenanceWorkspace(props: WorkspaceProps) {
   const assets = useHomeCollection<HomeAsset>('assets', sampleAssets);
   const observations = useHomeCollection<MoistureObservation>('observations', sampleObservations);
-  const { collections } = useHomeWorkspace();
+  const { collections, mode } = useHomeWorkspace();
+  // A failed or switched-off read is never shown as an empty list (the workspace notice explains it).
+  const assetView = mode === 'production' ? collectionView(assets.status) : 'ready';
+  const observationView = mode === 'production' ? collectionView(observations.status) : 'ready';
+  const unavailableEmpty = (view: string, noun: string) => <Empty title={view === 'off' ? `${noun} are not available yet` : `Your ${noun.toLowerCase()} could not load`}>{view === 'off' ? 'Nothing has changed.' : 'Use Try again above. Your saved records are unchanged.'}</Empty>;
   const [, setObservationEntry] = useHomeDraft<'moisture' | 'suspected-mold'>('observation:entry', 'moisture');
   const selected = assets.records.find(record => record.id === props.recordId);
   const observation = observations.records.find(record => record.id === props.recordId);
@@ -37,16 +42,16 @@ export default function MaintenanceWorkspace(props: WorkspaceProps) {
   return <div className="hg-care-workbench">
     <PageIntro eyebrow="Homeguard" title="Maintenance & moisture" description="Keep the work and the evidence together." icon={<Wrench />} />
     <div className="hg-care-columns"><div className="hg-care-column">
-    <WorkspaceLink title="Add a routine" detail="A schedule for filters and home care." artwork="maintenance" onClick={() => props.navigate('create')} />
+    {assetView !== 'off' && <WorkspaceLink title="Add a routine" detail="A schedule for filters and home care." artwork="maintenance" onClick={() => props.navigate('create')} />}
     <section className="hg-stack hg-care-group" data-care-group="routines"><header><Wrench size={20} aria-hidden="true" /><h2>Your routines</h2></header>
-      {assets.records.length ? assets.records.map(asset => <WorkspaceLink key={asset.id} deletion={{ remove: () => assets.remove(asset.id), description: 'This removes this routine, its schedule and service history. Separate moisture observations, tests and saved My Week actions are kept.' }} title={asset.title} detail={`${asset.status === 'active' ? asset.nextDue ? `Due ${asset.snoozedUntil || asset.nextDue}` : 'Routine ended' : asset.status === 'paused' ? 'Paused' : 'Replaced'} · ${scheduleDescription(asset)}`} icon={<Wrench />} onClick={() => props.navigate('detail', asset.id)} />) : <Empty title="No routines yet">Add equipment only when keeping its instructions or service history is useful.</Empty>}
+      {assetView === 'off' || assetView === 'error' ? unavailableEmpty(assetView, 'Routines') : assets.records.length ? assets.records.map(asset => <WorkspaceLink key={asset.id} deletion={{ remove: () => assets.remove(asset.id), description: 'This removes this routine, its schedule and service history. Separate moisture observations, tests and saved My Week actions are kept.' }} title={asset.title} detail={`${asset.status === 'active' ? asset.nextDue ? `Due ${asset.snoozedUntil || asset.nextDue}` : 'Routine ended' : asset.status === 'paused' ? 'Paused' : 'Replaced'} · ${scheduleDescription(asset)}`} icon={<Wrench />} onClick={() => props.navigate('detail', asset.id)} />) : <Empty title="No routines yet">Add equipment only when keeping its instructions or service history is useful.</Empty>}
     </section>
-    </div><div className="hg-care-column"><WorkspaceLink title="Record moisture" detail="A leak, dampness or measured humidity." artwork="moisture" onClick={() => { setObservationEntry('moisture'); props.navigate('observation'); }} />
+    </div><div className="hg-care-column">{observationView !== 'off' && <WorkspaceLink title="Record moisture" detail="A leak, dampness or measured humidity." artwork="moisture" onClick={() => { setObservationEntry('moisture'); props.navigate('observation'); }} />}
     <section className="hg-stack hg-care-group" data-care-group="moisture"><header><Droplets size={20} aria-hidden="true" /><h2>Moisture observations</h2></header><p className="hg-meta">Your indoor observations, separate from the outdoor mold estimate.</p>
-      {observations.records.length ? observations.records.map(record => <WorkspaceLink key={record.id} deletion={{ remove: () => observations.remove(record.id), description: 'This removes this observation and its local photo. Linked routines, tests and saved My Week actions are kept.' }} title={record.title} detail={`${record.observedAt.replace('T', ' ')} · ${record.room || 'Room not supplied'} · User reported`} icon={<Droplets />} onClick={() => props.navigate('observation-detail', record.id)} />) : <Empty title="No observations recorded">A note, time and optional measurement can help you follow up.</Empty>}
+      {observationView === 'off' || observationView === 'error' ? unavailableEmpty(observationView, 'Observations') : observations.records.length ? observations.records.map(record => <WorkspaceLink key={record.id} deletion={{ remove: () => observations.remove(record.id), description: 'This removes this observation and its local photo. Linked routines, tests and saved My Week actions are kept.' }} title={record.title} detail={`${record.observedAt.replace('T', ' ')} · ${record.room || 'Room not supplied'} · User reported`} icon={<Droplets />} onClick={() => props.navigate('observation-detail', record.id)} />) : <Empty title="No observations recorded">A note, time and optional measurement can help you follow up.</Empty>}
     </section>
-    <button type="button" className="hg-button-secondary hg-suspected-mold-entry" onClick={() => { setObservationEntry('suspected-mold'); props.navigate('observation'); }}><Search size={17} aria-hidden="true" />Record suspected mold</button>
-    <p className="hg-meta">Save an observation to follow up, not a mold identification.</p>
+    {observationView !== 'off' && <><button type="button" className="hg-button-secondary hg-suspected-mold-entry" onClick={() => { setObservationEntry('suspected-mold'); props.navigate('observation'); }}><Search size={17} aria-hidden="true" />Record suspected mold</button>
+    <p className="hg-meta">Save an observation to follow up, not a mold identification.</p></>}
     </div></div><SourceNote>Logged work does not confirm a hazard is resolved.</SourceNote>
   </div>;
 }
