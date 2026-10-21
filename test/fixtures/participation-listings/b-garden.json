@@ -1,0 +1,82 @@
+{
+  "researcher": "fixture-garden",
+  "checked": "2026-10-20",
+  "organizations": [
+    {
+      "org": {
+        "name": "Fixture Garden Collective",
+        "description": "A test organization that runs community gardens across North Carolina.",
+        "counties": ["statewide"],
+        "causes": ["advocacy"],
+        "url": "https://garden.example.org"
+      },
+      "profile": {
+        "id": "fixture-garden-volunteers",
+        "title": "Help in a community garden",
+        "organizer": "Fixture Garden Collective",
+        "interest": "Gardening",
+        "area": "North Carolina",
+        "served_place_ids": ["us-state:NC"],
+        "mission": "The collective supports community gardens.",
+        "work": "Volunteers weed, water and harvest.",
+        "url": "https://garden.example.org/help",
+        "source_title": "Help in a garden",
+        "address": null,
+        "address_kind": null,
+        "address_role": null,
+        "contact": "info@garden.example.org",
+        "effort": "A few hours a month.",
+        "age": "Not stated on the official page.",
+        "cost": "Not stated on the official page.",
+        "access": "Raised beds at some gardens.",
+        "steps": [{ "title": "Find a garden", "text": "Use the garden list on the official page." }],
+        "bring": "Gloves.",
+        "followup": "Tell the garden lead what you finished."
+      },
+      "evidence": "Volunteers weed, water and harvest.\nRaised beds at some gardens."
+    },
+    {
+      "org": {
+        "name": "Fixture Creek Alliance",
+        "description": "The same alliance, seen by a second researcher.",
+        "counties": ["Union County"],
+        "causes": ["water", "advocacy"],
+        "url": "https://creek.example.org"
+      },
+      "evidence": "Serves Union County too."
+    }
+  ],
+  "opportunities": [
+    {
+      "org_name": "Fixture Garden Collective",
+      "id": "fixture-garden-workdays",
+      "organizer": "Fixture Garden Collective",
+      "title": "Monthly garden workdays",
+      "interest": "Gardening",
+      "artwork": "garden",
+      "kind": "rolling",
+      "starts_at": null,
+      "ends_at": null,
+      "time_label": "Monthly workdays; dates on the official page",
+      "venue_local_date": null,
+      "venue_timezone": null,
+      "venue_timezone_basis": null,
+      "status": "listed",
+      "area": "Wake and Durham counties",
+      "served_place_ids": ["us-county:37183", "us-county:37063"],
+      "venue": "Partner community gardens",
+      "meeting_address": null,
+      "url": "https://garden.example.org/workdays",
+      "summary": "Join a monthly workday at a partner garden.",
+      "work": ["Weed beds", "Water seedlings", "Harvest"],
+      "duration": "Two to three hours",
+      "cost": "Free.",
+      "age": "Not stated on the official page.",
+      "access": "Not stated on the official page.",
+      "bring": "Gloves and water.",
+      "join_text": "Sign up on the organizer's page.",
+      "safety": "Follow the organizer's safety briefing.",
+      "evidence": "Workdays are held monthly at partner gardens."
+    }
+  ]
+}
