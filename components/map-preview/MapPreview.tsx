@@ -57,6 +57,8 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
   const [motion,setMotion] = useState(false);
   const [contrast,setContrast] = useState(false);
   const [initialized,setInitialized] = useState(false);
+  // Developer review (?review=tools) is retained through app navigation, including the way back from the map.
+  const [reviewTools,setReviewTools] = useState(false);
   useEffect(()=>{
     const p = new URLSearchParams(location.search);
     // Browser-only preview URL is read once after hydration; no server state is involved.
@@ -67,7 +69,7 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
     setPublicMode(runtime?publicAccess:p.get('access')==='public');
     if (['system','light','dark'].includes(p.get('appearance') ?? '')) setAppearance(p.get('appearance')!);
     if (['100','115','130','150'].includes(p.get('scale') ?? '')) setScale(p.get('scale')!);
-    setMotion(p.get('motion') === 'reduce'); setContrast(p.get('contrast') === 'true'); setInitialized(true);
+    setMotion(p.get('motion') === 'reduce'); setContrast(p.get('contrast') === 'true'); setReviewTools(p.get('review') === 'tools'); setInitialized(true);
   },[runtime,publicAccess]);
   useEffect(()=>{
     if(!initialized)return;
@@ -90,11 +92,11 @@ export default function MapPreview({runtime,publicAccess=false}:{runtime?:MapReq
       <div className="halo-f-tool-grid"><label className="halo-f-tool-check"><input type="checkbox" checked={motion} onChange={e=>setMotion(e.target.checked)}/>Reduce motion</label><label className="halo-f-tool-check"><input type="checkbox" checked={contrast} onChange={e=>setContrast(e.target.checked)}/>Higher contrast</label></div>
       <p>The atlas previews map behavior without paid tiles or a token. The production Mapbox renderer and offline storage will be connected only after design approval. Sample values do not describe these communities.</p>
     </details>}
-    <SceneProvider mode={motion?'reduce':'system'} time="live">{initialized&&<MapExperience key={runtime?runtime.scopeKey:`${scenario}:${homeChanged}`} runtime={runtime} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} palette={palette} scale={Number(scale)/100} motion={motion} contrast={contrast}/>}</SceneProvider>
+    <SceneProvider mode={motion?'reduce':'system'} time="live">{initialized&&<MapExperience key={runtime?runtime.scopeKey:`${scenario}:${homeChanged}`} runtime={runtime} scenario={scenario} comparisonCase={comparisonCase} resetComparisonCase={()=>setComparisonCase('ready')} publicMode={publicMode} homeChanged={homeChanged} appearance={appearance} palette={palette} scale={Number(scale)/100} motion={motion} contrast={contrast} reviewTools={reviewTools}/>}</SceneProvider>
   </div>;
 }
 
-function MapExperience({runtime,scenario,comparisonCase,resetComparisonCase,publicMode,homeChanged,appearance,palette,scale,motion,contrast}:{runtime?:MapRequestRuntime;scenario:MapScenario;comparisonCase:ComparisonCase;resetComparisonCase:()=>void;publicMode:boolean;homeChanged:boolean;appearance:string;palette:ReturnType<typeof colorPalette>;scale:number;motion:boolean;contrast:boolean}) {
+function MapExperience({runtime,scenario,comparisonCase,resetComparisonCase,publicMode,homeChanged,appearance,palette,scale,motion,contrast,reviewTools=false}:{runtime?:MapRequestRuntime;scenario:MapScenario;comparisonCase:ComparisonCase;resetComparisonCase:()=>void;publicMode:boolean;homeChanged:boolean;appearance:string;palette:ReturnType<typeof colorPalette>;scale:number;motion:boolean;contrast:boolean;reviewTools?:boolean}) {
   const experience=useSceneExperience();
   const router = useRouter();
   const restoredSession=useRef(runtime||publicMode||homeChanged?undefined:session);
@@ -253,8 +255,8 @@ function MapExperience({runtime,scenario,comparisonCase,resetComparisonCase,publ
     navigateView({lng:point.lng,lat:point.lat,zoom:layer==='radon'?8:10});setFocusedId(id);focusMapOnClose.current=true;closeSheet();
     setNotice(`Focused on ${id==='home'?'your approximate home':points.find(p=>p.id===id)?.name}. Use Previous view to return.`);
   }
-  const factorHref=(factor:string)=>runtime?`/factors/${factor}`:`/foundation/preview/factor/${factor}?edition=expanded&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}`;
-  const foundationHref=(tab:string)=>runtime?publicMode?(tab==='act'?'/learn':`/onboarding?entry=1&next=${encodeURIComponent(`/${tab}`)}`):`/${tab}?mapReturn=1`:`/foundation/preview${publicMode?'/expanded/':''}?edition=expanded&tab=${tab}&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}${publicMode?'&access=public':''}`;
+  const factorHref=(factor:string)=>runtime?`/factors/${factor}`:`/foundation/preview/factor/${factor}?edition=expanded&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}${reviewTools?'&review=tools':''}`;
+  const foundationHref=(tab:string)=>runtime?publicMode?(tab==='act'?'/learn':`/onboarding?entry=1&next=${encodeURIComponent(`/${tab}`)}`):`/${tab}?mapReturn=1`:`/foundation/preview${publicMode?'/expanded/':''}?edition=expanded&tab=${tab}&appearance=${appearance}&scale=${Math.round(scale*100)}&motion=${motion?'reduce':'system'}&contrast=${contrast}${publicMode?'&access=public':''}${reviewTools?'&review=tools':''}`;
   const counts=compound==='overall'?`${water.filter(w=>Object.values(w.contaminants).some(exceedsLimit)).length} of ${water.length} systems exceed a supplied limit` : compound==='hazard'?`${water.filter(w=>w.hazard_index?.exceeds).length} systems exceed the supplied hazard index` : `${water.filter(w=>exceedsLimit(w.contaminants[compoundKey[compound]])).length} of ${water.filter(w=>w.contaminants[compoundKey[compound]]?.value_ppt!==undefined).length} recorded systems exceed the ${compounds.find(c=>c[0]===compound)?.[1]} limit`;
   const districtVariant= offline||current==='district-error'?'error':current==='district-geography'?'geography-error':current==='district-zero'?'zero':current==='population-missing'?'population-missing':current==='population-partial'?'population-partial':current==='comparison-missing'?'comparison-missing':'full';
   const activeWater=sheet && 'id' in sheet ? visibleWater.find(w=>w.pwsid===sheet.id):undefined;
