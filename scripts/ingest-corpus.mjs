@@ -9,8 +9,11 @@
  * source-attributed passages, not by loosening this.
  *
  * Prereqs: migrations 0007 + 0008 applied; an embedding key in the environment
- * (ASSISTANT_MODEL_KEY or OPENAI_API_KEY). Defaults to OpenAI text-embedding-3-small
- * (1536-d, matching the schema); override with ASSISTANT_EMBED_URL / _MODEL.
+ * (ASSISTANT_MODEL_KEY or OPENAI_API_KEY) and ASSISTANT_EMBED_MODEL set to the SAME
+ * model the app embeds questions with (vectors from different models are not
+ * comparable). There is no default model, as in lib/assistantRag.js (Ruling L1):
+ * the old default was a paid OpenAI model at 1536 dimensions, which the 2048-wide
+ * column from migration 0013 refuses. ASSISTANT_EMBED_DIM defaults to 2048.
  *
  * Usage:  node scripts/ingest-corpus.mjs [--replace]
  *   --replace   wipe existing corpus rows first. This script is the only writer,
@@ -36,12 +39,16 @@ try {
 
 const KEY = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY;
 const EMBED_URL = process.env.ASSISTANT_EMBED_URL || 'https://api.openai.com/v1/embeddings';
-const EMBED_MODEL = process.env.ASSISTANT_EMBED_MODEL || 'text-embedding-3-small';
+const EMBED_MODEL = (process.env.ASSISTANT_EMBED_MODEL || '').trim();
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!KEY) {
   console.error('No embedding key (ASSISTANT_MODEL_KEY / OPENAI_API_KEY). Aborting.');
+  process.exit(1);
+}
+if (!EMBED_MODEL) {
+  console.error('ASSISTANT_EMBED_MODEL is not set, and there is no default: set it to the model the app embeds questions with. Aborting.');
   process.exit(1);
 }
 if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -59,7 +66,7 @@ function normalizeRetrieved(r) {
 }
 
 // Must match the assistant_corpus.embedding column (vector(2048) after migration 0013).
-const EMBED_DIM = Number(process.env.ASSISTANT_EMBED_DIM || 1536);
+const EMBED_DIM = Number(process.env.ASSISTANT_EMBED_DIM || 2048);
 
 // One "what it is" passage + one "how to reduce exposure" passage per topic,
 // each attributed to a real Learn source. A source with no retrieval date is

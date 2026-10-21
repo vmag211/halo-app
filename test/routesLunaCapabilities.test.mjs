@@ -57,7 +57,9 @@ const MODEL_KEY = 'sk-test-luna-key-must-never-be-echoed';
  * the sandbox scrubs every provider variable, so a test that wants an
  * available Luna has to say so.
  */
-const ON = { HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: MODEL_KEY };
+const MODELS = { ASSISTANT_EMBED_MODEL: 'test-embed-model', ASSISTANT_CHAT_MODEL: 'test-chat-model' };
+// And both model ids, which POST /api/luna/messages also requires (Ruling L1).
+const ON = { HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: MODEL_KEY, ...MODELS };
 
 /** The flag on, with no provider key: Luna is switched on but cannot answer. */
 const ON_WITHOUT_KEY = { HALO_FEATURE_LUNA: 'on' };
@@ -345,8 +347,8 @@ test('an unconfigured deployment is reported to the person, not to the operator'
 test('no part of the provider key reaches the response, however it was configured', async () => {
   const h = harness();
   for (const [env, available] of [
-    [{ HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: MODEL_KEY }, true],
-    [{ HALO_FEATURE_LUNA: 'on', OPENAI_API_KEY: MODEL_KEY }, true],
+    [{ HALO_FEATURE_LUNA: 'on', ASSISTANT_MODEL_KEY: MODEL_KEY, ...MODELS }, true],
+    [{ HALO_FEATURE_LUNA: 'on', OPENAI_API_KEY: MODEL_KEY, ...MODELS }, true],
     // The off answer is also composed while a real key exists, which is the
     // only state where the off body could carry one.
     [{ ASSISTANT_MODEL_KEY: MODEL_KEY }, false],
@@ -369,6 +371,26 @@ test('a key that is present but empty is not a configured provider', async () =>
   ]) {
     const body = await (await h.call(ROUTE, 'GET', { as: 'alice', env })).json();
     assert.equal(body.available, false, `${JSON.stringify(env)} cannot answer a question`);
+  }
+});
+
+test('a key without both model ids is not a configured provider, as the message route decides', async () => {
+  const h = harness();
+  for (const missing of ['ASSISTANT_EMBED_MODEL', 'ASSISTANT_CHAT_MODEL']) {
+    for (const blank of [undefined, '', '  ']) {
+      const env = { ...ON, [missing]: blank };
+      if (blank === undefined) delete env[missing];
+      const body = await (await h.call(ROUTE, 'GET', { as: 'alice', env })).json();
+      assertLunaCapabilities(body);
+      assert.equal(body.available, false, `${missing} ${JSON.stringify(blank)}: every message would answer 503`);
+      // The same deployment refuses a message, so the two routes agree.
+      const sent = await h.call('/api/luna/messages', 'POST', {
+        as: 'alice',
+        env,
+        body: { clientMessageId: '99999999-9999-4999-8999-000000000001', conversationId: null, text: 'What is radon?', page: 'Today', noteContext: [] },
+      });
+      assert.equal(sent.status, 503);
+    }
   }
 });
 

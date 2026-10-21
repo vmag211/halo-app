@@ -28,6 +28,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export const SCRUBBED_ENV = [
   'AIRNOW_API_KEY',
   'ASSISTANT_CHAT_FALLBACK_MODELS',
+  'ASSISTANT_CHAT_MAX_TOKENS',
   'ASSISTANT_CHAT_MODEL',
   'ASSISTANT_CHAT_URL',
   'ASSISTANT_EMBED_DIM',

@@ -93,7 +93,7 @@ const EMBED_URL = 'https://api.openai.com/v1/embeddings';
 const CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 
 /** The embedding width migration 0013 widened the corpus column to accept. */
-const EMBED_DIM = 1536;
+const EMBED_DIM = 2048;
 
 const uuid = (n) => `99999999-9999-4999-8999-${String(n).padStart(12, '0')}`;
 
@@ -515,6 +515,55 @@ test('Ruling L4: a dead chat model becomes the cited sources with no prose, not 
   assert.ok(h.provider.calls.some((call) => call.url === CHAT_URL), 'the model was asked, and failing is what degraded it');
 });
 
+test('a dead chat model is visible in the log, by its status only, while the person still gets the sources', async (t) => {
+  // Live-checked 2026-10-20: a retired free model answered every question with
+  // 404, and Luna degraded to sources in silence, so nobody could tell.
+  const logged = muteConsoleError(t);
+  const h = harness({ fetch: provider({ chatStatus: 404 }), passages: [passage(1)] });
+  assertLunaRun(await (await send(h, 'alice', message({ text: 'What is radon? ALICE-QUESTION-MARKER' }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  assert.equal(h.db.rows('luna_turns').find((row) => row.role === 'assistant').body, LUNA_SOURCES_ONLY);
+  const lines = logged.mock.calls.map((call) => call.arguments.map(String).join(' '));
+  assert.ok(lines.some((line) => line.includes('luna chat model failed') && line.includes('status 404')), lines.join('\n'));
+  const all = lines.join('\n');
+  for (const secret of ['ALICE-QUESTION-MARKER', 'test-model-key', h.identities.alice.id, h.db.rows('luna_runs')[0].id]) {
+    assert.equal(all.includes(secret), false, `the log line carries no ${secret}`);
+  }
+});
+
+test('a follow-up is retrieved with the person\'s previous question, so "what about X?" can find its source', async () => {
+  const h = harness();
+  const first = assertLunaRun(await (await send(h, 'alice', message({ id: uuid(1), text: 'What is the federal limit for PFOS?' }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  const conversationId = first.conversation.id;
+  assertLunaRun(await (await send(h, 'alice', message({ id: uuid(2), conversationId, text: 'What about PFHxS?' }))).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+
+  const embedded = h.provider.calls.filter((call) => call.url === EMBED_URL).map((call) => call.body.input);
+  assert.deepEqual(embedded, [
+    'What is the federal limit for PFOS?',
+    'What is the federal limit for PFOS?\nWhat about PFHxS?',
+  ]);
+  const [, second] = h.provider.sent();
+  assert.match(second.user, /<question>\nWhat about PFHxS\?\n<\/question>/, 'the model is asked the new question');
+  assert.equal((second.user.match(/What about PFHxS\?/g) ?? []).length, 1, 'once');
+});
+
+test('an em dash in the corpus or the model\'s prose never reaches the conversation the client renders', async () => {
+  const dashed = passage(1, { source_label: 'EPA — Radon', passage: 'RADON — a gas that collects indoors.' });
+  const h = harness({ fetch: provider({ answer: 'Radon — a gas — collects indoors [1].' }), passages: [dashed] });
+  const body = message();
+  assertLunaRun(await (await send(h, 'alice', body)).json());
+  await h.runAfter({ fetch: h.provider, env: ON });
+  // A replay reports the finished run with its whole conversation, and
+  // assertLunaRun refuses any em dash anywhere in it.
+  const replay = assertLunaRun(await (await send(h, 'alice', body)).json());
+  assert.equal(replay.status, 'completed');
+  const answer = replay.conversation.messages.at(-1);
+  assert.equal(answer.text, 'Radon, a gas, collects indoors.');
+  assert.equal(answer.sources[0].title, 'EPA, Radon');
+});
+
 test('an answer with no usable source says so rather than inventing one', async () => {
   for (const [label, options] of [
     ['nothing retrieved', { passages: [] }],
@@ -606,9 +655,11 @@ test('the refusal is not weaker than /api/assistant\'s: the same structural chec
     const body = assertLunaRun(await (await send(h, 'alice', message({ text }))).json());
     assert.equal(body.conversation.messages[1].text, LUNA_DIAGNOSTIC_REFUSAL, text);
   }
-  // Same standard, Luna's own sentence: the legacy constant carries an em dash
-  // and offers to read household readings, which Luna cannot do (Ruling L2).
-  assert.ok(DIAGNOSTIC_REFUSAL.includes('\u2014'));
+  // Same standard, Luna's own sentence: the legacy constant offers to read
+  // household readings, which Luna cannot do (Ruling L2). Neither carries an
+  // em dash (the legacy one did until 2026-10-20).
+  assert.notEqual(DIAGNOSTIC_REFUSAL, LUNA_DIAGNOSTIC_REFUSAL);
+  assert.equal(DIAGNOSTIC_REFUSAL.includes('\u2014'), false);
   assert.equal(LUNA_DIAGNOSTIC_REFUSAL.includes('\u2014'), false);
   assert.ok(/clinician/.test(LUNA_DIAGNOSTIC_REFUSAL), 'and it still points at a person who can help');
 });
