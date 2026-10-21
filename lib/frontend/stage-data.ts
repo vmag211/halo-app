@@ -76,6 +76,10 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const inCurrentHome = (value: DailyResponse | HomeResponse | null) => !currentHome || !value?.home_context_id || value.home_context_id === currentHome;
   const dailyData = record(inCurrentHome(daily) ? daily : null); const homeData = record(inCurrentHome(home) ? home : null);
   const air = record(dailyData.air); const uv = record(dailyData.uv); const pollen = record(dailyData.pollen); const mold = record(dailyData.mold);
+  // Card scores (round(100 - risk), higher is better) arrive in score.factor_scores
+  // on newer responses. Older responses omit it and keep the unscored cards.
+  const factorScores = record(record(dailyData.score).factor_scores);
+  const factorScore = (key: 'air' | 'uv' | 'pollen', present: boolean) => { const value = scoreNumber(factorScores[key]); return present && value !== null ? Math.round(value) : null; };
   const water = record(homeData.water); const radon = record(homeData.radon); const lead = record(homeData.lead);
   const breakdown = rows(homeData.breakdown);
   const waterBox = breakdown.find(row => row.key === 'water') ?? {};
@@ -94,24 +98,26 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
     PM10: ['Coarse particles', 'The AQI reflects the pollutant with the highest index.'],
     O3: ['Ozone', 'The AQI reflects the pollutant with the highest index.'],
   };
-  readings.air = { ...readings.air, reading: aqi === null ? 'No data' : String(Math.round(aqi)), unit: 'AQI', severity: airSeverity, asOf: dailyAsOf, source: airSource,
+  const airScore = factorScore('air', aqi !== null);
+  readings.air = { ...readings.air, score: airScore, reading: aqi === null ? 'No data' : String(Math.round(aqi)), unit: 'AQI', severity: airSeverity, asOf: dailyAsOf, source: airSource,
     provenance: aqi === null ? null : air.is_measured === true ? 'measured' : air.is_measured === false ? 'modeled' : null,
     sentence: aqi === null ? readings.air.sentence : safeText(air.sentence) || 'Your outdoor air reading is available.', detail: 'This describes outdoor air in your area, not the air inside your home.',
     context: context({ value: aqi, severity: aqi === null ? null : airSeverity, source: fieldText(air.source), pollutant: pollutant || null }),
     trend: dailyTrend(history, 'air'), trendTitle: 'A week of outdoor air',
     details: aqi === null ? {} : { air: { aqi, pollutant, pollutantName: pollutants[pollutant]?.[0] ?? (pollutant || 'Dominant pollutant unavailable'), explanation: pollutants[pollutant]?.[1] ?? 'A dominant pollutant is shown only when the source supplies it.' } },
-    disclosures: ['A separate air score is not supplied with this reading.', ...(aqi !== null && air.is_measured === false ? ['This is a modeled estimate.'] : [])],
+    disclosures: [...(airScore === null ? ['A separate air score is not supplied with this reading.'] : []), ...(aqi !== null && air.is_measured === false ? ['This is a modeled estimate.'] : [])],
   };
 
   const uvIndex = nonnegative(uv.index); const uvSeverity = uvIndex === null ? 'no_data' : severity(uv.severity);
   const peak = record(uv.peak_window); const peakMax = nonnegative(peak.max);
   const isClock = (value: unknown): value is string => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
   const peakWindow = isClock(peak.start) && isClock(peak.end) && peakMax !== null ? { start: peak.start, end: peak.end, max: peakMax } : null;
-  readings.uv = { ...readings.uv, reading: uvIndex === null ? 'No data' : uvIndex.toFixed(1), unit: 'UV index', severity: uvSeverity, asOf: dailyAsOf, source: 'UV forecast',
+  const uvScore = factorScore('uv', uvIndex !== null);
+  readings.uv = { ...readings.uv, score: uvScore, reading: uvIndex === null ? 'No data' : uvIndex.toFixed(1), unit: 'UV index', severity: uvSeverity, asOf: dailyAsOf, source: 'UV forecast',
     sentence: uvIndex === null ? readings.uv.sentence : safeText(uv.sentence) || 'Your UV forecast is available.', detail: 'The UV index describes outdoor ultraviolet radiation. This reading does not measure individual exposure.',
     context: context({ value: uvIndex, severity: uvIndex === null ? null : uvSeverity, peak_start: peakWindow?.start, peak_end: peakWindow?.end }),
     trend: dailyTrend(history, 'uv'), trendTitle: 'Your UV week', details: { uv: { peak_window: peakWindow } },
-    disclosures: ['A separate UV score and the current provider name are not supplied with this reading.'],
+    disclosures: [uvScore === null ? 'A separate UV score and the current provider name are not supplied with this reading.' : 'The current UV provider name is not supplied with this reading.'],
   };
 
   const categories = record(pollen.categories);
@@ -119,12 +125,13 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const dominantIndex = ['tree', 'grass', 'weed'].indexOf(String(pollen.dominant));
   const dominant = dominantIndex >= 0 ? pollenRows[dominantIndex] : null;
   const hasPollen = pollenRows.some(row => row.value !== null);
-  readings.pollen = { ...readings.pollen, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : 'No data', unit: dominant ? `${dominant.name} index` : 'Pollen index',
+  const pollenScore = factorScore('pollen', hasPollen);
+  readings.pollen = { ...readings.pollen, score: pollenScore, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : 'No data', unit: dominant ? `${dominant.name} index` : 'Pollen index',
     severity: hasPollen ? severity(pollen.severity) : 'no_data', asOf: dailyAsOf, source: 'Google Pollen', sentence: hasPollen ? safeText(pollen.sentence) || 'Your pollen category readings are available.' : readings.pollen.sentence,
     detail: 'Tree, grass, and weed retain their own readings. The leading category does not describe every type of pollen.',
     context: context({ value: dominant?.value, severity: hasPollen ? severity(pollen.severity) : null, category: dominant?.name }),
     trend: dailyTrend(history, 'pollen'), trendTitle: 'The leading pollen each day', details: { pollen: { categories: pollenRows } },
-    disclosures: ['A separate pollen score is not supplied with this reading.'],
+    disclosures: pollenScore === null ? ['A separate pollen score is not supplied with this reading.'] : [],
   };
 
   const moldRisk = ['low', 'moderate', 'high'].includes(String(mold.risk)) ? String(mold.risk) : null;
@@ -134,7 +141,10 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
     detail: 'This estimate uses outdoor humidity and rain forecasts. It is not a measurement of mold or humidity inside your home.',
     context: context({ risk: moldRisk, severity: moldRisk ? severity(mold.severity) : null, humidity, precip }),
     trendTitle: 'Conditions, not a mold count', trendCaption: 'No measured indoor mold series is available.', details: { mold: { humidity_pct: humidity, precip_pct: precip } },
-    disclosures: ['A separate mold score is not supplied with this estimate.'],
+    // Mold is a capped weather estimate with no card score by design. It still
+    // counts in the daily score, so it is shown as an estimate, never "Not scored".
+    ...(moldRisk ? { unscored: { label: 'Estimate only', kicker: 'Weather estimate' } } : {}),
+    disclosures: ['Mold is a weather estimate and has no score of its own. When available, it counts toward the daily score.'],
   };
 
   const privateSource = water.status === 'private_well' || ['well', 'spring'].includes(String(location.water_source));

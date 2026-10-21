@@ -39,6 +39,8 @@ export type FactorReading = {
   details: FactorDetails;
   /** Live provenance and coverage notices, absent in frozen design fixtures. */
   disclosures?: string[];
+  /** Shown in place of a score when a reading is deliberately unscored (an estimate), so it never reads as missing. */
+  unscored?: { label: string; kicker: string };
 };
 import type { MotionMode, SceneTime } from './scene-clock';
 import {colorPalette,type ColorPalette} from './settings-preview';

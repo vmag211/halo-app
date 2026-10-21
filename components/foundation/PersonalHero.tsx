@@ -69,7 +69,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     <div className="halo-ph-section-label"><h2>{home ? 'Understand the evidence' : 'Your readings'}</h2><span>Open a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
       const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? factor.severity === 'no_data' : missing || (partial && key === missingKey);
-      return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} /></Reveal>;
+      return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} unscoredLabel={factor.unscored?.label} /></Reveal>;
     })}</div>
     <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score. Area evidence does not measure conditions inside your home.' : 'Readings can update at different times. Open a factor for its source, history and practical steps.'} Estimates are identified in each factor.</p>
     </section>
@@ -128,7 +128,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
   return <article className="halo-ph-detail" data-factor={factorKey} style={{ '--factor-accent': accent } as CSSProperties}>
     <section className="halo-ph-factor-hero"><EnvironmentalScene variant={factorKey} />
       <div className="halo-ph-scene-content"><div className="halo-ph-scene-top"><span><Icon size={18} aria-hidden="true" />{clock.label}</span><MotionButton /></div>
-        <Reveal><div className="halo-ph-detail-score"><span className="halo-ph-kicker">{factorKey === 'lead' ? 'Not part of the score' : 'Factor score'}</span><strong data-empty={factor.score === null}>{factor.score === null ? (missing ? 'No data' : 'Not scored') : <AnimatedNumber value={factor.score} />}</strong>{factor.score !== null && <span>out of 100 · higher is better</span>}</div></Reveal>
+        <Reveal><div className="halo-ph-detail-score"><span className="halo-ph-kicker">{factorKey === 'lead' ? 'Not part of the score' : factor.score === null && !missing && factor.unscored ? factor.unscored.kicker : 'Factor score'}</span><strong data-empty={factor.score === null}>{factor.score === null ? (missing ? 'No data' : factor.unscored?.label ?? 'Not scored') : <AnimatedNumber value={factor.score} />}</strong>{factor.score !== null && <span>out of 100 · higher is better</span>}</div></Reveal>
         <div className="halo-ph-reading-capsule"><b>{factor.reading}</b><span>{factor.unit}</span></div><SeverityPill severity={factor.severity} />
       </div>
     </section>

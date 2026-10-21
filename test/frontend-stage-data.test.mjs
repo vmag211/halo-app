@@ -183,3 +183,72 @@ test('cap claims depend on actual cap flag and private lead testing depends on t
   const privateHome = { ...home, water: { status: 'private_well', test_plan: { tests: [{ id: 'lead_copper' }] } } };
   assert.match(buildStageData(daily, privateHome, privateProfile).readings.lead.sentence, /included/);
 });
+
+// BE-113 (2026-10-21): score.factor_scores gives air, UV and pollen card scores.
+const { formatDailyPayload } = await import('../lib/dailyPayload.js');
+const scored = (factorScores) => ({ ...daily, score: { ...daily.score, factor_scores: factorScores, factor_score_exclusions: { mold: 'weather_estimate' } } });
+const scoreClaim = /score .*not supplied|not supplied .*score/i;
+
+test('Today cards show the server card scores for air, UV and pollen, without the not-supplied disclosure', () => {
+  const { readings } = buildStageData(scored({ air: 85, uv: 53, pollen: 40, mold: null }), home, profile);
+  assert.deepEqual([readings.air.score, readings.uv.score, readings.pollen.score], [85, 53, 40]);
+  for (const key of ['air', 'uv', 'pollen']) assert.ok(!readings[key].disclosures.some(line => scoreClaim.test(line)), key);
+  assert.deepEqual(readings.uv.disclosures, ['The current UV provider name is not supplied with this reading.']);
+  assert.equal(readings.air.provenance, 'measured', 'everything else about the reading is unchanged');
+});
+
+test('UV index 0 is a real 100, not a missing score', () => {
+  const { readings } = buildStageData({ ...scored({ air: 85, uv: 100, pollen: 40, mold: null }), uv: { index: 0, severity: 'good' } }, null, profile);
+  assert.equal(readings.uv.score, 100);
+  assert.equal(readings.uv.reading, '0.0');
+});
+
+test('mold is shown as an estimate, never as a missing or "Not scored" reading', () => {
+  const withField = buildStageData(scored({ air: 85, uv: 53, pollen: 40, mold: 90 }), home, profile).readings.mold;
+  assert.equal(withField.score, null, 'a mold card score is never shown, even if one is sent');
+  assert.deepEqual(withField.unscored, { label: 'Estimate only', kicker: 'Weather estimate' });
+  assert.equal(withField.provenance, 'estimate');
+  assert.doesNotMatch(withField.disclosures.join(' '), /not supplied/);
+  const legacy = buildStageData(daily, home, profile).readings.mold;
+  assert.deepEqual(legacy.unscored, { label: 'Estimate only', kicker: 'Weather estimate' });
+  const absent = buildStageData({ ...daily, mold: { risk: null, severity: 'no_data' } }, home, profile).readings.mold;
+  assert.equal(absent.unscored, undefined, 'a missing estimate stays No data');
+  assert.equal(absent.severity, 'no_data');
+});
+
+test('legacy responses without factor_scores render exactly as before', () => {
+  const { readings } = buildStageData(daily, home, profile);
+  for (const key of ['air', 'uv', 'pollen', 'mold']) assert.equal(readings[key].score, null);
+  assert.ok(readings.air.disclosures.includes('A separate air score is not supplied with this reading.'));
+  assert.deepEqual(readings.uv.disclosures, ['A separate UV score and the current provider name are not supplied with this reading.']);
+  assert.deepEqual(readings.pollen.disclosures, ['A separate pollen score is not supplied with this reading.']);
+  for (const fs of [null, 'x', [], {}]) {
+    const r = buildStageData({ ...daily, score: { ...daily.score, factor_scores: fs } }, home, profile).readings;
+    assert.deepEqual([r.air.score, r.uv.score, r.pollen.score], [null, null, null], JSON.stringify(fs));
+  }
+});
+
+test('a card score is shown only with its reading and only when it is a valid 0 to 100 number', () => {
+  const missing = buildStageData({ ...scored({ air: 80, uv: 80, pollen: 80 }), air: { aqi: null }, uv: { index: null }, pollen: { tree: null, grass: null, weed: null } }, null, profile).readings;
+  assert.deepEqual([missing.air.score, missing.uv.score, missing.pollen.score], [null, null, null]);
+  const bad = buildStageData(scored({ air: 101, uv: -1, pollen: '60' }), null, profile).readings;
+  assert.deepEqual([bad.air.score, bad.uv.score, bad.pollen.score], [null, null, null]);
+  assert.ok(bad.air.disclosures.includes('A separate air score is not supplied with this reading.'));
+  assert.equal(buildStageData(scored({ air: 81.6, uv: 0, pollen: 100 }), null, profile).readings.air.score, 82);
+});
+
+test('the real daily payload, consumed by Today: what the cards show', () => {
+  const payload = formatDailyPayload({
+    aqi: 44, aqiSource: 'airnow', aqiIsMeasured: true, dominantPollutant: 'O3', uvIndex: 11, uvPeakWindow: null,
+    pollen: { tree: 1, grass: 4, weed: null }, mold: { risk: 'moderate', basis: { humidity_pct: 65, precip_pct: 0 } },
+    cached: true, retrievedAt: '2026-10-20T14:00:00.000Z',
+  });
+  const { readings, today } = buildStageData(payload, null, null);
+  assert.deepEqual([readings.air.score, readings.uv.score, readings.pollen.score, readings.mold.score], [82, 0, 20, null]);
+  assert.equal(readings.mold.unscored?.label, 'Estimate only');
+  assert.equal(today.score, payload.score.display_score, 'the composite is unchanged');
+  const outage = formatDailyPayload({ aqi: null, uvIndex: null, pollen: { tree: null, grass: null, weed: null }, mold: { risk: null, basis: null }, cached: false, retrievedAt: null });
+  const empty = buildStageData(outage, null, null).readings;
+  for (const key of ['air', 'uv', 'pollen', 'mold']) { assert.equal(empty[key].score, null); assert.equal(empty[key].severity, 'no_data'); }
+  for (const key of ['air', 'uv', 'pollen', 'mold']) for (const text of [readings[key].sentence, ...readings[key].disclosures, readings[key].unscored?.label ?? '']) assert.doesNotMatch(text, /—/);
+});

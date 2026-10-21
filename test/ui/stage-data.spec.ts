@@ -10,7 +10,30 @@ const reading = (aqi = 73) => ({
   score: { display_score: 63, severity: 'moderate', is_partial: true, missing_inputs: ['pollen', 'mold'], included_inputs: ['air', 'uv'], inputs: { air: 29, uv: 0, pollen: null, mold: null } },
   retrieved_at: '2026-10-01T14:00:00Z', cached: false,
 });
+const scoredReading = () => ({
+  ...reading(44),
+  pollen: { tree: 1, grass: 4, weed: null, dominant: 'grass', severity: 'high', categories: { tree: { value: 1, severity: 'low' }, grass: { value: 4, severity: 'high' }, weed: { value: null, severity: 'no_data' } } },
+  mold: { risk: 'moderate', severity: 'moderate', is_proxy: true, basis: { humidity_pct: 65, precip_pct: 0 } },
+  score: { display_score: 58, severity: 'high', is_partial: false, missing_inputs: [], included_inputs: ['air', 'uv', 'pollen', 'mold'], inputs: { air: 17.6, uv: 0, pollen: 80, mold: 17 },
+    factor_scores: { air: 82, uv: 100, pollen: 20, mold: null }, factor_score_exclusions: { mold: 'weather_estimate' } },
+});
 const learned = (why: string | null) => ({ topic: 'air', title: 'Air quality', locale: 'en', what_it_is: 'General educational air information.', why_yours: why, household_note: null, protect: [], sources: [] });
+
+test('server card scores show on air, UV and pollen; mold shows as an estimate, not Not scored', async ({ page }) => {
+  await mockStage(page, { overrides: { '/api/daily-score': route => jsonRoute(route, scoredReading()) } });
+  await page.goto('/today');
+  await expect(page.getByRole('link', { name: /Air quality\. Score 82 of 100\. 44 AQI/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /UV index\. Score 100 of 100\. 0\.0 UV index/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Pollen\. Score 20 of 100\./ })).toBeVisible();
+  const mold = page.getByRole('link', { name: /Mold conditions\. Estimate only\./ });
+  await expect(mold).toBeVisible();
+  await expect(mold.locator('.halo-ph-card-score')).toHaveText('Estimate only');
+  await expect(page.getByRole('link', { name: /Air quality\./ }).locator('.halo-ph-card-score')).toContainText('/100');
+  await expect(page.locator('body')).not.toContainText('Not scored');
+  await mold.click();
+  await expect(page.locator('.halo-ph-detail-score .halo-ph-kicker')).toHaveText('Weather estimate');
+  await expect(page.locator('.halo-ph-detail-score strong')).toHaveText('Estimate only');
+});
 
 test('production displays actual partial readings, zero UV, model provenance, and no fixture data', async ({ page }) => {
   const { requests, blocked } = await mockStage(page, { overrides: { '/api/daily-score': route => jsonRoute(route, reading()) } });
