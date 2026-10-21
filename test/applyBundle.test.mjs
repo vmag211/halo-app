@@ -10,6 +10,7 @@ import {
   VERIFY_FILE,
   PENDING,
   BUNDLES,
+  ALL_PENDING,
   buildBundle,
   buildVerify,
 } from '../scripts/build-apply-bundle.mjs';
@@ -237,6 +238,60 @@ test('the 0025 bundle over a schema without 0016 refuses and leaves nothing appl
     await db.exec('rollback');
     const { rows } = await db.query("select to_regclass('public.daily_maxima') as maxima, to_regprocedure('public.daily_maxima_schema_version()') as probe");
     assert.deepEqual(rows[0], { maxima: null, probe: null });
+  } finally {
+    await db.close();
+  }
+});
+
+// ---- Every pending migration in one paste (2026-10-20): 0024 to 0033 over
+// 0001 to 0023, which is what production has. The same files as their own
+// bundles, in the same order, so it repeats them and is not in BUNDLES.
+
+const ALL = ALL_PENDING;
+
+test('the 0024 to 0033 bundle and check are committed, current, and hold every pending migration in order', () => {
+  assert.deepEqual([...ALL.migrations], BUNDLES.slice(1).flatMap((bundle) => [...bundle.migrations]));
+  assert.deepEqual(ALL.migrations.map((name) => Number(name.slice(0, 4))), ALL.migrations.map((_, at) => 24 + at));
+  assert.equal(committed(ALL.bundleFile), buildBundle(ALL), 'run node scripts/build-apply-bundle.mjs');
+  assert.equal(committed(ALL.verifyFile), buildVerify(ALL), 'run node scripts/build-apply-bundle.mjs');
+  assert.ok(!buildBundle(ALL).includes('-- 0023_household_actions.sql'), 'an applied migration is not bundled again');
+});
+
+test('the 0024 to 0033 bundle applies on top of 0001 to 0023, twice, and every check passes', async () => {
+  const db = await createDb({ upTo: 23 });
+  try {
+    await applySql(db.pg, 'the 0024 to 0033 bundle', buildBundle(ALL));
+    const first = asNumbers(await verify(db, ALL));
+    const each = await Promise.all(BUNDLES.slice(1).map(async (bundle) => Number((await verify(db, bundle)).checks_run)));
+    assert.deepEqual(first, { all_migrations_ok: true, checks_run: each.reduce((a, b) => a + b, 0), failing: 'none' });
+    await applySql(db.pg, 'the 0024 to 0033 bundle, again', buildBundle(ALL));
+    assert.deepEqual(asNumbers(await verify(db, ALL)), first);
+  } finally {
+    await db.close();
+  }
+});
+
+test('the 0024 to 0033 check names a broken migration', async () => {
+  const db = await createDb({ upTo: 23 });
+  try {
+    await applySql(db.pg, 'the 0024 to 0033 bundle', buildBundle(ALL));
+    await db.exec('grant select on public.daily_maxima to anon');
+    const row = await verify(db, ALL);
+    assert.equal(row.all_migrations_ok, false);
+    assert.equal(row.failing, '0025.no_client_access');
+  } finally {
+    await db.close();
+  }
+});
+
+test('a failure part way through the 0024 to 0033 bundle leaves nothing applied', async () => {
+  const db = await createDb({ upTo: 23 });
+  try {
+    const broken = buildBundle(ALL).replace('-- 0033_public_evidence_snapshots.sql', '-- 0033_public_evidence_snapshots.sql\nselect 1/0;');
+    await assert.rejects(() => applySql(db.pg, 'a broken bundle', broken));
+    await db.exec('rollback');
+    const { rows } = await db.query("select to_regprocedure('public.privacy_schema_version()') as privacy, to_regclass('public.household_workspace_records') as workspace, to_regclass('public.participation_profiles') as participation");
+    assert.deepEqual(rows[0], { privacy: null, workspace: null, participation: null });
   } finally {
     await db.close();
   }

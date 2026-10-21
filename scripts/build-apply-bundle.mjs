@@ -124,6 +124,19 @@ export const BUNDLES = Object.freeze([
   }),
 ]);
 
+/**
+ * Every pending migration, 0024 to 0033, in one paste and one check (Vibhav, 2026-10-20). It is
+ * kept out of BUNDLES because it repeats their migrations; it is the same files in the same order.
+ */
+export const ALL_PENDING = Object.freeze({
+  title: 'migrations 0024 to 0033',
+  checks: 'migrations 0024 to 0033 are all',
+  needs: 'Needs 0001 to 0023 applied first (they are, on production, since 2026-10-19).',
+  bundleFile: 'apply-0024-to-0033.sql',
+  verifyFile: 'verify-0024-to-0033.sql',
+  migrations: Object.freeze(BUNDLES.slice(1).flatMap((bundle) => bundle.migrations)),
+});
+
 /** The 0019 to 0023 bundle under its original names, which test/applyBundle.test.mjs and YOUR_TODO.md 2.13 use. */
 export const BUNDLE_FILE = BUNDLES[0].bundleFile;
 export const VERIFY_FILE = BUNDLES[0].verifyFile;
@@ -202,7 +215,7 @@ export function buildVerify(bundle = BUNDLES[0]) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const files = Object.fromEntries(
-    BUNDLES.flatMap((bundle) => [[bundle.bundleFile, buildBundle(bundle)], [bundle.verifyFile, buildVerify(bundle)]]),
+    [...BUNDLES, ALL_PENDING].flatMap((bundle) => [[bundle.bundleFile, buildBundle(bundle)], [bundle.verifyFile, buildVerify(bundle)]]),
   );
   if (process.argv.includes('--check')) {
     const stale = Object.entries(files).filter(([file, text]) => {

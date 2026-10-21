@@ -18,6 +18,11 @@ the branch as of the night run: `docs/backend/STATE.md`.
    Applying a migration turns nothing on. 0032 (the participation directory, B18) serves nothing until a
    person writes and verifies listings (the template is in 2.23). 0033 (the weekly public water import,
    B19) leaves the import off until its flag is set (see the flags in step 2).
+   **Or all ten in one paste:** `docs/backend/apply/apply-0024-to-0033.sql` (the same ten files, in this
+   order, in one transaction, ending with the schema reload), then `docs/backend/apply/verify-0024-to-0033.sql`:
+   expect `all_migrations_ok = true`, `checks_run = 66`, `failing = none`. A failing name such as
+   `0025.no_client_access` says which migration and which check. If only `0024.profiles_reset_complete`
+   fails, the rest is fine: leave the privacy key unset and send Claude the 2.14 step 1 column list.
 2. **Set the environment variables** (server side, Sensitive, then redeploy; names only, never a value in
    the repository):
    - `HALO_PRIVACY_REVIEW_KEY`, the only switch for privacy (2.16).
