@@ -154,7 +154,13 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     resolvedOperations.current.add(command.operationId);
     unknownRef.current.delete(command.operationId);
     setUnknownOperations(previous => previous.filter(item => item.operationId !== command.operationId));
-    if (receipt.status === 'failed') { setMessage(receipt.message || 'The change was not saved. Your draft is kept.'); return false; }
+    if (receipt.status === 'failed') {
+      setMessage(receipt.message || 'The change was not saved. Your draft is kept.');
+      // A refused revision means this copy is stale. Fetch the latest so it can actually be reviewed;
+      // drafts live separately and are kept.
+      if (receipt.code === 'conflict' && command.kind !== 'recovered') for (const key of command.kind === 'write' || command.kind === 'remove' ? [command.collection] : command.kind === 'remove-notes' ? ['exploreNotes', 'exploreOutcomes'] : []) void loadCollection(key, true);
+      return false;
+    }
     for (const [key, revision] of Object.entries(receipt.revisions ?? {})) collectionState(key, { ...statesRef.current[key], status: 'ready', complete: true, revision });
     if (command.kind === 'clear-private') {
       if (command.scope === 'all') commit(Object.fromEntries(Object.keys(recordsRef.current).map(key => [key, []])));
