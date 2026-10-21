@@ -41,7 +41,10 @@ the branch as of the night run: `docs/backend/STATE.md`.
      existing `CRON_SECRET`, and waits on your confirmation that automated reuse of the NC DWR table is
      allowed (B19 decision 1).
 3. **Grant yourself the operator role** with the SQL in 2.18 step 4 (after 0027). Until you do, the
-   operations screen shows the denied snapshot.
+   operations screen shows the denied snapshot. **Deferred (2026-10-20):** an anonymous account is
+   always denied, and HALO has no email sign-in yet (linking an email is part of recovery, which is
+   deferred), so there is no account to grant it to. Skip this until an email sign-in exists; nothing
+   else depends on it, and every operator decision is refused today anyway.
 4. **Merge the geo hotfix PR to main**: `vmag211/hotfix-geo-outage` (`50ae6cb`), so main stops overwriting
    good water and district rows during an ArcGIS outage (`STATE.md`, "Known live risks"). Open the PR from
    that branch if one is not open.
