@@ -363,3 +363,33 @@ for (const appearance of ['light', 'dark']) test(`deep Explore flows remain usab
   await page.screenshot({ path: info.outputPath(`explore-community-${appearance}-375.png`), fullPage: true });
   expect(errors).toEqual([]);
 });
+
+test('server-rendered draft and project start wait for hydration, so early input is not merged or lost', async ({ page }) => {
+  let release!: () => void;
+  const hydration = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/_next/static/**/*.js', async route => { await hydration; await route.continue().catch(() => {}); });
+  try {
+    await page.goto(`${root}&destination=outreach`, { waitUntil: 'commit' });
+    const draft = page.getByLabel('Draft for Utility');
+    await expect(draft).toBeDisabled();
+    await expect(page.getByLabel('Subject')).toBeDisabled();
+    release();
+    await draft.fill('Only what I typed');
+    await expect(draft).toHaveValue('Only what I typed');
+  } finally { release(); }
+});
+
+test('moving within the expanded preview stays on its route, so an opened sheet is not remounted closed', async ({ page }) => {
+  await page.goto(root);
+  // A refetched page segment (an RSC request) remounts the preview when it lands; a query-only move needs none.
+  const refetches: string[] = [];
+  page.on('request', request => { if (request.headers()['rsc']) refetches.push(request.url()); });
+  await page.locator('.ex-involvement-preview .ex-destination').click();
+  await expect(page.getByRole('heading', { name: 'Get involved', exact: true })).toBeFocused();
+  expect(new URL(page.url()).pathname.replace(/\/$/, '')).toBe('/foundation/preview/expanded');
+  await page.getByRole('button', { name: 'Back to Explore', exact: true }).first().click();
+  await page.locator('.ex-area-toggle').click();
+  await expect(page.getByRole('dialog', { name: 'Your area', exact: true })).toBeVisible();
+  expect(new URL(page.url()).pathname.replace(/\/$/, '')).toBe('/foundation/preview/expanded');
+  expect(refetches).toEqual([]);
+});
