@@ -197,8 +197,8 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
   if (factor.key === 'pollen' && details.pollen) return <section className="halo-ph-panel">
     <span className="halo-ph-kicker">Three different stories</span><h2>What is in the air?</h2>
     <div className="halo-ph-pollen-list">{details.pollen.categories.map(row => <div key={row.name}>
-      <div className="halo-ph-panel-heading"><b>{row.name}</b><span>{row.value === null ? 'No data' : `${row.value} / 5`}</span><SeverityPill severity={row.severity} /></div>
-      <div className="halo-ph-pollen-dots" aria-label={`${row.name}: ${row.value === null ? 'No data' : `${row.value} of 5`}`}>{[1, 2, 3, 4, 5].map(n => <span key={n} data-active={row.value !== null && n <= row.value} />)}</div>
+      <div className="halo-ph-panel-heading"><b>{row.name}</b><span>{row.value === null ? row.outOfSeason ? 'Out of season' : 'No data' : `${row.value} / 5`}</span>{!row.outOfSeason && <SeverityPill severity={row.severity} />}</div>
+      <div className="halo-ph-pollen-dots" aria-label={`${row.name}: ${row.value === null ? row.outOfSeason ? 'Out of season' : 'No data' : `${row.value} of 5`}`}>{[1, 2, 3, 4, 5].map(n => <span key={n} data-active={row.value !== null && n <= row.value} />)}</div>
     </div>)}</div>
     <p className="halo-f-meta">Category index values, not grains per cubic meter. The leading category can change from day to day.</p>
   </section>;

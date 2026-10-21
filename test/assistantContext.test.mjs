@@ -31,3 +31,8 @@ test('a well household is told there is no water reading; nothing at all → nul
   assert.match(buildHouseholdContext({ home: { water_source: 'well', county: 'Buncombe County', radon_zone: 1 } }), /private well; no agency tests it/);
   assert.equal(buildHouseholdContext({}), null);
 });
+
+test('Luna is told which pollen types are out of season, but not for one with an index', () => {
+  const ctx = buildHouseholdContext({ page: 'today', today: { date: '2026-10-20', pollen: { tree: null, grass: 1, weed: null, out_of_season: ['tree', 'grass'] } } });
+  assert.match(ctx, /Out of season here today: tree pollen\./);
+});

@@ -60,3 +60,14 @@ test('total outage: every reading null — mold is NOT defaulted to low', async 
   assert.deepEqual(r.pollen, { tree: null, grass: null, weed: null });
   assert.deepEqual(r.mold, { risk: null, basis: null });
 });
+
+test('pollen: types Google marks out of season are listed; their index stays as sent', () => {
+  const r = parsePollen({ dailyInfo: [{ pollenTypeInfo: [
+    { code: 'TREE', inSeason: false },
+    { code: 'GRASS', inSeason: true, indexInfo: { value: 2 } },
+    { code: 'WEED', inSeason: false, indexInfo: { value: 0 } },
+  ] }] });
+  assert.deepEqual(r, { tree: null, grass: 2, weed: 0, out_of_season: ['tree', 'weed'] });
+  // No flag from Google means no claim either way.
+  assert.equal('out_of_season' in parsePollen({ dailyInfo: [{ pollenTypeInfo: [{ code: 'TREE' }] }] }), false);
+});
