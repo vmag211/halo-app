@@ -167,6 +167,9 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
     const params = new URLSearchParams({ scenario, tab, appearance, scale: String(Math.round(scale * 100)), motion, time, contrast: String(contrast) });
     if (expanded) params.set('edition', 'expanded');
     if (search.get('review') === 'tools' || pathname === '/tools') params.set('review', 'tools');
+    // Stay on the expanded route while on it: moving to /foundation/preview is a different Next page, which
+    // remounts the whole preview when it lands (late on a slow load), closing open sheets mid-interaction.
+    if (!factor && !specialist && pathname === '/foundation/preview/expanded') return `${pathname}?${params}`;
     return `/foundation/preview${factor ? `/factor/${factor}` : ''}?${params}`;
   }
   const factorHref = (factor: FactorKey) => previewHref(['pfas', 'radon', 'lead'].includes(factor) ? 'home' : 'today', factor);
