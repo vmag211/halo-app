@@ -10,7 +10,7 @@ function savingSettings(){
  const state={current:structuredClone(settingsSnapshot) as typeof settingsSnapshot&{display:Record<string,unknown>},saves:[] as Record<string,unknown>[],matches:[] as (string|undefined)[]};
  const route=async(route:import('@playwright/test').Route)=>{
   if(route.request().method()==='GET'){await jsonRoute(route,state.current);return;}
-  const input=route.request().postDataJSON();state.saves.push(input);state.matches.push(route.request().headers()['if-match']);
+  const input=route.request().postDataJSON();state.saves.push(input);state.matches.push(route.request().headers()['x-halo-if-match']);
   expect(route.request().headers()['idempotency-key']).toBe(input.operationId);
   state.current={...state.current,revision:state.current.revision+1,values:input.values,display:input.display,calendar:input.calendar};
   await jsonRoute(route,{operationId:input.operationId,status:'succeeded',snapshot:state.current});
