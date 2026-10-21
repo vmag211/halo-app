@@ -121,13 +121,15 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   };
 
   const categories = record(pollen.categories);
-  const pollenRows = (['tree', 'grass', 'weed'] as const).map(key => { const category = record(categories[key]); const value = boundedPollen(category.value ?? pollen[key]); return { name: key[0].toUpperCase() + key.slice(1), value, severity: value === null ? 'no_data' : severity(category.severity) }; });
+  // A type Google marks out of season and gives no index reads "Out of season", not "No data".
+  const pollenRows = (['tree', 'grass', 'weed'] as const).map(key => { const category = record(categories[key]); const value = boundedPollen(category.value ?? pollen[key]); const outOfSeason = value === null && category.out_of_season === true; return { name: key[0].toUpperCase() + key.slice(1), value, severity: value === null ? 'no_data' : severity(category.severity), ...(outOfSeason ? { outOfSeason } : {}) }; });
   const dominantIndex = ['tree', 'grass', 'weed'].indexOf(String(pollen.dominant));
   const dominant = dominantIndex >= 0 ? pollenRows[dominantIndex] : null;
   const hasPollen = pollenRows.some(row => row.value !== null);
+  const allOutOfSeason = !hasPollen && pollenRows.every(row => row.outOfSeason);
   const pollenScore = factorScore('pollen', hasPollen);
-  readings.pollen = { ...readings.pollen, score: pollenScore, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : 'No data', unit: dominant ? `${dominant.name} index` : 'Pollen index',
-    severity: hasPollen ? severity(pollen.severity) : 'no_data', asOf: dailyAsOf, source: 'Google Pollen', sentence: hasPollen ? safeText(pollen.sentence) || 'Your pollen category readings are available.' : readings.pollen.sentence,
+  readings.pollen = { ...readings.pollen, score: pollenScore, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : allOutOfSeason ? 'Out of season' : 'No data', unit: dominant ? `${dominant.name} index` : 'Pollen index',
+    severity: hasPollen ? severity(pollen.severity) : 'no_data', asOf: dailyAsOf, source: 'Google Pollen', sentence: hasPollen || allOutOfSeason ? safeText(pollen.sentence) || (allOutOfSeason ? 'Tree, grass and weed pollen are all out of season where you live.' : 'Your pollen category readings are available.') : readings.pollen.sentence,
     detail: 'Tree, grass, and weed retain their own readings. The leading category does not describe every type of pollen.',
     context: context({ value: dominant?.value, severity: hasPollen ? severity(pollen.severity) : null, category: dominant?.name }),
     trend: dailyTrend(history, 'pollen'), trendTitle: 'The leading pollen each day', details: { pollen: { categories: pollenRows } },

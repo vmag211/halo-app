@@ -5,7 +5,7 @@ export type TrendPoint = { date: string; label: string; value: number | null };
 export type FactorDetails = {
   air?: { aqi: number; pollutant: string; pollutantName: string; explanation: string };
   uv?: { peak_window: { start: string; end: string; max: number } | null };
-  pollen?: { categories: { name: string; value: number | null; severity: string }[] };
+  pollen?: { categories: { name: string; value: number | null; severity: string; outOfSeason?: boolean }[] };
   mold?: { humidity_pct: number | null; precip_pct: number | null };
   water?: {
     sampleDate: string;

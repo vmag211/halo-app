@@ -252,3 +252,19 @@ test('the real daily payload, consumed by Today: what the cards show', () => {
   for (const key of ['air', 'uv', 'pollen', 'mold']) { assert.equal(empty[key].score, null); assert.equal(empty[key].severity, 'no_data'); }
   for (const key of ['air', 'uv', 'pollen', 'mold']) for (const text of [readings[key].sentence, ...readings[key].disclosures, readings[key].unscored?.label ?? '']) assert.doesNotMatch(text, /—/);
 });
+test('pollen types out of season read "Out of season", not "No data"', () => {
+  const cat = (value, extra = {}) => ({ value, severity: value === null ? 'no_data' : 'good', ...extra });
+  const some = buildStageData({ pollen: { tree: null, grass: 2, weed: null, dominant: 'grass', severity: 'good',
+    categories: { tree: cat(null, { out_of_season: true }), grass: cat(2), weed: cat(null) } } }, null, null);
+  const rows = some.readings.pollen.details.pollen.categories;
+  assert.equal(rows[0].outOfSeason, true);
+  assert.equal(rows[2].outOfSeason, undefined);
+  assert.equal(some.readings.pollen.reading, '2');
+
+  const off = { value: null, severity: 'no_data', out_of_season: true };
+  const all = buildStageData({ pollen: { tree: null, grass: null, weed: null, severity: 'no_data', sentence: 'Tree, grass and weed pollen are all out of season where you live.',
+    categories: { tree: off, grass: off, weed: off } } }, null, null);
+  assert.equal(all.readings.pollen.reading, 'Out of season');
+  assert.match(all.readings.pollen.sentence, /out of season/);
+  assert.equal(all.readings.pollen.score, null);
+});

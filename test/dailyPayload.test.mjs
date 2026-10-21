@@ -113,3 +113,15 @@ test('each card score is the same risk input the composite used', () => {
     assert.ok(Number.isInteger(s.factor_scores[key]));
   }
 });
+
+test('pollen out of season: flagged per category, and an all-out-of-season day says so', () => {
+  const some = formatDailyPayload({ ...base, pollen: { tree: null, grass: 2, weed: null, out_of_season: ['tree'] } });
+  assert.deepEqual(some.pollen.categories.tree, { value: null, severity: 'no_data', out_of_season: true });
+  assert.deepEqual(some.pollen.categories.weed, { value: null, severity: 'no_data' });
+  assert.doesNotMatch(some.pollen.sentence, /out of season/);
+
+  const all = formatDailyPayload({ ...base, pollen: { tree: null, grass: null, weed: null, out_of_season: ['tree', 'grass', 'weed'] } });
+  assert.match(all.pollen.sentence, /out of season/);
+  assert.equal(all.pollen.severity, 'no_data');
+  assert.equal(all.score.inputs?.pollen ?? null, null, 'out of season is not scored as zero risk');
+});
