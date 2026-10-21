@@ -56,9 +56,6 @@ test('out-of-range citation markers are ignored', () => {
 });
 
 // --- answerQuestion orchestration (fake fetch + fake rpc) --------------------
-function fakeEmbedFetch(vector = new Array(2048).fill(0.01)) {
-  return async () => ({ ok: true, json: async () => ({ data: [{ embedding: vector }] }) });
-}
 // A fetch that returns the embedding on the first call and a chat answer on the next.
 function scriptedFetch({ embedding = new Array(2048).fill(0.01), answer = '' }) {
   let call = 0;
