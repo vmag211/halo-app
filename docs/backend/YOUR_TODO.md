@@ -1381,6 +1381,10 @@ From B12 (public evidence reads: `fish.read`, `water.read`, `growers.search`, `f
 
 37. **"I cannot identify the species" should show every advisory at the chosen water.** `matchFishRules` returns `[]` for `species === 'unknown'` (`components/homeguard/FoodFish.tsx:23`), so a person who cannot name the fish sees "Species is unresolved." even at a water whose advisory says do not eat any fish (Little Brier Creek, Brier Creek) or whose advice is withheld pending review. Showing every rule whose `waterbody` is the chosen water (and every statewide rule listing it in `waterbodyIds`) for that choice would surface them; the backend already serves one rule per species, so de-duplicate by title.
 
+Today factor scores (BE-113, Vibhav's decision 2026-10-21; branch `vmag211/today-factor-scores`). Vibhav approved this frontend change in Yogi's lane.
+
+38. **`lib/frontend/stage-data.ts` now reads `score.factor_scores` for the Today cards.** `GET /api/daily-score` adds `score.factor_scores: { air, uv, pollen, mold }`: air, UV and pollen are `round(100 - risk)` of the composite's own risk inputs (0 to 100, higher is better), or null when the reading is missing; mold is always null, with `score.factor_score_exclusions.mold = 'weather_estimate'`. Built in `lib/dailyPayload.js`, so cached `daily_scores` rows get it too, with no migration. `buildStageData` sets `readings.air/uv/pollen.score` from it and drops the "A separate X score is not supplied" disclosure when a score is present; a response without the field renders exactly as before. Mold carries a new optional `FactorReading.unscored` (`{ label: 'Estimate only', kicker: 'Weather estimate' }`), which `FactorScoreCard` and the factor detail show in place of "Not scored". Lead is unchanged. The Playwright specs that expect "Not scored" for air mock responses without the field, so they still describe the legacy path.
+
 ## Part 5. Small follow-ups that are NOT scheduled (decide if you want them)
 
 - Revoke the leftover TRUNCATE, REFERENCES and TRIGGER rights from anon and authenticated on the four tables. They are not reachable through the Supabase API today, so this is defense in depth.

@@ -29,6 +29,10 @@ import { contextIdForPoint, isMissingContextLink, readCurrentHomeContext } from 
  *   0016 it is stored without the link, as before.
  * - `fresh` is literally "1"; any other value is the same as not sending it.
  * - Every response carries X-Request-Id; errors are the shared envelope.
+ * - score.factor_scores gives the air, UV and pollen card scores, each
+ *   round(100 - risk) or null when that reading is missing; mold is null by
+ *   design (score.factor_score_exclusions). Cached rows are rebuilt from their
+ *   stored readings, so they carry the same values with no new column.
  *
  * Fetching lives in lib/dailyReadings.js (shared with the daily job) and the
  * response shape in lib/dailyPayload.js.

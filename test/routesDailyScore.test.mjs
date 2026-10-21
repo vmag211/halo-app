@@ -5,6 +5,7 @@ import { PROFILE } from './helpers/isolationSeed.mjs';
 import { createRouteHarness, muteConsoleError } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope, loggedText, UUID } from './helpers/envelope.mjs';
+import { loadFrontend } from './frontend-test-loader.mjs';
 
 const { lat, lng } = PROFILE.alice;
 const score = (ctx, query = '', headers) => ctx.call('alice', '/api/daily-score', 'GET', { url: `/api/daily-score${query}`, headers });
@@ -36,6 +37,38 @@ test('lat and lng for another point are served live, and give a household with n
   assert.equal(res.status, 200);
   assert.equal((await res.json()).cached, false);
   assert.ok(ctx.outbound.length > 0 && ctx.outbound.every((request) => request.url.includes('35.1')), 'the providers were asked about the point given');
+});
+
+test('a cached reading carries score.factor_scores rebuilt from its stored values, per household, and Today shows them', async () => {
+  const { buildStageData } = await loadFrontend('stage-data');
+  const ctx = setup();
+  // Alice's seeded row: AQI 47, UV 4, pollen max 2, mold low. Bob's: AQI 163, UV 9, pollen max 5, mold high.
+  const alice = await (await score(ctx)).json();
+  assert.equal(alice.cached, true);
+  assert.deepEqual(alice.score.factor_scores, { air: 81, uv: 64, pollen: 60, mold: null });
+  assert.deepEqual(alice.score.factor_score_exclusions, { mold: 'weather_estimate' });
+  const bobRes = await ctx.call('bob', '/api/daily-score', 'GET', { url: '/api/daily-score' });
+  const bob = await bobRes.json();
+  assert.equal(bob.cached, true);
+  assert.deepEqual(bob.score.factor_scores, { air: 35, uv: 18, pollen: 0, mold: null });
+
+  const today = buildStageData(alice, null, null).readings;
+  assert.deepEqual([today.air.score, today.uv.score, today.pollen.score, today.mold.score], [81, 64, 60, null]);
+  assert.equal(today.mold.unscored?.label, 'Estimate only');
+  for (const key of ['air', 'uv', 'pollen']) assert.ok(!today[key].disclosures.some((line) => /score .*not supplied|not supplied .*score/i.test(line)), key);
+});
+
+test('a live reading carries factor_scores too: integers 0 to 100 or null, mold always null', async (t) => {
+  quiet(t);
+  const ctx = setup();
+  const body = await (await score(ctx, '?fresh=1')).json();
+  assert.equal(body.cached, false);
+  for (const key of ['air', 'uv', 'pollen']) {
+    const value = body.score.factor_scores[key];
+    assert.ok(value === null || (Number.isInteger(value) && value >= 0 && value <= 100), `${key}: ${value}`);
+    assert.equal(value === null, body.score.inputs[key] === null, `${key} is null exactly when its input is missing`);
+  }
+  assert.equal(body.score.factor_scores.mold, null);
 });
 
 const REJECTED = [
