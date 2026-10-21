@@ -62,3 +62,25 @@ test('same-home profile rechecks preserve unrelated unsaved settings drafts',asy
  release();await expect.poll(()=>network.requests.filter(request=>request.path==='/api/daily-score').length).toBe(2);await expect(page.getByRole('radio',{name:'Light',exact:true})).toBeChecked();
  await expect(page.locator('.halo-f-review')).toHaveAttribute('data-mode','dark');expect(settingsReads).toBe(1);expect(network.blocked).toEqual([]);
 });
+
+test('settings disclosures and connection rows keep their icons, labels and statuses in place',async({page})=>{
+ await page.setViewportSize({width:375,height:812});const network=await mockProduction(page);
+ // A direct link focuses the section heading for announcement without drawing a control outline.
+ await page.goto('/app/settings?open=privacy');const heading=page.getByRole('heading',{name:'Privacy & data',exact:true});await expect(heading).toBeFocused();
+ expect(await heading.evaluate(element=>getComputedStyle(element).outlineStyle)).toBe('none');
+ // The Eye leads the label; only the trailing chevron moves to the edge and turns when opened.
+ const summary=page.locator('summary',{hasText:'Inspect and export'});await expect(summary.locator('svg')).toHaveCount(2);
+ const [eye,label]=[(await summary.locator('svg').first().boundingBox())!,(await summary.boundingBox())!];expect(eye.x-label.x).toBeLessThan(40);
+ await summary.click();expect(await summary.locator('svg').first().evaluate(element=>getComputedStyle(element).transform)).toBe('none');
+ // Connection name and status stack beside the icon instead of spreading to opposite edges.
+ await page.goto('/app/settings?open=luna');await page.getByText('Connected services',{exact:true}).click();
+ const email=page.getByRole('region',{name:'Email',exact:true}).locator('.hc-device');
+ const [name,status]=[(await email.locator('strong').boundingBox())!,(await email.locator('small').boundingBox())!];
+ expect(Math.abs(name.x-status.x)).toBeLessThan(2);expect(status.y).toBeGreaterThan(name.y);
+ // Device steps name the button that exists.
+ await page.goto('/app/settings?open=notifications');const setup=page.getByRole('button',{name:'Review device setup',exact:true});
+ await expect(setup).toHaveAttribute('aria-expanded','false');await setup.click();await expect(setup).toHaveAttribute('aria-expanded','true');
+ await expect(page.getByText('Choose Enable device notifications',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Enable device notifications',exact:true})).toBeVisible();
+ expect(await page.locator('.hp-device-steps ol').evaluate(element=>getComputedStyle(element).listStyleType)).toBe('decimal');
+ expect(network.blocked).toEqual([]);
+});
