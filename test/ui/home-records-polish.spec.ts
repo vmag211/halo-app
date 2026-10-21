@@ -117,8 +117,10 @@ test('result and comparison tables can be scrolled with the keyboard on a narrow
 for (const appearance of ['light', 'dark']) test(`record tools fit narrow large-text layouts in ${appearance}`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 850 });
   await page.goto(`${url('maintenance', 'observation-detail', 'sample-moisture', appearance)}&scale=150`);
-  const details = await page.locator('.hg-observation-record .hg-details').boundingBox();
   const tools = page.getByRole('group', { name: 'Observation tools' });
+  // Streamed content can still sit in a hidden boundary at load; measure the placed page.
+  await expect(tools).toBeVisible();
+  const details = await page.locator('.hg-observation-record .hg-details').boundingBox();
   const row = await tools.boundingBox();
   expect(row!.y - details!.y - details!.height).toBeGreaterThanOrEqual(16);
   for (const name of ['Edit observation', 'Delete observation']) {
