@@ -9,6 +9,12 @@ export function parseCalendarDate(value: string): Date | null {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
 }
 
+/** "Oct 20, 2026" for an ISO calendar date; anything that is not one is returned unchanged. */
+export function readableCalendarDate(value: string, locale = 'en-US'): string {
+  const date = parseCalendarDate(value);
+  return date ? new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date) : value;
+}
+
 export function calendarDateISO(date: Date): string {
   return `${String(date.getUTCFullYear()).padStart(4, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }

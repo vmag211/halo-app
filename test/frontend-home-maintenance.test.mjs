@@ -6,7 +6,7 @@ const { advanceDue, assetError, blankAsset, blankObservation, observationError, 
 
 test('routine schedule descriptions use singular and plural units without changing their basis', () => {
   assert.equal(scheduleDescription({ ...sampleAssets[0], interval: 1, unit: 'months' }), 'Every 1 month, on the fixed calendar schedule. No end date.');
-  assert.equal(scheduleDescription({ ...sampleAssets[0], interval: 1, unit: 'days', policy: 'completion', endDate: '2026-12-01' }), 'Every 1 day, after the recorded completion. Ends 2026-12-01.');
+  assert.equal(scheduleDescription({ ...sampleAssets[0], interval: 1, unit: 'days', policy: 'completion', endDate: '2026-12-01' }), 'Every 1 day, after the recorded completion. Ends Dec 1, 2026.');
   assert.match(scheduleDescription({ ...sampleAssets[0], interval: 2, unit: 'months' }), /^Every 2 months,/);
   assert.match(scheduleDescription({ ...sampleAssets[0], interval: 7, unit: 'days' }), /^Every 7 days,/);
 });
