@@ -274,7 +274,7 @@ test('POST /api/assistant sends the caller\'s own context to the model and never
     env: { ASSISTANT_MODEL_KEY: 'test-model-key', ASSISTANT_SEND_HOUSEHOLD_CONTEXT: 'true', ASSISTANT_EMBED_MODEL: 'test-embed-model', ASSISTANT_CHAT_MODEL: 'test-chat-model' },
     provider: ({ url, body }) => {
       sent.push({ url, body });
-      if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(1536).fill(0.01) }] });
+      if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: new Array(2048).fill(0.01) }] });
       if (url.includes('/chat/completions')) return Response.json({ choices: [{ message: { content: 'Your reading is on the moderate side [H].' } }] });
       return null;
     },

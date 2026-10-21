@@ -31,6 +31,30 @@ import { assistantLimiter, assistantGlobalLimiter, checkLimit } from '@/lib/rate
 
 const MODEL_KEY = process.env.ASSISTANT_MODEL_KEY || process.env.OPENAI_API_KEY || null;
 
+/**
+ * One deadline for the whole answer (embedding, retrieval's provider call and
+ * the chat call). The client gives up at 60 seconds (lib/frontend/stage-api.ts
+ * `assistantTimeoutMs`), and a provider that never answers would otherwise
+ * hold the invocation until the platform killed it, so the person got a
+ * transport failure instead of the "try again" answer below. 30 seconds is
+ * many times a normal answer (about one to three seconds, live-checked).
+ */
+const ANSWER_DEADLINE_MS = 30_000;
+
+/** A fetch whose every call shares one deadline, started when the answer is. */
+function deadlineFetch(ms = ANSWER_DEADLINE_MS) {
+  const signal = AbortSignal.timeout(ms);
+  return (url, init = {}) => fetch(url, { ...init, signal });
+}
+
+/**
+ * Whether household context is sent with a question, as the panel's privacy
+ * line asks (components/foundation/LunaAssistant.tsx reads
+ * `sends_household_context`; without it the panel says the service "has not
+ * confirmed its sharing setting"). The same expression POST decides with.
+ */
+const sendsHouseholdContext = () => process.env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT === 'true';
+
 // A question is a sentence or two: the cap bounds the model prompt, and the body cap
 // leaves room for it plus the page.
 const QUESTION_MAX = 1000;
@@ -57,7 +81,10 @@ export async function GET(request) {
   try {
     await requireUser(request);
     const page = new URL(request.url).searchParams.get('page') || '';
-    return NextResponse.json({ suggestions: suggestedQuestions(page), disclaimer: DISCLAIMER }, { headers: { 'X-Request-Id': requestId } });
+    return NextResponse.json(
+      { suggestions: suggestedQuestions(page), disclaimer: DISCLAIMER, sends_household_context: sendsHouseholdContext() },
+      { headers: { 'X-Request-Id': requestId } },
+    );
   } catch (err) {
     const r = authErrorResponse(err, requestId);
     if (r) return r;
@@ -140,7 +167,7 @@ export async function POST(request) {
       // sends only the question and the public agency sources. Free models may
       // log prompts, so an environment nobody configured must not leak
       // household readings or symptom names by default.
-      const sendContext = process.env.ASSISTANT_SEND_HOUSEHOLD_CONTEXT === 'true';
+      const sendContext = sendsHouseholdContext();
       const context = sendContext
         ? await gatherHouseholdContext(supabaseAdmin, userId, page).catch(() => null)
         : null;
@@ -150,6 +177,7 @@ export async function POST(request) {
         rpc: (fn, params) => supabaseAdmin.rpc(fn, params),
         context,
         page,
+        fetchImpl: deadlineFetch(),
       });
       return NextResponse.json({ configured: true, ...result }, { headers });
     } catch (ragErr) {

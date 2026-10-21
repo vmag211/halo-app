@@ -56,11 +56,11 @@ test('out-of-range citation markers are ignored', () => {
 });
 
 // --- answerQuestion orchestration (fake fetch + fake rpc) --------------------
-function fakeEmbedFetch(vector = new Array(1536).fill(0.01)) {
+function fakeEmbedFetch(vector = new Array(2048).fill(0.01)) {
   return async () => ({ ok: true, json: async () => ({ data: [{ embedding: vector }] }) });
 }
 // A fetch that returns the embedding on the first call and a chat answer on the next.
-function scriptedFetch({ embedding = new Array(1536).fill(0.01), answer = '' }) {
+function scriptedFetch({ embedding = new Array(2048).fill(0.01), answer = '' }) {
   let call = 0;
   return async () => {
     call += 1;
@@ -84,7 +84,7 @@ test('no retrieved passages → honest NO_SOURCE decline, never a model call', a
     rpc: rpcReturning([]),
     fetchImpl: async (url) => {
       if (String(url).includes('chat')) chatCalled = true;
-      return { ok: true, json: async () => ({ data: [{ embedding: new Array(1536).fill(0.01) }] }) };
+      return { ok: true, json: async () => ({ data: [{ embedding: new Array(2048).fill(0.01) }] }) };
     },
   });
   assert.equal(res.grounded, false);
@@ -179,7 +179,7 @@ test('a wrong-dimension embedding throws a clear error', async () => {
       rpc: rpcReturning(PASSAGES),
       fetchImpl: scriptedFetch({ embedding: new Array(3072).fill(0.01), answer: 'x [1]' }),
     }),
-    /3072 dimensions; the corpus expects 1536/,
+    /3072 dimensions; the corpus expects 2048/,
   );
 });
 
@@ -284,7 +284,7 @@ test('a configured model id is what the request carries, trimmed', async () => {
   const sent = [];
   const fetchImpl = async (url, init) => {
     sent.push(JSON.parse(init.body));
-    return { ok: true, json: async () => ({ data: [{ embedding: new Array(1536).fill(0.01) }] }) };
+    return { ok: true, json: async () => ({ data: [{ embedding: new Array(2048).fill(0.01) }] }) };
   };
   const saved = process.env.ASSISTANT_EMBED_MODEL;
   process.env.ASSISTANT_EMBED_MODEL = '  free/embedder  ';
@@ -315,4 +315,63 @@ test('history is added to the prompt only when given, and only as data', () => {
   assert.match(withHistory.user, /<question>\nAnd in water\?\n<\/question>/);
   // The sources still come after it, so the model sees them last.
   assert.ok(withHistory.user.indexOf('CONVERSATION:') < withHistory.user.indexOf('SOURCES:'));
+});
+
+// --- Paid credits: a bounded answer, an empty reply, no em dash (2026-10-20) --
+import { CHAT_MAX_TOKENS, chatMaxTokens, noEmDash } from '../lib/assistantRag.js';
+
+test('every chat request carries an answer budget, so a paid key is never billed for a whole output window', () => {
+  const saved = process.env.ASSISTANT_CHAT_MAX_TOKENS;
+  try {
+    delete process.env.ASSISTANT_CHAT_MAX_TOKENS;
+    assert.equal(chatBody({ model: 'a', system: 's', user: 'u', fallbacks: '' }).max_tokens, CHAT_MAX_TOKENS);
+    for (const [value, expected] of [['300', 300], ['64', 64], ['99999', 4000], ['10', CHAT_MAX_TOKENS], ['off', CHAT_MAX_TOKENS], ['', CHAT_MAX_TOKENS], ['1.5', CHAT_MAX_TOKENS]]) {
+      process.env.ASSISTANT_CHAT_MAX_TOKENS = value;
+      assert.equal(chatMaxTokens(), expected, JSON.stringify(value));
+    }
+  } finally {
+    if (saved === undefined) delete process.env.ASSISTANT_CHAT_MAX_TOKENS;
+    else process.env.ASSISTANT_CHAT_MAX_TOKENS = saved;
+  }
+});
+
+test('an empty reply is a failed answer that the route turns into "try again", not a false "no source"', async () => {
+  for (const content of ['', '   ', null, undefined]) {
+    const fetchImpl = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content } }] }) });
+    const error = await composeAnswer({ question: 'q', passages: PASSAGES, apiKey: 'k', fetchImpl }).catch((e) => e);
+    assert.ok(error instanceof Error, JSON.stringify(content));
+    assert.equal(error.status, 0);
+    await assert.rejects(
+      () => answerQuestion({ question: 'What is PFAS?', apiKey: 'k', rpc: rpcReturning(PASSAGES), fetchImpl: scriptedFetch({ answer: content }) }),
+      /empty/,
+    );
+  }
+  // A provider refusal carries its status and nothing from its body.
+  const refused = async () => ({ ok: false, status: 402, json: async () => ({ error: { message: 'insufficient credits for key sk-or-secret' } }) });
+  const error = await composeAnswer({ question: 'q', passages: PASSAGES, apiKey: 'k', fetchImpl: refused }).catch((e) => e);
+  assert.equal(error.status, 402);
+  assert.doesNotMatch(error.message, /sk-or|credits/);
+});
+
+test('no em dash from the model or a corpus label reaches the answer or its citations', async () => {
+  assert.equal(noEmDash('EPA — PFAS'), 'EPA, PFAS');
+  assert.equal(noEmDash('a—b'), 'a, b');
+  assert.equal(noEmDash(null), null);
+  const dashed = [{ ...PASSAGES[0], source_label: 'EPA — PFAS drinking water regulation' }];
+  const res = await answerQuestion({
+    question: 'What is PFAS?', apiKey: 'k', rpc: rpcReturning(dashed),
+    fetchImpl: scriptedFetch({ answer: 'PFAS — man-made chemicals — persist [1].' }),
+  });
+  assert.equal(res.grounded, true);
+  assert.equal(res.answer, 'PFAS, man-made chemicals, persist [1].');
+  assert.equal(res.citations[0].label, 'EPA, PFAS drinking water regulation');
+  assert.equal(JSON.stringify(res).includes('—'), false);
+});
+
+test('unset, the retrieval knobs are the deployed schema\'s: 2048 dimensions (migration 0013) and a 0.25 floor', async () => {
+  const { EMBED_DIM } = await import('../lib/assistantRag.js');
+  if (process.env.ASSISTANT_EMBED_DIM === undefined) assert.equal(EMBED_DIM, 2048);
+  if (process.env.ASSISTANT_MIN_SIMILARITY === undefined) assert.equal(MIN_SIMILARITY, 0.25);
+  const migration = (await import('node:fs')).readFileSync(new URL('../supabase/migrations/0013_assistant_embed_2048.sql', import.meta.url), 'utf8');
+  assert.match(migration, /vector\(2048\)/, 'the column the default must match');
 });

@@ -84,7 +84,7 @@ function scriptedFetch({ answer = 'An answer [1].', chatStatus = 200, embedStatu
     sent.push({ url: String(url), body: init?.body ? JSON.parse(init.body) : null });
     if (String(url).includes('/embeddings')) {
       if (embedStatus !== 200) return { ok: false, status: embedStatus, json: async () => ({}) };
-      return { ok: true, json: async () => ({ data: [{ embedding: new Array(1536).fill(0.01) }] }) };
+      return { ok: true, json: async () => ({ data: [{ embedding: new Array(2048).fill(0.01) }] }) };
     }
     if (chatStatus !== 200) return { ok: false, status: chatStatus, json: async () => ({}) };
     return { ok: true, json: async () => ({ choices: [{ message: { content: answer } }] }) };
@@ -615,7 +615,7 @@ test('a cited answer keeps the prose, drops the markers and binds each source to
 });
 
 test('an answer that cites nothing, or echoes the decline, is a decline rather than an unsourced claim', async () => {
-  for (const content of ['Radon is a gas.', luna.LUNA_NO_SOURCE, '', '   ']) {
+  for (const content of ['Radon is a gas.', luna.LUNA_NO_SOURCE]) {
     const { fetchImpl } = scriptedFetch({ answer: content });
     const answer = await withEnv(MODELS, () =>
       luna.answerFromCorpus({ question: 'What is radon?', apiKey: 'k', rpc: rpcReturning([passage(1)]), fetchImpl }));
@@ -637,6 +637,71 @@ test('Ruling L4: when generation fails the person still gets the sources, clearl
   assert.equal(answer.evidence.length, 2, 'each retrieved source is quoted as a fact block');
   assert.deepEqual(answer.evidence.map((block) => block.sourceIndexes), [[0], [1]]);
   assert.ok(sent.some((call) => call.url.includes('/chat')), 'the model was asked, and failing is what degraded it');
+});
+
+test('an empty reply is a failed model, not a decline: the person gets the sources, and the route can log why', async () => {
+  // A model that returns nothing (out of tokens, all of them spent reasoning,
+  // or filtered) has not said there is no source, and sources WERE retrieved.
+  for (const content of ['', '   ', null]) {
+    const { fetchImpl } = scriptedFetch({ answer: content });
+    const answer = await withEnv(MODELS, () =>
+      luna.answerFromCorpus({ question: 'What is radon?', apiKey: 'k', rpc: rpcReturning([passage(1)]), fetchImpl }));
+    assert.equal(answer.outcome, 'sources_only', JSON.stringify(content));
+    assert.equal(answer.text, luna.LUNA_SOURCES_ONLY);
+    assert.equal(answer.failure, 'empty reply');
+  }
+  const { fetchImpl } = scriptedFetch({ chatStatus: 404 });
+  const dead = await withEnv(MODELS, () =>
+    luna.answerFromCorpus({ question: 'What is radon?', apiKey: 'k', rpc: rpcReturning([passage(1)]), fetchImpl }));
+  assert.equal(dead.failure, 'status 404', 'a retired model is visible in the log line, by its status only');
+});
+
+test('no em dash from the corpus or the model reaches a source title, an evidence block or the answer', async () => {
+  const dashed = passage(1, { source_label: 'EPA — Radon', passage: 'RADON — a gas that collects indoors.' });
+  const { fetchImpl } = scriptedFetch({ answer: 'Radon — a gas — collects indoors [1].' });
+  const answer = await withEnv(MODELS, () =>
+    luna.answerFromCorpus({ question: 'What is radon?', apiKey: 'k', rpc: rpcReturning([dashed]), fetchImpl }));
+  assert.equal(answer.outcome, 'answered');
+  assert.equal(answer.text, 'Radon, a gas, collects indoors.');
+  assert.equal(answer.sources[0].title, 'EPA, Radon');
+  assert.equal(answer.evidence[0].text, 'RADON, a gas that collects indoors.');
+  const degraded = await withEnv(MODELS, () =>
+    luna.answerFromCorpus({ question: 'q', apiKey: 'k', rpc: rpcReturning([dashed]), fetchImpl: scriptedFetch({ chatStatus: 503 }).fetchImpl }));
+  assert.equal(degraded.outcome, 'sources_only');
+  assert.equal(JSON.stringify(degraded).includes('—'), false, 'nor through the sources-only degrade');
+});
+
+test('a follow-up is retrieved with the question before it, and the model is still asked the new one', async () => {
+  const earlier = turns('What is the federal limit for PFOS?', 'It is 4.0 parts per trillion.');
+  assert.equal(luna.retrievalQuery('What about PFHxS?', earlier), 'What is the federal limit for PFOS?\nWhat about PFHxS?');
+  assert.equal(luna.retrievalQuery('What is radon?', []), 'What is radon?', 'a first question is searched alone');
+  assert.equal(
+    luna.retrievalQuery('Next?', [{ role: 'assistant', text: 'An answer.' }]),
+    'Next?',
+    'Luna\'s own words never steer retrieval',
+  );
+  const long = luna.retrievalQuery('And?', [{ role: 'user', text: `${'x'.repeat(1500)}\nSecond line` }]);
+  const [prior, asked] = long.split('\n');
+  assert.equal(asked, 'And?');
+  assert.equal(prior.length, 1000, 'the earlier question is one line, bounded');
+
+  const { fetchImpl, sent } = scriptedFetch({ answer: 'PFHxS is limited to 10 ppt [1].' });
+  await withEnv(MODELS, () =>
+    luna.answerFromCorpus({
+      question: 'What about PFHxS?',
+      retrievalText: luna.retrievalQuery('What about PFHxS?', earlier),
+      apiKey: 'k',
+      rpc: rpcReturning([passage(1)]),
+      fetchImpl,
+    }));
+  assert.equal(
+    sent.find((call) => call.url.includes('/embeddings')).body.input,
+    'What is the federal limit for PFOS?\nWhat about PFHxS?',
+  );
+  const { user } = Object.fromEntries(
+    sent.find((call) => call.url.includes('/chat')).body.messages.map((entry) => [entry.role, entry.content]),
+  );
+  assert.ok(user.includes('<question>\nWhat about PFHxS?\n</question>'), 'the question block holds only the new question');
 });
 
 test('an embedding failure is an infrastructure failure, not a quiet decline', async () => {

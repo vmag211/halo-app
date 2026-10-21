@@ -318,7 +318,7 @@ const ON = Object.freeze({
 
 const EMBED_URL = 'https://api.openai.com/v1/embeddings';
 const CHAT_URL = 'https://api.openai.com/v1/chat/completions';
-const EMBED_DIM = 1536;
+const EMBED_DIM = 2048;
 const uuid = (n) => `0b030000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const QUESTION = 'What does the agency say about radon in a basement?';
 

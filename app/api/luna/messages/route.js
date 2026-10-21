@@ -29,6 +29,7 @@ import {
   lunaUnavailable,
   readTurns,
   recordAnswer,
+  retrievalQuery,
   runBody,
   settleRun,
   startConversation,
@@ -356,11 +357,15 @@ async function generate(supabase, { profileId, conversationId, runId, question, 
     // run answers is excluded by its position, so the new question is sent once
     // as the question and never also as history.
     const turns = await readTurns(supabase, { profileId, conversationId, limit: historyLimit() + 1 });
-    const history = historyPrompt(turns.filter((turn) => turn.seq < seq));
+    const earlier = turns.filter((turn) => turn.seq < seq);
+    const history = historyPrompt(earlier);
 
     const answer = await answerFromCorpus({
       question,
       history,
+      // A follow-up is searched for with the question before it, or "what
+      // about X?" finds nothing (lib/luna.js `retrievalQuery`).
+      retrievalText: retrievalQuery(question, earlier),
       page: promptPage(page),
       apiKey: modelKey(),
       rpc: (name, params) => supabase.rpc(name, params),
@@ -371,6 +376,11 @@ async function generate(supabase, { profileId, conversationId, runId, question, 
     // citations, the retrieved sources with the reason said plainly when the
     // chat model was unusable (Ruling L4), or an honest absence. None of them
     // is a failed run.
+    if (answer.failure) {
+      // The person still gets the sources (Ruling L4), but an operator has to
+      // be able to see that the chat model is failing: the shape only.
+      console.error(`luna chat model failed, answered with sources: ${answer.failure}`);
+    }
     await recordAnswer(supabase, {
       profileId,
       conversationId,
