@@ -77,7 +77,8 @@ test('Natural scheduling shows an editable date with the disclosed timezone anch
   await page.goto(root); const dialog = await open(page); await say(page, 'Create a task: build the experiment tomorrow');
   await expect(dialog.getByLabel('All-day date', { exact: true })).toHaveValue(/\d{4}-\d{2}-\d{2}/);
   await expect(dialog).toContainText('Tomorrow, based on');
-  await expect(dialog).toContainText('America/New_York');
+  await expect(dialog).toContainText('Eastern Time');
+  await expect(dialog).not.toContainText('America/New_York');
   await say(page, '2026-10-13');
   await expect(dialog.getByLabel('All-day date', { exact: true })).toHaveValue('2026-10-13');
 });

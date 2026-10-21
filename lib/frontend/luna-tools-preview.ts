@@ -1,6 +1,7 @@
 import { actionDraftError, validActionDate, type PreviewAction } from './expanded-preview';
 import { lunaCompletionCopy } from './copy/luna-completion';
 import type { LunaTaskOperation } from './luna-task-actions';
+import { zoneName } from './week-preview';
 
 export type LunaIntent =
   | { kind: 'projects'; request: string }
@@ -35,11 +36,11 @@ export function resolveLunaCalendarDate(text: string, options: { anchor: string;
   const explicit = explicitLunaDate(text);
   if (explicit.invalid || !validActionDate(options.anchor) || !options.anchor) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Choose one valid calendar date.' };
   if (explicit.date && /\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b/i.test(text)) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Choose an all-day date below. You can add a time in My Week.' };
-  if (explicit.date) return { date: explicit.date, requiresDate: true, explanation: `All-day date in ${options.timezone}.` };
+  if (explicit.date) return { date: explicit.date, requiresDate: true, explanation: `All-day date in ${zoneName(options.timezone)}.` };
   if (/\b(tonight|weekend|next week)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:am|pm)\b/i.test(text)) return { date: '', requiresDate: true, explanation: '', ambiguous: 'Which date do you mean? You can add a time in My Week.' };
   const add = (day: string, amount: number) => { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + amount); return date.toISOString().slice(0, 10); };
-  if (/\btomorrow\b/i.test(text)) return { date: add(options.anchor, 1), requiresDate: true, explanation: `Tomorrow, based on ${options.anchor} in ${options.timezone}.` };
-  if (/\btoday\b/i.test(text)) return { date: options.anchor, requiresDate: true, explanation: `Today in ${options.timezone}.` };
+  if (/\btomorrow\b/i.test(text)) return { date: add(options.anchor, 1), requiresDate: true, explanation: `Tomorrow, based on ${options.anchor} in ${zoneName(options.timezone)}.` };
+  if (/\btoday\b/i.test(text)) return { date: options.anchor, requiresDate: true, explanation: `Today in ${zoneName(options.timezone)}.` };
   const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const matches = text.toLowerCase().match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/g) ?? [];
   if (matches.length !== 1) return { date: '', requiresDate: Boolean(matches.length), explanation: '', ...(matches.length ? { ambiguous: 'Choose one calendar date for this task.' } : {}) };
@@ -51,7 +52,7 @@ export function resolveLunaCalendarDate(text: string, options: { anchor: string;
   const delta = sameWeek ? (target + 6) % 7 - (current + 6) % 7 : (target - current + 7) % 7;
   const date = add(reference, delta);
   if (!options.referenceDate && sameWeek && date < options.anchor) return { date: '', requiresDate: true, explanation: '', ambiguous: 'That weekday has passed in this calendar week. Which date should I use?' };
-  return { date, requiresDate: true, explanation: options.referenceDate ? `${matches[0]} in the existing task's Monday-to-Sunday week (${reference}), ${options.timezone}.` : `${matches[0]}, based on ${options.anchor} in ${options.timezone}.` };
+  return { date, requiresDate: true, explanation: options.referenceDate ? `${matches[0]} in the existing task's Monday-to-Sunday week (${reference}), ${zoneName(options.timezone)}.` : `${matches[0]}, based on ${options.anchor} in ${zoneName(options.timezone)}.` };
 }
 
 /** Limited wireframe grammar. Only the user's current message is an instruction. */
