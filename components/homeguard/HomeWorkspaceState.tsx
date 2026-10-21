@@ -12,7 +12,7 @@ import { clearHomeDraft } from '@/lib/frontend/home-drafts';
 export type HomeScenario = 'ready' | 'empty' | 'loading' | 'error' | 'offline' | 'stale' | 'conflict' | 'save-error';
 export type HomeRecord = { id: string; title: string; revision: number; homeContextId?:string };
 export type Collections = Record<string, HomeRecord[]>;
-type CollectionState = { status: 'loading' | 'ready' | 'error'; complete: boolean; revision?: string | number; message?: string };
+type CollectionState = { status: 'loading' | 'ready' | 'error'; complete: boolean; revision?: string | number; message?: string; featureUnavailable?: boolean };
 type State = {
   mode: 'preview' | 'production'; service?: HomeWorkspaceService;
   collectionStates: Record<string, CollectionState>;
@@ -118,7 +118,7 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
       commit({ ...recordsRef.current, [key]: snapshot.records });
       collectionState(key, { status: 'ready', revision: snapshot.revision, complete: snapshot.complete !== false && !snapshot.nextCursor && snapshot.availability !== 'partial', message: snapshot.message });
     } catch (error) {
-      if (alive.current && !request.signal.aborted && loadVersions.current.get(key) === version) collectionState(key, { ...statesRef.current[key], status: 'error', complete: false, message: error instanceof Error ? error.message.replaceAll('\u2014', ',') : 'This collection could not load. Try again.' });
+      if (alive.current && !request.signal.aborted && loadVersions.current.get(key) === version) collectionState(key, { ...statesRef.current[key], status: 'error', complete: false, featureUnavailable: (error as { reason?: unknown } | null)?.reason === 'feature_unavailable', message: error instanceof Error ? error.message.replaceAll('\u2014', ',') : 'This collection could not load. Try again.' });
     } finally { requests.current.delete(request); }
   }
   async function retry(key?: string) {
