@@ -145,16 +145,15 @@ test('a failed canvas leaves a static image and functional calendar', async ({ p
   expect(errors).toEqual([]);
 });
 
-test('ambient settings stop wallpaper movement while preserving manual selection', async ({ page }) => {
+test('ambient wallpaper movement is always on, with no Settings switch, and manual selection still works', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto(root);
   await expect(page.locator('.mw-ambience')).toHaveAttribute('data-moving', 'true');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /^Display & accessibility/ }).click();
-  await page.getByRole('switch', { name: 'Ambient animation', exact: true }).uncheck();
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Ambient animation', exact: true })).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My Week', exact: true }).click();
-  await expect(page.locator('.mw-ambience')).toHaveAttribute('data-moving', 'false');
+  await expect(page.locator('.mw-ambience')).toHaveAttribute('data-moving', 'true');
   await page.getByRole('button', { name: 'Next landscape', exact: true }).click();
   await expect(page.locator('.mw-ambience')).toHaveAttribute('data-scene', 'coast');
 });

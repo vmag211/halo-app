@@ -236,7 +236,9 @@ function assertSentAsRecorded(sentLog, request, label) {
   assert.deepEqual(comparable({ ...rest }), comparable({ ...request }), `${label}: the client sends exactly the command the fixture records`);
   assert.equal(headers['Idempotency-Key'], operationId, `${label}: Idempotency-Key is the operation id`);
   const expected = request.kind === 'write' || request.kind === 'remove' ? request.expectedRevision : null;
-  assert.equal(headers['If-Match'], expected === null || expected === undefined ? undefined : String(expected), `${label}: If-Match is the expected revision, or absent`);
+  // The precondition travels as X-Halo-If-Match (lib/ifMatch.js: Vercel's edge 412s a committed 2xx on If-Match).
+  assert.equal(headers['X-Halo-If-Match'], expected === null || expected === undefined ? undefined : String(expected), `${label}: X-Halo-If-Match is the expected revision, or absent`);
+  assert.equal(headers['If-Match'], undefined, `${label}: never a standard If-Match`);
   assert.equal(headers['Content-Type'], 'application/json', label);
   assert.match(headers.Authorization, /^Bearer /, label);
 }

@@ -73,7 +73,7 @@ test('conversation clearing is revision-bound and only acknowledged by an empty 
  const initial={...empty(),revision:7,messages:[{id:'old',role:'assistant',text:'Saved conversation message.'}]};let clears=0;
  const network=await mockProduction(page,{
   '/api/luna/capabilities':route=>jsonRoute(route,caps),'/api/luna/conversations':route=>jsonRoute(route,initial),
-  '/api/luna/conversations/clear':async route=>{clears++;expect(route.request().postDataJSON()).toEqual({id:'conversation1',revision:7});expect(route.request().headers()['if-match']).toBe('7');await jsonRoute(route,{...empty(),revision:8});},
+  '/api/luna/conversations/clear':async route=>{clears++;expect(route.request().postDataJSON()).toEqual({id:'conversation1',revision:7});expect(route.request().headers()['x-halo-if-match']).toBe('7');await jsonRoute(route,{...empty(),revision:8});},
  });
  await page.goto('/plan');await page.getByRole('button',{name:'Ask Luna',exact:true}).click();const panel=page.getByRole('dialog',{name:'Luna',exact:true});await expect(panel.getByRole('log')).toContainText('Saved conversation message.');await panel.getByRole('button',{name:'New conversation',exact:true}).click();expect(clears).toBe(0);await panel.getByRole('button',{name:'Clear conversation',exact:true}).click();await expect(panel.getByRole('log')).not.toContainText('Saved conversation message.');await expect(panel.getByText('Conversation cleared. Saved app records were kept.',{exact:true})).toHaveCount(1);expect(clears).toBe(1);expect(network.blocked).toEqual([]);
 });

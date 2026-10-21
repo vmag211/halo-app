@@ -130,7 +130,8 @@ export function createProductionRuntime(input: {
         const headers: Record<string,string> = {Accept:'application/json'};
         if(credential) headers.Authorization = `Bearer ${credential.accessToken}`;
         if(input.homeContextId && !input.publicAccess) headers['X-Halo-Home-Context'] = input.homeContextId;
-        if(options.expectedRevision !== undefined) headers['If-Match'] = String(options.expectedRevision);
+        // Never a standard If-Match: Vercel's edge turns a committed 2xx into its own 412 (lib/ifMatch.js).
+        if(options.expectedRevision !== undefined) headers['X-Halo-If-Match'] = String(options.expectedRevision);
         if(operationId) headers['Idempotency-Key'] = operationId;
         const multipart=typeof FormData!=='undefined'&&body instanceof FormData;
         if(mutation&&!multipart) headers['Content-Type']='application/json';

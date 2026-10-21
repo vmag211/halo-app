@@ -5,6 +5,7 @@ import { readJsonBody, parseUuid } from '@/lib/validate';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { isSettingsAlertsUnavailable, settingsAlertsUnavailable } from '@/lib/settingsAlerts';
 import { haloRefusal, isConflictRefusal } from '@/lib/homeContextRpc';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   changedFields,
   ensurePreferences,
@@ -274,7 +275,7 @@ export async function PATCH(request) {
     if (idempotencyKey !== null && idempotencyKey.trim().toLowerCase() !== operationId.value) {
       return invalid([{ field: 'operationId', code: 'idempotency_key_mismatch', message: MESSAGES.idempotency }], requestId);
     }
-    const expectedRevision = parseIfMatch(request.headers.get('if-match'));
+    const expectedRevision = parseIfMatch(readIfMatch(request));
     if (expectedRevision === null) {
       return invalid([{ field: 'If-Match', code: 'precondition_required', message: MESSAGES.ifMatch }], requestId);
     }

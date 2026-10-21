@@ -3,6 +3,7 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { apiError, internalError, requestIdFor, validationError, loggableError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, runOperation } from '@/lib/operations';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   DECIDING_ROLES,
   PUBLISHER_DECISIONS,
@@ -188,7 +189,7 @@ export async function POST(request) {
     if (idempotencyKey.value !== command.operationId) {
       return validationError([{ field: 'operationId', code: 'idempotency_key_mismatch', message: MESSAGES.idempotencyMismatch }], requestId);
     }
-    if ((request.headers.get('if-match') ?? '').trim() !== String(command.sourceRevision)) {
+    if ((readIfMatch(request) ?? '').trim() !== String(command.sourceRevision)) {
       return validationError([{ field: 'If-Match', code: 'precondition_required', message: MESSAGES.ifMatch }], requestId);
     }
 

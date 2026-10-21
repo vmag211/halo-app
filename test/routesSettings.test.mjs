@@ -1438,3 +1438,15 @@ test('client flow, nit 1: a save the reaper settled first says "not applied" and
   assert.deepEqual([tab.error, tab.unknown, tab.snapshot.revision], [null, null, 5]);
   assert.equal(prefsOf(h).luna_projects, !SETTINGS.alice.luna_projects);
 });
+
+test('X-Halo-If-Match, the header the client sends (lib/ifMatch.js), is the precondition: current saves, stale is a 409', async () => {
+  const h = harness();
+  const shown = await readBody(h);
+  const stale = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  const refused = await expectEnvelope(await patch(h, stale, { headers: { 'x-halo-if-match': String(shown.revision - 1) } }), { status: 409, code: 'conflict', retryable: false, extraKeys: ['reason', 'revision'] });
+  assert.deepEqual([refused.reason, refused.revision], ['stale_revision', shown.revision]);
+  const body = saveBody(shown, 'luna', { values: (v) => { v.luna.home = !v.luna.home; } });
+  const res = await patch(h, body, { headers: { 'x-halo-if-match': String(shown.revision) } });
+  assert.equal(res.status, 200);
+  assert.equal(prefsOf(h).revision, shown.revision + 1);
+});

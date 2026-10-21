@@ -6,6 +6,7 @@ import { checkLimit, privacyLimiter } from '@/lib/ratelimit';
 import { OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
 import { fingerprintTables } from '@/lib/privacyInventory';
 import { readReviewSelection, verifyReviewToken } from '@/lib/privacyToken';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   PRIVACY_DOMAIN,
   PRIVACY_KINDS,
@@ -217,7 +218,7 @@ export async function POST(request) {
     if (key.value !== operationId.value) {
       return badField('operationId', 'idempotency_key_mismatch', MESSAGES.idempotencyMismatch, requestId);
     }
-    if (request.headers.get('if-match') !== null) {
+    if (readIfMatch(request) !== null) {
       return badField('If-Match', 'precondition_unsupported', MESSAGES.ifMatch, requestId);
     }
 

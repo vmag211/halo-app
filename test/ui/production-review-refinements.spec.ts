@@ -65,7 +65,7 @@ test('clearing Luna in Settings announces one canonical result',async({page})=>{
  let clears=0;const conversation={id:'review-conversation',revision:7,messages:[{id:'message',role:'assistant',text:'A saved conversation.'}],pendingRequest:null,unresolvedOperations:{}};
  const network=await mockProduction(page,{
   '/api/luna/conversations':route=>jsonRoute(route,conversation),
-  '/api/luna/conversations/clear':async route=>{clears++;expect(route.request().headers()['if-match']).toBe('7');await jsonRoute(route,{...conversation,revision:8,messages:[]});},
+  '/api/luna/conversations/clear':async route=>{clears++;expect(route.request().headers()['x-halo-if-match']).toBe('7');await jsonRoute(route,{...conversation,revision:8,messages:[]});},
  });
  await page.goto('/settings?open=luna');await page.getByText('Conversation history',{exact:true}).click();await page.getByRole('button',{name:'Clear this conversation',exact:true}).click();await page.getByRole('button',{name:'Yes, clear',exact:true}).click();
  await expect(page.getByRole('status').filter({hasText:'Conversation cleared. Saved app records were kept.'})).toHaveCount(1);expect(clears).toBe(1);expect(network.blocked).toEqual([]);

@@ -5,6 +5,7 @@ import { readJsonBody, parseUuid } from '@/lib/validate';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { exploreAreaUnavailable, isExploreAreaUnavailable, readArea, writeArea } from '@/lib/exploreArea';
 import { placeById } from '@/lib/places';
+import { readIfMatch } from '@/lib/ifMatch';
 
 /**
  * GET   /api/explore/area                         ->  DiscoveryArea
@@ -212,7 +213,7 @@ export async function PATCH(request) {
 
     // `If-Match` carries the same number as the body (runtime.ts:133). A client
     // sending two different preconditions does not know what it is asking for.
-    const ifMatch = request.headers.get('if-match');
+    const ifMatch = readIfMatch(request);
     if (ifMatch !== null && ifMatch.trim() !== String(revision)) {
       return badField('revision', 'precondition_mismatch', 'The If-Match header and revision must be the same revision.', requestId);
     }

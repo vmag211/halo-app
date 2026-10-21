@@ -4,6 +4,7 @@ import { apiError, internalError, loggableError, requestIdFor, validationError, 
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { featureDisabledReason, featureEnabled } from '@/lib/features';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, readOperation, requestHash, runOperation } from '@/lib/operations';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   CHANGED_ELSEWHERE,
   LIMITS,
@@ -128,7 +129,7 @@ const storedRefusal = (reason) => ({ status: 'failed', reason, unresolvedOperati
 
 /** The If-Match the adapter sends: the expected revision of a write or remove, and nothing else. */
 function ifMatchProblem(request, command) {
-  const header = request.headers.get('if-match');
+  const header = readIfMatch(request);
   const expected = command.kind === 'remove-notes' ? null : command.expectedRevision;
   if (header === null) return null;
   return expected === null || header.trim() !== String(expected) ? MESSAGES.ifMatch : null;
