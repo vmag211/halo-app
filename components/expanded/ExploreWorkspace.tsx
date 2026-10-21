@@ -37,7 +37,13 @@ export default function ExploreWorkspace({ destination, href, mapHref, environme
   const go: Go = (next, nextView = 'list', record) => {
     // Record intent before the asynchronous route transition can finish.
     navigationRevision.current++; pendingTop = true;
-    router.push(`${href('act', next)}${nextView !== 'list' ? `&exploreView=${encodeURIComponent(nextView)}` : ''}${record ? `&exploreRecord=${encodeURIComponent(record)}` : ''}`);
+    const target = `${href('act', next)}${nextView !== 'list' ? `&exploreView=${encodeURIComponent(nextView)}` : ''}${record ? `&exploreRecord=${encodeURIComponent(record)}` : ''}`;
+    // A move that only changes the query stays on the page: router.push would refetch the page segment, whose
+    // key includes the query, and remount the whole preview when it lands, closing sheets and menus opened in
+    // the meantime. Next keeps useSearchParams in step with the native history API, as the preview's tabs do.
+    const url = new URL(target, window.location.href);
+    if (url.pathname === window.location.pathname) window.history.pushState({ _foundationSheet: false }, '', url);
+    else router.push(target);
   };
   const captureNavigation = () => {
     const revision = navigationRevision.current;
