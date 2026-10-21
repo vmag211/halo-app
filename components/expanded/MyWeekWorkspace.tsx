@@ -1,5 +1,7 @@
 'use client';
 import DateInput from '@/components/ui/DateInput';
+import HaloLoading from '@/components/ui/HaloLoading';
+import { useMinuteClock } from '@/lib/frontend/use-minute-clock';
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -42,9 +44,16 @@ import './week-command-center.css';
 type Href=(tab:string,destination?:string)=>string;
 const categories=['Everything','Home','Projects','Community','Outdoors','Personal'];
 type Edit={action:PreviewAction|null;title:string;date:string;state:PreviewAction['state'];meta:WeekMeta;key:string;metadataSignature:string};
-export default function MyWeekWorkspace({href,destination,scoreScenario='shell'}:{href:Href;destination?:string;scoreScenario?:string}){
+type WorkspaceProps={href:Href;destination?:string;scoreScenario?:string};
+/** Dates come from the device clock only after hydration, and "today" advances past midnight. */
+export default function MyWeekWorkspace(props:WorkspaceProps){
+  const now=useMinuteClock();
+  if(now===null)return <section className="mw-workspace" aria-label="My Week workspace"><HaloLoading label="Loading My Week" layout="panel"/></section>;
+  return <MyWeekPlanner {...props} now={now}/>;
+}
+function MyWeekPlanner({href,destination,scoreScenario='shell',now}:WorkspaceProps&{now:number}){
   const state=useExpandedPreview()!;const workspace=useHomeWorkspace();const preferences=useProductionPreferences();
-  const [zone,setZone]=useHomeDraft('week:zone','America/New_York');const today=lunaCalendarAnchor(new Date(),zone);
+  const [zone,setZone]=useHomeDraft('week:zone','America/New_York');const today=lunaCalendarAnchor(new Date(now),zone);
   const [date,setDate]=useHomeDraft('week:date',today);const [view,setView]=useHomeDraft<'Week'|'Month'|'Agenda'>('week:view','Week');
   const [metas]=useHomeDraft<Record<string,WeekMeta>>('week:metas',{});const [streak,setStreak]=useHomeDraft('week:streak',false);
   const [focus]=useHomeDraft('week:focus','');const [filter,setFilter]=useState('Everything');const [search,setSearch]=useState('');

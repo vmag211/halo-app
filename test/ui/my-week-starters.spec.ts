@@ -8,6 +8,9 @@ test('a new week shows labelled starter ideas that become a real task only when 
   await expect(ideas.locator('.mw-starter')).toHaveCount(4);
   await expect(ideas).toContainText('These are not saved.');
   await expect(ideas.locator('.mw-starter-tag').first()).toContainText('Starter idea');
+  // Suggestions stay compact so real work below them is not pushed far down a phone screen.
+  for(const card of await ideas.locator('.mw-starter').all())expect((await card.boundingBox())!.height).toBeLessThan(200);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await expect(page.locator('.mw-task')).toHaveCount(0);
   await expect(ideas.getByRole('link',{name:'Plan outdoors'})).toHaveAttribute('href',/outdoors/);
   await ideas.getByRole('button',{name:'Dismiss: Check today’s air before time outside'}).click();
