@@ -1,0 +1,76 @@
+{
+  "researcher": "fixture-creek",
+  "checked": "2026-10-21",
+  "organizations": [
+    {
+      "org": {
+        "name": "Fixture Creek Alliance",
+        "description": "A test organization that cares for a creek in Mecklenburg County.",
+        "counties": ["Mecklenburg County"],
+        "causes": ["water"],
+        "url": "https://creek.example.org"
+      },
+      "profile": {
+        "id": "fixture-creek-stewards",
+        "title": "Join the creek steward crew",
+        "organizer": "Fixture Creek Alliance",
+        "interest": "Cleanup",
+        "area": "Mecklenburg County",
+        "served_place_ids": ["us-county:37119"],
+        "mission": "The alliance removes litter from a creek and teaches neighbors about stormwater.",
+        "work": "Volunteers pick up litter along the banks and sort what they collect.",
+        "url": "https://creek.example.org/volunteer",
+        "source_title": "Volunteer with the alliance",
+        "extra_sources": [{ "title": "Upcoming events", "url": "https://creek.example.org/events" }],
+        "address": "100 Test Street, Charlotte, NC 28202",
+        "address_kind": "office",
+        "address_role": "Office address, not an event meeting point.",
+        "contact": null,
+        "effort": "One morning, or a monthly crew.",
+        "age": "Not stated on the official page.",
+        "cost": "Free.",
+        "access": "Not stated on the official page.",
+        "steps": [
+          { "title": "Pick a date", "text": "Choose a crew date on the volunteer page." },
+          { "title": "Register", "text": "Fill in the organizer's sign-up form." }
+        ],
+        "bring": "Water, sun protection and closed shoes.",
+        "followup": "Note the date and what you collected."
+      },
+      "evidence": "\"Volunteers pick up litter along the creek banks every month.\""
+    }
+  ],
+  "opportunities": [
+    {
+      "org_name": "Fixture Creek Alliance",
+      "id": "fixture-creek-cleanup",
+      "organizer": "Fixture Creek Alliance",
+      "title": "Fall creek cleanup",
+      "interest": "Cleanup",
+      "artwork": "cleanup",
+      "kind": "scheduled",
+      "starts_at": "2099-11-07 09:00 America/New_York",
+      "ends_at": "2099-11-07 12:00 America/New_York",
+      "time_label": "Saturday 7 November, 9:00 to 12:00",
+      "venue_local_date": "2099-11-07",
+      "venue_timezone": "America/New_York",
+      "venue_timezone_basis": "source",
+      "status": "listed",
+      "area": "Charlotte",
+      "served_place_ids": ["us-place:3712000", "us-county:37119"],
+      "venue": "Creek greenway trailhead",
+      "meeting_address": null,
+      "url": "https://creek.example.org/events/fall-cleanup",
+      "summary": "Pick up litter along the creek with the alliance's crew. It's a morning event.",
+      "work": ["Pick up litter", "Sort recycling"],
+      "duration": "Three hours",
+      "cost": "Free.",
+      "age": "Not stated on the official page.",
+      "access": "Not stated on the official page.",
+      "bring": "Water and closed shoes.",
+      "join_text": "Register on the organizer's page.",
+      "safety": "Follow the organizer's safety briefing.",
+      "evidence": "\"Saturday, November 7, 9 a.m. to noon, meet at the greenway trailhead.\""
+    }
+  ]
+}
