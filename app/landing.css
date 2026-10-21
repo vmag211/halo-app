@@ -17,3 +17,9 @@
 .halo-landing-paths p { line-height:1.6; opacity:.8; }
 .halo-landing footer { border-top:1px solid light-dark(#d3e4e6,#1d3a50); padding-top:20px; font-size:.85rem; }
 @media(max-width:767px) { .halo-landing-intro { grid-template-columns:1fr; gap:28px; padding:44px 0; } .halo-landing-art { min-height:210px; } .halo-landing-paths { grid-template-columns:1fr; gap:24px; padding-bottom:40px; } .halo-landing-paths article { display:grid; grid-template-columns:24px 1fr; gap:4px 16px; } .halo-landing-paths h2 { margin:0; } .halo-landing-paths p { grid-column:2; } }
+/* Framing: header at the top, footer at the bottom and the intro centred between them on tall screens; notch and home-indicator insets respected. */
+.halo-landing { box-sizing:border-box; display:flex; flex-direction:column; min-height:100svh; margin:0 auto; padding:calc(24px + env(safe-area-inset-top)) max(clamp(20px,5vw,64px),env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(clamp(20px,5vw,64px),env(safe-area-inset-left)); }
+.halo-landing-intro { margin-top:auto; }
+.halo-landing > footer { margin-top:auto; }
+.halo-landing-intro > div { min-width:0; }
+@media(max-width:767px) { .halo-landing h1 { overflow-wrap:break-word; } }

@@ -191,6 +191,46 @@
     --halo-welcome-size: 48px;
   }
 }
+/*
+ * Framing only: the approved card, its artwork, copy and motion are unchanged.
+ * Phones: the card fills the screen height instead of stopping at 760px with a gap below.
+ * Tablet and desktop: the card is centred on the viewport instead of pinned to the top,
+ * and the page no longer scrolls by the shell's own padding.
+ */
+.halo-mobile-shell {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100svh;
+}
+
+/* The band, top bar and footer already pad for the notch and home indicator. */
+.halo-mobile-shell .halo-page {
+  min-height: calc(100svh - 24px);
+}
+
+@media (min-width: 600px) {
+  .halo-mobile-shell {
+    display: grid;
+    place-content: center;
+    grid-template-columns: min(100%, 430px);
+    padding-block: 28px;
+  }
+
+  .halo-mobile-shell .halo-app {
+    max-width: none;
+  }
+
+  .halo-mobile-shell .halo-page {
+    min-height: min(760px, calc(100svh - 56px));
+  }
+}
+
+@media (min-width: 768px) and (min-height: 700px) {
+  .halo-mobile-shell {
+    grid-template-columns: min(100%, 480px);
+  }
+}
+
 /* Public discovery is available without submitting an address or profile. */
 .halo-onboarding-public { max-width:430px; margin:0 auto; padding:16px 24px 28px; text-align:center; }
 .halo-onboarding-public a { display:inline-flex; align-items:center; min-height:44px; color:var(--halo-primary,#0f8d92); text-underline-offset:4px; }
