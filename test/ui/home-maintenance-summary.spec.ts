@@ -15,6 +15,8 @@ const workspace = (section: string) => `/foundation/preview/expanded?review=tool
 
 test('suspected mold uses an explicit observation path without a diagnosis or a new record type', async ({ page }) => {
   await page.goto(workspace('maintenance'));
+  // A server-rendered button is inert until hydration, which writes the review settings into the URL.
+  await page.waitForURL(/[?&]palette=/);
   await page.getByRole('button', { name:'Record suspected mold', exact:true }).click();
   await expect(page.getByRole('combobox', { name:'Observation type', exact:true })).toHaveValue('other');
   await expect(page.getByLabel('Observation label', { exact:true })).toHaveValue('Suspected mold');
