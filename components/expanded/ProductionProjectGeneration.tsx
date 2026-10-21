@@ -5,6 +5,7 @@ import { useProductionResource, useProductionRuntime } from '@/components/produc
 import { defaultProjectConstraints, type ProjectConstraints, type ProjectEnvironmentContext, type ProjectGenerationState } from '@/lib/frontend/explore-personalization';
 import { validProjectGeneration, type ProductionProjectGuide, type ProjectGenerationResult } from '@/lib/frontend/production/explore-service';
 import { FrontendServiceError,serviceMessage } from '@/lib/frontend/production/runtime';
+import { projectsOff } from '@/lib/frontend/explore-availability';
 
 export function useProductionProjectGeneration() {
   const runtime=useProductionRuntime();
@@ -31,6 +32,8 @@ export function useProductionProjectGeneration() {
   useEffect(()=>()=>{version.current++;active.current?.abort();},[contextKey]);
   async function regenerate(constraints=batch.constraints,request=batch.request,interpret=false,done?:()=>void,retry=false){
     if(!runtime||busy||lock.current)return;
+    // A switched-off capability is settled: never send a generation it would refuse.
+    if(saved.off){setMessage('');return;}
     if(pending&&!retry){setMessage('Check or cancel the existing generation before starting another.');return;}
     active.current?.abort();const controller=new AbortController();active.current=controller;const captured=++version.current;
     const attempt=retry&&pending?pending:{id:crypto.randomUUID(),constraints,request,interpret,jobId:undefined};const id=attempt.id;requestId.current=id;jobId.current=attempt.jobId??'';last.current={constraints:attempt.constraints,request:attempt.request,interpret:attempt.interpret,done};setPending(attempt);lock.current=true;setBusy(true);setMessage('');
@@ -55,5 +58,5 @@ export function useProductionProjectGeneration() {
   function cancel(){const id=pending?.jobId||pending?.id||jobId.current||requestId.current;version.current++;active.current?.abort();active.current=null;lock.current=false;setBusy(false);setMessage('Stopped waiting. Checking cancellation...');if(runtime&&id)void runtime.request<unknown>('projects.cancel',{id},{idempotencyKey:`cancel:${id}`}).then(result=>{if(!validProjectGeneration(result)||!['completed','cancelled','failed'].includes(result.status))throw new Error('unconfirmed');if(result.status==='completed')commitRef.current(result);setPending(null);setMessage(result.status==='completed'?'Ideas were ready before cancellation.':'Generation cancelled. Your current ideas are kept.');}).catch(()=>setMessage('Stopped waiting. Cancellation is unconfirmed. Check the existing request before starting another.'));}
   function retry(){if(pending)void regenerate(pending.constraints,pending.request,pending.interpret,last.current?.done,true);else if(last.current){const input=last.current;void regenerate(input.constraints,input.request,input.interpret,input.done);}else saved.retry();}
   const context:ProjectEnvironmentContext={key:contextKey,isSample:false,state:'',county:'',renter:null,evidence:batch.contextKey===contextKey?evidence:[],hasGarden:false,gardenWaterKnown:false,hasMoistureObservation:false,filterModelKnown:false,sourceStatus:'published'};
-  return runtime?{production:true,pendingGeneration:Boolean(pending),canRetry:Boolean(pending||saved.error||saved.data&&!validProjectGeneration(saved.data)||message&&!/ideas ready/.test(message)),context,batch:batch.contextKey===contextKey?batch:{...empty,constraints:batch.constraints,request:batch.request},fitOpen,setFitOpen,regenerate,busy:busy||saved.loading,message:message||saved.error||(pending?'A generation needs checking. Retry checks the existing request.':saved.data&&!validProjectGeneration(saved.data)?'Saved project ideas could not be read. Try again.':''),cancel,retry,serviceState:'ready',setServiceState:()=>{},findGuide:(id:string)=>guides[id]}:null;
+  return runtime?{production:true,off:saved.off,pendingGeneration:Boolean(pending),canRetry:!saved.off&&Boolean(pending||saved.error||saved.data&&!validProjectGeneration(saved.data)||message&&!/ideas ready/.test(message)),context,batch:batch.contextKey===contextKey?batch:{...empty,constraints:batch.constraints,request:batch.request},fitOpen,setFitOpen,regenerate,busy:busy||saved.loading,message:message||(saved.off?projectsOff:saved.error)||(pending?'A generation needs checking. Retry checks the existing request.':saved.data&&!validProjectGeneration(saved.data)?'Saved project ideas could not be read. Try again.':''),cancel,retry,serviceState:'ready',setServiceState:()=>{},findGuide:(id:string)=>guides[id]}:null;
 }

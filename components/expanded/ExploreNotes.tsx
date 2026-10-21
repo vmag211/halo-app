@@ -17,6 +17,8 @@ import {useProductionRuntime} from '@/components/production/ProductionContext';
 import ProductionNoteLuna from './ProductionNoteLuna';
 import {usePrivateUpload} from '@/components/homeguard/usePrivateUpload';
 import {PrivateAttachmentDownload,PrivateObservationPhoto} from '@/components/homeguard/PrivateAttachments';
+import { collectionView } from '@/lib/frontend/collection-availability';
+import { notesOff } from '@/lib/frontend/explore-availability';
 
 type Go = (section?: ExploreSection, view?: string, id?: string) => void;
 type CaptureNavigation = () => () => boolean;
@@ -35,13 +37,16 @@ export default function ExploreNotes({ go, view, id, mapHref, captureNavigation 
   }
   // A notebook that did not load is not an empty one.
   const failed = workspace.mode === 'production' && collection.status?.status === 'error';
+  // Switched off on the server is a settled answer: say so, offer no retry and no note that cannot be kept.
+  const off = failed && collectionView(collection.status) === 'off';
   const loadingNotes = workspace.mode === 'production' && (!collection.status || collection.status.status === 'loading') && !collection.records.length;
   const matches = collection.records.filter(note => ((filters.archive ?? 'Active') === 'All' || (filters.archive === 'Archived' ? note.archived : !note.archived)) && `${note.title} ${note.description}`.toLowerCase().includes(filters.search.toLowerCase()) && (filters.type === 'All notes' || (note.noteType ?? 'Observation') === filters.type) && (!filters.pinned || note.pinned)).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
   return <section className="ex-detail ex-notebook-workspace">
-    <div className="ex-notebook-toolbar"><p className="ex-meta">{collection.records.length} private note{collection.records.length === 1 ? '' : 's'}</p><button className="ex-button" onClick={() => go('observations', 'new')}><Plus size={18} aria-hidden="true" />Add a note</button></div>
+    <div className="ex-notebook-toolbar"><p className="ex-meta">{collection.records.length} private note{collection.records.length === 1 ? '' : 's'}</p><button className="ex-button" disabled={off} onClick={() => go('observations', 'new')}><Plus size={18} aria-hidden="true" />Add a note</button></div>
     <div className="ex-notebook-filters"><label><span className="halo-sr">Search my notes</span><span className="ex-search"><Search size={18} aria-hidden="true" /><input type="search" placeholder="Search your notebook" value={filters.search} onChange={event => setFilters({ ...filters, search: event.target.value })} /></span></label><label><span className="halo-sr">Note type</span><select value={filters.type} onChange={event => setFilters({ ...filters, type: event.target.value })}>{['All notes', ...types].map(value => <option key={value}>{value}</option>)}</select></label><label className="ex-check"><input type="checkbox" checked={filters.pinned} onChange={event => setFilters({ ...filters, pinned: event.target.checked })} />Only pinned notes</label><label><span className="halo-sr">Note archive</span><select value={filters.archive ?? 'Active'} onChange={event => setFilters({ ...filters, archive: event.target.value })}>{['Active', 'Archived', 'All'].map(value=><option key={value}>{value}</option>)}</select></label></div>
     <div className="ex-notebook">{matches.map(note => <DeletableRecord key={note.id} title={note.title} deletion={{ remove: () => collection.remove(note.id), description: 'Deletes this note only. Saved tasks and previously copied text stay.' }}><button className="ex-note-row" onClick={() => go('observations', 'detail', note.id)}><span className="ex-kicker">{note.pinned && <Star size={13} aria-label="Pinned" />} {note.noteType ?? 'Observation'}{note.archived ? ' · Archived' : ''}</span><strong>{note.title}</strong><small>{note.description.slice(0, 110)}{note.description.length > 110 ? '…' : ''}</small></button></DeletableRecord>)}</div>
-    {failed && <div className="ex-empty" role="alert"><h3>Your notes could not load</h3><p>{collection.status?.message || 'Your notes could not load.'} Nothing in your notebook was changed.</p><button className="ex-text-button" onClick={() => void collection.retry()}>Try again</button></div>}
+    {off && <div className="ex-empty" role="status"><NotebookPen size={25} aria-hidden="true" /><h3>My notes are not available yet</h3><p>{notesOff}</p></div>}
+    {failed && !off && <div className="ex-empty" role="alert"><h3>Your notes could not load</h3><p>{collection.status?.message || 'Your notes could not load.'} Nothing in your notebook was changed.</p><button className="ex-text-button" onClick={() => void collection.retry()}>Try again</button></div>}
     {loadingNotes && <p className="ex-meta" role="status">Opening your notes...</p>}
     {!matches.length && !failed && !loadingNotes && <div className="ex-empty"><NotebookPen size={25} aria-hidden="true" /><h3>{collection.records.length ? 'No notes match these filters' : 'Your notebook is ready'}</h3><p>{collection.records.length ? 'Try another phrase or show all note types.' : 'Keep a question, record an observation, or start with an idea.'}</p>{collection.records.length > 0 && <button className="ex-text-button" onClick={() => setFilters({ search: '', type: 'All notes', pinned: false, archive: 'All' })}>Reset note filters</button>}</div>}
     {workspace.scenario === 'stale' && <p className="ex-meta">Review note dates before using them as context.</p>}

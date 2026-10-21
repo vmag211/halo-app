@@ -178,7 +178,7 @@ function useProjectGeneration(environmentAvailable = true) {
   // Keep the request and preferences, not stale reasons from a different home or
   // record revision. This changes unsaved suggestions, never owned project plans.
   const activeBatch = batch.contextKey !== context.key ? createProjectGeneration(context, batch.constraints, batch.request, batch.generation, false) : batch;
-  return production ?? { production:false,pendingGeneration:false,canRetry:false, context, batch: activeBatch, fitOpen, setFitOpen, regenerate, busy, message, cancel, retry, serviceState, setServiceState,findGuide:findProjectGuide };
+  return production ?? { production:false,off:false,pendingGeneration:false,canRetry:false, context, batch: activeBatch, fitOpen, setFitOpen, regenerate, busy, message, cancel, retry, serviceState, setServiceState,findGuide:findProjectGuide };
 }
 type Generation = ReturnType<typeof useProjectGeneration>;
 
@@ -201,9 +201,9 @@ function SuggestedProject({ item, guide, go }: { item: ProjectSuggestion; guide:
 
 function ProjectInterestInput({ generation }: { generation: Generation }) {
   const [request, setRequest] = useHomeDraft('explore:project-direct-interest', '');
-  return <form className="ex-project-interest" onSubmit={event => { event.preventDefault(); if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); else generation.regenerate(); }}>
+  return <form className="ex-project-interest" onSubmit={event => { event.preventDefault(); if (generation.off) return; if (request.trim()) generation.regenerate({ ...generation.batch.constraints, count: 3 }, request.trim().replace(/\u2014/g, ','), true); else generation.regenerate(); }}>
     <label>What interests you right now?<textarea rows={2} maxLength={500} value={request} onChange={event => setRequest(event.target.value)} placeholder="A solar experiment, native plants, or something to try with friends..." /></label>
-    <div><button className="ex-button" type="submit" disabled={generation.busy}>{request.trim() ? 'Generate a few ideas' : 'Generate project ideas'}<ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" type="button" disabled={generation.busy} onClick={() => generation.setFitOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Preferences</button></div>
+    <div><button className="ex-button" type="submit" disabled={generation.busy||generation.off}>{request.trim() ? 'Generate a few ideas' : 'Generate project ideas'}<ArrowRight size={16} aria-hidden="true" /></button><button className="ex-text-button" type="button" disabled={generation.busy||generation.off} onClick={() => generation.setFitOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Preferences</button></div>
   </form>;
 }
 
