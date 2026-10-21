@@ -154,9 +154,10 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
   return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, pending, error, readiness, production: Boolean(service), unknownOperation, retryLoad: () => setLoadVersion(value => value + 1), reconcile, addActions, updateAction, reviseAction, reviseActions, deleteAction, eraseActions, changeState, getSnapshot:()=>snapshotRef.current, reset: () => { if (service) return; close(); actionsRef.current = []; snapshotRef.current={actions:[],metas:{}}; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
-export function ExpandedActionStatus() {
+/** quietLoading: the screen already shows its own loading placeholder, so the loading line is announced but takes no space. */
+export function ExpandedActionStatus({ quietLoading = false }: { quietLoading?: boolean } = {}) {
   const state = useExpandedPreview(); if (!state || !state.error && state.readiness !== 'loading') return null;
-  return <div role="status" className="mw-notice"><p>{state.readiness === 'loading' ? 'Loading your tasks...' : state.error}</p>{state.unknownOperation ? <button className="mw-text" disabled={state.pending} onClick={() => void state.reconcile()}>Check save status</button> : state.readiness === 'error' ? <button className="mw-text" onClick={state.retryLoad}>Try again</button> : null}</div>;
+  return <div role="status" className={quietLoading && !state.error && state.readiness === 'loading' ? 'mw-notice halo-sr-only' : 'mw-notice'}><p>{state.readiness === 'loading' ? 'Loading your tasks...' : state.error}</p>{state.unknownOperation ? <button className="mw-text" disabled={state.pending} onClick={() => void state.reconcile()}>Check save status</button> : state.readiness === 'error' ? <button className="mw-text" onClick={state.retryLoad}>Try again</button> : null}</div>;
 }
 
 export function ExpandedReviewControls() {

@@ -153,7 +153,7 @@ function MyWeekPlanner({href,destination,scoreScenario='shell',now}:WorkspacePro
   if(destination==='journal'||destination==='patterns'||destination==='recap')return <WeekJournal href={href} initialView={destination}/>;
   if(destination==='outdoors')return <WeekOutdoors href={href}/>;
   return <section className="mw-workspace mw-dashboard" aria-label="My Week workspace">
-    <ExpandedActionStatus />
+    <ExpandedActionStatus quietLoading />
     <header className="mw-command-header"><WeekAmbience className="mw-ambience-hero"><div className="mw-command-copy"><time dateTime={today}>{dayLabel(today,{weekday:'long',month:'short',day:'numeric'})}</time><h2>Your day</h2><button onClick={()=>open()} className="mw-add" disabled={unavailable}><Plus size={17}/>Add task</button></div></WeekAmbience></header>
     {notice&&<p role="status" className="mw-feedback" ref={noticeRef} tabIndex={-1}>{notice}</p>}{workspace.scenario==='offline'&&<p className="mw-feedback">Offline. Reconnect to save changes.</p>}
     {unavailable?<div className="mw-calendar-unavailable" role="status"><CalendarDays size={30} aria-hidden="true"/><strong>{workspace.scenario==='loading'||state.readiness==='loading'?'Preparing your calendar...':'Your calendar is unavailable.'}</strong><p>{workspace.scenario==='loading'||state.readiness==='loading'?'Your saved plans will appear here.':'Your saved work has not been replaced. Reconnect and try again.'}</p>{workspace.scenario==='error'&&<button className="mw-primary" onClick={()=>workspace.setScenario('ready')}>Try again</button>}</div>:<>
