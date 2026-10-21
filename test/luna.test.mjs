@@ -684,6 +684,11 @@ test('a follow-up is retrieved with the question before it, and the model is sti
   const [prior, asked] = long.split('\n');
   assert.equal(asked, 'And?');
   assert.equal(prior.length, 1000, 'the earlier question is one line, bounded');
+  assert.equal(
+    luna.retrievalQuery('Q?', [{ role: 'user', text: '\u0001\u0002' }]),
+    'Q?',
+    'a prior that cleans to nothing adds nothing, not a stray line break',
+  );
 
   const { fetchImpl, sent } = scriptedFetch({ answer: 'PFHxS is limited to 10 ppt [1].' });
   await withEnv(MODELS, () =>
