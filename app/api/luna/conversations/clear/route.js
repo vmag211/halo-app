@@ -5,6 +5,7 @@ import { readJsonBody, parseBoundedInt, parseUuid } from '@/lib/validate';
 import { featureEnabled } from '@/lib/features';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { clearConversation, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
+import { readIfMatch } from '@/lib/ifMatch';
 
 /**
  * POST /api/luna/conversations/clear
@@ -226,7 +227,7 @@ export async function POST(request) {
     // `If-Match` carries the same number as the body (runtime.ts:133). A client
     // sending two different preconditions does not know what it is asking for,
     // and must not be able to weaken the one that is enforced.
-    const ifMatch = request.headers.get('if-match');
+    const ifMatch = readIfMatch(request);
     if (ifMatch !== null && ifMatch.trim() !== String(revision.value)) {
       return validationError(
         [{

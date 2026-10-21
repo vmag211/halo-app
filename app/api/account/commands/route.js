@@ -4,6 +4,7 @@ import { requireUser, authErrorResponse, linkCallerEmail, supabaseAdmin } from '
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseBoundedInt, parseEnum, parseText, parseUuid } from '@/lib/validate';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   OPERATION_INPUT_MISMATCH,
   isOperationsUnavailable,
@@ -723,7 +724,7 @@ export async function POST(request) {
 
     const expectedRevision = parseBoundedInt(body.value.expectedRevision, { min: 0, max: Number.MAX_SAFE_INTEGER });
     if (!expectedRevision.ok) return badField('expectedRevision', expectedRevision, requestId);
-    const ifMatch = request.headers.get('if-match');
+    const ifMatch = readIfMatch(request);
     if (ifMatch !== null && ifMatch.trim() !== String(expectedRevision.value)) {
       return validationError(
         [{

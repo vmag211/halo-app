@@ -5,6 +5,7 @@ import { readJsonBody, parseUuid } from '@/lib/validate';
 import { featureDisabledReason, featureEnabled } from '@/lib/features';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, requestHash, runOperation } from '@/lib/operations';
 import { ACTION_REFUSAL_MESSAGES, ACTION_REFUSAL_REASONS, parseActionCommand, planActionCommand } from '@/lib/actionRules';
+import { readIfMatch } from '@/lib/ifMatch';
 import {
   ACTIONS_DOMAIN,
   ACTIONS_REFUSALS,
@@ -229,7 +230,7 @@ export async function POST(request) {
       );
     }
 
-    if (request.headers.get('if-match') !== null) {
+    if (readIfMatch(request) !== null) {
       return validationError([{ field: 'If-Match', code: 'precondition_unsupported', message: MESSAGES.ifMatch }], requestId);
     }
 
