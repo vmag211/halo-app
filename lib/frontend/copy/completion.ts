@@ -1,6 +1,6 @@
 /** Copy for the remaining review workflows. Requested locale may differ from served English. */
 export const completionCopy = {
- learn:'Learn & sources',search:'Search topics and terms',all:'All topics',terms:'Understanding the data',none:'No matching topics. Try a factor, a unit or a term.',clear:'Clear search',openGuide:'Open full guide',sources:'Supporting sources',checked:'Source link checked',sourceLimit:'Link checks are not a new scientific review. Check the source’s applicability and limits.',
+ learn:'Learn & sources',search:'Search topics and terms',filter:'Show topic',all:'All topics',terms:'Understanding the data',none:'No matching topics. Try a factor, a unit or a term.',clear:'Clear search',openGuide:'Open full guide',sources:'Supporting sources',checked:'Source link checked',sourceLimit:'Link checks are not a new scientific review. Check the source’s applicability and limits.',
  glossary:[
   {id:'non-detect',title:'Non-detect',text:'A result reported below the method’s stated limit. It is not the same as a measured zero.',related:'pfas'},
   {id:'coverage',title:'Evidence coverage',text:'Which places, dates and records a source includes. Missing information does not mean a low reading.',related:'air'},

@@ -21,7 +21,7 @@ export default function LearnLibrary({factorHref}:{factorHref?:(key:FactorKey)=>
  const terms=c.glossary.filter(term=>(filter==='all'||filter===term.related)&&`${term.title} ${term.text}`.toLowerCase().includes(q));
  return <section className="hc-library" id="learn-topics" aria-label={c.learn}><h3><BookOpen size={20} aria-hidden="true"/>{c.learn}</h3>
  <div className="hc-library-tools"><label className="hc-search"><Search size={17} aria-hidden="true"/><span className="halo-sr-only">{c.search}</span><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={c.search}/></label>
- <label className="hc-filter"><span className="halo-sr-only">{c.all}</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">{c.all}</option>{factorKeys.map(key=><option key={key} value={key}>{LEARN_CONTENT[key].title}</option>)}</select></label></div>
+ <label className="hc-filter"><span className="halo-sr-only">{c.filter}</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">{c.all}</option>{factorKeys.map(key=><option key={key} value={key}>{LEARN_CONTENT[key].title}</option>)}</select></label></div>
  {query&&<button className="hp-text" onClick={()=>setQuery('')}>{c.clear}</button>}
  {scenario==='error'?<div role="status"><p>{c.catalogUnavailable}</p><button className="hp-text" onClick={()=>setScenario('ready')}>{c.catalogRetry}</button></div>:scenario==='loading'?<p role="status">{c.pending}</p>:scenario==='empty'?<p>{c.emptyLibrary}</p>:<>
  {!topics.length&&!terms.length&&<p role="status">{c.none}</p>}
