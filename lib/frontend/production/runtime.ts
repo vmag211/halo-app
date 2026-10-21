@@ -10,7 +10,7 @@ export interface ProductionRuntime {
 }
 export type FailureCode = 'offline' | 'session' | 'permission' | 'conflict' | 'validation' | 'rate_limited' | 'unavailable' | 'invalid_response' | 'aborted' | 'unknown_outcome';
 export class FrontendServiceError extends Error {
-  constructor(public readonly code: FailureCode, message: string, public readonly operationId?: string, public readonly retryAfter?: number, public readonly fields?: Record<string,string>) { super(message); this.name = 'FrontendServiceError'; }
+  constructor(public readonly code: FailureCode, message: string, public readonly operationId?: string, public readonly retryAfter?: number, public readonly fields?: Record<string,string>, public readonly reason?: 'feature_unavailable') { super(message); this.name = 'FrontendServiceError'; }
 }
 type Endpoint = { path: string; method?: 'GET'|'POST'|'PATCH'|'DELETE'; public?: boolean };
 /** These are explicit frontend contracts, not claims that the backend implements them. */
@@ -142,7 +142,12 @@ export function createProductionRuntime(input: {
         const json: unknown = await bounded(response.json().catch(()=>null)); current();
         if(!response.ok) {
           const code:FailureCode = response.status===401?'session':response.status===403?'permission':response.status===409||response.status===412?'conflict':response.status===400||response.status===422?'validation':response.status===429?'rate_limited':response.status>=500&&mutation?'unknown_outcome':'unavailable';
-          const retry=Number(response.headers.get('Retry-After')); throw new FrontendServiceError(code,messages[code],operationId,Number.isFinite(retry)&&retry>0?retry:undefined);
+          const retry=Number(response.headers.get('Retry-After'));
+          // A read refused because its capability is switched off (503 feature_unavailable) is a settled
+          // answer, not an outage: mark it so screens can say "not available yet" instead of offering a retry.
+          // Mutations keep their existing outcome authority.
+          const off=!mutation&&response.status===503&&!!json&&typeof json==='object'&&(json as {code?:unknown}).code==='feature_unavailable';
+          throw new FrontendServiceError(code,messages[code],operationId,Number.isFinite(retry)&&retry>0?retry:undefined,undefined,off?'feature_unavailable':undefined);
         }
         if(json===null || typeof json!=='object') throw new FrontendServiceError(mutation?'unknown_outcome':'invalid_response',messages[mutation?'unknown_outcome':'invalid_response'],operationId);
         // The response envelope is unwrapped once. Domain adapters validate its canonical schema.
