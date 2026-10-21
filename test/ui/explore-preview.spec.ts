@@ -27,8 +27,12 @@ test('renamed navigation, overview paths and map keep Explore ownership', async 
     await expect(nav.getByRole('link', { name: 'Explore', exact: true })).toHaveAttribute('aria-current', 'page');
     await page.getByRole('button', { name: 'Back to Explore', exact: true }).first().click();
   }
-  await page.getByLabel('Explore resources', { exact: true }).click();
-  await page.getByRole('button', { name: 'Ask a question', exact: true }).click();
+  // Back to Explore crosses to the /foundation/preview route; under dev compilation its render can land after
+  // the menu opened and remount it closed. Retry the open until the menu holds, then use it.
+  await expect(async () => {
+    if (!await page.locator('details.ex-resources').evaluate(menu => (menu as HTMLDetailsElement).open)) await page.getByLabel('Explore resources', { exact: true }).click();
+    await page.getByRole('button', { name: 'Ask a question', exact: true }).click({ timeout: 2000 });
+  }).toPass();
   await expect(page.getByLabel('Draft for Utility')).toBeVisible();
   await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
   await page.getByLabel('Explore resources', { exact: true }).click();

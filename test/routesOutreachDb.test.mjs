@@ -448,3 +448,12 @@ test('no route reached the network, and none ever sent anything', () => {
   assert.ok(worlds.length >= 10);
   assert.equal(ON.HALO_FEATURE_OUTREACH, 'on');
 });
+
+test('with outreach off the three reads are settled as off: lookup is disabled and no contact request is made', async () => {
+  const w = await world({ env: { HALO_FEATURE_WORKSPACE: 'on' } });
+  const s = await screen(w);
+  for (const read of ['connection', 'history', 'evidenceRead']) assert.equal(s.state[read].off, true, read);
+  assert.equal(s.derive().off, true);
+  assert.equal(s.lookupDisabled(), true);
+  assert.ok(!s.state.requests.includes('contacts.resolve'));
+});

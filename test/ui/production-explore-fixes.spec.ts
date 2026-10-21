@@ -26,8 +26,11 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
 
 test('a notebook that could not load says so instead of looking empty', async ({ page }) => {
   let collectionFails = true;
+  // A failure, not a switched-off capability: feature_unavailable is the settled "not available yet" state
+  // (production-explore-flags-off.spec.ts), which offers no retry.
+  const outage = { error:'The service is temporarily unavailable.', code:'service_unavailable', message:'The service is temporarily unavailable.', field_errors:[], retryable:true };
   const network = await mockProduction(page, {
-    '/api/frontend/workspace': route => collectionFails ? jsonRoute(route, unavailable, 503) : jsonRoute(route, { records:[], revision:1, availability:'ready', complete:true, pendingOperations:[] }),
+    '/api/frontend/workspace': route => collectionFails ? jsonRoute(route, outage, 503) : jsonRoute(route, { records:[], revision:1, availability:'ready', complete:true, pendingOperations:[] }),
   });
   await page.goto('/app/explore/notes?view=main');
   await expect(page.getByRole('heading', { name:'Your notes could not load' })).toBeVisible();
@@ -71,5 +74,32 @@ test('the map source note sits with the layer count, not loose above the tools',
   const placed = page.locator('.halo-map-top .halo-map-count .halo-map-source-note');
   await expect(placed).toHaveText(note);
   await expect(page.locator('.halo-map-main > p.halo-map-count')).toHaveCount(0);
+  expect(network.blocked).toEqual([]);
+});
+
+test('moving between Explore views starts the new view at its top', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const network = await mockProduction(page);
+  await page.goto('/app/explore');
+  await page.locator('.ex-community-bridge').scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+  await page.locator('.ex-community-bridge').click();
+  await expect(page.getByRole('heading', { name: 'Your community' })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
+  await page.getByRole('button', { name: /Keep this question in My notes/ }).scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: /Keep this question in My notes/ }).click();
+  await expect(page.getByLabel('Title (required)')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(5);
+  expect(network.blocked).toEqual([]);
+});
+
+test('the hub map preview says when a layer has no mapped records instead of showing a bare map', async ({ page }) => {
+  // Live, 2026-10-21: the stored facilities layer was complete with 0 features until the daily rebuild.
+  const network = await mockProduction(page, { '/api/map': (route, url) => jsonRoute(route, url.searchParams.get('layer') === 'facilities'
+    ? { count:0, layer:'facilities', scope:'NC-08', features:[], selection:'Active major facilities and repeat violators.', assembled_at:'2026-10-21T01:24:01.962Z', prebuilt:true }
+    : { layer:url.searchParams.get('layer') ?? 'water', features:[], assembled_at:'2026-10-13T14:00:00Z' }) });
+  await page.goto('/app/explore');
+  await page.getByLabel('Preview map layer').selectOption('facilities');
+  await expect(page.locator('.ex-map-layer-description')).toHaveText('No mapped records in this layer right now. Open the map for its source note.');
   expect(network.blocked).toEqual([]);
 });

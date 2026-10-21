@@ -173,7 +173,7 @@ function Product({ expanded, scenario, initialFactor, initialFamily, initialMemb
   const familyHref = productionRoute ? '/family' : previewHref('today',undefined,true).replace('/foundation/preview?', '/foundation/preview/family?');
   const memberHref = (member: HomeMemberKey) => productionRoute ? `/household/${member}` : previewHref('home',undefined,true).replace('/foundation/preview?', `/foundation/preview/household/${member}?`);
   const expandedHref = (tab: string, target?: string) => productionRoute ? productDestinationHref(tab,target) : `${previewHref(tab as PreviewRoute)}${target ? `&destination=${encodeURIComponent(target)}` : ''}`;
-  const mapHref = (layer: string) => productionRoute ? `/map?access=owned&layer=${encodeURIComponent(layer)}` : `/foundation/preview/map?edition=expanded${layer ? `&layer=${layer}` : ''}&appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&time=${time}&contrast=${contrast}`;
+  const mapHref = (layer: string) => productionRoute ? `/map?access=owned&layer=${encodeURIComponent(layer)}` : `/foundation/preview/map?edition=expanded${layer ? `&layer=${layer}` : ''}&appearance=${appearance}&scale=${Math.round(scale * 100)}&motion=${motion}&time=${time}&contrast=${contrast}${search.get('review') === 'tools' || pathname === '/tools' ? '&review=tools' : ''}`;
   const routeRef = useRef(route);
   const scrollMemory = useRef<Record<string, number>>({});
   const [sheet, setSheet] = useState<SheetState | null>(startingSheet(scenario));
