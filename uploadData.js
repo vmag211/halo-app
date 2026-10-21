@@ -83,7 +83,7 @@ rl.on('close', async () => {
   
   console.log(`Found ${uploadArray.length} total utilities. Uploading now...`);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('ucmr5_utilities')
     .insert(uploadArray);
 
