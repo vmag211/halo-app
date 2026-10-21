@@ -11,3 +11,4 @@ export function collectionView(status?: { status: string; featureUnavailable?: b
   return status.featureUnavailable ? 'off' : 'error';
 }
 export const journalOffMessage = 'Check-ins are not available yet. Nothing has changed, and the rest of My Week still works.';
+export const homeguardOffMessage = 'Saving Homeguard records is not available yet. Nothing has changed, and the rest of Homeguard still works.';

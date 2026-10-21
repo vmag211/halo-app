@@ -7,6 +7,7 @@ import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import { testStatusLabels, type TestRecord } from '@/lib/frontend/home-test-preview';
 import type { HomeAsset, MoistureObservation } from '@/lib/frontend/home-maintenance-preview';
 import type { GardenSite } from '@/lib/frontend/home-food-preview';
+import { homeguardOffMessage } from '@/lib/frontend/collection-availability';
 import './home-workbench.css';
 
 type Href = (tab: string, destination?: string) => string;
@@ -49,6 +50,9 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   const loading = groups.some(group => group.loading);
   const unavailable = groups.some(group => group.unavailable);
   const allUnavailable = groups.every(group => group.unavailable);
+  // Records switched off on this deployment are a settled answer: say so, with no retry.
+  const failed = workspace.mode === 'production' ? required.filter(key => workspace.collectionStates[key]?.status === 'error') : [];
+  const switchedOff = !loading && failed.length > 0 && failed.every(key => workspace.collectionStates[key]?.featureUnavailable);
   const retryUnavailable = () => workspace.mode === 'production'
     ? Promise.all(required.filter(key => workspace.collectionStates[key]?.status === 'error').map(key => workspace.retry(key)))
     : workspace.retry();
@@ -76,7 +80,7 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
   };
   return <section id="home-workspace" tabIndex={-1} className="halo-home-workspace" aria-labelledby="home-workspace-title">
     <header className="how-heading"><h2 id="home-workspace-title">Your home workspace</h2><details className="how-add-menu" ref={addMenu} onToggle={event => setAddOpen(event.currentTarget.open)}><summary aria-label="Add a home record"><Plus size={16} aria-hidden="true" />Add</summary><nav aria-label="Add home records"><Link href={link('tests','new')} prefetch={false} onClick={closeAdd}><ClipboardList size={16} aria-hidden="true" />Plan a test</Link><Link href={link('tests','report')} prefetch={false} onClick={closeAdd}><FileText size={16} aria-hidden="true" />Add a report</Link><Link href={link('maintenance','create')} prefetch={false} onClick={closeAdd}><Wrench size={16} aria-hidden="true" />Add routine</Link><Link href={link('maintenance','observation')} prefetch={false} onClick={closeAdd}><Droplets size={16} aria-hidden="true" />Record moisture</Link></nav></details></header>
-    {unavailable ? <div className="how-notice" role="status"><p>{loading ? allUnavailable ? 'Loading your home workspace.' : 'Loading more home records.' : allUnavailable ? 'Your home records could not load.' : 'Some home records could not load. Available records are kept below.'}</p>{!loading && <button className="how-action" onClick={() => void retryUnavailable()}>Try again</button>}</div> : <>
+    {unavailable ? <div className="how-notice" role="status"><p>{switchedOff ? homeguardOffMessage : loading ? allUnavailable ? 'Loading your home workspace.' : 'Loading more home records.' : allUnavailable ? 'Your home records could not load.' : 'Some home records could not load. Available records are kept below.'}</p>{!loading && !switchedOff && <button className="how-action" onClick={() => void retryUnavailable()}>Try again</button>}</div> : <>
       {workspace.scenario === 'offline' && <p className="how-notice">Offline. Reconnect to save changes.</p>}
       {workspace.scenario === 'stale' && <p className="how-notice">Older records: check their source dates.</p>}
       {workspace.mode === 'production' ? Object.values(workspace.collections).flat().some(record=>record.homeContextId&&record.homeContextId!==currentContext)&&<p className="how-notice">Your record library includes previous homes.</p> : currentContext!=='sample-current-home'&&<p className="how-notice">Your record library includes previous homes.</p>}
