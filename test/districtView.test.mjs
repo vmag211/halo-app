@@ -32,7 +32,7 @@ test('per-county rows cover all nine NC-08 counties with radon', () => {
   const union = v.counties.find((c) => c.county === 'Union County');
   assert.deepEqual(
     { systems: union.systems, over: union.systems_over_limit, worst: union.worst_water_severity, in: union.in_district, zone: union.radon_zone, radon: union.radon_severity },
-    { systems: 1, over: 1, worst: 'severe', in: 'whole', zone: 3, radon: 'good' },
+    { systems: 1, over: 1, worst: 'high', in: 'whole', zone: 3, radon: 'good' },
   );
   const anson = v.counties.find((c) => c.county === 'Anson County');
   assert.equal(anson.systems, 0);

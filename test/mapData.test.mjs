@@ -115,7 +115,7 @@ test("hazard index: EPA formula, needs two or more of the four, flagged for resc
   const hi = hazardIndex({ PFHxS: [{ date: "1/7/2025", value_ppt: 5 }], PFBS: [{ date: "1/7/2025", value_ppt: 1000 }] });
   assert.equal(hi.value, 1); // 5/10 + 1000/2000
   assert.equal(hi.exceeds, true);
-  assert.equal(hi.severity, "high");
+  assert.equal(hi.severity, "elevated"); // an index of 1 is risk 50 on the limit curve
   assert.equal(hi.proposed_for_rescission, true);
   assert.equal(hi.basis, "latest_sample");
   assert.equal(hazardIndex({ PFHxS: [{ date: "1/7/2025", value_ppt: 50 }] }), null); // only one present
