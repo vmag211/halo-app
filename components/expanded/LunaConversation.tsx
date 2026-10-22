@@ -17,6 +17,7 @@ import { useExpandedPreview } from './ExpandedPreviewState';
 import LunaLoading from './LunaLoading';
 import {isLunaWeekRequest,prepareLunaWeekPlan,lunaWeekChanges,weekMetaSignature,type LunaWeekPlan} from '@/lib/frontend/luna-week-plan';
 import { emptyWeekMeta, zoneName, type WeekMeta } from '@/lib/frontend/week-preview';
+import { clockText } from '@/lib/frontend/time-format';
 import { lunaTaskChangeError, lunaTaskNextMetadata, lunaTaskPatch, matchingLunaTasks, snapshotLunaTask, type LunaTaskChange, type LunaTaskOperation, type LunaTaskSnapshot } from '@/lib/frontend/luna-task-actions';
 import { lunaCompletionCopy as lunaCopy } from '@/lib/frontend/copy/luna-completion';
 import { revisedActionBatch } from '@/lib/frontend/expanded-preview';
@@ -371,7 +372,7 @@ function ReviewLunaConversation({ context, onClose, go: navigate, currentGuide, 
         <fieldset disabled={busy || workspace.pending}>
           <div className="lc-task-scope"><b>{task.title}</b><small>{task.origin} · {task.state} · {task.date || 'Saved for later'}</small><small>Task revision {task.revision}</small></div>
           {operation === 'rename' && <label>Task title<input value={change.title} maxLength={160} onChange={event => changeProposal(message.id, current => current.kind === 'task-change' ? { ...current, change: { ...current.change, title: event.target.value }, error: undefined } : current)} /></label>}
-          {operation === 'move' && <><label>All-day date<DateInput todayDate={lunaCalendarAnchor(new Date(), timezone)} value={change.date} onChange={event => changeProposal(message.id, current => current.kind === 'task-change' ? { ...current, change: { ...current.change, date: event.target.value }, dateExplanation: 'Date you selected.', error: undefined } : current)} /></label><small>{proposal.dateExplanation} {meta.time ? `Existing time ${meta.time} in ${zoneName(meta.zone)} stays attached.` : `All-day plan in ${zoneName(timezone)}.`} Reminder and repeat preferences are unchanged.</small></>}
+          {operation === 'move' && <><label>All-day date<DateInput todayDate={lunaCalendarAnchor(new Date(), timezone)} value={change.date} onChange={event => changeProposal(message.id, current => current.kind === 'task-change' ? { ...current, change: { ...current.change, date: event.target.value }, dateExplanation: 'Date you selected.', error: undefined } : current)} /></label><small>{proposal.dateExplanation} {meta.time ? `Existing time ${clockText(meta.time)} in ${zoneName(meta.zone)} stays attached.` : `All-day plan in ${zoneName(timezone)}.`} Reminder and repeat preferences are unchanged.</small></>}
           {operation === 'delete' && <small>{lunaCopy.deleteScope}</small>}
           {operation === 'complete' && <small>{lunaCopy.completionScope} Completion is recorded for {lunaCalendarAnchor(new Date(), timezone)} in {zoneName(timezone)}, not the scheduled day.</small>}
           {operation === 'reopen' && <small>{lunaCopy.reopenScope}</small>}

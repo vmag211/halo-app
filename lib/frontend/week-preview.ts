@@ -33,3 +33,5 @@ export function calendarExport(action:PreviewAction,meta:WeekMeta):string|null {
 export function actionStreak(days:string[],today:string){const done=new Set(days.filter(d=>d&&validActionDate(d)&&d<=today));let day=done.has(today)?today:dayAdd(today,-1),count=0;while(done.has(day)){count++;day=dayAdd(day,-1);}return count;}
 export function nextOccurrence(date:string,completed:string,mode:WeekMeta['recurrence']) {if(mode==='none'||!date)return '';if(mode==='after-completion')return dayAdd(completed,7);let next=dayAdd(date,7);while(next<=completed)next=dayAdd(next,7);return next;}
 export function downloadWeekFile(name:string,content:string,type:string){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+/** Re-exported for screens whose transcribed line numbers must not move. */
+export { clockText } from './time-format';

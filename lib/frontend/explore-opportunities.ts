@@ -1,5 +1,6 @@
 import { localResourceScope, type LocalResourceScope } from './explore-local-resources';
 import { validDay, blankEngagement, type Engagement } from './explore-workspace';
+import { scheduleLabel } from './time-format';
 type ExploreArea = { place: string; state: string };
 
 /** Checked public snapshots, not a live availability or distance service. */
@@ -38,6 +39,11 @@ export function opportunityLocalDate(item: CommunityOpportunity): string {
   const part = (type: string) => parts.find(item => item.type === type)?.value ?? '';
   const derived = `${part('year')}-${part('month')}-${part('day')}`;
   return supplied && supplied !== derived ? '' : derived;
+}
+/** When it happens, in HALO's one time style when the source gave the venue zone; otherwise the listing's own words. */
+export function opportunityWhen(item: CommunityOpportunity): string {
+  if (item.kind !== 'scheduled' || item.venueTimezoneBasis !== 'source' || !item.venueTimezone || !validVenueTimezone(item.venueTimezone) || !item.startsAt || !item.endsAt) return item.timeLabel;
+  return scheduleLabel(item.startsAt, item.endsAt, item.venueTimezone) ?? item.timeLabel;
 }
 export function opportunityOutdoorHandoff(item: CommunityOpportunity): OpportunityOutdoorHandoff {
   return { id: item.id, title: item.title, date: opportunityLocalDate(item), place: item.address || item.venue,

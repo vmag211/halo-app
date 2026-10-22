@@ -162,7 +162,7 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect, sourc
         <strong>Sources &amp; boundaries</strong>
         <p>Source basis: EPA UCMR 5, with EPA population and service-area boundaries.</p>
         <p>Boundaries: U.S. Census Bureau TIGERweb, 119th Congressional Districts and counties. NC-08 uses the 2023 district map, not the 2026 election map. District membership uses system service-area centroids.</p>
-        <p>Boundary source retrieved September 27, 2026. Records assembled <time dateTime={data.assembled_at}>{source?new Date(data.assembled_at).toLocaleString():'October 1, 2026 at 11:00 UTC'}</time>. Assembly time is not a water-sample date.</p>
+        <p>Boundary source retrieved September 27, 2026. Records assembled <time dateTime={data.assembled_at}>{source?new Intl.DateTimeFormat('en-US',{dateStyle:'long',timeStyle:'short'}).format(new Date(data.assembled_at)).replace(/[\u202f\u00a0]/g,' '):'October 1, 2026 at 11:00 AM UTC'}</time>. Assembly time is not a water-sample date.</p>
       </footer>
     </div>
   );

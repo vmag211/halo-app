@@ -3,7 +3,14 @@ import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth'
 import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
-import { exploreAreaUnavailable, isExploreAreaUnavailable, readArea, writeArea } from '@/lib/exploreArea';
+import {
+  NEVER_SAVED_REVISION,
+  exploreAreaUnavailable,
+  homeCountyPlace,
+  isExploreAreaUnavailable,
+  readArea,
+  writeArea,
+} from '@/lib/exploreArea';
 import { placeById } from '@/lib/places';
 import { readIfMatch } from '@/lib/ifMatch';
 
@@ -17,8 +24,12 @@ import { readIfMatch } from '@/lib/ifMatch';
  * GET /api/locations/search or null, and `revision` is a positive integer the
  * client sends back as `If-Match` on its next save.
  *
- * READ. A household that has never saved reads as `{ place: null, revision: 1 }`
- * (D6), because the client refuses to save while it holds revision 0. The read
+ * READ. A household that has never saved reads at revision 1 (D6), because the
+ * client refuses to save while it holds revision 0, with `place` its home's
+ * county (lib/exploreArea.js homeCountyPlace) so Explore opens on local
+ * listings, or null when it is not located in North Carolina. Nothing is
+ * stored until the household saves: its first save is still at revision 1, and
+ * clearing the area stores null, which then reads as null. The read
  * never carries `pendingOperation` (D7): the ledger keeps only a hash of what
  * was sent, so the place an unsettled save attempted cannot be reported
  * truthfully, and the client parks and replays its own lost-response save.
@@ -186,7 +197,15 @@ export async function GET(request) {
     const { userId } = await requireUser(request);
     // Exactly `{ place, revision }`, never `pendingOperation` (D7).
     const area = await readArea(supabaseAdmin, userId);
-    return NextResponse.json(area, { headers });
+    if (area.place !== null || area.revision !== NEVER_SAVED_REVISION) return NextResponse.json(area, { headers });
+    // Never saved: start from the home's county. A failed profile read is logged and the area stays empty.
+    let place = null;
+    try {
+      place = await homeCountyPlace(supabaseAdmin, userId);
+    } catch (err) {
+      console.error(`explore area home county read failed (request ${requestId}):`, err.message);
+    }
+    return NextResponse.json({ ...area, place }, { headers });
   } catch (err) {
     const missing = unavailable(err, requestId);
     if (missing) return missing;

@@ -29,6 +29,7 @@ import { previewOverviewScore } from '@/lib/frontend/overview-preview';
 import ScoreTransparency from './ScoreTransparency';
 import OverviewScoreOrbit from './OverviewScoreOrbit';
 import './environment-briefing.css';
+import { clockText } from '@/lib/frontend/time-format';
 
 const factorIcons = { air: Wind, uv: Sun, pollen: Flower2, mold: Sprout, pfas: Droplets, radon: House, lead: ShieldCheck };
 export type FactorHref = (factor: FactorKey) => string;
@@ -161,11 +162,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
   </article>;
 }
 
-function localClock(value: string) {
-  const [hours, minutes] = value.split(':').map(Number);
-  if (hours === 0 && minutes === 0) return 'midnight';
-  return `${hours % 12 || 12}${minutes ? `:${String(minutes).padStart(2, '0')}` : ''}${hours < 12 ? 'am' : 'pm'}`;
-}
+const localClock = (value: string) => clockText(value);
 function FactorFocus({ factor }: { factor: FactorReading }) {
   const live = !!useStageRuntime();
   const details = factor.details;
