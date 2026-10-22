@@ -115,7 +115,7 @@ import { chatModel, embedModel } from '@/lib/assistantRag';
  * deployment configuration, and naming them in a response would put provider
  * detail on a screen for no one's benefit.
  */
-const PROVIDER_LABEL = 'Luna answers questions from published health and environmental sources';
+const PROVIDER_LABEL = 'Luna answers health and environment questions from published sources, and other questions from general knowledge';
 
 /**
  * `retentionSummary`, rendered verbatim after `providerLabel`.
@@ -136,7 +136,7 @@ const PROVIDER_LABEL = 'Luna answers questions from published health and environ
  *      `POST /api/luna/conversations/clear` really does delete the turns.
  */
 const RETENTION_SUMMARY =
-  'Luna quotes and cites those sources, and cannot change anything in HALO or act for you. '
+  'Luna cites the sources behind health and environment answers, marks general answers as its own, and cannot change anything in HALO or act for you. '
   + 'Your home readings, notes, journal and tasks are not part of this conversation. '
   + 'Your questions and the answers are kept in your account until you clear this conversation or delete your account.';
 
