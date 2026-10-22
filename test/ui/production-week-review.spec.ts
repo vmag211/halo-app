@@ -38,11 +38,11 @@ test('next task and upcoming rail share the calendar display date and time acros
  const action={id:'late-task',key:'personal:late-task',title:'Review the evening field notes',date:'2026-10-12',state:'saved',revision:1,origin:'Personal',reason:'A chosen task.'};
  const network=await mockProduction(page,{'/api/frontend/actions':route=>jsonRoute(route,{actions:[action],metas:{[action.key]:{...emptyWeekMeta,time:'23:30',zone:'America/Los_Angeles'}},unresolvedOperations:[]})});
  await page.goto('/app');
- await expect(page.locator('.mw-next-action')).toContainText('Tue, Oct 13 · 02:30');
- await expect(page.locator('.mw-agenda')).toContainText('02:30');
+ await expect(page.locator('.mw-next-action')).toContainText('Tue, Oct 13 · 2:30 AM');
+ await expect(page.locator('.mw-agenda')).toContainText('2:30 AM');
  await page.locator('.mw-days button').filter({hasText:'14'}).click();
  const upcoming=page.locator('.mw-next-list li').filter({hasText:action.title});
  await expect(upcoming.locator('.mw-next-date strong')).toHaveText('13');
- await expect(upcoming).toContainText('Task · 02:30');
+ await expect(upcoming).toContainText('Task · 2:30 AM');
  expect(network.blocked).toEqual([]);
 });

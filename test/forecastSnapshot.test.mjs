@@ -491,8 +491,8 @@ test('trap 16, F15: the eight adapter combinations; coverage has exactly four st
 test('F15: Weather coverage names the model, its run, the windows, the horizon, interpolation and the CC BY 4.0 credit', () => {
   const { coverage } = build().body;
   assert.equal(coverage.Weather, [
-    'For Charlotte, NC (Census internal point): Open-Meteo GFS Global model forecast, run 2026-10-19 06:00 UTC, hourly values summarised by period',
-    ' (Morning 08:00 to 12:00, Afternoon 12:00 to 17:00, Evening 17:00 to 21:00, America/New_York time), for 2026-10-19 through 2026-10-25.',
+    'For Charlotte, NC (Census internal point): Open-Meteo GFS Global model forecast, run Oct 19, 2026, 6:00 AM UTC, hourly values summarised by period',
+    ' (Morning 8:00 AM to 12:00 PM, Afternoon 12:00 PM to 5:00 PM, Evening 5:00 PM to 9:00 PM, America/New_York time), for 2026-10-19 through 2026-10-25.',
     ' Rain is the model\'s amount in inches, not a chance of rain.',
     ' From 2026-10-24, Open-Meteo interpolates hourly values from 3-hourly model steps.',
     ' Weather data by Open-Meteo.com (CC BY 4.0).',
@@ -530,13 +530,13 @@ test('F16: source names only the providers that contributed, and the place', () 
 });
 
 test('F7: warningStatus says none, lists active events as received, or falls back; all "as of" the lookup in the zone', () => {
-  assert.equal(build().body.warningStatus, 'No National Weather Service alerts are active for this area as of 09:06 EDT. Check the official site before going.');
+  assert.equal(build().body.warningStatus, 'No National Weather Service alerts are active for this area as of 9:06 AM EDT. Check the official site before going.');
   const active = build({ alerts: alertsOk([
     { id: 'urn:1', event: 'Heat Advisory', ends: null },
     { id: 'urn:2', event: 'Flood Watch', ends: '2026-10-19T20:00:00.000Z' },
     { id: 'urn:3', event: 'Heat Advisory', ends: null },
   ]) }).body;
-  assert.equal(active.warningStatus, 'Active National Weather Service alerts as of 09:06 EDT: Heat Advisory and Flood Watch. Check the official site.');
+  assert.equal(active.warningStatus, 'Active National Weather Service alerts as of 9:06 AM EDT: Heat Advisory and Flood Watch. Check the official site.');
   for (const alerts of [undefined, { ok: false, reason: 'timeout' }, { ok: true, alerts: [] }, { ok: true, fetchedAt: 'later', alerts: [] }, alertsOk([{ id: '', event: 'Tornado Warning' }])]) {
     assert.equal(build({ alerts }).body.warningStatus, WARNINGS_UNAVAILABLE);
   }
@@ -610,11 +610,11 @@ test('F14: °C is arithmetic on the provider\'s °F, not on the rounded °F', ()
   assert.match(morning.weather, /^51 °F \(10 °C\), clear sky,/, '50.5 °F is 10.3 °C');
 });
 
-test('F7: the as-of time is a 24-hour clock in the zone, after noon too', () => {
+test('F7: the as-of time is a 12-hour clock in the zone, after noon too', () => {
   const { warningStatus } = build({ alerts: alertsOk([], '2026-10-19T18:20:00.000Z') }).body;
-  assert.equal(warningStatus, 'No National Weather Service alerts are active for this area as of 14:20 EDT. Check the official site before going.');
+  assert.equal(warningStatus, 'No National Weather Service alerts are active for this area as of 2:20 PM EDT. Check the official site before going.');
   const winter = buildAt(Date.parse('2026-12-01T19:10:00Z'), { date: '2026-12-02', alerts: alertsOk([], '2026-12-01T19:05:00.000Z') }, { today: '2026-12-01' }).body;
-  assert.match(winter.warningStatus, /as of 14:05 EST\./);
+  assert.match(winter.warningStatus, /as of 2:05 PM EST\./);
 });
 
 test('F17: issuedAt is the model run initialisation, never the fetch or the answer time; the screen prints it', () => {
@@ -622,7 +622,7 @@ test('F17: issuedAt is the model run initialisation, never the fetch or the answ
   assert.equal(body.issuedAt, '2026-10-19T06:00:00.000Z');
   assert.notEqual(Date.parse(body.issuedAt), Date.parse(FETCHED));
   assert.notEqual(Date.parse(body.issuedAt), NOW);
-  assert.equal(onScreen(body, { date: '2026-10-20' }).text.issued, 'Oct 19, 02:00', 'the run time, in the forecast zone (06:00Z is 02:00 EDT)');
+  assert.equal(onScreen(body, { date: '2026-10-20' }).text.issued, 'Oct 19, 2:00 AM', 'the run time, in the forecast zone (06:00Z is 2:00 AM EDT)');
 });
 
 test('F17, F21: run_unknown is a 503 with a positive retryAfter, exact when the adapter knows it', () => {

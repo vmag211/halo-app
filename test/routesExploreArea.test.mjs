@@ -68,14 +68,15 @@ const rowOf = (place, revision) => ({
  * @param {object} [options.tables] drop one to model a schema before 0022 or 0017
  * @param {object|null} [options.alice] alice's stored row, or null for never saved
  * @param {Array} [options.operations] ledger rows (profile_id 'alice' or 'bob')
+ * @param {object} [options.aliceHome] fields merged into alice's profile (her stored home point, county, state)
  */
-function harness({ tables = TABLES, alice = null, operations = [] } = {}) {
+function harness({ tables = TABLES, alice = null, operations = [], aliceHome = {} } = {}) {
   return createRouteHarness({
     tables,
     seed: ({ alice: a, bob: b }) => {
       const owner = (who) => (who === 'bob' ? b.id : a.id);
       return {
-        profiles: [{ id: a.id, county: 'Cabarrus County' }, { id: b.id, county: 'Union County' }],
+        profiles: [{ id: a.id, county: 'Cabarrus County', ...aliceHome }, { id: b.id, county: 'Union County' }],
         symptom_logs: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', profile_id: a.id, entry_date: '2026-10-01', notes: 'ALICE-NOTE' }],
         ...(tables.explore_areas ? {
           explore_areas: [
@@ -157,13 +158,40 @@ test('the transcribed validDiscoveryArea rejects what the client rejects', () =>
 // Reading
 // ---------------------------------------------------------------------------
 
-test('a household that has never saved reads exactly { place: null, revision: 1 }, and the read writes nothing', async () => {
+test('a household that has never saved and is not located reads exactly { place: null, revision: 1 }, and the read writes nothing', async () => {
   const h = harness();
   const before = snapshot(h);
   await expectArea(await read(h), { place: null, revision: 1 }, 'never saved');
   assert.equal(snapshot(h), before);
-  assert.deepEqual(h.db.queryLog.map((q) => `${q.operation}:${q.table}`), ['select:explore_areas']);
+  assert.deepEqual(h.db.queryLog.map((q) => `${q.operation}:${q.table}`), ['select:explore_areas', 'select:profiles']);
   assert.deepEqual(h.blockedFetches, [], 'zero fetch calls');
+});
+
+const CABARRUS = { id: 'us-county:37025', place: 'Cabarrus County', state: 'NC', label: 'Cabarrus County, NC', timezone: 'America/New_York' };
+
+test('a located household that has never saved starts from its home county, and nothing is stored', async () => {
+  // Concord, rounded as onboarding stores it; the point decides the county, not the stored name.
+  const h = harness({ aliceHome: { lat: 35.409, lng: -80.581, county: 'Somewhere Else', state: 'North Carolina' } });
+  const before = snapshot(h);
+  await expectArea(await read(h), { place: CABARRUS, revision: 1 }, 'home county');
+  assert.equal(snapshot(h), before, 'the default is not saved');
+  assert.deepEqual(await (await read(h, 'bob')).json(), { place: GASTON, revision: 7 }, 'a saved area is untouched');
+});
+
+test('off every county polygon, an NC household falls back to its stored county name; outside NC there is no default', async () => {
+  await expectArea(await read(harness({ aliceHome: { lat: 0, lng: 0, county: 'Wake County', state: 'NC' } })), { place: WAKE, revision: 1 }, 'by name');
+  await expectArea(await read(harness({ aliceHome: { lat: 37.541, lng: -77.436, county: 'Wake County', state: 'Virginia' } })), { place: null, revision: 1 }, 'outside NC');
+  await expectArea(await read(harness({ aliceHome: { lat: 0, lng: 0, county: 'Nowhere County', state: 'NC' } })), { place: null, revision: 1 }, 'unknown county');
+});
+
+test('a cleared area stays cleared, and the first save over the default is an ordinary first save', async () => {
+  const home = { lat: 35.409, lng: -80.581, state: 'NC' };
+  const cleared = harness({ alice: rowOf(null, 3), aliceHome: home });
+  await expectArea(await read(cleared), { place: null, revision: 3 }, 'cleared');
+  assert.equal(cleared.db.queryLog.some((q) => q.table === 'profiles'), false, 'a stored area never reads the profile');
+  const h = harness({ aliceHome: home });
+  await expectArea(await save(h, 'alice', { place: null, revision: 1 }), { place: null, revision: 2 }, 'clear the default');
+  await expectArea(await read(h), { place: null, revision: 2 }, 'then reads as cleared');
 });
 
 test('the read never carries pendingOperation, even with an unsettled explore save in the ledger (D7)', async () => {

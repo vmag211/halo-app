@@ -58,7 +58,7 @@ export function productionForecast(read){
 }
 
 export function forecastTime(instant,zone){return new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(instant));}
-export function forecastIssued(instant,zone){return `${new Intl.DateTimeFormat('en-US',{timeZone:zone,month:'short',day:'numeric'}).format(new Date(instant))}, ${forecastTime(instant,zone)}`;}
+export function forecastIssued(instant,zone){return new Intl.DateTimeFormat('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(instant)).replace(/[\u202f\u00a0]/g,' ');}
 
 // ------------------------------------------- transcribed: WeekOutdoors.tsx
 

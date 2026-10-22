@@ -77,9 +77,9 @@ test('forecast issue and expiry times read as dates in the forecast zone, not ra
   issuedAt:'2026-10-20T18:00:00.000Z',expiresAt:'2026-10-21T19:31:18.391Z',zone:'America/New_York',source:'Open-Meteo and the National Weather Service, for your home area',version:'fc1-test',horizonStart:'2026-10-21',horizonEnd:'2026-10-27',warningStatus:'No alerts.',coverage:{Air:'Not checked.',UV:'Modelled.',Pollen:'Unavailable.',Weather:'Modelled.'}};
  await mockProduction(page,{'/api/forecast':route=>jsonRoute(route,body)});
  await page.goto('/app/plan/outdoors');
- await expect(page.getByText(/Times in Eastern Time\. Issued Oct 20, 14:00\./)).toBeVisible();
+ await expect(page.getByText(/Times in Eastern Time\. Issued Oct 20, 2:00 PM./)).toBeVisible();
  await page.getByText('Forecast coverage',{exact:true}).click();
  const expiry=page.locator('dt',{hasText:'Expiry'}).locator('xpath=following-sibling::dd[1]');
- await expect(expiry).toHaveText('Oct 21, 15:31');
+ await expect(expiry).toHaveText('Oct 21, 3:31 PM');
  expect(await page.locator('body').innerText()).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
 });

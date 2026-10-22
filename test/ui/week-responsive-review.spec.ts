@@ -125,5 +125,5 @@ test('time zones read as names, while the stored value stays the IANA id',async(
   await page.locator('.mw-automation-tools > summary').click();
   await page.getByRole('button',{name:/^Reminders/}).click();
   const hub=page.locator('#homepage-hub');
-  await expect(hub).toContainText('09:30 Central Time');await expect(hub).not.toContainText('America/');
+  await expect(hub).toContainText('9:30 AM Central Time');await expect(hub).not.toContainText('America/');
 });

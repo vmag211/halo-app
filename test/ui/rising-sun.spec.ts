@@ -7,13 +7,13 @@ for (const appearance of ['light', 'dark']) test(`rising half-sun ${appearance} 
   await window.scrollIntoViewIfNeeded();
   await expect(window.locator('.halo-rising-sun')).toBeVisible();
   await expect(window).toHaveCSS('border-top-width', '0px');
-  await expect(window).toContainText('11am to 3pm');
+  await expect(window).toContainText('11:00 AM to 3:00 PM');
   await expect(window.locator('.halo-rising-sun-disc')).toHaveCSS('animation-name', 'none');
   await window.screenshot({ path: info.outputPath(`half-sun-${appearance}.png`) });
   await page.goto(`/foundation/preview/factor/uv/?appearance=${appearance}&motion=reduce&scale=150`);
   await page.setViewportSize({ width: 320, height: 844 });
   await expect(page.locator('.halo-ph-window .halo-rising-sun')).toBeVisible();
-  await expect(page.locator('.halo-ph-window')).toContainText('11am to 3pm');
+  await expect(page.locator('.halo-ph-window')).toContainText('11:00 AM to 3:00 PM');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.goto(`/foundation/preview/family/?scenario=no-data&appearance=${appearance}&motion=reduce`);
   await expect(page.locator('.halo-rising-sun')).toHaveCount(0);

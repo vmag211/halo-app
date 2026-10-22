@@ -78,7 +78,7 @@ export const factorReadings: Record<FactorKey, FactorReading> = {
   uv: {
     key: 'uv', title: 'UV index', shortTitle: 'UV', score: 64, severity: 'moderate', reading: '5.2', unit: 'UV index', provenance: null, source: 'Open-Meteo', asOf: 'September 30, 2026 forecast',
     sentence: 'Plan some shade into your afternoon.', detail: 'The UV index describes sunburn-causing radiation. Cloud cover alone does not tell you how much UV reaches the ground.',
-    why: 'The sample UV index is 5.2. The forecast reaches UV 3 or higher from 11am to 3pm, with a daily maximum of 7.4.', householdNote: null,
+    why: 'The sample UV index is 5.2. The forecast reaches UV 3 or higher from 11:00 AM to 3:00 PM, with a daily maximum of 7.4.', householdNote: null,
     trend: week([4.1, 6.2, 5.8, 3.4, 4.8, 6.1, 5.2]), trendTitle: 'Your UV week', trendCaption: 'The sample index is lower than yesterday. Day-to-day values do not describe every hour of exposure.',
     context: { value: 5.2, severity: 'moderate', peak_start: '11:00', peak_end: '15:00' },
     details: { uv: { peak_window: { start: '11:00', end: '15:00', max: 7.4 } } },
