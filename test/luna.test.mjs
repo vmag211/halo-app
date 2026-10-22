@@ -585,10 +585,10 @@ test('a source the client would reject is dropped rather than sinking the whole 
   assert.equal(kept[2].source.title.length, 500, 'a very long label is cut to what the client accepts');
 });
 
-test('nothing retrieved is an honest decline, and costs no model call', async () => {
+test('nothing retrieved for a health or environment question is an honest decline, and costs no model call', async () => {
   const { fetchImpl, sent } = scriptedFetch();
   const answer = await withEnv(MODELS, () =>
-    luna.answerFromCorpus({ question: 'What is xyzzy?', apiKey: 'k', rpc: rpcReturning([]), fetchImpl }));
+    luna.answerFromCorpus({ question: 'Is xyzzy in my tap water safe?', apiKey: 'k', rpc: rpcReturning([]), fetchImpl }));
   assert.equal(answer.outcome, 'no_source');
   assert.equal(answer.text, luna.LUNA_NO_SOURCE);
   assert.deepEqual(answer.sources, []);
