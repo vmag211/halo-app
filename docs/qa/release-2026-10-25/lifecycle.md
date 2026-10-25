@@ -20,9 +20,9 @@ outreach, participation and luna on; recovery off. The journal flag is on too (`
 | 3 | Export: Explore records, with and without private text | UI, A | pass | with: note title and text, the project guide, idea set; without: ids, revisions, dates and attachment metadata only; never file bytes |
 | 4 | Export: Journal check-ins, with and without private text | UI, A | pass | with: both check-ins, symptoms, severity, notes; without: dates and flags only |
 | 5 | Export: Luna conversation (with private text) | UI, A | pass | conversation, 4 turns, 2 runs and the pending proposal (kind, payload, expiry); without private text the group is empty, as designed |
-| 6 | Export: Home records (with or without private text) | UI and API, A, B and C | **fail-open** | `POST /api/privacy/export/inspect` answers 500 for any selection containing `home` |
-| 7 | Export: Preferences | UI and API, A | **fail-open** | same 500 for any selection containing `preferences` |
-| 8 | Export: all six groups | UI, A | **fail-open** | 500 (it includes home) |
+| 6 | Export: Home records (with or without private text) | UI and API, A, B and C | fail-fixed (PR #39) | at first `POST /api/privacy/export/inspect` answered 500 for any selection containing `home`; after migration 0036 (`profiles.address`) the all-groups export of each household answers 200 and downloads |
+| 7 | Export: Preferences | UI and API, A | fail-fixed (PR #39) | same 500 at first; 200 after 0036 |
+| 8 | Export: all six groups | UI and API, A, B and C | fail-fixed (PR #39) | 500 at first; after 0036 each household's all-groups export succeeds (the post-clear exports in row 16) |
 | 9 | Export holds no other household's data | A's exports scanned for B's strings; B's exports for A's | pass | no "B" record text in A's files, and none of A's in B's |
 | 10 | Inspect 500 message | UI | fail-fixed | inspect writes nothing, but the panel said "The result is not confirmed. Check its status before trying again." with nothing to check; now "The review could not be prepared. Nothing was changed. Try again." |
 | 11 | Review count grammar | UI | fail-fixed | "1 records in this review." is now "1 record in this review." |
@@ -30,8 +30,8 @@ outreach, participation and luna on; recovery off. The journal flag is on too (`
 | 13 | Journal remove, with safeguard and Undo | UI, A (remove) and B (remove then Undo) | pass | "Delete this check-in?" with "No, keep it"; "Undo delete" restores the entry with its note (B); A's stays gone after reload and in the API |
 | 14 | Clear Journal | Settings, A and B | pass | review lists what is kept; `weekJournal` and `GET /api/journal` empty afterwards; second export shows `symptom_logs: 0` |
 | 15 | Clear Luna conversation (removes proposals) | Luna panel > New conversation > Clear conversation, A and B | pass | `GET /api/luna/conversations` has no messages; second export `luna_turns: 0`, `luna_runs: 0`, `luna_proposals: 0` |
-| 16 | Settings privacy "clear all" | UI and API, A, B and C | **fail-open (release blocker)** | the clear-all review (`privacy.inspect` scope `all`) answers 500 for every household, so nothing can be cleared; the panel showed the misleading message fixed in row 10 |
-| 17 | Login still works after clears | API reads with the same session after Clear Journal and the Luna clear | pass | not testable after clear all (row 16) |
+| 16 | Settings privacy "clear all" | UI (Settings > Privacy & data > Clear all app records, typed DELETE) for A, B and C, then API reads and an all-groups export | fail-fixed (PR #39) | at first the clear-all review answered 500 for every household. After 0036: reviews of 81, 55 and 34 records, "Your records were cleared." Afterwards summaries, Explore notes and projects lists are empty, the current idea set is `null`, A's note photo downloads 404, the profile reads as not onboarded, and each export holds only the reset profile row (no "QA release" text) |
+| 17 | Login still works after clears | API reads with the same session after Clear Journal, the Luna clear and clear all | pass | every read above answered 200 with the same session after clear all |
 | 18 | Account deletion | searched the UI and frontend code | not offered | there is no account deletion in the app; several retention rulings mention it |
 | 19 | Attachments flag | capabilities route | pass | on |
 | 20 | JPEG with EXIF GPS and camera tags, then download | `POST /api/attachments` (tests), download, `sharp().metadata()` and a byte scan; also through the UI and "Download private original" | pass | back as JPEG 640x480 with no EXIF, XMP, IPTC or ICC and none of the planted strings |
@@ -71,16 +71,9 @@ outreach, participation and luna on; recovery off. The journal flag is on too (`
 
 ## Open
 
-1. **Clear all, and the Home and Preferences exports, answer 500 on production for every household**
-   (release blocker; needs Vibhav and probably a migration). Every failing selection reads `profiles`
-   through `privacy_fingerprint` (and clear all also through `privacy_counts('all')`); every passing one
-   does not. Those 0024 functions name `profiles.address`, `zip`, `pwsid`, `build_year` and
-   `onboard_request_id`, which plpgsql only checks at run time, and `verify-0024` checks only that no
-   *extra* column exists. Likeliest cause: a column they name, most likely `address`, is missing on the
-   deployed table. To confirm, in the SQL editor:
-   `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'profiles' order by 1;`
-   then `select public.privacy_fingerprint('<a QA household id>'::uuid, array['profiles']);`.
-   Not built here: the fix is a migration or a function change in 0024's area.
+1. Fixed since the test: clear all and the Home and Preferences exports answered 500 because the 0024
+   functions name `profiles.address`, which the deployed table lacked; migration 0036 (PR #39) added it,
+   and all three now work (rows 6, 7, 8, 16).
 2. Account deletion is not offered anywhere (product decision; retention rulings refer to it).
 3. Luna shows an expired review with an enabled "Confirm changes"; confirming is refused safely ("This
    review expired. Ask Luna to prepare it again."). Luna area.
@@ -94,8 +87,6 @@ outreach, participation and luna on; recovery off. The journal flag is on too (`
 
 ## Test records kept
 
-Clear all cannot run (open item 1), so all three households remain, to reproduce it. They were emptied
-of what the app can remove one by one: tasks, test records (with their files), Journal and the Luna
-conversation. Left: A (27601) its Explore note with photo, started project, idea set, three saved summaries
-and display preferences; B (28202) its home and one unlinked staged note photo (expires after 24 hours);
-C (98101) its home and one saved summary. Saved summaries have no delete route (S15-4).
+None. All three households (A 27601, B 28202, C 98101) were cleared with Clear all app records after
+PR #39. The anonymous logins remain, as clear all keeps the sign-in by design (D-P1); B's unlinked staged
+photo was removed by the clear (its export shows no attachments).
