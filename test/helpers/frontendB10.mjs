@@ -52,7 +52,7 @@ const { zoneName } = await loadFrontend('week-preview');
 
 export function productionForecast(read){
  const value=read.data;
- let valid=!!value&&Array.isArray(value.periods)&&Number.isFinite(Date.parse(value.issuedAt))&&Number.isFinite(Date.parse(value.expiresAt))&&typeof value.zone==='string'&&typeof value.source==='string'&&typeof value.version==='string'&&typeof value.horizonStart==='string'&&typeof value.horizonEnd==='string'&&typeof value.warningStatus==='string'&&!!value.coverage&&value.periods.every(row=>row&&['Morning','Afternoon','Evening'].includes(row.name)&&Number.isFinite(Date.parse(row.start))&&Number.isFinite(Date.parse(row.end))&&/Z$|[+-]\d{2}:\d{2}$/.test(row.start)&&/Z$|[+-]\d{2}:\d{2}$/.test(row.end)&&Date.parse(row.end)>Date.parse(row.start)&&(row.air===null||typeof row.air==='number'&&Number.isFinite(row.air))&&(row.uv===null||typeof row.uv==='number'&&Number.isFinite(row.uv))&&(row.pollen===null||typeof row.pollen==='string')&&typeof row.weather==='string'&&typeof row.tradeoff==='string'&&typeof row.version==='string');
+ let valid=!!value&&Array.isArray(value.periods)&&Number.isFinite(Date.parse(value.issuedAt))&&Number.isFinite(Date.parse(value.expiresAt))&&typeof value.zone==='string'&&typeof value.source==='string'&&typeof value.version==='string'&&typeof value.horizonStart==='string'&&typeof value.horizonEnd==='string'&&typeof value.warningStatus==='string'&&!!value.coverage&&value.periods.every(row=>row&&['Morning','Afternoon','Evening'].includes(row.name)&&Number.isFinite(Date.parse(row.start))&&Number.isFinite(Date.parse(row.end))&&/Z$|[+-]\d{2}:\d{2}$/.test(row.start)&&/Z$|[+-]\d{2}:\d{2}$/.test(row.end)&&Date.parse(row.end)>Date.parse(row.start)&&(row.air===null||typeof row.air==='number'&&Number.isFinite(row.air))&&(row.uv===null||typeof row.uv==='number'&&Number.isFinite(row.uv))&&(row.pollen===null||typeof row.pollen==='string')&&(row.airDaily==null||typeof row.airDaily==='string')&&typeof row.weather==='string'&&typeof row.tradeoff==='string'&&typeof row.version==='string');
  try{if(valid)new Intl.DateTimeFormat('en',{timeZone:value.zone});}catch{valid=false;}
  return {...read,data:valid?value:null,error:read.error??(value&&!valid?'Forecast information could not be verified.':null)};
 }
@@ -85,7 +85,7 @@ export function forecastScreenText(live,p){
  const forecastZone=live.data?.zone??'UTC';
  const sourceName=live.production?(live.data?.source??'Unavailable'):null;
  const issued=live.production?live.data?.issuedAt&&forecastIssued(live.data.issuedAt,forecastZone):null;
- const cells=p?{air:p.air===null?'Unavailable':`${p.air} AQI`,uv:p.uv===null?'Unavailable':`${p.uv} UV index`,pollen:p.pollen??'Unavailable',weather:p.weather,tradeoff:p.tradeoff}:null;
+ const cells=p?{airLabel:p.airDaily?'Air, daily':'Air',air:p.airDaily??(p.air===null?'Unavailable':`${p.air} AQI`),uv:p.uv===null?'Unavailable':`${p.uv} UV index`,pollen:p.pollen??'Unavailable',weather:p.weather,tradeoff:p.tradeoff}:null;
  const coverage=Object.fromEntries(['Air','UV','Pollen','Weather'].map(f=>[f,(live.data?.coverage[f]??'Unavailable')]));
  const horizon=(live.data?`${live.data.horizonStart} through ${live.data.horizonEnd}`:'Unavailable');
  const expiry=(live.data?.expiresAt?forecastIssued(live.data.expiresAt,forecastZone):'Unavailable');
@@ -188,7 +188,8 @@ export const FRAGMENTS = Object.freeze([
   { fn: emptyStateMessage, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "far?copy.future:review.forecast==='loading'?'Loading forecast coverage...':review.forecast==='error'?'Forecasts could not load. Your plan is kept.':copy.forecastUnavailable", source: "{far?copy.future:review.forecast==='loading'?'Loading forecast coverage...':review.forecast==='error'?'Forecasts could not load. Your plan is kept.':copy.forecastUnavailable}" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 31, text: "live.production?(live.data?.source??'Unavailable')" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 44, text: 'live.production?live.data?.issuedAt' },
-  { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "p.air===null?'Unavailable':`${p.air} AQI`" },
+  { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "p.airDaily?'Air, daily':'Air'" },
+  { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "p.airDaily??(p.air===null?'Unavailable':`${p.air} AQI`)" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "p.uv===null?'Unavailable':`${p.uv} UV index`" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 45, text: "p.pollen??'Unavailable'" },
   { fn: forecastScreenText, file: 'components/expanded/WeekOutdoors.tsx', line: 46, text: "['Air','UV','Pollen','Weather']" },

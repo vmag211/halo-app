@@ -22,9 +22,9 @@
  * `node test/contractsB10.test.mjs --write-b10-fixtures` to rewrite them after
  * a deliberate contract change.
  *
- * AirNow (Task 5) is not built: most scenarios stand `airNowStandIn` in through
- * lib/forecast/airNowSlot.js, as the route suite does, and one runs with the
- * slot empty, as production is today. No real network, no real Supabase project
+ * AirNow (Task 5) is the real adapter (lib/forecast/airnow.js) wired through
+ * lib/forecast/airNowSlot.js, answering AirNow-shaped rows; one scenario runs
+ * with the slot empty. No real network, no real Supabase project
  * or Upstash: any other host is recorded and refused.
  */
 import { test, after } from 'node:test';
@@ -36,7 +36,7 @@ import addFormats from 'ajv-formats';
 import { loadFrontend } from './frontend-test-loader.mjs';
 import * as fe from './helpers/frontendB10.mjs';
 import {
-  AIRNOW_ROWS, FORECAST_DATE, FORECAST_NOW, FORECAST_RUN, HOUR, airNowStandIn, captureLogs, forecastHarness, forecastWorld, gridsDisagree,
+  AIRNOW_ROWS, FORECAST_DATE, FORECAST_NOW, FORECAST_RUN, HOUR, airNowForecastAdapter, captureLogs, forecastHarness, forecastWorld, gridsDisagree,
 } from './helpers/forecastRoute.mjs';
 import { _resetForecastCache } from '../lib/forecast/cache.js';
 import { _setAirNowAdapter } from '../lib/forecast/airNowSlot.js';
@@ -133,7 +133,7 @@ const logsByTest = new WeakMap();
  */
 function clientWorld(t, { as = 'alice', airNow = true, token } = {}) {
   _resetForecastCache();
-  _setAirNowAdapter(airNow ? airNowStandIn : null);
+  _setAirNowAdapter(airNow ? airNowForecastAdapter : null);
   if (!logsByTest.has(t)) logsByTest.set(t, captureLogs(t));
   const logs = logsByTest.get(t);
   const w = forecastWorld();
@@ -304,7 +304,8 @@ test('the snapshot schema has the frontend type\'s fields, without changedMessag
   const period = contract.components.schemas.ForecastPeriod;
   const evidenceSource = await readFile(new URL('../lib/frontend/week-evidence-preview.ts', import.meta.url), 'utf8');
   const periodType = evidenceSource.split(/\r?\n/).find((l) => l.startsWith('export type ForecastPeriod='));
-  assert.deepEqual(Object.keys(period.properties), [...periodType.matchAll(/([A-Za-z]+):/g)].map(([, n]) => n));
+  // airDaily is optional in the type (b10-2, additive) and always sent by the server.
+  assert.deepEqual(Object.keys(period.properties), [...periodType.matchAll(/([A-Za-z]+)\??:/g)].map(([, n]) => n));
 });
 
 test('the schemas refuse what the client or the screen cannot use', async (t) => {
@@ -436,7 +437,9 @@ test('home, tomorrow: three periods in America/New_York, Issued with the model r
   assert.equal(s.notices.changedNotice, null);
   assert.equal(s.validation, '', 'the save check passes');
   for (const card of s.cards) {
-    assert.equal(card.air, 'Unavailable', 'air is daily, never per period (C1)');
+    // AirNow is daily: the cell is "Air, daily" with the worst category and its pollutant, never a per-period number (C1).
+    assert.equal(card.airLabel, 'Air, daily');
+    assert.equal(card.air, 'Moderate, PM2.5', 'PM2.5 Moderate (category only) is worse than ozone Good (AQI 41)');
     assert.equal(card.pollen, 'Unavailable');
     assert.match(card.uv, /^\d+(\.\d)? UV index$/);
     assert.match(card.weather, /°F \(.*°C\)/);
@@ -582,15 +585,16 @@ test('F18: today after 21:00 local has no periods and also expires 24 hours out'
   assert.equal(s.emptyMessage, copy.forecastUnavailable);
 });
 
-test('AirNow category only: the Air card says Unavailable, the category is in coverage and in the tradeoff', async (t) => {
+test('AirNow category only: the Air, daily card shows the category with no number, as do coverage and the tradeoff', async (t) => {
   freezeClock(t);
   const cw = clientWorld(t);
-  cw.w.airnow = AIRNOW_ROWS.filter((row) => row.AQI === -1);
+  cw.w.airnow = AIRNOW_ROWS.filter((row) => row.aqi === -1);
   const s = await screen(cw, { period: 'Afternoon' });
   keep('forecastRead-air-category-only', 200, cw.last().body);
   assert.equal(s.cards.length, 3);
   for (const card of s.cards) {
-    assert.equal(card.air, 'Unavailable');
+    assert.equal(card.airLabel, 'Air, daily');
+    assert.equal(card.air, 'Moderate, PM2.5', 'the category as received, no number invented');
     assert.match(card.tradeoff, /PM2\.5 Moderate \(category only, no AQI number issued\)/);
   }
   assert.match(s.text.coverage.Air, /PM2\.5 Moderate \(category only, no AQI number issued\)/);

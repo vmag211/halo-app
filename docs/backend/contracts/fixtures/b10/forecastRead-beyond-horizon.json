@@ -7,7 +7,7 @@
     "expiresAt": "2026-10-20T20:07:00.000Z",
     "zone": "America/New_York",
     "source": "Open-Meteo and the National Weather Service, for your home area",
-    "version": "fc1-c047bc20af5472aa",
+    "version": "fc1-cadf13996f9c7376",
     "horizonStart": "2026-10-19",
     "horizonEnd": "2026-10-25",
     "warningStatus": "No National Weather Service alerts are active for this area as of 4:07 PM EDT. Check the official site before going.",

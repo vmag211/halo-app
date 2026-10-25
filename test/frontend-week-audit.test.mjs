@@ -96,6 +96,28 @@ test('F10: unavailable air or pollen is named, never read as favourable', () => 
   assert.ok(none.factors.includes('Pollen, daily: unavailable for this activity.'));
 });
 
+test('F10: the daily AirNow air (airDaily) is reported as a daily value across the activity, overlap and gaps unchanged', () => {
+  const daily = { air: null, airDaily: 'Moderate (AQI 55), ozone' };
+  const periods = live({ Morning: daily, Afternoon: daily, Evening: daily });
+  const coverage = outdoorCoverage(periods, 'Morning', 480);
+  assert.deepEqual(coverage.periods.map(period => period.name), ['Morning', 'Afternoon']);
+  assert.equal(coverage.complete, true);
+  assert.deepEqual(coverage.airDaily, { categories: ['Moderate (AQI 55), ozone'], unavailable: [] });
+  assert.equal(coverage.air.highest, null, 'never a per-period number');
+  const text = describeCoverage(coverage, ny);
+  assert.equal(text.factors[0], 'Air, daily: Moderate (AQI 55), ozone.');
+  // Past midnight the gap is still named: the daily air covers only the periods it was issued for.
+  const overnight = outdoorCoverage(periods, 'Evening', 480);
+  assert.equal(overnight.complete, false);
+  assert.equal(overnight.gaps.length, 1);
+  assert.equal(describeCoverage(overnight, ny).factors[0], 'Air, daily: Moderate (AQI 55), ozone.');
+  // A period without the daily value is named, never read as favourable.
+  const partial = outdoorCoverage(live({ Morning: daily, Afternoon: { air: null, airDaily: null } }), 'Morning', 480);
+  assert.equal(describeCoverage(partial, ny).factors[0], 'Air, daily: Moderate (AQI 55), ozone, unavailable for the afternoon.');
+  // No daily value at all keeps the existing numeric wording.
+  assert.equal(describeCoverage(outdoorCoverage(live({ Morning: { air: null, airDaily: null } }), 'Morning', 60), ny).factors[0], 'Air: unavailable for this activity.');
+});
+
 test('F10: a saved outdoor task returns to its plan, and its note is read back exactly', () => {
   assert.equal(outdoorPlanKey('outdoors:abc'), 'outdoors:abc');
   assert.equal(outdoorPlanKey('outdoors:abc:check-forecast'), 'outdoors:abc');

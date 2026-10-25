@@ -14,7 +14,7 @@ import { getJson } from '@/lib/forecast/http';
 import { resolveForecastPlace, roundForProvider } from '@/lib/forecast/place';
 import { fetchOpenMeteo } from '@/lib/forecast/openMeteo';
 import { fetchActiveAlerts } from '@/lib/forecast/nwsAlerts';
-import { airNowAdapter } from '@/lib/forecast/airNowSlot';
+import { airNowAdapter, airNowUnavailable } from '@/lib/forecast/airNowSlot';
 import { buildForecastSnapshot } from '@/lib/forecast/snapshot';
 import { COPY } from '@/lib/forecast/copy';
 import { parseIsoDate, parseText } from '@/lib/validate';
@@ -52,8 +52,9 @@ import { ERROR_CODES, apiError, requestIdFor, validationError, internalError, lo
  *   200. The 503 `reason` from the builder is a log token, never in the body.
  *   No top-level `data` key. Cache-Control: private, no-store on every answer.
  *
- * AirNow (Task 5) plugs in through lib/forecast/airNowSlot.js; until then air
- * is not called and coverage says so. Provider calls are not aborted when the
+ * AirNow (Task 5, lib/forecast/airnow.js) plugs in through
+ * lib/forecast/airNowSlot.js; without AIRNOW_API_KEY it makes no call and
+ * coverage says air was not checked. Provider calls are not aborted when the
  * client disconnects (F8), so a superseded keystroke still fills the cache.
  *
  * Worst case under the 15 s budget: Open-Meteo is metadata (3 s), forecast
@@ -147,7 +148,8 @@ function providersFor(point, now) {
     },
   ];
   const airNow = airNowAdapter();
-  if (airNow) {
+  // No key: no AirNow provider at all, so no budget, cache entry or log (the builder gets airNowUnavailable).
+  if (airNow && !airNowUnavailable(process.env)) {
     list.push({
       name: 'airnow',
       key: hourKey('airnow', point, now),
@@ -243,7 +245,7 @@ export async function GET(request) {
       place,
       date: date.value,
       now,
-      airNow: byName.airnow?.result,
+      airNow: byName.airnow?.result ?? airNowUnavailable(process.env) ?? undefined, // undefined: the slot is empty
       alerts: byName['nws-alerts'].result,
     };
     const lastKey = lastConfirmedKey('open-meteo', point);
