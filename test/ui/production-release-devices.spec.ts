@@ -83,4 +83,3 @@ test('the animated factor number is exposed with a permitted role',async({page})
  await expect(number).toHaveAttribute('role','img');await expect(number).toHaveAttribute('aria-label',/^\d+$/);
  expect(network.blocked).toEqual([]);
 });
-
