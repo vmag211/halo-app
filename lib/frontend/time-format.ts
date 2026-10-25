@@ -26,6 +26,21 @@ export function instantDate(instant: string, zone: string) {
 }
 
 /**
+ * The age of a reading, shown beside it: "Reading from Oct 24, 3:00 PM" in `zone`. The date is always
+ * named, so a reading carried over from an earlier day never reads as current. Null when the instant
+ * or the zone is unusable, so the caller shows nothing rather than a guessed time.
+ */
+export function readingFromLabel(instant: string | null | undefined, zone = 'America/New_York') {
+  if (!instant || !Number.isFinite(Date.parse(instant))) return null;
+  try {
+    const day = plain(new Intl.DateTimeFormat('en-US', { timeZone: zone, month: 'short', day: 'numeric' }).format(new Date(instant)));
+    return `Reading from ${day}, ${instantClock(instant, zone)}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A dated event in its venue's zone: "Sat, Nov 7, 2026 · 9:00 AM to 11:00 AM", with the end's date too
  * when it ends on another day. Null when an instant or the zone is unusable, so the caller keeps its label.
  */

@@ -28,6 +28,8 @@ export type FactorReading = {
   provenance: 'measured' | 'modeled' | 'estimate' | null;
   source: string;
   asOf: string;
+  /** ISO instant the live reading was retrieved, shown beside the top-level reading. Absent for fixtures and dateless evidence. */
+  readingAt?: string | null;
   sentence: string;
   detail: string;
   why: string | null;
