@@ -21,6 +21,8 @@ type State = {
   unknownOperationIds: () => string[];
   operationOutcome: (operationId: string) => OperationOutcome | undefined;
   retry: (collection?: string) => Promise<void>; reconcile: (operationId: string) => Promise<boolean>;
+  /** Re-read collections in the background, keeping the loaded records and every draft in place. True when every read succeeded. */
+  refresh: (collections: string[]) => Promise<boolean>;
   applyCanonical: (change: { drafts?: Record<string, unknown>; collections?: Collections }) => void;
   getRecord: (collection: string, id: string) => HomeRecord | undefined;
   trackPendingOperation: (operationId: string, domain: 'workspace' | 'attachments') => void;
@@ -107,15 +109,16 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     }
     if (change.drafts) setDrafts(previous => ({ ...previous, ...change.drafts }));
   }
-  async function loadCollection(key: string, force = false, background = false) {
-    if (!service || !alive.current || (!force && statesRef.current[key])) return;
+  async function loadCollection(key: string, force = false, background = false, quiet = false): Promise<boolean> {
+    if (!service || !alive.current || (!force && statesRef.current[key])) return false;
     const version = (loadVersions.current.get(key) ?? 0) + 1; loadVersions.current.set(key, version);
     const request = new AbortController(); requests.current.add(request);
     // A background refresh keeps the records usable while the latest copy is fetched.
     if (!background) collectionState(key, { ...statesRef.current[key], status: 'loading', complete: false });
     try {
       const snapshot: HomeCollectionSnapshot = await service.load(key, request.signal);
-      if (!alive.current || request.signal.aborted || loadVersions.current.get(key) !== version) return;
+      // A newer read or an accepted save superseded this one; that copy is at least as current.
+      if (!alive.current || request.signal.aborted || loadVersions.current.get(key) !== version) return alive.current && !request.signal.aborted;
       if (!validHomeRecords(snapshot.records) || !validProductionCollection(key, snapshot.records)) throw new Error('The records could not be read. Try again.');
       if (!Array.isArray(snapshot.pendingOperations) || !snapshot.pendingOperations.every(item => item && typeof item.operationId === 'string' && item.operationId && ['workspace', 'attachments'].includes(item.domain))) throw new Error('Pending changes could not be checked. Refresh before editing.');
       for (const item of snapshot.pendingOperations) if (!resolvedOperations.current.has(item.operationId) && !unknownRef.current.has(item.operationId)) unknownRef.current.set(item.operationId, { kind: 'recovered', operationId: item.operationId, domain: item.domain });
@@ -125,13 +128,28 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
       if (snapshot.availability === 'unavailable') throw Object.assign(new Error(snapshot.message || 'This collection is unavailable. Your saved records are unchanged.'), { reason: 'feature_unavailable' });
       commit({ ...recordsRef.current, [key]: snapshot.records });
       collectionState(key, { status: 'ready', revision: snapshot.revision, complete: snapshot.complete !== false && !snapshot.nextCursor && snapshot.availability !== 'partial', message: snapshot.message });
+      return true;
     } catch (error) {
+      // A quiet re-read that fails keeps the records already shown and their ready state.
+      if (quiet && statesRef.current[key]?.status === 'ready') return false;
       if (alive.current && !request.signal.aborted && loadVersions.current.get(key) === version) collectionState(key, { ...statesRef.current[key], status: 'error', complete: false, featureUnavailable: (error as { reason?: unknown } | null)?.reason === 'feature_unavailable', message: error instanceof Error ? error.message.replaceAll('\u2014', ',') : 'This collection could not load. Try again.' });
+      return false;
     } finally { requests.current.delete(request); }
   }
   async function retry(key?: string) {
     if (!service) { setScenario('ready'); return; }
     await Promise.all((key ? [key] : Object.keys(statesRef.current)).map(name => loadCollection(name, true)));
+  }
+  const refreshing = useRef(new Map<string, Promise<boolean>>());
+  async function refresh(keys: string[]) {
+    if (!service) return true;
+    const reads = [...new Set(keys)].filter(key => sharedCollectionKeys.includes(key)).map(key => {
+      const current = refreshing.current.get(key);
+      if (current) return current;
+      const read = loadCollection(key, true, true, true).finally(() => refreshing.current.delete(key));
+      refreshing.current.set(key, read); return read;
+    });
+    return (await Promise.all(reads)).every(Boolean);
   }
   function seed(key: string, initial: HomeRecord[]) {
     if (service) { void loadCollection(key); return; }
@@ -295,7 +313,7 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
       return true;
     });
   }
-  return <Context.Provider value={{ mode: service ? 'production' : 'preview', service, collectionStates, unknownOperations, unknownOperationIds: () => [...unknownRef.current.keys()], operationOutcome: operationId => outcomes.current.get(operationId), retry, reconcile, applyCanonical, getRecord: (key, id) => recordsRef.current[key]?.find(item => item.id === id),
+  return <Context.Provider value={{ mode: service ? 'production' : 'preview', service, collectionStates, unknownOperations, unknownOperationIds: () => [...unknownRef.current.keys()], operationOutcome: operationId => outcomes.current.get(operationId), retry, refresh, reconcile, applyCanonical, getRecord: (key, id) => recordsRef.current[key]?.find(item => item.id === id),
     // An upload in flight blocks other changes, but is not yet a failure: its own form reports the
     // outcome, so tracking it must not raise a workspace-wide "needs a status check" alert.
     trackPendingOperation: (operationId, domain) => unresolved({ kind: 'recovered', operationId, domain }, 'A private file request needs a status check before another change.', false),

@@ -5,18 +5,21 @@ import { ArrowUpRight, Check, FlaskConical, HandHeart, NotebookPen, Sprout, Wren
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
 import type { PreviewAction } from '@/lib/frontend/expanded-preview';
 import { resolveWeekActivity, weekActivityHref, type WeekActivityCollections } from '@/lib/frontend/week-activity';
+import HaloLoading from '@/components/ui/HaloLoading';
 import { ExplorePhoto } from './ExploreVisuals';
+import { useExpandedPreview } from './ExpandedPreviewState';
 import './week-activity.css';
 
 export default function WeekActivityDetails({ action, collections, actions, href }: { action: PreviewAction; collections: WeekActivityCollections; actions: PreviewAction[]; href: (tab: string, destination?: string) => string }) {
   const workspace = useHomeWorkspace();
-  const activity = resolveWeekActivity(action, collections, actions);
+  const sources = useExpandedPreview()?.sourceChecks;
+  const activity = resolveWeekActivity(action, collections, actions, sources);
   const target = weekActivityHref(activity, href);
   const Icon = activity.kind === 'project' ? Sprout : activity.kind === 'volunteering' ? HandHeart : activity.kind === 'routine' ? Wrench : activity.kind === 'test' ? FlaskConical : NotebookPen;
-  if (activity.kind === 'generic' && !activity.missingRecord) return null;
-  return <section className="mw-activity-detail" data-activity={activity.kind} aria-label={`${activity.label} context`}>
+  if (activity.kind === 'generic' && !activity.missingRecord && !activity.resolvingRecord && !activity.uncheckedRecord) return null;
+  return <section className="mw-activity-detail" data-activity={activity.kind} aria-label={`${activity.label} context`} aria-busy={activity.resolvingRecord || undefined}>
     <div className="mw-activity-cover">{activity.image ? <ExplorePhoto scene={activity.image} className="mw-activity-photo" /> : <Icon size={33} aria-hidden="true" />}<div><small>{activity.label}</small><strong>{activity.guide ? activity.guide.title : activity.subtitle}</strong>{activity.guide && <span>Step {(activity.stepIndex ?? 0) + 1} of {activity.guide.steps.length}</span>}</div></div>
-    {activity.missingRecord ? <p className="mw-activity-caption">The original record is unavailable. This saved task has been kept.</p> : <>
+    {activity.resolvingRecord ? <HaloLoading label="Checking the original record" /> : activity.uncheckedRecord ? <p className="mw-activity-caption" role="status">The original record could not be checked right now. This saved task has been kept.</p> : activity.missingRecord ? <p className="mw-activity-caption">The original record is unavailable. This saved task has been kept.</p> : <>
       {activity.fields.length > 0 && <dl className="mw-activity-facts">{activity.fields.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>}
       {activity.milestones && <ol className="mw-activity-milestones" aria-label="Recorded test facts">{activity.milestones.map(item => <li key={item.label} data-recorded={item.done}><span aria-hidden="true">{item.done ? <Check size={14} /> : <span/>}</span><strong>{item.label}</strong><small>{item.done ? 'Recorded' : 'Not recorded'}</small></li>)}</ol>}
       {activity.instructions && <details className="mw-activity-expand"><summary>How to do this step</summary><ol>{activity.instructions.map(instruction => <li key={instruction}>{instruction}</li>)}</ol></details>}
