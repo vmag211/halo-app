@@ -79,6 +79,13 @@ test('a genuine transition remounts: another id, a home going away, a first home
   assert.equal(homeTransition({ id: HOME, revision: 3, place: '1,1' }, { id: HOME, revision: 3, place: '2,2' }), false, 'a different point at the same revision is not a save, so not a move');
 });
 
+test('a stale read of the same home (a lower revision) is ignored: no lowered revision, no false move after it', () => {
+  const [fresh, stale, again] = run(profile(context(HOME, 5)), profile(context(HOME, 3, at(35.9, -79.0))), profile(context(HOME, 5)));
+  assert.equal(stale.scope, fresh.scope);
+  assert.equal(again.scope, fresh.scope);
+  assert.equal(again.key, fresh.key);
+});
+
 test('after a move, an omitted re-read keeps the new home, and a new identity starts its own scope', () => {
   const [, moved, omitted] = run(profile(context(HOME, 3)), profile(context(NEXT, 1)), profile(undefined));
   assert.equal(omitted.scope, moved.scope);

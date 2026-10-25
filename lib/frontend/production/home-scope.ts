@@ -63,6 +63,8 @@ export function homeTransition(previous: HomeObservation, next: HomeObservation)
 export function nextHomeScope(previous: HomeScope | null, identity: string, observed: HomeObservation): HomeScope {
   if (!previous || previous.identity !== identity) return {identity, ...observed, epoch: 0, anchor: anchorOf(observed)};
   if (observed.id === undefined) return previous;
+  // A stale read of the same home (a lower revision) changes nothing, so a late answer can neither lower the revision nor stage a false move.
+  if (observed.id === previous.id && observed.revision !== undefined && previous.revision !== undefined && observed.revision < previous.revision) return previous;
   if (homeTransition(previous, observed)) return {identity, ...observed, epoch: previous.epoch + 1, anchor: anchorOf(observed)};
   const revision = observed.revision ?? previous.revision, place = observed.place ?? previous.place;
   if (observed.id === previous.id && revision === previous.revision && place === previous.place) return previous;
