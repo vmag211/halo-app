@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode } from '@/lib/geocode';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode, chooseGeocodeFeature } from '@/lib/geocode';
 import { localDate } from '@/lib/localDate';
 import { backfillHousehold, backfillHomeContext } from '@/lib/backfill';
 import { ERROR_CODES, apiError, internalError, requestIdFor, validationError } from '@/lib/apiErrors';
@@ -30,6 +30,15 @@ import { transitionHomeContext } from '@/lib/homeContextRpc';
  * already saved (the same request id) changes nothing and answers the saved home's `lat`, `lng`,
  * `county` and `state`, as its `home_context` does, whatever this retry's geocode said. A geocoder
  * answer whose centre is not two numbers is the same 404 as no answer, and saves nothing.
+ *
+ * The geocoder's answer is checked before it becomes a home (lib/geocode.js chooseGeocodeFeature):
+ * a guess from a fragment of the text, a whole state or county, or a ZIP that comes back as a
+ * different place is the same 404 as no answer, with a message the person can act on. A good
+ * answer also returns `place_label` (town, state and ZIP, never the street line), `place_precision`
+ * (`address`, or `area` for a ZIP or town whose centre may not be the home), `place_ambiguous`
+ * (another equally good match elsewhere) and `utility_candidates` (every water system whose service
+ * area holds the point). `pwsid` is a suggestion for the area, not a confirmed supplier. These four
+ * describe this request's geocode and are not stored.
  *
  * Until 0016 is applied (the function or table is missing) the route saves to the profile and
  * clears today's reading on a move exactly as it always has, says so in one warning per
@@ -83,7 +92,7 @@ function isUndefinedColumnError(error) {
 
 // The body is an address, an optional request id and two optional answers.
 const POST_MAX_BYTES = 4096;
-const NO_COORDINATES = 'Could not find coordinates for this address';
+const NO_COORDINATES = "We couldn't find that place. Try a street address with a city, or a ZIP code.";
 
 /**
  * Saves the home through transition_home_context (see the comment at the top).
@@ -258,11 +267,15 @@ export async function POST(request) {
 
     if (!mapboxData.features || mapboxData.features.length === 0) return noCoordinates();
 
+    // Not simply the first feature: a fuzzy guess, a whole state or a different ZIP is no answer.
+    const match = chooseGeocodeFeature(mapboxData.features, address);
+    if (!match.ok) return noCoordinates();
+
     // lat/lng here are Mapbox's precise point — used for the utility lookup
     // below, then rounded before anything is stored. zip is returned for
     // compatibility but no longer stored (nothing uses it, and the privacy
     // statement doesn't list it).
-    const place = parseMapboxFeature(mapboxData.features[0]);
+    const place = parseMapboxFeature(match.feature);
     // A feature with no usable centre is the same answer as no feature at all.
     if (!place) return noCoordinates();
     // So is a centre that is not two finite numbers: there is no point to store (the home context
@@ -370,6 +383,12 @@ export async function POST(request) {
       state: answered.state,
       pwsid,
       service_area_status: serviceAreaStatus,
+      // What this request's geocode found, for the person to check (not stored).
+      place_label: match.label,
+      place_precision: match.precision,
+      place_ambiguous: match.ambiguous,
+      // Every water system at the point; pwsid is only the first, a suggestion for the area.
+      utility_candidates: serviceArea.candidates,
       water_source: waterSource,
       home_year: homeYear,
       // Echoed only if it was stored (null before migration 0014).

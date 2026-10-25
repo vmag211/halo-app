@@ -27,8 +27,8 @@ const UTILITY = 'NC0250010';
 
 // Two addresses Mapbox knows; '2 Elm Court' is the new home in most tests.
 const PLACES = {
-  '2 Elm Court': { center: [-80.61, 35.41], context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
-  '7 Old Road': { center: [-80.5, 35.5], context: [{ id: 'district.1', text: 'Old County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
+  '2 Elm Court': { place_type: ['address'], relevance: 1, center: [-80.61, 35.41], context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
+  '7 Old Road': { place_type: ['address'], relevance: 1, center: [-80.5, 35.5], context: [{ id: 'district.1', text: 'Old County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
 };
 const ALICE_OLD = { lat: 35.5, lng: -80.5, county: 'Old County', state: 'NC', pwsid: 'NC9990001', water_source: 'utility', home_year: 1975 };
 const BOB_PROFILE = { lat: 35.227, lng: -80.843, county: 'Mecklenburg County', state: 'NC', pwsid: 'NC9990002', water_source: 'well', home_year: 1962 };
@@ -102,6 +102,9 @@ const transitions = (h) => h.db.rpcCalls.filter((call) => call.name === 'transit
 const writes = (h, from = 0) => h.db.queryLog.slice(from).filter((q) => q.operation !== 'select');
 const resets = (t) => t.mock.method(dailyScoreLimiter, 'resetUsedTokens', async () => {});
 const LEGACY_KEYS = ['county', 'home_year', 'lat', 'lng', 'onboard_request_id', 'profile_id', 'pwsid', 'service_area_status', 'state', 'water_source', 'zip'];
+// What the geocode found, for the person to check (not stored).
+const PLACE_KEYS = ['place_ambiguous', 'place_label', 'place_precision', 'utility_candidates'];
+const ELM_PLACE = { place_label: 'Cabarrus County, North Carolina 28027', place_precision: 'address', place_ambiguous: false };
 
 // ------------------------------------------------------------- first home
 
@@ -112,11 +115,11 @@ test('first home: transition_home_context makes sequence 1 (origin onboard); the
   const bobBefore = bobState(h);
   const body = await ok(await post(h, { address: '2 Elm Court', request_id: R1, water_source: 'Well', home_year: 1990, profile_id: h.identities.alice.id }));
 
-  assert.deepEqual(Object.keys(body).sort(), [...LEGACY_KEYS, 'home_context', 'moved'].sort());
+  assert.deepEqual(Object.keys(body).sort(), [...LEGACY_KEYS, ...PLACE_KEYS, 'home_context', 'moved'].sort());
   const [home] = homesOf(h, 'alice');
   assert.deepEqual(body, {
     profile_id: h.identities.alice.id, lat: 35.41, lng: -80.61, zip: '28027', county: 'Cabarrus County', state: 'NC', pwsid: UTILITY,
-    service_area_status: 'measured', water_source: 'well', home_year: 1990, onboard_request_id: R1,
+    service_area_status: 'measured', ...ELM_PLACE, utility_candidates: [UTILITY], water_source: 'well', home_year: 1990, onboard_request_id: R1,
     home_context: contextSummary(home), moved: false,
   });
   assert.deepEqual(
@@ -298,13 +301,13 @@ for (const [label, options] of [
     const warn = t.mock.method(console, 'warn', () => {});
     for (const center of NON_NUMERIC_CENTRES) {
       const h = harness({ alice: 'located', ...options });
-      const feature = { center, context: PLACES['2 Elm Court'].context };
+      const feature = { ...PLACES['2 Elm Court'], center };
       const fetch = async (url) => (String(url).startsWith('https://api.mapbox.com/') ? Response.json({ features: [feature] }) : new Response('{}', { status: 503 }));
       const tables = options.tables ?? ['profiles', 'daily_scores', 'home_contexts'];
       const snapshot = () => JSON.stringify(Object.fromEntries(tables.map((table) => [table, h.db.rows(table)])));
       const before = snapshot();
       const body = await expectEnvelope(await post(h, { address: '2 Elm Court', request_id: R1 }, { fetch }), { status: 404, code: 'not_found', retryable: false });
-      assert.equal(body.error, 'Could not find coordinates for this address', JSON.stringify(center));
+      assert.equal(body.error, "We couldn't find that place. Try a street address with a city, or a ZIP code.", JSON.stringify(center));
       assert.equal(snapshot(), before, `nothing was written for ${JSON.stringify(center)}`);
       assert.deepEqual(transitions(h), [], 'the function is never called');
       assert.deepEqual(writes(h), []);
@@ -367,7 +370,7 @@ for (const [code, setup] of [
     const body = await ok(await post(h, { address: '2 Elm Court', request_id: R1, home_year: 2001 }));
     assert.deepEqual(body, {
       profile_id: h.identities.alice.id, lat: 35.41, lng: -80.61, zip: '28027', county: 'Cabarrus County', state: 'NC', pwsid: 'NC9990001',
-      service_area_status: 'lookup_failed', water_source: null, home_year: 2001, onboard_request_id: R1,
+      service_area_status: 'lookup_failed', ...ELM_PLACE, utility_candidates: [], water_source: null, home_year: 2001, onboard_request_id: R1,
       home_context: null, moved: true,
     });
     const profileUpdate = { id: h.identities.alice.id, lat: 35.41, lng: -80.61, county: 'Cabarrus County', zip: null, state: 'NC', home_year: 2001, onboard_request_id: R1 };

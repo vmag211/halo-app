@@ -1691,6 +1691,32 @@
               "null"
             ]
           },
+          "place_label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Area-level name of what this request's geocode found (town, state and ZIP, never the street line), for the person to check. Not stored."
+          },
+          "place_precision": {
+            "type": "string",
+            "enum": [
+              "address",
+              "area"
+            ],
+            "description": "address for a street address or point; area for a ZIP, town or neighbourhood whose centre may not be the home."
+          },
+          "place_ambiguous": {
+            "type": "boolean",
+            "description": "Another equally good geocoder match elsewhere: the person should check the place."
+          },
+          "utility_candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every distinct water system whose service area holds the point. pwsid is the first, a suggestion for the area, never a confirmed supplier."
+          },
           "water_source": {
             "type": [
               "string",

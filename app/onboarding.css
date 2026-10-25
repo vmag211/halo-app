@@ -75,6 +75,11 @@
   .halo-app .halo-severity[data-empty="true"] { color:var(--halo-ink); border:1px solid currentColor; background:transparent; }
   .halo-app .halo-region-note { display:flex; align-items:flex-start; gap:9px; margin:12px var(--halo-gutter) 0; padding:15px; border:1px solid var(--halo-border); border-radius:var(--halo-radius); background:var(--halo-card); }
   .halo-app .halo-region-note svg { flex:0 0 18px; color:var(--halo-primary); margin-top:2px; }
+  .halo-app .halo-place { display:flex; align-items:flex-start; gap:9px; margin-top:20px; padding:14px 15px 4px; border:1px solid var(--halo-border); border-radius:var(--halo-radius); background:var(--halo-card); }
+  .halo-app .halo-place > svg { flex:0 0 18px; color:var(--halo-primary); margin-top:2px; }
+  .halo-app .halo-place > div { display:grid; gap:4px; min-width:0; }
+  .halo-app .halo-place .halo-place-heading, .halo-app .halo-place .halo-place-note { color:var(--halo-secondary); font-size:13px; line-height:19px; }
+  .halo-app .halo-place .halo-place-label { font-weight:600; overflow-wrap:anywhere; }
   .halo-app .halo-offline { display:flex; gap:8px; padding:12px var(--halo-gutter); background:var(--halo-card); border-bottom:1px solid var(--halo-border); font-size:15px; line-height:22px; }
   .halo-app .halo-offline svg { flex:0 0 18px; margin-top:2px; }
   .halo-app .halo-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }

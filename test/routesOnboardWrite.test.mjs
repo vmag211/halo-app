@@ -21,6 +21,7 @@ const THIS_YEAR = new Date().getFullYear();
 const ALICE_BEFORE = { lat: 35.5, lng: -80.5, county: 'Old County', state: 'NC', pwsid: 'NC9990001', zip: null, onboard_request_id: null };
 
 const FEATURE = {
+  place_type: ['address'], relevance: 1,
   center: [-80.61, 35.41],
   context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }],
 };
@@ -77,11 +78,13 @@ test('legacy request (what lib/frontend/api.ts sends): address and request_id ge
   assert.equal(res.status, 200);
   assert.match(res.headers.get('x-request-id'), UUID);
   const body = await res.json();
-  // The old fields, plus home_context (null before 0016) and moved (alice had another address on file).
-  assert.deepEqual(Object.keys(body).sort(), ['county', 'home_context', 'home_year', 'lat', 'lng', 'moved', 'onboard_request_id', 'profile_id', 'pwsid', 'service_area_status', 'state', 'water_source', 'zip']);
+  // The old fields, plus home_context (null before 0016), moved (alice had another address on file)
+  // and what the geocode found, for the person to check.
+  assert.deepEqual(Object.keys(body).sort(), ['county', 'home_context', 'home_year', 'lat', 'lng', 'moved', 'onboard_request_id', 'place_ambiguous', 'place_label', 'place_precision', 'profile_id', 'pwsid', 'service_area_status', 'state', 'utility_candidates', 'water_source', 'zip']);
   assert.deepEqual(body, {
     profile_id: h.identities.alice.id, lat: 35.41, lng: -80.61, zip: '28027', county: 'Cabarrus County', state: 'NC', pwsid: 'NC9990001',
-    service_area_status: 'measured', water_source: null, home_year: null, onboard_request_id: REQUEST_ID,
+    service_area_status: 'measured', place_label: 'Cabarrus County, North Carolina 28027', place_precision: 'address', place_ambiguous: false,
+    utility_candidates: ['NC9990001'], water_source: null, home_year: null, onboard_request_id: REQUEST_ID,
     home_context: null, moved: true,
   });
   assert.equal(warn.mock.callCount(), 1);
@@ -110,9 +113,10 @@ test('legacy request: a GPS "lng,lat" string, a bare ZIP and a 3 or 200 characte
   const h = harness();
   assert.equal((await post(h, { address: '-80.57952,35.40881' })).status, 200);
   assert.match(mapboxUrl(h), /mapbox\.places\/-80\.57952%2C35\.40881\.json/);
-  h.outbound.length = 0;
-  assert.equal((await post(h, { address: '28025' })).status, 200);
-  assert.match(mapboxUrl(h), /&country=us|country=us/, 'a bare ZIP is still pinned to the US');
+  // A bare ZIP must come back as that ZIP's own postcode feature (test/onboardPlaceReview.test.mjs).
+  const zip = harness({ mapbox: { features: [{ ...FEATURE, place_type: ['postcode'], text: '28025' }] } });
+  assert.equal((await post(zip, { address: '28025' })).status, 200);
+  assert.match(mapboxUrl(zip), /&country=us|country=us/, 'a bare ZIP is still pinned to the US');
   for (const address of ['Elm', 'e'.repeat(200)]) {
     h.outbound.length = 0;
     assert.equal((await post(h, { address })).status, 200, `${address.length} characters`);
@@ -248,7 +252,7 @@ test('no coordinates found is the old 404 in the envelope, including a Mapbox fe
     const h = harness({ mapbox });
     const before = snapshot(h);
     const body = await expectEnvelope(await post(h, { address: '2 Elm Court' }), { status: 404, code: 'not_found', retryable: false });
-    assert.equal(body.error, 'Could not find coordinates for this address', JSON.stringify(mapbox));
+    assert.equal(body.error, "We couldn't find that place. Try a street address with a city, or a ZIP code.", JSON.stringify(mapbox));
     assert.equal(snapshot(h), before, 'nothing was written');
     await h.runAfter();
     assert.equal(h.db.queryLog.filter((q) => q.operation !== 'select').length, 0, 'no backfill either');

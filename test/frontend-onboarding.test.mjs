@@ -108,7 +108,7 @@ test('partial and complete failures keep all four rows and no raw server copy', 
 test('source strings and all catalog strings have no em dashes', () => {
   assert.equal(domain.displayText('Name \u2014 water'), 'Name, water');
   assert.equal(JSON.stringify(copy).includes('\u2014'), false);
-  assert.equal(row({ pws_name: 'Concord\u2014City' }, 0).result, 'Concord, City');
+  assert.equal(row({ pws_name: 'Concord\u2014City' }, 0).result, copy.reveal.likelyUtility('Concord, City'));
 });
 test('completion flag is identity scoped, fail closed, and requires complete profile', () => {
   const disk = memoryStorage();
