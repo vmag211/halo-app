@@ -46,10 +46,11 @@ observation, is the sparse-coverage case.
 | 4.2 | Cancel | "QA release cancel me" | pass | "Review cancelled"; no task. |
 | 4.3 | Edit before confirm | title and date edited, "Review edited changes", confirm | pass | Saved as "QA release radon test kit" on Oct 30. |
 | 4.4 | Ambiguous task name | "Move the QA release task to November 5" | pass | "More than one task matches. Choose the one you mean. Nothing has changed." with three choices. |
-| 4.5 | Expiry (30 minutes) | review left pending from 22:45 UTC, confirmed after 30 minutes | see note | Result recorded in the reply (the review was created during this run). |
+| 4.5 | Expiry (30 minutes) | review prepared 22:45 UTC, Confirm clicked at 23:16 UTC | pass | "This review expired. Ask Luna to prepare it again."; no task created. Minor: the expired card still shows its fields and an enabled Confirm button until clicked. |
 | 4.6 | Double-click confirm | `dblclick` on Confirm changes | pass | One `POST /api/luna/tools/confirm`, one task. |
 | 4.7 | Review card layout, Firefox and Chrome | screenshots | pass | Label then value, one calendar button in Firefox, buttons aligned. |
 | 4.8 | Never claims a change before confirm; never offers reminders | all prompts, plus "Remind me tomorrow at 9 AM ..." | pass | The reminder request became an ordinary task review stating "Luna does not set reminders or send notifications"; cancelled. |
+| 5.1 | Cleanup: Settings, Privacy, Clear all app records | h1, h3, h5, h6 | **fail-open** | `POST /api/privacy/export/inspect` with `scope: "all"` answers 500 `internal_error` for every household tried (request ids `24ac9bf2-db4e-40a0-9263-8bdbe1930860`, `0003fb31-5ef5-457f-8109-73dd17fae359`), so the screen says "The result is not confirmed" and nothing is cleared. Export of the `home` or `preferences` group fails the same way; `tasks`, `explore`, `conversation`, `journal` and Clear Journal succeed. The only fingerprint table those failing requests share is `profiles`, so the likely cause is `privacy_fingerprint`'s profiles branch (0024 names `address`, `build_year` and `tenure` explicitly) meeting a production `profiles` table that differs. Needs the Vercel log for those request ids and the 0024 column check (`YOUR_TODO.md` 2.14); not reachable from here. |
 | F01 | Unknown water is not Good | h4 | pass | |
 | F02 | District share wording | DistrictPanel | pass | See 2.6 for the API sentence. |
 | F03 | Geocode review, likely supplier, outside NC in Explore | h1 to h6 onboarding | pass (partly retested) | "Your home area" card with Change and "likely supplier" shown. Low-confidence geocode and typed lat,lng not retested (each try is a new household; budget used). |
@@ -74,8 +75,17 @@ observation, is the sparse-coverage case.
   `lib/learnWhyYours.js`: modeled-air reason. Tests `test/frontend-release-scenarios.test.mjs`,
   `test/learnWhyYours.test.mjs`.
 
+## Test records kept
+
+Clear all failed (5.1), so the six anonymous households remain. Cleared: h5's Journal (Clear Journal
+succeeded) and the Luna conversations of h1 and h5. Still present, all labelled "QA release": h5's three
+My Week tasks (water filter check, radon test kit, double click), h1's four Homeguard test drafts and one
+saved summary. Keep them until 5.1 is fixed, then clear all for each.
+
 ## Open (not built: product, science or data decisions)
 
+0. **Privacy clear all and the home/preferences export answer 500 in production (5.1).** Backend or
+   database issue; needs server logs.
 1. **Human gate, water science:** HALO now scores each compound's most recent detection, as it did before
    the reload. EPA compliance is a running annual average per entry point (Raleigh EP1 PFOS averages about
    2.7 ppt over its four 2023 to 2024 samples, under the 4 ppt MCL, while its latest detection, 5.6 ppt,
