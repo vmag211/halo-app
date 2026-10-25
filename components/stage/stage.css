@@ -5,6 +5,10 @@
 .halo-stage-refresh { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
 .halo-stage-refresh[data-floating] { position:fixed; z-index:30; left:50%; bottom:calc(var(--halo-tab-height, 76px) + 20px); transform:translateX(-50%); width:max-content; max-width:calc(100vw - 32px); padding:6px 16px; border:1px solid var(--halo-border); border-radius:999px; background:var(--halo-card); box-shadow:0 8px 24px rgb(0 0 0 / .16); }
 .halo-stage-refresh button { display:inline-flex; gap:8px; align-items:center; min-height:44px; }
+/* One quiet line: the dates stay stated, the touch target stays 44px, the page is not pushed down by a banner. */
+.halo-stage-refresh[data-compact]:not([data-floating]) { gap:0 10px; color:var(--halo-secondary); font-size:calc(.8rem * var(--halo-text-scale, 1)); line-height:1.35; }
+.halo-stage-refresh[data-compact] p { flex:1 1 12rem; min-width:0; margin:0; }
+.halo-stage-refresh[data-compact]:not([data-floating]) button { font-size:inherit; }
 .halo-stage-app .halo-f-tabs button { display:flex; flex:1; min-width:0; align-items:center; justify-content:center; flex-direction:column; gap:5px; min-height:60px; padding:4px 2px; font-size:calc(.65rem * var(--halo-text-scale)); font-weight:500; color:var(--halo-secondary); border:0; background:transparent; border-radius:20px; opacity:.65; }
 .halo-stage-app .halo-f-tabs button span { text-align:center; line-height:1.2; overflow-wrap:normal; }
 .halo-stage-app[data-text-scale="150"] .halo-f-tabs button { flex-basis:18%; font-size:.74rem; }

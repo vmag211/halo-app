@@ -2,6 +2,15 @@
 .halo-f-app .halo-f-header:has(.halo-f-header-actions > :nth-child(3)) { grid-template-columns:136px minmax(0,1fr) 136px; }
 @media(max-width:350px) { .halo-f-app .halo-f-header:has(.halo-f-header-actions > :nth-child(3)) { grid-template-columns:48px minmax(0,1fr) 136px; } }
 @media(min-width:1024px) { .halo-f-app[data-responsive=true] > .halo-f-header:has(.halo-f-header-actions > :nth-child(3)) { grid-template-columns:88px minmax(0,1fr) 136px; } }
+/* Larger app text on a phone: the side columns size to their 44px controls, so the title keeps its own
+   column and never runs under Ask Luna. At the narrowest widths the title stops growing before it clips. */
+@media(max-width:560px) {
+  .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-f-header:has(.halo-f-header-actions > :nth-child(3)) { grid-template-columns:auto minmax(0,1fr) auto; column-gap:4px; }
+  .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-f-header:has(.halo-f-header-actions) > h1 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+}
+@media(max-width:359px) {
+  .halo-f-app:is([data-text-scale="130"],[data-text-scale="150"]) .halo-f-header:has(.halo-f-header-actions) > h1 { font-size:min(calc(1.18rem * var(--halo-text-scale)), 7vw); }
+}
 .halo-appearance-menu { display:contents; }
 .halo-appearance-popover {
   position:absolute; z-index:30; top:calc(100% - 2px); right:12px;

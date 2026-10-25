@@ -16,7 +16,14 @@ export type WeekActivity = {
   sourceLinks?: { title: string; url: string }[]; milestones?: { label: string; done: boolean }[];
   guide?: ProjectGuide; project?: ProjectRecord; stepIndex?: number; completed?: number;
   currentAction?: PreviewAction; missingRecord?: boolean;
+  /** The origin record is not in the loaded copy yet and a refresh is checking for it. */
+  resolvingRecord?: boolean;
+  /** A refresh could not confirm whether the origin record still exists. */
+  uncheckedRecord?: boolean;
 };
+/** Action keys whose origin record is being re-read, or whose re-read failed. */
+export type WeekSourceChecks = { checking?: ReadonlySet<string>; failed?: ReadonlySet<string> };
+export type WeekSourceGap = { key: string; collections: string[] };
 export type WeekProgressEntry = WeekActivity & { id: string; title: string; status: string };
 
 function records<T>(collections: WeekActivityCollections, key: string): T[] {
@@ -36,8 +43,53 @@ export function projectStepProgress(guide: ProjectGuide, actions: PreviewAction[
   return { completed, nextStep: index, allStepsComplete: nextStep < 0, currentAction: nextStep < 0 ? undefined : actions.find(action => action.key === canonicalProjectKey(guide,index,project)) };
 }
 
+/**
+ * The owned collections a task's origin record lives in. A task saved in another tab can arrive
+ * with a task refresh before this page has re-read the collection holding its record.
+ */
+export function weekActivitySourceCollections(key: string): string[] {
+  if (/^(?:explore:)?project:[^:]+(?::step:[^:]+)?$/.test(key)) return ['exploreProjects'];
+  if (/^explore:commitment:.+$/.test(key)) return ['exploreEngagements'];
+  if (key.startsWith('home:')) return ['tests', 'assets', 'observations', 'gardens'];
+  if (/^explore:note:.+$/.test(key)) return ['exploreNotes'];
+  if (/^explore:followthrough:.+$/.test(key)) return ['exploreOutcomes'];
+  return [];
+}
+
+/** Tasks whose origin record is missing from the loaded collections, with where to look again. */
+export function unresolvedWeekSources(actions: readonly PreviewAction[], collections: WeekActivityCollections): WeekSourceGap[] {
+  const gaps: WeekSourceGap[] = [];
+  for (const action of actions) {
+    const sources = weekActivitySourceCollections(action.key);
+    if (sources.length && resolveWeekActivity(action, collections, [...actions]).missingRecord && !gaps.some(gap => gap.key === action.key)) gaps.push({ key: action.key, collections: sources });
+  }
+  return gaps;
+}
+
+/**
+ * Which gaps to re-read now: not yet checked, not already being re-read, and not waiting on a
+ * first load that will answer the same question.
+ */
+export function weekSourceRefreshPlan(gaps: readonly WeekSourceGap[], checks: Readonly<Record<string, 'checked' | 'failed'>>, inflight: ReadonlySet<string>, loading: (collection: string) => boolean) {
+  const due = gaps.filter(gap => !checks[gap.key] && !inflight.has(gap.key) && !gap.collections.some(loading));
+  return { keys: due.map(gap => gap.key), collections: [...new Set(due.flatMap(gap => gap.collections))] };
+}
+
+/** Until a real re-read says a record is missing, its task shows that it is still being checked. */
+export function weekSourceStatus(gaps: readonly WeekSourceGap[], checks: Readonly<Record<string, 'checked' | 'failed'>>) {
+  return { checking: new Set(gaps.filter(gap => !checks[gap.key]).map(gap => gap.key)), failed: new Set(gaps.filter(gap => checks[gap.key] === 'failed').map(gap => gap.key)) };
+}
+
 /** Resolve by exact origin ID, never by a similar title or a sample fallback. */
-export function resolveWeekActivity(action: PreviewAction, collections: WeekActivityCollections, actions: PreviewAction[] = []): WeekActivity {
+export function resolveWeekActivity(action: PreviewAction, collections: WeekActivityCollections, actions: PreviewAction[] = [], sources?: WeekSourceChecks): WeekActivity {
+  const activity = resolveOwnedActivity(action, collections, actions);
+  if (!activity.missingRecord) return activity;
+  if (sources?.checking?.has(action.key)) return { ...activity, missingRecord: false, resolvingRecord: true, subtitle: 'Checking the original record...' };
+  if (sources?.failed?.has(action.key)) return { ...activity, missingRecord: false, uncheckedRecord: true, subtitle: 'Original record could not be checked' };
+  return activity;
+}
+
+function resolveOwnedActivity(action: PreviewAction, collections: WeekActivityCollections, actions: PreviewAction[]): WeekActivity {
   const projectMatch = action.key.match(/^(?:explore:)?project:([^:]+)(?::step:([^:]+))?$/);
   if (projectMatch) {
     const project = records<ProjectRecord>(collections, 'exploreProjects').find(item => item.id === projectMatch[1]);
