@@ -857,7 +857,7 @@ test('exportParts: without private text, private columns, private-only rows and 
   assert.deepEqual(withoutPrivate.find((part) => part.table === 'profiles' && part.group === 'home').optional.sort(), ['renter_mode', 'state', 'tenure']);
 
   const withPrivate = exportParts([...EXPORT_GROUPS], true);
-  assert.deepEqual(withPrivate.filter((part) => part.group === 'conversation').map((part) => part.table), ['luna_conversations', 'luna_turns', 'luna_runs']);
+  assert.deepEqual(withPrivate.filter((part) => part.group === 'conversation').map((part) => part.table), ['luna_conversations', 'luna_turns', 'luna_runs', 'luna_proposals']);
   assert.deepEqual(withPrivate.find((part) => part.table === 'household_actions').baseKeys, {});
   assert.equal(withPrivate.filter((part) => part.table === 'household_action_preferences').length, 2);
   // 0026 (B11): the Explore workspace collections' rows, without their private record; 0028 (B14): the note photos' metadata;

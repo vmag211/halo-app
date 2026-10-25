@@ -25,6 +25,7 @@ export const challengeId = (who, n) => `${PREFIX[who]}-4444-4000-8000-${hex12(n)
 export const lunaConversationId = (who) => `${PREFIX[who]}-5555-4000-8000-${hex12(1)}`;
 export const lunaTurnId = (who, n) => `${PREFIX[who]}-6666-4000-8000-${hex12(n)}`;
 export const lunaRunId = (who, n) => `${PREFIX[who]}-7777-4000-8000-${hex12(n)}`;
+export const lunaProposalId = (who, n) => `${PREFIX[who]}-7878-4000-8000-${hex12(n)}`;
 export const actionId = (who, n) => `${PREFIX[who]}-8888-4000-8000-${hex12(n)}`;
 export const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 
@@ -179,7 +180,7 @@ export function markersOf(who, identity) {
 export function seedHouseholds(identities, { readingToday = true, now = new Date(), adjust } = {}) {
   const today = localDate(now);
   const day = (n) => addDays(today, -n);
-  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], daily_maxima: [], household_workspace_records: [], household_attachments: [], household_summaries: [], household_project_generations: [], outreach_drafts: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
+  const rows = { profiles: [], household_bands: [], notification_prefs: [], profile_preferences: [], explore_areas: [], household_actions: [], household_action_preferences: [], household_action_state: [], symptom_logs: [], alerts: [], push_subscriptions: [], daily_scores: [], home_risks: [], home_contexts: [], operations: [], recovery_challenges: [], luna_conversations: [], luna_turns: [], luna_runs: [], luna_proposals: [], daily_maxima: [], household_workspace_records: [], household_attachments: [], household_summaries: [], household_project_generations: [], outreach_drafts: [], ucmr5_utilities: [], volunteer_orgs: [], map_layers: [] };
 
   for (const who of ['alice', 'bob']) {
     const id = identities[who].id;
@@ -306,6 +307,13 @@ export function seedHouseholds(identities, { readingToday = true, now = new Date
       id: lunaRunId(who, 1), profile_id: id, conversation_id: lunaConversationId(who),
       turn_id: lunaTurnId(who, 1), client_message_id: lunaRunId(who, 9), status: 'completed',
       created_at: `${day(1)}T12:00:00Z`, updated_at: `${day(1)}T12:00:01Z`, settled_at: `${day(1)}T12:00:01Z`,
+    });
+    // One review Luna prepared under its answer (migration 0035, B20).
+    rows.luna_proposals.push({
+      id: lunaProposalId(who, 1), profile_id: id, conversation_id: lunaConversationId(who),
+      turn_id: lunaTurnId(who, 2), kind: 'create', status: 'review', revision: 1,
+      payload: { title: `${upper}-LUNA-PROPOSAL-MARKER`, date: '', time: '', estimate: null },
+      expires_at: `${day(1)}T12:30:00Z`, created_at: `${day(1)}T12:00:01Z`, updated_at: `${day(1)}T12:00:01Z`,
     });
     rows.ucmr5_utilities.push({
       pwsid: UTILITY[who].pwsid,

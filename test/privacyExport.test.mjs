@@ -1103,6 +1103,7 @@ const SEED_PLAN = [
   ['luna_conversations', [0]],
   ['luna_turns', [0, 1]],
   ['luna_runs', [0]],
+  ['luna_proposals', [0]],
   ['daily_scores', [0, 1]],
   ['home_risks', [0]],
   ['household_bands', [0]],

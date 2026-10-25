@@ -72,6 +72,7 @@ const CLEAR_ALL = {
   luna_conversations: 'delete',
   luna_turns: 'delete',
   luna_runs: 'delete',
+  luna_proposals: 'delete', // 0035: removed by cascade with the turns, counted by luna_proposal_privacy_counts (B20)
   profile_preferences: 'delete',
   explore_areas: 'delete',
   household_actions: 'delete',
@@ -462,6 +463,7 @@ test('clear all: privacy_counts read before the claim is exactly what the clear 
       ...(await tx.query(`select public.summary_privacy_counts($1) as c`, [ALICE])).rows[0].c,
       ...(await tx.query(`select public.project_privacy_counts($1) as c`, [ALICE])).rows[0].c,
       ...(await tx.query(`select public.outreach_privacy_counts($1) as c`, [ALICE])).rows[0].c,
+      ...(await tx.query(`select public.luna_proposal_privacy_counts($1) as c`, [ALICE])).rows[0].c,
     };
     const before = await counts(tx, ALICE);
     await claim(tx);
@@ -483,12 +485,15 @@ test('clear all: privacy_counts read before the claim is exactly what the clear 
     const summaryRows = observed.household_summaries;
     const ideaRows = observed.household_project_generations;
     const draftRows = observed.outreach_drafts;
+    // 0035's reviews go by cascade with the turns, so 0024's `removed` does not count them either.
+    const proposalRows = observed.luna_proposals;
+    assert.ok(proposalRows >= 1, 'the seed has reviews to remove');
     assert.ok(workspaceRows >= 3, 'the seed has workspace rows to remove');
     assert.ok(fileRows >= 2, 'the seed has files to remove');
     assert.ok(summaryRows >= 2, 'the seed has summaries to remove');
     assert.ok(ideaRows >= 2, 'the seed has idea sets to remove');
     assert.ok(draftRows >= 2, 'the seed has drafts to remove');
-    assert.equal(Number(out.removed), Object.values(observed).reduce((sum, n) => sum + n, 0) - workspaceRows - fileRows - summaryRows - ideaRows - draftRows);
+    assert.equal(Number(out.removed), Object.values(observed).reduce((sum, n) => sum + n, 0) - workspaceRows - fileRows - summaryRows - ideaRows - draftRows - proposalRows);
   });
 });
 
