@@ -72,6 +72,15 @@ export const OWNED_ROW = {
     turn_id: lunaId(owner, `ab0${n}`),
     client_message_id: lunaId(owner, `cd0${n}`),
   }),
+  // 0035: one review under the first turn (one per turn), expiring later.
+  luna_proposals: (owner, n) => ({
+    profile_id: owner,
+    conversation_id: lunaId(owner, 'c0de'),
+    turn_id: lunaId(owner, `ab0${n}`),
+    kind: 'create',
+    payload: { title: `Test task ${n}`, date: '', time: '', estimate: null },
+    expires_at: '2026-10-18T00:30:00Z',
+  }),
   // 0021: every other column has a default that is already a valid snapshot
   // value, so the owner is the whole row.
   profile_preferences: (owner) => ({ profile_id: owner }),

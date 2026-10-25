@@ -5,7 +5,6 @@ import { parseText } from '@/lib/validate';
 import { featureEnabled } from '@/lib/features';
 import {
   LUNA_FEATURE,
-  conversationPayload,
   effectiveRunStatus,
   findRun,
   isLunaUnavailable,
@@ -13,6 +12,7 @@ import {
   runBody,
   unknownRunBody,
 } from '@/lib/luna';
+import { reviewedConversation } from '@/lib/lunaActionsRoute';
 
 /**
  * GET /api/luna/runs/status?id=<run id or clientMessageId>  ->  LunaRun
@@ -85,6 +85,11 @@ function badField(field, result, requestId) {
   });
 }
 
+// B20: the review overlay can settle an abandoned confirm's ledger row (a
+// reap), so this read sits under the ledger's staleness window like every
+// ledger route (test/operationsMaxDuration.test.mjs).
+export const maxDuration = 60;
+
 export async function GET(request) {
   const requestId = requestIdFor(request);
   const headers = { 'X-Request-Id': requestId };
@@ -119,7 +124,7 @@ export async function GET(request) {
     // test/contractsB03.test.mjs asserts this route and runs/cancel answer with
     // the same shape for the same run, terminal and non-terminal.
     const status = effectiveRunStatus(row);
-    const conversation = TERMINAL.includes(status) ? await conversationPayload(supabaseAdmin, { profileId: userId }) : null;
+    const conversation = TERMINAL.includes(status) ? await reviewedConversation(supabaseAdmin, { profileId: userId }) : null;
     return NextResponse.json(runBody({ row, conversation }), { headers });
   } catch (err) {
     if (isLunaUnavailable(err)) return lunaUnavailable(requestId);

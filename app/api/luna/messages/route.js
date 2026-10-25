@@ -17,7 +17,6 @@ import {
   answerFromCorpus,
   appendTurn,
   claimRun,
-  conversationPayload,
   createRun,
   currentConversation,
   deadlineFetch,
@@ -35,6 +34,16 @@ import {
   startConversation,
   unknownRunBody,
 } from '@/lib/luna';
+import {
+  answerPick,
+  findPick,
+  isProposalsMissing,
+  looksLikeTaskRequest,
+  lunaActionsEnabled,
+  lunaActionsReady,
+  prepareFromMessage,
+} from '@/lib/lunaActions';
+import { reviewedConversation } from '@/lib/lunaActionsRoute';
 
 /**
  * POST /api/luna/messages
@@ -360,6 +369,24 @@ async function generate(supabase, { profileId, conversationId, runId, question, 
     const earlier = turns.filter((turn) => turn.seq < seq);
     const history = historyPrompt(earlier);
 
+    // B20: with HALO_FEATURE_LUNA_ACTIONS on, a message that may ask for a
+    // My Week task change is read for its intent (the person's own words and
+    // nothing else go to the model), and the server prepares a review for the
+    // person to confirm. Off, or 0035 missing, this reads nothing and the
+    // answer below is exactly as before.
+    const actions = await lunaActionsReady(supabase, profileId);
+    if (actions && looksLikeTaskRequest(question)) {
+      const prepared = await prepareFromMessage(supabase, {
+        profileId,
+        conversationId,
+        runId,
+        question,
+        apiKey: modelKey(),
+        fetchImpl,
+      });
+      if (prepared.handled) return;
+    }
+
     const answer = await answerFromCorpus({
       question,
       history,
@@ -370,6 +397,7 @@ async function generate(supabase, { profileId, conversationId, runId, question, 
       apiKey: modelKey(),
       rpc: (name, params) => supabase.rpc(name, params),
       fetchImpl,
+      ...(actions ? { actions: true } : {}),
     });
 
     // Every outcome is an answer the person can read: generated prose with its
@@ -475,11 +503,6 @@ export async function POST(request) {
       named = parsed.value;
     }
 
-    // Structural, and before everything that costs anything, exactly as
-    // /api/assistant orders it (route.js:86): a refusal is decided by a
-    // function, not asked of a model.
-    const refusal = diagnosticRefusal(question.value);
-
     // Proves migration 0020 and resolves the conversation in one read, BEFORE a
     // budget is spent or a ledger id is claimed: no token is spent on a request
     // this deployment could not have served, and a conversation that is not
@@ -488,6 +511,24 @@ export async function POST(request) {
     if (named !== null && named !== existing?.id?.toLowerCase()) {
       return apiError({ status: 404, code: ERROR_CODES.NOT_FOUND, message: NO_CONVERSATION, requestId });
     }
+
+    // B20: the exact text of a task choice Luna offered is a pick, answered
+    // here with no model at all (lib/lunaActions.js findPick). Only with the
+    // capability on; off, nothing is read.
+    let pick = null;
+    if (existing && lunaActionsEnabled()) {
+      try {
+        pick = await findPick(supabaseAdmin, { profileId: userId, conversationId: existing.id, text: question.value });
+      } catch (err) {
+        if (!isProposalsMissing(err)) throw err;
+      }
+    }
+
+    // Structural, and before everything that costs anything, exactly as
+    // /api/assistant orders it (route.js:86): a refusal is decided by a
+    // function, not asked of a model. A pick asks no model and is not a
+    // question, so it is never refused.
+    const refusal = pick ? null : diagnosticRefusal(question.value);
 
     // Per household, failing open: a limiter outage must not block the critical
     // path. Checked for every accepted message, refusals included, because
@@ -512,7 +553,7 @@ export async function POST(request) {
     // App-wide, failing closed, and only on the path that will actually call a
     // model: the ceiling guards provider spend, so a refusal that asks no model
     // must not spend everyone else's budget.
-    if (!refusal) {
+    if (!refusal && !pick) {
       const withinCeiling = await checkLimit(assistantGlobalLimiter, 'assistant:global', {
         fallback: false,
         label: 'luna global limiter',
@@ -562,6 +603,15 @@ export async function POST(request) {
             runId: run.id,
             text: refusal,
           });
+        } else if (pick) {
+          // No model: the review for the picked task is prepared now.
+          await answerPick(supabaseAdmin, {
+            profileId: userId,
+            conversationId: conversation.id,
+            runId: run.id,
+            pick,
+            replyTurnId: turn.id,
+          });
         } else {
           // Everything slow, after the response. Inside the operation, so a
           // replay cannot schedule a second generation.
@@ -596,7 +646,7 @@ export async function POST(request) {
     // would park the client's attempt for ever.
     if (!run) return NextResponse.json(unknownRunBody(clientMessageId.value), { headers });
 
-    const conversation = await conversationPayload(supabaseAdmin, { profileId: userId });
+    const conversation = await reviewedConversation(supabaseAdmin, { profileId: userId });
     return NextResponse.json(runBody({ row: run, conversation }), { headers });
   } catch (err) {
     if (err?.message === OPERATION_INPUT_MISMATCH) return operationMismatch(requestId);

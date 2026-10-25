@@ -102,10 +102,12 @@ test('B03 contract covers the six built operations, every documented status has 
   assert.deepEqual([...operations.keys()].sort(), [
     'lunaCapabilities', 'lunaClear', 'lunaConversation', 'lunaMessage', 'lunaRunCancel', 'lunaRunStatus',
   ]);
-  // Luna answers and cites; Luna does not act. The four tool endpoints are not
-  // built, so documenting them would be a claim this package cannot support.
+  // B03's contract is the answering half. The four tool endpoints are B20's
+  // (Luna prepares a task change the person confirms, behind
+  // HALO_FEATURE_LUNA_ACTIONS), pinned by test/routesLunaActions.test.mjs,
+  // so this document still does not describe them.
   for (const path of ['/api/luna/proposals/edit', '/api/luna/proposals/cancel', '/api/luna/tools/confirm', '/api/luna/operations']) {
-    assert.equal(path in contract.paths, false, `${path} is deliberately not built and must not be documented`);
+    assert.equal(path in contract.paths, false, `${path} belongs to B20, not to the B03 document`);
   }
   for (const [id, op] of operations) {
     for (const status of Object.keys(op.responses)) {

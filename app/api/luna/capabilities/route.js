@@ -4,6 +4,7 @@ import { requestIdFor, internalError } from '@/lib/apiErrors';
 import { featureEnabled, featureDisabledReason } from '@/lib/features';
 import { LUNA_FEATURE, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
 import { chatModel, embedModel } from '@/lib/assistantRag';
+import { LUNA_TOOLS, lunaActionsReady } from '@/lib/lunaActions';
 
 /**
  * GET /api/luna/capabilities  ->  LunaCapabilities
@@ -152,6 +153,27 @@ const CAPABILITIES = Object.freeze({
 });
 
 /**
+ * B20 (Vibhav 2026-10-25, superseding Option A): Luna prepares one My Week
+ * task change at a time for the person to review and confirm. `tools` names
+ * them, which also makes the client offer "What would you like to do?" and
+ * "Review every proposed change." (`answersOnly` is false). `context` stays
+ * false: the model is never sent a task, a record or a note (decision 2);
+ * the server finds the task itself. Retention of a review is stated, because
+ * it is decided: 30 minutes to confirm, deleted a day later.
+ */
+const WITH_ACTIONS_RETENTION =
+  'Luna cites the sources behind health and environment answers and marks general answers as its own. '
+  + 'When you ask, Luna can prepare one change to a My Week task for you to review: adding a task, moving one, marking one complete or not done, or saving one for later. Nothing changes until you confirm it. Luna cannot set reminders or change anything else in HALO. '
+  + 'Only your message goes to the model service. HALO finds the task itself, and your tasks, home readings, notes, Journal entries and household members are never sent. '
+  + 'Your questions and the answers are kept in your account until you clear this conversation or delete your account. A prepared change can be confirmed for 30 minutes and is deleted a day after that.';
+
+const WITH_ACTIONS = Object.freeze({
+  ...CAPABILITIES,
+  retentionSummary: WITH_ACTIONS_RETENTION,
+  tools: LUNA_TOOLS,
+});
+
+/**
  * What the answer says while the capability is off (Ruling L11).
  *
  * `providerLabel` and `retentionSummary` are the only two slots a person
@@ -227,6 +249,10 @@ async function requireLunaSchema(supabase, profileId) {
   if (error) throw error;
 }
 
+// It imports lib/lunaActions.js, a ledger module, so it declares the house
+// ceiling too (test/operationsMaxDuration.test.mjs); it writes nothing.
+export const maxDuration = 60;
+
 export async function GET(request) {
   const requestId = requestIdFor(request);
   const headers = { 'X-Request-Id': requestId };
@@ -245,6 +271,11 @@ export async function GET(request) {
 
     // Fact 3. Switched on, but with nothing to answer with (Ruling L13).
     if (!providerConfigured()) return notAvailable(headers);
+
+    // B20: with HALO_FEATURE_LUNA_ACTIONS (and `tasks`) on and 0035 applied,
+    // Luna prepares My Week task changes for review, and says so. Off, or 0035
+    // missing, nothing more is read and the answer is exactly the one above.
+    if (await lunaActionsReady(supabaseAdmin, userId)) return NextResponse.json(WITH_ACTIONS, { headers });
 
     return NextResponse.json(CAPABILITIES, { headers });
   } catch (err) {

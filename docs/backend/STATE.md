@@ -69,7 +69,9 @@ are what show that. The 28 that answer now, by the package that made them answer
 The 9 with no route: `capabilities.read`, `community.read` and `map.brief` (dropped on purpose),
 `luna.proposal.edit`, `luna.proposal.cancel`, `luna.operation` and `luna.confirm` (Vibhav's Option A,
 2026-10-18: Luna does not act), `recovery.complete` (deferred by Vibhav) and `evidence.read` (built, held
-by E25 on `origin/vmag211/b08-evidence-held`). The reasons are in the table under "What is deliberately
+by E25 on `origin/vmag211/b08-evidence-held`). **Update 2026-10-25 (B20, branch `vmag211/luna-actions`,
+not merged):** Vibhav decided Luna acts in the app, so the four Luna tool operations are now routed behind
+`HALO_FEATURE_LUNA_ACTIONS` (off) and migration 0035, which leaves 5 with no route. The reasons are in the table under "What is deliberately
 not built". The count was 14 of 72 on 2026-10-18, and the frontend closeout note's 68 operations is four
 short.
 
@@ -117,6 +119,7 @@ Done 2026-10-20: `next build` needs no secrets (Supabase and Redis clients are b
 | B16 Explore projects, no generative AI | Complete. `projects.generate`, `.current`, `.generation`, `.cancel`, `.guide`, `.start`; migration 0030 (`household_project_generations`); "generation" is a deterministic, explainable selection from a sourced library of 17 projects (`lib/data/exploreProjectLibrary.json`), no model and no paid service; the async contract (status, cancel) is still honoured. A started project's guide cannot be changed through `workspace.execute` (J13, `project_guide_locked`). Behind flag `HALO_FEATURE_PROJECTS`, off; Vibhav's decision 7 is still open. Plan `plans/b16-explore-projects.md`, Rulings J1 to J14, `YOUR_TODO.md` 2.21 |
 | B17 outreach preparation, never sends | Complete. `contacts.resolve` and the seven `outreach.*` operations; migration 0031 (`outreach_drafts`); official public offices from a static, source-recorded directory (`lib/data/ncOutreachContacts.json`), copy-only drafts, `outreach.connection` always "not connected", `outreach.connect` and `outreach.send` refused. Nothing sends email, calls a mail or OAuth provider or contacts anyone. Behind flag `HALO_FEATURE_OUTREACH`, off. Plan `plans/b17-outreach-preparation.md`, Rulings O1 to O8, `YOUR_TODO.md` 2.22 |
 | B18 participation directory | Complete as infrastructure; **no listing exists yet**. `organizations.search`, `opportunities.search`, `opportunities.detail`; migration 0032 (`participation_profiles`, `participation_opportunities`, three read functions that filter in SQL; RLS on, no client access). It serves **only rows a person wrote in the SQL editor and marked verified** (`verified_by`, `verified_at`); a trigger clears the verification when content changes, so a verification always covers exactly what is served. HALO writes no listing and no route writes. No area, or no verified listing for it, answers `no_coverage`, and an unreadable directory is a 5xx, never an empty list. `complete` is always `false` (P7). No proximity, distance or capacity. Behind flag `HALO_FEATURE_PARTICIPATION`, off. Plan `plans/b18-participation-directory.md`, Rulings P1 to P11, `YOUR_TODO.md` 2.23 (the listing template is there) |
+| B20 Luna acts, through a review | Built on `vmag211/luna-actions` (2026-10-25, Vibhav's decision that Luna acts, superseding Option A), not merged. `luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm`, `luna.operation`; migration 0035 (`luna_proposals`, written, applied nowhere). Luna prepares one My Week task change (add, move, complete or reopen, save for later) as a review; only the person's confirm changes My Week, through `actions.commit`'s own path (`lib/actionsCommit.js`) and `actions` ledger. The model gets the person's message only; the server finds the task. Reviews expire after 30 minutes and are deleted a day later. Behind `HALO_FEATURE_LUNA_ACTIONS`, off (needs `luna` and `tasks` too). Plan `plans/b20-luna-actions.md`, Rulings A20-1 to A20-9, `YOUR_TODO.md` 2.26 |
 | B19 weekly public water import | Complete, waiting on a reuse confirmation. Migration 0033 (`public_evidence_snapshots`, `public_evidence_runs`, one write function); cron `GET\|POST /api/cron/public-evidence`, Thursdays 18:00 UTC (`vercel.json`). It fetches the U.S. Drought Monitor county figures and the NC DWR conservation table, checks both strictly (all 100 counties on every map, the table's own totals, real dates) and stores a dated copy only when the check passes; a failure stores nothing and keeps the last good copy. `water.read` serves the newest stored copy of each source, else the bundled file, and says which. Fish advisories stay on the hand build (their wording needs a person's review). Behind flag `HALO_FEATURE_PUBLIC_IMPORT`, off until the NC DWR reuse is confirmed (DS-113). Plan `plans/b19-public-evidence-refresh.md`, `YOUR_TODO.md` 2.24 |
 
 ## Migrations
@@ -139,6 +142,11 @@ nothing on: every feature still waits on its key or flag and on the backend depl
 `YOUR_TODO.md` 2.25, `docs/backend/apply/apply-0034.sql` and `verify-0034.sql`, five checks). It
 adds three columns, an index, a trigger and two functions, rewrites no row, and is inert until
 `HALO_FEATURE_JOURNAL` is on.
+
+**0035 (Luna's task reviews, B20) is written, applied nowhere** (2026-10-25, on `vmag211/luna-actions`,
+`YOUR_TODO.md` 2.26, `docs/backend/apply/apply-0035.sql` and `verify-0035.sql`, five checks). One new
+table, `luna_proposals`, and a count function; it needs 0020 and is inert until
+`HALO_FEATURE_LUNA_ACTIONS` is on.
 
 Production still runs `main`, which does
 not use these tables, so nothing changes for users until the backend branch is deployed. History: (0021 merged 2026-10-18 and amended three times by
@@ -215,6 +223,8 @@ environment that should have the feature, then redeploy.
 - `HALO_FEATURE_PUBLIC_IMPORT=on` (the weekly public water import) once 0033 is applied and you have
   confirmed automated reuse of the NC DWR table (DS-113, B19 decision 1); the cron also needs the
   existing `CRON_SECRET` (`YOUR_TODO.md` 2.24).
+- `HALO_FEATURE_LUNA_ACTIONS=on` (Luna prepares My Week task changes for review, B20) once 0035 is
+  applied; it also needs `HALO_FEATURE_LUNA=on` and `HALO_FEATURE_TASKS=on` (`YOUR_TODO.md` 2.26).
 - No variable switches B12 (always on, signed in) or B13 (the `operator_roles` row is the switch).
 
 ## What is deliberately not built, and why
@@ -225,7 +235,7 @@ listing content B18 serves). The bullets below hold the detail.
 | Operation or feature | State | Why |
 | --- | --- | --- |
 | Participation listings (the content behind `organizations.search`, `opportunities.search`, `opportunities.detail`) | Routes built (B18), content not written | HALO will not scrape or invent listings; a person must write and verify each one in the SQL editor (B05 open question 7, `YOUR_TODO.md` 2.23). The three operations are routed, so they are not in the count of 9 |
-| `luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm`, `luna.operation` | Not built, by ruling | Luna answers and cites but does not act, so there is nothing to propose, confirm or track |
+| `luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm`, `luna.operation` | Built on `vmag211/luna-actions` (B20), not merged | Vibhav decided 2026-10-25 that Luna acts, through a review the person confirms; behind `HALO_FEATURE_LUNA_ACTIONS` and 0035 |
 | `recovery.complete` | Deferred by Vibhav | Recovery completion waits until after the competition (decision 5); the flag stays off |
 | `capabilities.read`, `community.read`, `map.brief` | Dropped | No consumer, validator or type on the frontend ref |
 | `evidence.read` | Built, held | Ruling E25: emitting `home_context` remounts the frontend and drops drafts; on `origin/vmag211/b08-evidence-held` until Yogi's fix |
