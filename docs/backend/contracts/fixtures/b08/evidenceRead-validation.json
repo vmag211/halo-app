@@ -1,0 +1,18 @@
+{
+  "operationId": "evidenceRead",
+  "status": 400,
+  "body": {
+    "error": "Choose a range of 92 days or fewer.",
+    "code": "validation_failed",
+    "message": "Choose a range of 92 days or fewer.",
+    "field_errors": [
+      {
+        "field": "from",
+        "code": "range_too_large",
+        "message": "Choose a range of 92 days or fewer."
+      }
+    ],
+    "retryable": false,
+    "request_id": "b08-contract-0001"
+  }
+}

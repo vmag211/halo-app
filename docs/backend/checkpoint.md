@@ -51,6 +51,62 @@ Rulings marked proposed in the plan wait for you: W1 (retention and the flag), W
 1. Answer the open questions, apply 0026 (`YOUR_TODO.md` 2.17), and decide when the flag goes on.
 2. The attachments package (W4) and a journal and home-history decision (W2, W3) are the next B11 follow-ups.
 
+# B08 checkpoint: environmental history (daily maxima and `evidence.read`)
+
+Date: 2026-10-20. Branch: the B08 Task 6 worktree branch, on `b64d57e` (Tasks 4 and 5, held) with `vmag211/backend` merged in. Plan: `docs/backend/plans/b08-evidence.md`. Rulings E1 to E25. Nothing here is a deployment, provider or approval claim. `docs/backend/STATE.md` is not updated by this task; the controller regenerates it.
+
+**Update 2026-10-25: shipped.** Ruling E25 is resolved by Vibhav's decision of 2026-10-25 to ship with a remount fix. Branch `vmag211/evidence-history` merges this work onto main (which had already made the profile GET emit `home_context` in 095ff92; the merge keeps this branch's `null` for no home). `lib/frontend/production/home-scope.ts` keys `ConnectedApp` on identity and an epoch that rises only on a genuine home transition, keeps the last known home when a re-read omits the key, and keeps the workspace session's key (its drafts) across an in-place save while the runtime takes the new revision. Contract `b08-2` (schema unchanged). No flag, no new migration. Where this section says "held" below, read it as history.
+
+## Five things a reader would otherwise assume wrongly
+
+1. **The read is held (ruling E25).** `GET /api/evidence` and `GET /api/profile`'s additive `home_context` are built and proved, but are not merged into `vmag211/backend`. Emitting `home_context` makes the frontend remount `ConnectedApp` (keyed on the context revision, `ProductionApp.tsx:35`) and lose unsaved drafts, so both wait for Yogi (`YOUR_TODO.md` Part 4 items 24 and 25). Until then Patterns and Season say "Environmental history is unavailable."
+2. **Nothing is recorded yet.** The recorder is merged, but migration 0025 is applied nowhere and the branch is not deployed, so no day has a daily maximum anywhere. Days before the recorder's first run are never backfilled; they read "Recorded from <date>. Earlier days have no daily maximum."
+3. **`daily_scores` is never served as history** (E1). Those rows are app-time observations and the onboarding backfill. The history is a new series, `daily_maxima`, written only from each completed day's hourly provider series.
+4. **Only Air and UV have values.** Pollen (a daily forecast index, not a maximum) and Outdoor mold (HALO's own proxy) are null on every date with their reasons (E7). UV is always modeled, and Air is modeled for a home with no AirNow station within 25 miles; the source line says so (E8, E17).
+5. **A missing `home_context` is not "no home".** In the profile answer, `null` means the household has no current home; a missing key means migration 0016 is not applied or the context read failed (logged). Either way the client's context id is null and its evidence check passes only the E12 body.
+
+## Where B08 stands
+
+| Task | State |
+| --- | --- |
+| 1. Migration 0025: `daily_maxima`, the recorder state, the upsert and its finality guard | Merged (`e0fb946`, `cc1a185`); applied nowhere |
+| 2. `lib/dailyMaxima.js`, the method and the snapshot | Merged (`90677c7`) |
+| 3. The recorder, `GET\|POST /api/cron/daily-maxima` | Merged (`cb27a78`) |
+| 4. `GET /api/evidence` | Built (`b64d57e`), **held by E25** |
+| 5. `GET /api/profile` emits `home_context` | Built (`3852267`, in `b64d57e`'s history), **held by E25** |
+| 6. Contracts, conformance, tracker, checkpoint | This section |
+
+## What Task 6 built
+
+- **The merge.** `vmag211/backend` (B08 Task 3, B07, B10) merged under the held Tasks 4 and 5. The evidence route's own copy of the 0025 probe and its unavailable codes moved into `lib/dailyMaximaStore.js`: `probeDailyMaximaSchema` (with `DAILY_MAXIMA_SCHEMA_VERSION`), the existing `isDailyMaximaUnavailable`, and the evidence reads now throw the store's `DailyMaximaStoreError`. Behaviour is unchanged and `test/routesEvidence.test.mjs` passes as it was.
+- **`docs/backend/contracts/b08.openapi.json`**, version `b08-1`: `evidenceRead` (200, 400, 401, 500, 503), `profileRead` (strict for `home_context`, referencing b01's `HomeContext`; 200, 401, 500, 503) and `dailyMaximaRecord` (GET and POST; 200 counts, 401, 500, 503). It states the E25 hold and what a missing `home_context` means.
+- **19 fixtures** under `docs/backend/contracts/fixtures/b08/`, each a real handler's answer in the suite (fixed clock 2026-11-10, request id `b08-contract-0001`, the database session pinned to UTC). A test fails if one drifts.
+- **`test/contractsB08.test.mjs`**: one PGlite database with every migration, two households' homes and two months of maxima, then one real recorder cron run; every read through `getProfile`, the real runtime, the hook's handling and validator, the real analysis, and Trend, Patterns and Season's decisions; assertions on what the screen shows. `docs/backend/contracts/README.md` lists the scenarios.
+- **`test/helpers/frontendB08.mjs`** gains `sourceDetails`, `trendView`, `patternsRequest`, `patternsView`, `seasonRange` and `seasonView` from `WeekEvidence.tsx:24-27,31-38,43-46`, with 36 fragments drift-checked against the file at test time.
+- **Docs:** the B08 tracker rows (every one partial; the held half is implemented awaiting verification with E25 as its blocker), the B08 contract section, and `YOUR_TODO.md` Part 4 items 37 to 41 for Yogi (widen `comparison.context` to `string|null`, the `Unknown` issue time and its sort, area versus station, the hardcoded Findings unit, one browser pass with a real context id).
+
+## Verification
+
+Gate on this commit:
+
+- `node --test test/*.test.mjs`: **4,667 passed, 0 failed, 0 skipped, 0 todo**.
+- `contractsB08`: 41 tests (new). `routesEvidence`, `routesProfileContextRead` and the four `dailyMaxima*` suites pass unchanged; no test weakened or removed.
+- `npm run typecheck`: clean. `npm run lint`: **0 errors and the 6 pre-existing warnings**. `git diff --check`: clean.
+
+**Test subagent** (one, per the 2026-10-20 rule). It ran the B08 suites (174, then 178 pass) and broke a scratch copy: context from the header, a valued Pollen row, a dropped date, the profile omitting or nulling `home_context`, `complete: false`, dropped headers, a changed source label, a 93-day span accepted, the probe skipped, the window reason removed, `issued` as the retrieval time, and altered frontend lines were each caught by `contractsB08`; dropped owner and context filters, an ignored first full day and an unenforced `kind` were caught by `routesEvidence` or `dailyMaxima`. It added four tests (every refused query, including a U+2014 key and a 41-character key; the 9999-12 range; an earlier home's stored row never served; a season not yet begun). Its schema finding was acted on: `HistoryRow` now ties `source` to `factor` (Pollen and Outdoor mold `Not recorded`, Air an AirNow or CAMS label, UV the forecast label) and Air values to integers. Noted, not changed: year 0001 to 0099 dates are refused as `invalid_date` while the `LocalDate` pattern admits them (harmless); `row.context === comparison.context` is asserted by tests, not expressible in the schema.
+
+Everything runs on local fakes and PGlite. No `.env*` was read, no provider or Supabase project was contacted, and `scripts/smoke-test.mjs` was not run.
+
+## Open questions for Vibhav
+
+The plan's nine (`docs/backend/plans/b08-evidence.md`): retention for environmental history (1), modeled values under the word "daily maximum" (2), the coverage threshold and settle rule (3), shipping the recorder ahead of the branch (4), applying 0025 (5), the onboarding backfill as a separate series (6), Open-Meteo eligibility (7), the second cron entry (8), pollen in history (9). And E25 itself: merge the held read once Yogi's remount fix lands.
+
+## Next
+
+1. Merge Task 6 into the B08 branch; keep Tasks 4 to 6's read half off `vmag211/backend` until Yogi's fix (items 24, 25).
+2. Vibhav applies 0025 and deploys the recorder, so days start accumulating.
+3. After the fix, merge the held read; the controller regenerates `STATE.md` and re-measures the registry (`evidence.read` answers).
+
 ---
 
 # B07 checkpoint: privacy (status, inspect, export, clear)

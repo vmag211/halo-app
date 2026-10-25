@@ -1,0 +1,32 @@
+{
+  "operationId": "profileRead",
+  "status": 200,
+  "body": {
+    "onboarded": true,
+    "onboarding_complete": true,
+    "profile": {
+      "county": "Union County",
+      "state": "NC",
+      "zip": "28110",
+      "pwsid": "NC0129010",
+      "lat": 35.1,
+      "lng": -80.6,
+      "home_year": 1990,
+      "water_source": "well",
+      "renter_mode": false,
+      "locale": "en",
+      "onboard_request_id": null
+    },
+    "household": {
+      "has_toddler": false,
+      "has_child": false,
+      "has_teen": false,
+      "has_adult": false,
+      "has_senior": false,
+      "has_pregnant": false,
+      "has_respiratory": false
+    },
+    "household_set": false,
+    "home_context": null
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "operationId": "evidenceRead",
+  "status": 503,
+  "body": {
+    "error": "Environmental history is not available yet.",
+    "code": "feature_unavailable",
+    "message": "Environmental history is not available yet.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b08-contract-0001"
+  }
+}

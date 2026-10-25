@@ -1,0 +1,13 @@
+{
+  "operationId": "evidenceRead",
+  "status": 200,
+  "body": {
+    "rows": [],
+    "comparison": {
+      "context": null,
+      "basis": "daily maximum",
+      "version": "daily-max-v1"
+    },
+    "complete": true
+  }
+}

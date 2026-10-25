@@ -1,0 +1,31 @@
+{
+  "operationId": "profileRead",
+  "status": 200,
+  "body": {
+    "onboarded": true,
+    "onboarding_complete": true,
+    "profile": {
+      "county": "Cabarrus County",
+      "state": "NC",
+      "zip": "28025",
+      "pwsid": "NC0113010",
+      "lat": 35.409,
+      "lng": -80.58,
+      "home_year": 1975,
+      "water_source": "utility",
+      "renter_mode": false,
+      "locale": "en",
+      "onboard_request_id": null
+    },
+    "household": {
+      "has_toddler": false,
+      "has_child": false,
+      "has_teen": false,
+      "has_adult": false,
+      "has_senior": false,
+      "has_pregnant": false,
+      "has_respiratory": false
+    },
+    "household_set": false
+  }
+}
