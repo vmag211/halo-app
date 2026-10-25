@@ -1,0 +1,33 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "weekJournal",
+    "record": {
+      "id": "journal:other-device:2026-10-20:household",
+      "title": "A record",
+      "revision": 0,
+      "band": "household",
+      "severity": "bad",
+      "note": "",
+      "date": "2026-10-20",
+      "fine": false,
+      "symptoms": [
+        "Cough"
+      ],
+      "illness": false,
+      "recalled": false
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "failed",
+    "changes": {},
+    "code": "conflict",
+    "reason": "journal_day_taken",
+    "message": "A check-in for this day and group is already saved. Your draft is kept. Open that day to update it."
+  }
+}

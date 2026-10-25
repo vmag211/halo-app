@@ -1,0 +1,30 @@
+{
+  "operationId": "workspaceLoad",
+  "status": 200,
+  "request": {
+    "collection": "weekJournal"
+  },
+  "body": {
+    "records": [
+      {
+        "id": "journal:current-home:2026-10-20:household",
+        "title": "Check-in",
+        "revision": 1,
+        "date": "2026-10-20",
+        "band": "household",
+        "fine": false,
+        "symptoms": [
+          "Cough"
+        ],
+        "severity": "mild",
+        "illness": false,
+        "note": "",
+        "recalled": false,
+        "homeContextId": "0b110000-0000-4000-8000-000000000001"
+      }
+    ],
+    "availability": "ready",
+    "complete": true,
+    "pendingOperations": []
+  }
+}

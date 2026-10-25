@@ -76,7 +76,7 @@ export function homeWorkspace(service) {
       if (!Array.isArray(snapshot.pendingOperations) || !snapshot.pendingOperations.every(item => item && typeof item.operationId === 'string' && item.operationId && ['workspace', 'attachments'].includes(item.domain))) throw new Error('Pending changes could not be checked. Refresh before editing.');
       for (const item of snapshot.pendingOperations) if (!resolved.has(item.operationId) && !unknown.has(item.operationId)) unknown.set(item.operationId, { kind: 'recovered', operationId: item.operationId, domain: item.domain });
       if (unknown.size) { state.unknownOperations = [...unknown.keys()].map(operationId => ({ operationId, message: 'An earlier change needs a status check.' })); state.message = 'Check earlier changes before making another change.'; }
-      if (snapshot.availability === 'unavailable') throw new Error(snapshot.message || 'This collection is unavailable. Your saved records are unchanged.');
+      if (snapshot.availability === 'unavailable') throw Object.assign(new Error(snapshot.message || 'This collection is unavailable. Your saved records are unchanged.'), { reason: 'feature_unavailable' });
       commit({ ...state.collections, [key]: snapshot.records });
       collectionState(key, { status: 'ready', revision: snapshot.revision, complete: snapshot.complete !== false && !snapshot.nextCursor && snapshot.availability !== 'partial', message: snapshot.message });
     } catch (error) {

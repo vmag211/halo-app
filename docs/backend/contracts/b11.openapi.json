@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "HALO B11 Homeguard workspace backend contract",
-    "version": "b11-1",
-    "description": "The two operations B11 built for Homeguard and the B11 half of operations.read: workspace.load (GET /api/frontend/workspace), workspace.execute (POST /api/frontend/workspace/commands) and the workspace domain of GET /api/operations. Response schemas mirror the frontend's own validators on origin/codex/october15-review-refinement (home-service.ts, home-records.ts, explore-service.ts, adapters.ts), which refuse a whole payload or a whole collection on one wrong field; where a rule is not JSON Schema the conformance test runs the client's own compiled module instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key. Dropped, and absent here: weekJournal and homeTransitions storage (Rulings W2, W3: answered unavailable), private files (W4), the clear-private command (W9: refused), a collection revision (W6) and the attachments routes. Nothing here is a deployment or approval claim: the workspace capability is off by default and stays off until a retention period for the records is approved (Ruling W1), and migration 0026 is applied nowhere."
+    "version": "b11-2",
+    "description": "The two operations B11 built for Homeguard and the B11 half of operations.read: workspace.load (GET /api/frontend/workspace), workspace.execute (POST /api/frontend/workspace/commands) and the workspace domain of GET /api/operations. Response schemas mirror the frontend's own validators on origin/codex/october15-review-refinement (home-service.ts, home-records.ts, explore-service.ts, adapters.ts), which refuse a whole payload or a whole collection on one wrong field; where a rule is not JSON Schema the conformance test runs the client's own compiled module instead. Only statuses each handler can produce are listed. Every body is bare: none carries a top-level data key. b11-2 (2026-10-25): weekJournal is stored in the journal table (public.symptom_logs, migration 0034, lib/weekJournalStore.js) while the journal flag is on, and answered unavailable while it is off; retention decided by Vibhav: kept until the person deletes the entry, clears the journal or all records, or deletes the account. Dropped, and absent here: homeTransitions storage (Ruling W3: answered unavailable), private files (W4), the clear-private command (W9: refused), a collection revision (W6) and the attachments routes. Nothing here is a deployment or approval claim: the workspace capability is off by default and stays off until a retention period for the records is approved (Ruling W1), and migration 0026 is applied nowhere."
   },
   "security": [
     {
@@ -2800,6 +2800,95 @@
           "history"
         ]
       },
+      "Record_weekJournal": {
+        "description": "A My Week check-in (migration 0034), exactly as the client's validProductionRecord('weekJournal') accepts it (home-records.ts). Stored as a symptom_logs row: date is entry_date, band the group without its has_ prefix, recalled is retrospective, illness is possibly_illness, an empty severity or note is null in the table. fine is true exactly when the entry has no symptoms and no rating. title is not stored and reads back as Check-in. id is the app id the device sent, or journal:<date>:<group> for an entry written before 0034. homeContextId is present when the entry names the home it was made for.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "homeContextId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional."
+          },
+          "band": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "severity": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
+            "description": "An empty string, or a calendar date YYYY-MM-DD (the client also refuses an impossible date)."
+          },
+          "fine": {
+            "type": "boolean"
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 30000
+            },
+            "maxItems": 2000
+          },
+          "illness": {
+            "type": "boolean"
+          },
+          "recalled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "band",
+          "severity",
+          "note",
+          "date",
+          "fine",
+          "symptoms",
+          "illness",
+          "recalled"
+        ],
+        "if": {
+          "properties": {
+            "fine": {
+              "const": true
+            }
+          },
+          "required": [
+            "fine"
+          ]
+        },
+        "then": {
+          "properties": {
+            "symptoms": {
+              "maxItems": 0
+            }
+          }
+        }
+      },
       "Record": {
         "description": "One stored row of any collection. The load of a named collection is held to that collection's Record_<name> schema by the conformance suite (a query parameter cannot select a schema in OpenAPI).",
         "anyOf": [
@@ -2844,11 +2933,14 @@
           },
           {
             "$ref": "#/components/schemas/Record_exploreEngagements"
+          },
+          {
+            "$ref": "#/components/schemas/Record_weekJournal"
           }
         ]
       },
       "Changes": {
-        "description": "A complete canonical replacement of each collection a command touched, never client-computed (home-service.ts:23). A write names its collection; a remove its collection (a removed note also names exploreOutcomes); remove-notes names exploreNotes and exploreOutcomes. The client refuses the whole receipt unless every key matches ^[a-zA-Z][a-zA-Z0-9]{0,79}$ and every list is valid with unique ids (validHomeChanges). Only the fourteen stored collections ever appear.",
+        "description": "A complete canonical replacement of each collection a command touched, never client-computed (home-service.ts:23). A write names its collection; a remove its collection (a removed note also names exploreOutcomes); remove-notes names exploreNotes and exploreOutcomes. The client refuses the whole receipt unless every key matches ^[a-zA-Z][a-zA-Z0-9]{0,79}$ and every list is valid with unique ids (validHomeChanges). Only the fourteen workspace collections ever appear, and weekJournal (the newest 1,000 entries) while the journal flag is on.",
         "type": "object",
         "properties": {
           "tests": {
@@ -2948,6 +3040,13 @@
               "$ref": "#/components/schemas/Record_exploreEngagements"
             },
             "maxItems": 1000
+          },
+          "weekJournal": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record_weekJournal"
+            },
+            "maxItems": 1000
           }
         },
         "additionalProperties": false
@@ -3036,7 +3135,7 @@
             "additionalProperties": false
           },
           {
-            "description": "weekJournal (Ruling W2) and homeTransitions (Ruling W3): never stored. The provider records pendingOperations BEFORE it throws message as the collection's error, so the lock still applies.",
+            "description": "homeTransitions (Ruling W3): never stored; weekJournal while the journal flag is off (or before migration 0034). The provider records pendingOperations BEFORE it settles the collection as not available yet (no retry: the answer is the server's word, not a failure), so the lock still applies.",
             "type": "object",
             "properties": {
               "records": {
@@ -3064,6 +3163,36 @@
               "availability",
               "complete",
               "message",
+              "pendingOperations"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "weekJournal only, with the journal flag on: more than 1,000 entries are kept, and the newest 1,000 are answered with complete false. The provider holds them (ready, not complete).",
+            "type": "object",
+            "properties": {
+              "records": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": {
+                  "$ref": "#/components/schemas/Record_weekJournal"
+                }
+              },
+              "availability": {
+                "const": "partial"
+              },
+              "complete": {
+                "const": false
+              },
+              "pendingOperations": {
+                "$ref": "#/components/schemas/PendingOperations"
+              }
+            },
+            "required": [
+              "records",
+              "availability",
+              "complete",
               "pendingOperations"
             ],
             "additionalProperties": false
@@ -3310,7 +3439,7 @@
         "additionalProperties": false
       },
       "WorkspaceReceiptRefused": {
-        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference, limit and project_guide_locked are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. project_guide_locked (B16 Ruling J13) refuses an update of an exploreProjects record whose guide, guideId or guideVersion differs from the stored record's: the sourced guide a project was started with is a snapshot, and the person's own fields (status, review date, step notes, history, goal, outcome) still save. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7). changed_elsewhere (Ruling W15) is the one reason that is computed, never stored: a REPLAY of a save that succeeded finds the record it saved gone (deleted on another device since), or a record it removed back. The ledger keeps no record content, so no succeeded receipt could show the saved record, and the client would stay locked on one it cannot settle; this failed receipt resolves the operation instead, with a sentence that tells the person to reload.",
+        "description": "A command refused, answered 200 so the client keeps its draft and no lock (a 5xx would lock it): status failed, changes {}, and a code, a stable reason and a fixed sentence per reason (no value is interpolated, so a stored reason can never replay text a person typed). stale_revision, notes_changed, invalid_reference, limit, project_guide_locked and journal_day_taken are decided against stored state inside the claim, are recorded on the ledger as the reason only, and replay the same body. project_guide_locked (B16 Ruling J13) refuses an update of an exploreProjects record whose guide, guideId or guideVersion differs from the stored record's: the sourced guide a project was started with is a snapshot, and the person's own fields (status, review date, step notes, history, goal, outcome) still save. journal_day_taken (migration 0034) refuses a weekJournal write whose date and group another entry already holds: the journal keeps one entry per day and group, whichever device or home made it. The others are decided before any claim, and record nothing: invalid_record (the record fails the client's row check, or holds U+0000 or a lone surrogate, or is nested too deeply), attachments_unavailable (W4), clear_unsupported (W9), week_journal_unavailable (W2, while the journal flag is off), home_transitions_unavailable (W3). limit is also answered before any claim for a record over 262,144 bytes as JSON (Ruling W7). changed_elsewhere (Ruling W15) is the one reason that is computed, never stored: a REPLAY of a save that succeeded finds the record it saved gone (deleted on another device since), or a record it removed back. The ledger keeps no record content, so no succeeded receipt could show the saved record, and the client would stay locked on one it cannot settle; this failed receipt resolves the operation instead, with a sentence that tells the person to reload.",
         "type": "object",
         "properties": {
           "operationId": {
@@ -3336,6 +3465,7 @@
               "invalid_reference",
               "limit",
               "project_guide_locked",
+              "journal_day_taken",
               "invalid_record",
               "attachments_unavailable",
               "clear_unsupported",
@@ -3464,6 +3594,28 @@
                 },
                 "message": {
                   "const": "The guide of a started project cannot be changed. Nothing was saved. Your draft is kept. Reload the project, then save your own changes again."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "journal_day_taken"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "A check-in for this day and group is already saved. Your draft is kept. Open that day to update it."
                 }
               }
             }
@@ -3686,7 +3838,8 @@
                 "exploreNotes",
                 "exploreOutcomes",
                 "exploreProjects",
-                "exploreEngagements"
+                "exploreEngagements",
+                "weekJournal"
               ]
             },
             "uniqueItems": true
@@ -3711,7 +3864,8 @@
                     "exploreNotes",
                     "exploreOutcomes",
                     "exploreProjects",
-                    "exploreEngagements"
+                    "exploreEngagements",
+                    "weekJournal"
                   ]
                 },
                 "id": {
@@ -3751,7 +3905,8 @@
                     "exploreNotes",
                     "exploreOutcomes",
                     "exploreProjects",
-                    "exploreEngagements"
+                    "exploreEngagements",
+                    "weekJournal"
                   ]
                 },
                 "id": {
@@ -3789,7 +3944,7 @@
         "additionalProperties": false
       },
       "WorkspaceOperationRefused": {
-        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference, limit or project_guide_locked): the stored reason, with the code and sentence that reason names and changes: {}. Also changed_elsewhere (Ruling W15), computed on read and never stored: the ledger says succeeded, but the record the save wrote was since deleted on another device (or a record it removed is back). The ledger keeps no record content, so no succeeded receipt could show the saved record and the client would stay locked; status is therefore answered failed (the one case where it differs from the ledger), with the sentence to reload.",
+        "description": "A save refused against stored state (stale_revision, notes_changed, invalid_reference, limit, project_guide_locked or journal_day_taken): the stored reason, with the code and sentence that reason names and changes: {}. Also changed_elsewhere (Ruling W15), computed on read and never stored: the ledger says succeeded, but the record the save wrote was since deleted on another device (or a record it removed is back). The ledger keeps no record content, so no succeeded receipt could show the saved record and the client would stay locked; status is therefore answered failed (the one case where it differs from the ledger), with the sentence to reload.",
         "type": "object",
         "properties": {
           "operationId": {
@@ -3819,6 +3974,7 @@
               "invalid_reference",
               "limit",
               "project_guide_locked",
+              "journal_day_taken",
               "changed_elsewhere"
             ]
           },
@@ -3959,6 +4115,28 @@
                 },
                 "message": {
                   "const": "The guide of a started project cannot be changed. Nothing was saved. Your draft is kept. Reload the project, then save your own changes again."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "journal_day_taken"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                },
+                "message": {
+                  "const": "A check-in for this day and group is already saved. Your draft is kept. Open that day to update it."
                 }
               }
             }

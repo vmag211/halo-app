@@ -408,7 +408,8 @@ test('the header, the file and the manifest: every selected table counted, home_
     assert.ok(Number.isSafeInteger(counts[part.group][part.table]), `${part.group}.${part.table} is not counted`);
   }
   assert.ok(document.manifest.warnings.includes(INVENTORY_COPY.homeRisksWarning));
-  assert.ok(document.manifest.warnings.includes(EXPORT_COPY.weekJournalNotExported));
+  // Since 0034 the week journal is symptom_logs, exported above: no "not stored" warning.
+  assert.ok(!document.manifest.warnings.some((warning) => /not stored on the server/.test(warning)));
   const omitted = Object.fromEntries(document.manifest.omitted.map((item) => [item.table, item.reason]));
   for (const table of ['operations', 'recovery_challenges', 'household_action_state']) {
     assert.equal(omitted[table], PRIVACY_INVENTORY[table].export.excluded);
@@ -1271,7 +1272,7 @@ test('the journal preview: symptom logs and season summaries under journal, the 
   assert.equal(clearTotal({ symptom_logs: 4, alerts: 2 }), 6);
   assert.ok(preview.keep.includes(EXPORT_COPY.keepOutsideJournal));
   assert.ok(preview.keep.includes(EXPORT_COPY.keepLogin) && preview.keep.includes(EXPORT_COPY.keepReceipt));
-  assert.deepEqual(preview.notStored, [INVENTORY_COPY.weekJournalNotStored]);
+  assert.deepEqual(preview.notStored, [], 'every journal entry is in symptom_logs since 0034, so nothing is outside the clear');
   assert.deepEqual(preview.limits, [EXPORT_COPY.limitDownloads, EXPORT_COPY.limitBackups]);
   assert.ok(!('after' in preview));
   assert.deepEqual(buildClearPreview({ scope: 'journal', counts: { symptom_logs: 0, alerts: 0 } }).remove, { journal: 0 });
