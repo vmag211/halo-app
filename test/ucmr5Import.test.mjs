@@ -65,3 +65,10 @@ test('a file without a required column is refused, and one without Units or MRL 
   const [u] = parseUcmr5Lines(legacy).utilities;
   assert.deepEqual(u.contaminants, { PFOA: [{ date: '1/1/2024', non_detect: true, reporting_limit_ppt: null }], PFOS: [{ date: '1/1/2024', value_ppt: 2 }] });
 });
+
+test('a Latin-1 µ read as UTF-8 (U+FFFD) still counts as µg/L, as in the EPA file', () => {
+  const lines = [header, row('NC0000009', 'Latin Water', '7/1/2025', 'PFOS', '0.004', '\uFFFDg/L', '=', '0.0081'), row('NC0000009', 'Latin Water', '7/1/2025', 'PFOA', '0.004', '\uFFFDg/L', '<', '')];
+  const { utilities, stats } = parseUcmr5Lines(lines);
+  assert.equal(stats.skipped_units, 0);
+  assert.deepEqual(utilities[0].contaminants, { PFOS: [{ date: '7/1/2025', value_ppt: 8.1 }], PFOA: [{ date: '7/1/2025', non_detect: true, reporting_limit_ppt: 4 }] });
+});
