@@ -67,3 +67,5 @@ can remove while clear all fails: the saved summary `0aee97c0-d5bb-4a89-8abe-a9a
 ("Household review", quoting "QA release B water test") and the project idea set
 `1574aff5-1861-4ca9-96d8-2df077cb19f5`. B also reproduces the clear-all 500. Both anonymous
 households and their onboarding homes remain.
+
+**Update 2026-10-25, after migration 0036 (PR #39, `profiles.address`):** home and preferences inspect and the clear-all review now answer 200 for A and B. Settings > Privacy & data > Clear all app records ran in the UI for both (`privacy.clear` `succeeded`, scope `all`). A second full export of all six groups for each holds no summary, no project set and no "QA release" text, and the summary and project reads are empty. No test records are kept.
