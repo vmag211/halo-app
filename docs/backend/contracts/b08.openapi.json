@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "HALO B08 evidence backend contract",
-    "version": "b08-1",
-    "description": "What B08 built (docs/backend/plans/b08-evidence.md): evidence.read, GET /api/evidence (app/api/evidence/route.js), the recorded environmental history Patterns and Season compare check-ins with (components/expanded/WeekEvidence.tsx through useProductionHistory in components/production/WeekSources.tsx); the additive home_context of GET /api/profile (Ruling E20), from which the client takes the home context id the history is checked against (components/production/ProductionApp.tsx:41); and the daily maxima recorder cron, GET|POST /api/cron/daily-maxima, whose answer is counts only. HELD (ruling E25): GET /api/evidence and the profile's home_context are built and tested here but are not merged into the backend branch, because emitting home_context makes the frontend remount on a revision change and drop unsaved drafts (YOUR_TODO.md Part 4 items 24 and 25). Until the frontend's remount fix, production has neither, and every Patterns and Season screen shows \"Environmental history is unavailable.\" The recorder is merged and records from the day it first runs. The response schema follows the frontend's validator (WeekSources.tsx:8), which drops the whole snapshot and shows \"History could not be verified.\" on one wrong field; test/contractsB08.test.mjs runs that validator, the real runtime and the screen's own decisions on every real answer. Every body is bare: none carries a top-level data key, which runtime.ts:149-153 would unwrap. No U+2014 anywhere. Nothing here is a deployment, a provider right or an approval claim, and nothing has run against a real Supabase project.",
+    "version": "b08-2",
+    "description": "What B08 built (docs/backend/plans/b08-evidence.md): evidence.read, GET /api/evidence (app/api/evidence/route.js), the recorded environmental history Patterns and Season compare check-ins with (components/expanded/WeekEvidence.tsx through useProductionHistory in components/production/WeekSources.tsx); the additive home_context of GET /api/profile (Ruling E20), from which the client takes the home context id the history is checked against (lib/frontend/production/home-scope.ts observeHome, used by components/production/ProductionApp.tsx); and the daily maxima recorder cron, GET|POST /api/cron/daily-maxima, whose answer is counts only. Version b08-2 (2026-10-25) ships evidence.read: ruling E25 is resolved by Vibhav's decision of 2026-10-25 to ship with the frontend's remount fix, so the app remounts only on a genuine home transition and keeps the last known home when a re-read omits home_context (YOUR_TODO.md Part 4 items 24 and 25). The schema is unchanged from b08-1. The recorder records from the day it first runs. The response schema follows the frontend's validator (WeekSources.tsx:8), which drops the whole snapshot and shows \"History could not be verified.\" on one wrong field; test/contractsB08.test.mjs runs that validator, the real runtime and the screen's own decisions on every real answer. Every body is bare: none carries a top-level data key, which runtime.ts:149-153 would unwrap. No U+2014 anywhere. Nothing here is a deployment, a provider right or an approval claim, and nothing has run against a real Supabase project.",
     "x-halo-rulings": {
       "E1": "The history is built from public.daily_maxima only (migration 0025), written by the recorder from each completed day's hourly provider series. daily_scores (app-time observations and the onboarding backfill) is never read, relabelled or served.",
       "E7": "Air and UV are recorded. Pollen and Outdoor mold are never recorded: every date carries value null with their reason.",
@@ -16,7 +16,7 @@
       "E16": "issued is 'Unknown' on every row: neither AirNow's hourly data nor Open-Meteo publishes an issue time, and retrieval time is never substituted. The screen prints \"Issued Unknown.\" and \"Latest issue: Unknown\".",
       "E18": "complete: true means nothing was withheld (the bounded range is read whole), not that every date has a value.",
       "E20": "GET /api/profile adds home_context, the current home in the PATCH's shape, or null when there is none. A MISSING home_context key means migration 0016 is not applied or the context read failed (logged); the profile is still answered, and the client's context id is then null.",
-      "E25": "evidence.read and the profile's home_context are held from the backend branch until the frontend keys ConnectedApp on identity and context id only (or keeps drafts across a remount) and keeps the last known context id when a re-read omits home_context."
+      "E25": "Resolved 2026-10-25 (Vibhav: ship with a remount fix). The frontend keys ConnectedApp on identity and a home scope epoch that rises only on a genuine home transition (another id, a known home going away, a first home where there was none, or the same id's revision rising with a different point). A first appearance of home_context that agrees with what was known, an in-place attribute save and a re-read that omits home_context keep the scope, its drafts and its runtime scope key; the runtime's homeContextId still follows the profile (lib/frontend/production/home-scope.ts)."
     }
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -30,7 +30,6 @@
       "get": {
         "operationId": "evidenceRead",
         "x-halo-operation": "evidence.read",
-        "x-halo-held": "E25",
         "summary": "The recorded daily maxima of the caller's current home for a date range",
         "description": "Called by the real client as runtime.request('evidence.read',{kind:'history',from,to}) (WeekSources.tsx:6), which builds ?kind=history&from=...&to=... with URLSearchParams (runtime.ts:125-128). Patterns asks for today - 83 to today (WeekEvidence.tsx:31); Season asks for the season's first day to the earlier of its last day and today (WeekEvidence.tsx:43). No outbound network call is made. Headers: X-Request-Id on every answer, Cache-Control private, no-store on the 200.",
         "parameters": [
@@ -160,8 +159,7 @@
       "get": {
         "operationId": "profileRead",
         "x-halo-operation": null,
-        "x-halo-client": "lib/frontend/stage-api.ts getProfile, read by components/stage/StageSession.tsx; ProductionApp.tsx:41 takes home_context.id",
-        "x-halo-held": "E25",
+        "x-halo-client": "lib/frontend/stage-api.ts getProfile, read by components/stage/StageSession.tsx; lib/frontend/production/home-scope.ts observeHome takes home_context.id for ProductionApp.tsx",
         "summary": "The household's profile, with the additive home_context (E20)",
         "description": "Only the B08 addition is documented strictly: home_context. The legacy keys are as they were (onboarded, onboarding_complete, profile, household, household_set, and unavailable with reason household_unavailable when the composition read failed). home_context is the current home in the PATCH's shape (lib/homeContext.js contextSummary; the b01 HomeContext schema), or null when the household has no current home. A missing key means migration 0016 is not applied or the context read failed (logged with the request id, no coordinates); the profile is still a 200, and the client's context id is then null, so its evidence check passes only the E12 body. The PATCH is unchanged.",
         "responses": {

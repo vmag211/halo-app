@@ -11,12 +11,13 @@ export function createActionAdapter(runtime:ProductionRuntime):ExpandedActionAda
   async reconcile(operationId,signal){return receipt(await runtime.request<ActionReceipt>('operations.read',{operationId,domain:'actions'},{signal}),operationId);}
  };
 }
-export function createHomeAdapter(runtime:ProductionRuntime,context:HomeWorkspaceContext):HomeWorkspaceService {
+/** `scopeKey` keys the workspace session (its drafts): the caller may hold it fixed across an in-place home save (home-scope.ts, E25). */
+export function createHomeAdapter(runtime:ProductionRuntime,context:HomeWorkspaceContext,scopeKey=runtime.scopeKey):HomeWorkspaceService {
  const attachment=(value:HomeAttachment)=>{if(!value||typeof value.id!=='string'||!Number.isSafeInteger(value.revision)||value.revision<1||typeof value.name!=='string'||typeof value.mime!=='string'||!Number.isFinite(value.bytes)||value.bytes<1||!['quarantined','ready','rejected'].includes(value.status)||typeof value.metadataRemoved!=='boolean')throw invalid();return value;};
  const receipt=(value:HomeWorkspaceReceipt,id:string)=>{if(!value||value.operationId!==id||!['succeeded','failed','pending','unknown'].includes(value.status)||!validHomeChanges(value.changes))throw invalid();return value;};
  const resources:Record<string,string>={'fish-catalogue':'fish.read','food-evidence':'food.search','grower-resources':'growers.search','water-stewardship':'water.read','published-food-evidence':'food.search'};
  return {
-  scopeKey:runtime.scopeKey,context,
+  scopeKey,context,
   attachments:{
    async upload(input,signal,progress){if(!input.reviewed||input.collection!=='tests'&&!input.metadataRemoved)throw new FrontendServiceError('validation','Review a metadata-free file before uploading.');const data=new FormData();data.set('file',input.file,input.name);data.set('collection',input.collection);data.set('recordId',input.recordId);data.set('metadataRemoved',String(input.metadataRemoved));data.set('reviewed','true');data.set('operationId',input.operationId);progress?.(0);const value=attachment(await runtime.request<HomeAttachment>('attachments.upload',data,{signal,idempotencyKey:input.operationId}));progress?.(1);return value;},
    async inspect(id,signal){return attachment(await runtime.request<HomeAttachment>('attachments.inspect',{id},{signal}));},

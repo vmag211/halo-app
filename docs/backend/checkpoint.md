@@ -55,6 +55,8 @@ Rulings marked proposed in the plan wait for you: W1 (retention and the flag), W
 
 Date: 2026-10-20. Branch: the B08 Task 6 worktree branch, on `b64d57e` (Tasks 4 and 5, held) with `vmag211/backend` merged in. Plan: `docs/backend/plans/b08-evidence.md`. Rulings E1 to E25. Nothing here is a deployment, provider or approval claim. `docs/backend/STATE.md` is not updated by this task; the controller regenerates it.
 
+**Update 2026-10-25: shipped.** Ruling E25 is resolved by Vibhav's decision of 2026-10-25 to ship with a remount fix. Branch `vmag211/evidence-history` merges this work onto main (which had already made the profile GET emit `home_context` in 095ff92; the merge keeps this branch's `null` for no home). `lib/frontend/production/home-scope.ts` keys `ConnectedApp` on identity and an epoch that rises only on a genuine home transition, keeps the last known home when a re-read omits the key, and keeps the workspace session's key (its drafts) across an in-place save while the runtime takes the new revision. Contract `b08-2` (schema unchanged). No flag, no new migration. Where this section says "held" below, read it as history.
+
 ## Five things a reader would otherwise assume wrongly
 
 1. **The read is held (ruling E25).** `GET /api/evidence` and `GET /api/profile`'s additive `home_context` are built and proved, but are not merged into `vmag211/backend`. Emitting `home_context` makes the frontend remount `ConnectedApp` (keyed on the context revision, `ProductionApp.tsx:35`) and lose unsaved drafts, so both wait for Yogi (`YOUR_TODO.md` Part 4 items 24 and 25). Until then Patterns and Season say "Environmental history is unavailable."

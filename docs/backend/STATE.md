@@ -16,6 +16,13 @@ but run any build in a scratch worktree anyway: `next build` auto-loads `.env.lo
 forbids reading (it last passed with placeholder Supabase variables on 2026-10-19; not re-run since the
 lazy-client change).
 
+**2026-10-25, B08 ships (branch `vmag211/evidence-history`, not yet merged to main).** Ruling E25 is
+resolved by Vibhav's decision of 2026-10-25 to ship the held evidence history with a remount fix:
+`GET /api/evidence` (`evidence.read`, contract `b08-2`) and `GET /api/profile`'s `home_context` (`null`
+when there is no current home) are merged with the frontend fix in `lib/frontend/production/home-scope.ts`.
+No flag and no new migration: the route reads 0016 (`home_contexts`) and 0025 (`daily_maxima`), both
+applied. With it, 64 of the 72 operations below have a route and 29 answer with nothing to turn on.
+
 ## What exists
 
 81 route files under `app/api` on `vmag211/backend`, exporting 98 method handlers. The frontend
@@ -68,8 +75,8 @@ are what show that. The 28 that answer now, by the package that made them answer
 
 The 9 with no route: `capabilities.read`, `community.read` and `map.brief` (dropped on purpose),
 `luna.proposal.edit`, `luna.proposal.cancel`, `luna.operation` and `luna.confirm` (Vibhav's Option A,
-2026-10-18: Luna does not act), `recovery.complete` (deferred by Vibhav) and `evidence.read` (built, held
-by E25 on `origin/vmag211/b08-evidence-held`). The reasons are in the table under "What is deliberately
+2026-10-18: Luna does not act), `recovery.complete` (deferred by Vibhav) and `evidence.read` (built; it
+ships on `vmag211/evidence-history`, E25 resolved 2026-10-25, see B08). The reasons are in the table under "What is deliberately
 not built". The count was 14 of 72 on 2026-10-18, and the frontend closeout note's 68 operations is four
 short.
 
@@ -78,7 +85,8 @@ short.
 a route landing at the declared path and method with a body the validator accepts makes an operation live
 with no frontend edit. That file says so itself: "These are explicit frontend contracts, not claims that
 the backend implements them." Two exceptions need frontend work: recovery needs the client to send a
-Turnstile token field, and `evidence.read` is built but held (ruling E25, see B08 below).
+Turnstile token field, and `evidence.read` needed the remount fix of ruling E25 (done 2026-10-25, see B08
+below).
 
 The two halves are now in one tree (`1253025`), but **nothing has yet been driven end to end through a
 browser**. The per-package conformance tests run the real handlers against the frontend's own code: since
@@ -106,7 +114,7 @@ Done 2026-10-20: `next build` needs no secrets (Supabase and Redis clients are b
 | B05 discovery and summaries | Complete except what was dropped, blocked or gated, see below. Four operations built, two map routes fixed, contract `b05-2` |
 | B06 My Week (tasks) | Complete. `actions.load`, `actions.commit`, `week.changes`, `week.acknowledge` and the `actions` reconcile, migration 0023, contract `b06-1`, Rulings H1 to H33. `actions.*` behind the `tasks` flag; task retention decided 2026-10-19, so the flag may be turned on once 0023 is applied; the week strip is ungated |
 | B07 privacy | Complete. `privacy.status`, `privacy.inspect`, `privacy.export`, `privacy.clear`, migration 0024, contract `b07-1`, Rulings P1 to P18. Off until 0024 is applied and `HALO_PRIVACY_REVIEW_KEY` is set (no flag); clear all is not account deletion |
-| B08 evidence | Partly merged. Merged: migration 0025 (`daily_maxima`), the method, and the recorder cron `GET\|POST /api/cron/daily-maxima` (`vercel.json`, 12:00 UTC). **Built but held, unmerged, on `origin/vmag211/b08-evidence-held`:** `GET /api/evidence`, `GET /api/profile`'s additive `home_context`, and Task 6 (contract `b08-1`, `docs/backend/contracts/b08.openapi.json`, client-path conformance over PGlite and a real recorder run, tracker and checkpoint rows; head `45bd933`, on top of `f2b49e3`). Ruling E25: emitting `home_context` makes the frontend remount (`ProductionApp.tsx:35` keys on the revision) and drop unsaved drafts, so the branch waits for Yogi (`YOUR_TODO.md` Part 4 items 24 and 25) |
+| B08 evidence | Complete on `vmag211/evidence-history` (2026-10-25), awaiting merge. Merged earlier: migration 0025 (`daily_maxima`, applied in production), the method, and the recorder cron `GET\|POST /api/cron/daily-maxima` (`vercel.json`, 12:00 UTC, running). Now merged onto main from `origin/vmag211/b08-evidence-held` (`45bd933`): `GET /api/evidence`, `GET /api/profile`'s `home_context` (main's 095ff92 already emitted it, so the remount was live; the merge answers `null` for no home, as the contract says), and Task 6 (contract now `b08-2`, `docs/backend/contracts/b08.openapi.json`, client-path conformance over PGlite and a real recorder run). No flag, no new migration. **Ruling E25 resolved by Vibhav's decision of 2026-10-25 (ship with a remount fix):** `lib/frontend/production/home-scope.ts` keys `ConnectedApp` on identity and a scope epoch that rises only on a genuine home transition (another id, a known home going away, a first home where there was none, the same id at another point); an in-place home save, a first appearance of `home_context` that agrees with what was known, and a re-read that omits it keep the app and the workspace session's drafts. The runtime's `homeContextId` and scope key still follow the profile (`X-Halo-Home-Context`, the history check, projects J10). Tests: `test/frontend-home-scope.test.mjs`, `test/ui/production-home-scope.spec.ts` (`YOUR_TODO.md` Part 4 items 24 and 25) |
 | B09 Luna household context | Planned, not built (`plans/b09-luna-context.md`); household context stays off by decision 2 |
 | B10 forecast | Complete. Task 5 (branch `vmag211/airnow-forecast`, 2026-10-25) built the AirNow adapter on AirNow's Current Forecasts service from the public record (`docs/backend/decisions/airnow-forecast-docs.md`; the per-service page needs a login). `forecast.read`, contract `b10-2` (adds each period's `airDaily`). No migration |
 | B11 Homeguard workspace | Complete. `workspace.load`, `workspace.execute` and a `workspace` overlay on `GET /api/operations`; migration 0026 (`household_workspace_records`, the read and commit functions, the privacy clear trigger); contract `b11-2` (was `b11-1`), Rulings W1 to W15. Fourteen collections stored; `homeTransitions` answers unavailable by design. `weekJournal` (My Week's Journal, Patterns and Season): since 2026-10-25 stored in the existing journal table `symptom_logs` through `lib/weekJournalStore.js` and migration 0034 (written, applied nowhere), behind flag `HALO_FEATURE_JOURNAL` (off; needs `workspace` too), contract `b11-2`; retention decided by Vibhav (kept until deleted, no purge); while off it answers unavailable and the screen says "not available yet" with no retry. Behind flag `HALO_FEATURE_WORKSPACE`, off. Plan `plans/b11-homeguard-workspace.md` |
@@ -228,7 +236,6 @@ listing content B18 serves). The bullets below hold the detail.
 | `luna.proposal.edit`, `luna.proposal.cancel`, `luna.confirm`, `luna.operation` | Not built, by ruling | Luna answers and cites but does not act, so there is nothing to propose, confirm or track |
 | `recovery.complete` | Deferred by Vibhav | Recovery completion waits until after the competition (decision 5); the flag stays off |
 | `capabilities.read`, `community.read`, `map.brief` | Dropped | No consumer, validator or type on the frontend ref |
-| `evidence.read` | Built, held | Ruling E25: emitting `home_context` remounts the frontend and drops drafts; on `origin/vmag211/b08-evidence-held` until Yogi's fix |
 | AirNow forecast (B10 Task 5) | Built, not live-verified | Built on recorded third-party payloads; Vibhav to compare with the logged-in docs page and send the data-use notice (`YOUR_TODO.md` Part 3 item 10). Without `AIRNOW_API_KEY` air shows "not checked" |
 
 - **Account recovery cannot complete end to end.** Vibhav stopped the package on 2026-10-18 to move to
@@ -249,11 +256,11 @@ listing content B18 serves). The bullets below hold the detail.
   validator, and the mechanism is harmful on reads, since `runtime.ts` refuses to dispatch an operation
   whose `enabled` is false, so a disabled read leaves the UI's snapshot null forever. The working pattern
   is the per-domain `{enabled, reason}` snapshot on `GET /api/account`.
-- **`GET /api/evidence` is built but held, not merged** (it was dropped until the provenance conflict was
-  decided). Its validator accepts only a `daily maximum` basis while `daily_scores` holds app-time
-  observations, so B08 serves only `daily_maxima` and never relabels `daily_scores`. Both it and
-  `GET /api/profile`'s `home_context` wait on ruling E25 (see the B08 row); until then `evidence.read`
-  has no route and the app shows its own empty state.
+- **`GET /api/evidence` serves only recorded daily maxima.** Its validator accepts only a `daily maximum`
+  basis while `daily_scores` holds app-time observations, so B08 serves only `daily_maxima` and never
+  relabels `daily_scores`. It and `GET /api/profile`'s `home_context` were held by ruling E25 until
+  Vibhav's 2026-10-25 decision to ship with the remount fix (see the B08 row). History starts at the
+  recorder's first run; earlier dates read Unavailable with their reason.
 - **B05 dropped `community.read` and `map.brief`** (no consumer, validator or type on the frontend ref),
   and **blocked `organizations.search`** (no participation content, a disjoint cause vocabulary, no
   stated meaning for `complete`; B18 later built its routes, see its row). The summaries trio, blocked

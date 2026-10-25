@@ -8,8 +8,8 @@
  *                         (createLiveStageApi().getProfile), run for real through the loader;
  *   the session gate      components/stage/StageSession.tsx:137-140 (isProfileComplete, then
  *                         setProfile), with the real isProfileComplete;
- *   the context id        components/production/ProductionApp.tsx:41-42, transcribed verbatim
- *                         (the two lines are compared with the file at test time);
+ *   the context id        lib/frontend/production/home-scope.ts (observeHome, nextHomeScope), run
+ *                         for real, as components/production/ProductionApp.tsx uses it;
  *   the runtime           lib/frontend/production/runtime.ts:99-106 (createProductionRuntime),
  *                         run for real;
  *   the declared shape    lib/frontend/types.ts:20, `home_context?: {id, revision?} | null`.
@@ -35,6 +35,7 @@ const { contextSummary } = await import('@/lib/homeContext');
 const { createLiveStageApi } = await loadFrontend('stage-api');
 const { isProfileComplete } = await loadFrontend('onboarding');
 const { createProductionRuntime } = await loadFrontend('production/runtime');
+const { observeHome, nextHomeScope } = await loadFrontend('production/home-scope');
 
 const ALICE_HOME = 'a11ce000-2222-4000-8000-000000000001';
 const ALICE_EARLIER_HOME = 'a11ce000-2222-4000-8000-000000000009';
@@ -99,16 +100,17 @@ const currentRow = (h, id) => h.db.rows('home_contexts').find((row) => row.id ==
 
 // ---------------------------------------------------------------- the client, run and transcribed
 
-// F: components/production/ProductionApp.tsx:41-42, verbatim (leading space trimmed).
-const HOME_ID_LINE = 'const homeId=session.profile?.home_context?.id??session.profile?.profile?.home_context_id??null;';
-const REVISION_LINE = 'const currentContextRevision=session.profile?.home_context?.revision??session.profile?.profile?.context_revision;';
-// Runs the transcribed client lines exactly as written.
-const derive = new Function('session', `${HOME_ID_LINE}\n${REVISION_LINE}\nreturn { homeId, currentContextRevision };`);
+// ProductionApp.tsx's SessionBoundary, run for real: the home scope from the profile
+// (lib/frontend/production/home-scope.ts), whose id and anchor build the runtime.
+function derive(session, identity) {
+  const scope = nextHomeScope(null, identity, observeHome(session.profile));
+  return { homeId: scope.id ?? null, currentContextRevision: scope.revision };
+}
 
-test('drift: the transcribed context id lines are still the ones ProductionApp.tsx runs', () => {
-  const source = readFileSync(path.join(REPO_ROOT, 'components/production/ProductionApp.tsx'), 'utf8').split('\n').map((line) => line.trim());
-  assert.equal(source[40], HOME_ID_LINE, 'ProductionApp.tsx:41 changed; re-transcribe it');
-  assert.equal(source[41], REVISION_LINE, 'ProductionApp.tsx:42 changed; re-transcribe it');
+test('drift: ProductionApp.tsx still scopes the runtime with home-scope.ts, and the declared shape is unchanged', () => {
+  const source = readFileSync(path.join(REPO_ROOT, 'components/production/ProductionApp.tsx'), 'utf8');
+  assert.ok(source.includes('const scope=identity?nextHomeScope(homeScope,identity,observeHome(session.profile)):homeScope;'));
+  assert.ok(source.includes('homeId={scope.id??null} homeRevision={scope.revision}') && source.includes('homeContextId:homeId,contextRevision:homeRevision,'));
   assert.match(readFileSync(path.join(REPO_ROOT, 'lib/frontend/types.ts'), 'utf8').split('\n')[19], /home_context\?: \{ id: string; revision\?: number; \[key: string\]: unknown \} \| null;/);
 });
 
@@ -130,7 +132,7 @@ async function clientState(h, as = 'alice') {
   const value = await api.getProfile();
   assert.equal(isProfileComplete(value), true, 'StageSession.tsx:137 keeps the profile');
   const session = { profile: value };
-  const { homeId, currentContextRevision } = derive(session);
+  const { homeId, currentContextRevision } = derive(session, identity.id);
   const runtime = createProductionRuntime({
     active: () => true, writeAllowed: () => true, identityId: identity.id, homeContextId: homeId, contextRevision: currentContextRevision,
     credential: async () => ({ identityId: identity.id, accessToken: identity.token }),

@@ -2,18 +2,18 @@
  * B08 evidence.read: the executable contract, and conformance of the REAL handlers to it and to
  * the frontend's own consumption logic (B08 Task 6; docs/backend/plans/b08-evidence.md).
  *
- * HELD (ruling E25): GET /api/evidence and the profile's home_context are built and proved here,
- * but are not merged into the backend branch until the frontend's remount fix (YOUR_TODO.md
- * Part 4 items 24 and 25). The recorder cron is merged.
+ * Shipped (contract b08-2): ruling E25 is resolved by Vibhav's decision of 2026-10-25 to ship
+ * GET /api/evidence and the profile's home_context with the frontend's remount fix
+ * (lib/frontend/production/home-scope.ts; YOUR_TODO.md Part 4 items 24 and 25).
  *
  * The database is the real migration chain on PGlite. The recorder cron runs once, for real, over
  * seeded home contexts and recorded days, with the stand-in providers of
  * test/helpers/dailyMaximaProviders.mjs (any other host throws). Then every read travels the
  * client's whole path:
  *
- *   the profile          lib/frontend/stage-api.ts getProfile (run for real), and the context id
- *                        lines of components/production/ProductionApp.tsx:41-42 (transcribed,
- *                        drift-checked);
+ *   the profile          lib/frontend/stage-api.ts getProfile (run for real), and the home scope
+ *                        ProductionApp.tsx derives from it (lib/frontend/production/home-scope.ts
+ *                        observeHome and nextHomeScope, run for real);
  *   the request          the real createProductionRuntime (lib/frontend/production/runtime.ts),
  *                        whose fetcher is the real route handler: query encoding, status mapping
  *                        and envelope unwrap are the client's own;
@@ -52,6 +52,7 @@ const { MISSING, SOURCE_LABELS, NOT_RECORDED_SOURCE, localDaySlots } = await imp
 const { createLiveStageApi } = await loadFrontend('stage-api');
 const { isProfileComplete } = await loadFrontend('onboarding');
 const { createProductionRuntime, serviceMessage, productionOperations } = await loadFrontend('production/runtime');
+const { observeHome, nextHomeScope } = await loadFrontend('production/home-scope');
 const evidence = await loadFrontend('week-evidence-preview');
 const { dayAdd } = await loadFrontend('week-preview');
 const { lunaCalendarAnchor } = await loadFrontend('luna-tools-preview');
@@ -316,10 +317,12 @@ function world({ before0016 = false, probe = 'real' } = {}) {
   return h;
 }
 
-// F: components/production/ProductionApp.tsx:41-42, verbatim (leading space trimmed).
-const HOME_ID_LINE = 'const homeId=session.profile?.home_context?.id??session.profile?.profile?.home_context_id??null;';
-const REVISION_LINE = 'const currentContextRevision=session.profile?.home_context?.revision??session.profile?.profile?.context_revision;';
-const derive = new Function('session', `${HOME_ID_LINE}\n${REVISION_LINE}\nreturn { homeId, currentContextRevision };`);
+// ProductionApp.tsx's SessionBoundary, as it runs: the scope from the profile, its id and anchor
+// handed to the runtime (homeContextId and contextRevision).
+function derive({ profile }, identity) {
+  const scope = nextHomeScope(null, identity, observeHome(profile));
+  return { homeId: scope.id ?? null, currentContextRevision: scope.revision };
+}
 
 /** The client as it runs for one identity: the live profile read, the context id, the real runtime. */
 async function client(h, as, { token, homeContextId } = {}) {
@@ -342,7 +345,7 @@ async function client(h, as, { token, homeContextId } = {}) {
   } catch (error) {
     profileError = error;
   }
-  const derived = profile ? derive({ profile }) : { homeId: null, currentContextRevision: undefined };
+  const derived = profile ? derive({ profile }, identity.id) : { homeId: null, currentContextRevision: undefined };
   const sent = [];
   const runtime = createProductionRuntime({
     identityId: identity.id,
@@ -366,13 +369,14 @@ async function client(h, as, { token, homeContextId } = {}) {
 /** The hook: useProductionResource's read, then useProductionHistory's validator, plus `production`. */
 async function history(c, range) {
   const read = await resourceRead(c.runtime, 'evidence.read', { kind: 'history', ...range }, serviceMessage);
-  return { ...fe.productionHistory(read, c.runtime), production: true };
+  return { ...fe.productionHistory(read, c.runtime), production: true, home: c.runtime.homeContextId };
 }
 
-/** Patterns as it renders for one factor and selected day. */
+/** Patterns as it renders for one factor and selected day; the workspace's home is the runtime's (ProductionApp.tsx). */
 function patterns(live, entries, { factor = 'Air', selected = TODAY, range = 84, group = 'household' } = {}) {
   const today = lunaCalendarAnchor();
-  const view = fe.patternsView({ live, entries, today, range, group, factor, selected, review: REVIEW_IDLE, analyzeHistory: evidence.analyzeHistory, dayAdd, historyFixture: evidence.historyFixture, copy });
+  const workspace = { service: { context: { currentHomeId: live.home } } };
+  const view = fe.patternsView({ live, entries, today, range, group, factor, selected, review: REVIEW_IDLE, workspace, analyzeHistory: evidence.analyzeHistory, dayAdd, historyFixture: evidence.historyFixture, copy });
   return { ...view, trend: fe.trendView(view.report.rows, live.data?.comparison), sources: fe.sourceDetails(view.report.rows) };
 }
 
@@ -399,13 +403,13 @@ const mean = (values) => values.reduce((a, b) => a + b, 0) / values.length;
 // 1. The document, the registry and the transcriptions
 // ---------------------------------------------------------------------------
 
-test('the contract is b08-1, documents evidence.read at the registry path, and states the E25 hold', () => {
-  assert.equal(contract.info.version, 'b08-1');
+test('the contract is b08-2, documents evidence.read at the registry path, and records E25 as resolved', () => {
+  assert.equal(contract.info.version, 'b08-2');
   assert.deepEqual(productionOperations['evidence.read'], { path: '/api/evidence' }, 'a private GET in the registry (runtime.ts:73)');
   assert.equal(OPERATIONS.evidenceRead['x-halo-operation'], 'evidence.read');
-  assert.equal(OPERATIONS.evidenceRead['x-halo-held'], 'E25');
-  assert.equal(OPERATIONS.profileRead['x-halo-held'], 'E25');
-  assert.match(contract.info.description, /HELD \(ruling E25\)/);
+  assert.equal('x-halo-held' in OPERATIONS.evidenceRead, false);
+  assert.equal('x-halo-held' in OPERATIONS.profileRead, false);
+  assert.match(contract.info['x-halo-rulings'].E25, /^Resolved 2026-10-25/);
   assert.match(contract.info['x-halo-rulings'].E20, /MISSING home_context key means migration 0016 is not applied or the context read failed/);
   assert.deepEqual(contract.paths['/api/evidence'].get.parameters.filter((p) => p.in === 'query').map((p) => p.name), ['kind', 'from', 'to']);
   for (const [registryOp, endpoint] of Object.entries(productionOperations)) {
@@ -430,13 +434,14 @@ function stripped(t, sourceText) {
   return text;
 }
 
-test('drift: the validator is WeekSources.tsx:7-9 as it reads now, and the context id lines are ProductionApp.tsx:41-42', () => {
+test('drift: the validator is WeekSources.tsx as it reads now, and ProductionApp.tsx scopes the runtime with home-scope.ts', () => {
   const t = fe.TRANSCRIPTIONS.find((entry) => entry.fn === fe.productionHistory);
   const source = readFileSync(path.join(REPO_ROOT, t.file), 'utf8');
   assert.equal(stripped(t, source), fe.productionHistory.toString().split('\n').slice(1, -1).join('\n'), 'WeekSources.tsx changed; re-transcribe it');
-  const app = readFileSync(path.join(REPO_ROOT, 'components/production/ProductionApp.tsx'), 'utf8').split('\n').map((line) => line.trim());
-  assert.equal(app[40], HOME_ID_LINE);
-  assert.equal(app[41], REVISION_LINE);
+  const app = readFileSync(path.join(REPO_ROOT, 'components/production/ProductionApp.tsx'), 'utf8');
+  assert.ok(app.includes('const scope=identity?nextHomeScope(homeScope,identity,observeHome(session.profile)):homeScope;'), 'ProductionApp.tsx derives the scope with home-scope.ts');
+  assert.ok(app.includes('homeId={scope.id??null} homeRevision={scope.revision}'), 'and hands its id and revision to ConnectedApp');
+  assert.ok(app.includes('homeContextId:homeId,contextRevision:homeRevision,'), 'which builds the runtime with them');
 });
 
 test('drift: every WeekEvidence.tsx fragment occurs in its frontend line and in the transcription', () => {
@@ -447,8 +452,8 @@ test('drift: every WeekEvidence.tsx fragment occurs in its frontend line and in 
     assert.ok(lines[f.line - 1].includes(f.source ?? f.text), `${f.file}:${f.line} still reads ${(f.source ?? f.text).slice(0, 60)}`);
   }
   // A one-character change to the screen is seen.
-  const changed = lines[25].replace('r.version===comparison.version', 'r.version==comparison.version');
-  assert.equal(changed.includes(fe.FRAGMENTS_T6.find((f) => f.line === 26).text), false);
+  const changed = lines[27].replace('r.version===comparison.version', 'r.version==comparison.version');
+  assert.equal(changed.includes(fe.FRAGMENTS_T6.find((f) => f.line === 28).text), false);
 });
 
 test('the transcribed validator says no to what the client says no to', () => {
@@ -582,7 +587,7 @@ test('Patterns: three symptom and three fine days give a descriptive comparison 
   assert.match(air.trend.caption, /^2026-08-19 to 2026-11-10\. Gaps are missing or incompatible readings, not zero\. AQI\. Vertical range 0 to \d+\.$/);
   assert.ok(air.trend.table.every((r) => r.separate === null), 'no row is a separate source version');
   assert.deepEqual(air.pulse, ['7 logged', `${recordedAir} history days`, '6 comparable readings']);
-  assert.deepEqual(air.sources, { dataset: `${NOT_RECORDED_SOURCE}, ${SOURCE_LABELS.open_meteo_cams}`, versions: 'daily-max-v1', latestIssue: 'Unknown' });
+  assert.deepEqual(air.sources, { dataset: `${NOT_RECORDED_SOURCE}, ${SOURCE_LABELS.open_meteo_cams}`, versions: 'daily-max-v1', latestIssue: 'Not supplied by the source' });
 
   const uv = patterns(live, ENTRIES, { factor: 'UV' });
   assert.equal(uv.report.enough, true);

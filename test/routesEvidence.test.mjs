@@ -11,8 +11,8 @@
  *   the request            lib/frontend/production/runtime.ts (createProductionRuntime), run for
  *                          real: its query encoding, headers, status mapping and envelope unwrap;
  *   the profile read       lib/frontend/stage-api.ts getProfile, run for real, and the context id
- *                          derivation of components/production/ProductionApp.tsx:41-42,
- *                          transcribed verbatim and drift-checked;
+ *                          derivation ProductionApp.tsx uses (lib/frontend/production/home-scope.ts),
+ *                          run for real and drift-checked;
  *   the analysis           lib/frontend/week-evidence-preview.ts analyzeHistory, run for real.
  */
 import { test, before, after } from 'node:test';
@@ -34,6 +34,7 @@ const { MISSING, SOURCE_LABELS, NOT_RECORDED_SOURCE } = await import('../lib/dai
 const { createLiveStageApi } = await loadFrontend('stage-api');
 const { isProfileComplete } = await loadFrontend('onboarding');
 const { createProductionRuntime } = await loadFrontend('production/runtime');
+const { observeHome, nextHomeScope } = await loadFrontend('production/home-scope');
 const preview = await loadFrontend('week-evidence-preview');
 
 const EM_DASH = String.fromCharCode(0x2014);
@@ -151,15 +152,16 @@ test('drift: the transcribed validator is WeekSources.tsx:7-9 as it reads now, a
   assert.notEqual(stripped(t, broken), productionHistory.toString().split('\n').slice(1, -1).join('\n'), 'the drift check sees a one-character change');
 });
 
-// F: components/production/ProductionApp.tsx:41-42, verbatim (leading space trimmed).
-const HOME_ID_LINE = 'const homeId=session.profile?.home_context?.id??session.profile?.profile?.home_context_id??null;';
-const REVISION_LINE = 'const currentContextRevision=session.profile?.home_context?.revision??session.profile?.profile?.context_revision;';
-const derive = new Function('session', `${HOME_ID_LINE}\n${REVISION_LINE}\nreturn { homeId, currentContextRevision };`);
+// ProductionApp.tsx's SessionBoundary, run for real: lib/frontend/production/home-scope.ts.
+function derive({ profile }, identity) {
+  const scope = nextHomeScope(null, identity, observeHome(profile));
+  return { homeId: scope.id ?? null, currentContextRevision: scope.revision };
+}
 
-test('drift: the transcribed context id lines are still the ones ProductionApp.tsx runs', () => {
-  const source = readFileSync(path.join(REPO_ROOT, 'components/production/ProductionApp.tsx'), 'utf8').split('\n').map((line) => line.trim());
-  assert.equal(source[40], HOME_ID_LINE);
-  assert.equal(source[41], REVISION_LINE);
+test('drift: ProductionApp.tsx still builds the runtime from the home scope', () => {
+  const source = readFileSync(path.join(REPO_ROOT, 'components/production/ProductionApp.tsx'), 'utf8');
+  assert.ok(source.includes('const scope=identity?nextHomeScope(homeScope,identity,observeHome(session.profile)):homeScope;'));
+  assert.ok(source.includes('homeId={scope.id??null} homeRevision={scope.revision}') && source.includes('homeContextId:homeId,contextRevision:homeRevision,'));
 });
 
 // ------------------------------------------------------------------ the answer
@@ -416,7 +418,7 @@ async function clientFor(h, as) {
   };
   const profile = await createLiveStageApi({ loadAuth: async () => auth }).getProfile();
   assert.equal(isProfileComplete(profile), true);
-  const { homeId, currentContextRevision } = derive({ profile });
+  const { homeId, currentContextRevision } = derive({ profile }, identity.id);
   const sent = [];
   const runtime = createProductionRuntime({
     identityId: identity.id, homeContextId: homeId, contextRevision: currentContextRevision, active: () => true, writeAllowed: () => true,
