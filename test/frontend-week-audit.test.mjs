@@ -64,7 +64,7 @@ test('F10: an 8-hour morning activity is judged on morning and afternoon, includ
   assert.equal(coverage.complete, true);
   assert.equal(coverage.uv.highest, 6);
   const text = describeCoverage(coverage, ny);
-  assert.match(text.headline, /morning and afternoon forecasts cover your whole activity/);
+  assert.match(text.headline, /^Your activity runs .+ to .+\. The morning and afternoon forecasts cover all of it\.$/);
   assert.ok(text.factors.includes('UV index: up to 6.'));
 });
 
@@ -78,7 +78,7 @@ test('F10: gaps between periods, past the last period and past midnight are name
   assert.equal(overnight.gaps[0].start, Date.parse('2026-10-26T21:00:00-04:00'));
   assert.equal(overnight.gaps[0].end, Date.parse('2026-10-27T01:00:00-04:00'));
   const text = describeCoverage(overnight, ny);
-  assert.match(text.headline, /covers only part of your activity/);
+  assert.match(text.headline, /^Your activity runs .+\. The forecast covers only part of it\.$/);
   assert.match(text.uncoveredSentence, /^No forecast covers .+ to .+\. Check conditions again before that part\.$/);
   assert.equal(outdoorCoverage(live(), 'Morning', 0), null);
   assert.equal(outdoorCoverage([], 'Morning', 60), null);
@@ -100,7 +100,7 @@ test('F10: a saved outdoor task returns to its plan, and its note is read back e
   assert.equal(outdoorPlanKey('outdoors:abc'), 'outdoors:abc');
   assert.equal(outdoorPlanKey('outdoors:abc:check-forecast'), 'outdoors:abc');
   assert.equal(outdoorPlanKey('personal:abc'), null);
-  const note = 'Riverside Park. Afternoon. Preparation checked: Check official weather notices; Prepare the equipment I need. Watch: off. Household context: general. Forecast coverage: The forecast covers only part of your activity, 5:00 PM to 1:00 AM on Tue, Oct 27.';
+  const note = 'Riverside Park. Afternoon. Preparation checked: Check official weather notices; Prepare the equipment I need. Watch: off. Household context: general. Forecast coverage (times in Eastern Time): Your activity runs 5:00 PM to 1:00 AM on Tue, Oct 27. The forecast covers only part of it.';
   assert.deepEqual(outdoorPlanFromNote(note), { place: 'Riverside Park', period: 'Afternoon', preparation: ['Check official weather notices', 'Prepare the equipment I need'], watch: false, group: '' });
   assert.equal(outdoorPlanFromNote('My own words now'), null);
   assert.equal(outdoorPlanFromNote('Place not specified. Morning. Preparation checked: None. Watch: requested, not activated. Household context: children.').place, '');

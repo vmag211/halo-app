@@ -56,8 +56,8 @@ export function describeCoverage(coverage: ActivityCoverage, label: (instant: nu
   const span = `${label(coverage.start)} to ${label(coverage.end)}`;
   const covered = names(coverage.periods.map(period => period.name.toLowerCase()));
   const headline = coverage.complete
-    ? `The ${covered} forecast${coverage.periods.length > 1 ? 's cover' : ' covers'} your whole activity, ${span}.`
-    : `The forecast covers only part of your activity, ${span}.`;
+    ? `Your activity runs ${span}. The ${covered} forecast${coverage.periods.length > 1 ? 's cover' : ' covers'} all of it.`
+    : `Your activity runs ${span}. The forecast covers only part of it.`;
   const uncovered = coverage.gaps.map(gap => `${label(gap.start)} to ${label(gap.end)}`);
   const factor = (title: string, value: FactorSpan, unit: string) => value.highest === null
     ? `${title}: unavailable for this activity.`
@@ -80,7 +80,7 @@ export function outdoorPlanKey(key: string): string | null {
 
 /** The plan details Plan outdoors wrote into the task note. A note edited since then is not guessed at. */
 export function outdoorPlanFromNote(note: string) {
-  const match = /^([\s\S]*?)\. (Morning|Afternoon|Evening)\. Preparation checked: ([\s\S]*?)\. Watch: (requested, not activated|off)\. Household context: ([^.]*)\.(?: Forecast coverage: [\s\S]*)?$/.exec(note.trim());
+  const match = /^([\s\S]*?)\. (Morning|Afternoon|Evening)\. Preparation checked: ([\s\S]*?)\. Watch: (requested, not activated|off)\. Household context: ([^.]*)\.(?: Forecast coverage[ (:][\s\S]*)?$/.exec(note.trim());
   if (!match) return null;
   return {
     place: match[1] === 'Place not specified' ? '' : match[1].slice(0, 100),
