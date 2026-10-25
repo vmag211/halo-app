@@ -13,12 +13,18 @@ export type ActivityCoverage = CoverageSpan & {
   gaps: CoverageSpan[];
   complete: boolean;
   air: FactorSpan; uv: FactorSpan;
-  pollen: { categories: string[]; unavailable: string[] };
+  /** Daily values (one per date, the same in every period of it): pollen, and AirNow's daily air category. */
+  pollen: DailySpan; airDaily: DailySpan;
 };
+export type DailySpan = { categories: string[]; unavailable: string[] };
 
 const numeric = (periods: ForecastPeriod[], pick: (period: ForecastPeriod) => number | null): FactorSpan => {
   const values = periods.map(pick).filter((value): value is number => value !== null);
   return { highest: values.length ? Math.max(...values) : null, unavailable: periods.filter(period => pick(period) === null).map(period => period.name) };
+};
+const daily = (periods: ForecastPeriod[], pick: (period: ForecastPeriod) => string | null | undefined): DailySpan => {
+  const values = periods.map(pick).filter((value): value is string => typeof value === 'string');
+  return { categories: [...new Set(values)], unavailable: periods.filter(period => typeof pick(period) !== 'string').map(period => period.name) };
 };
 
 export function outdoorCoverage(periods: readonly ForecastPeriod[], startPeriod: string, minutes: number): ActivityCoverage | null {
@@ -37,11 +43,10 @@ export function outdoorCoverage(periods: readonly ForecastPeriod[], startPeriod:
     cursor = Math.max(cursor, to);
   }
   if (cursor < end) gaps.push({ start: cursor, end });
-  const pollen = overlapping.map(period => period.pollen).filter((value): value is string => value !== null);
   return {
     start, end, periods: overlapping, gaps, complete: gaps.length === 0,
     air: numeric(overlapping, period => period.air), uv: numeric(overlapping, period => period.uv),
-    pollen: { categories: [...new Set(pollen)], unavailable: overlapping.filter(period => period.pollen === null).map(period => period.name) },
+    pollen: daily(overlapping, period => period.pollen), airDaily: daily(overlapping, period => period.airDaily),
   };
 }
 
@@ -62,12 +67,14 @@ export function describeCoverage(coverage: ActivityCoverage, label: (instant: nu
   const factor = (title: string, value: FactorSpan, unit: string) => value.highest === null
     ? `${title}: unavailable for this activity.`
     : `${title}: up to ${value.highest}${unit ? ` ${unit}` : ''}${value.unavailable.length ? `, unavailable for the ${names(value.unavailable.map(name => name.toLowerCase()))}` : ''}.`;
+  const dailyFactor = (title: string, value: DailySpan) => value.categories.length
+    ? `${title}: ${value.categories.join(' or ')}${value.unavailable.length ? `, unavailable for the ${names(value.unavailable.map(name => name.toLowerCase()))}` : ''}.`
+    : `${title}: unavailable for this activity.`;
   const factors = [
-    factor('Air', coverage.air, 'AQI'),
+    // AirNow's forecast is one value per day: shown as such, never as a per-period number.
+    coverage.airDaily.categories.length ? dailyFactor('Air, daily', coverage.airDaily) : factor('Air', coverage.air, 'AQI'),
     factor('UV index', coverage.uv, ''),
-    coverage.pollen.categories.length
-      ? `Pollen, daily: ${coverage.pollen.categories.join(' or ')}${coverage.pollen.unavailable.length ? `, unavailable for the ${names(coverage.pollen.unavailable.map(name => name.toLowerCase()))}` : ''}.`
-      : 'Pollen, daily: unavailable for this activity.',
+    dailyFactor('Pollen, daily', coverage.pollen),
   ];
   return { headline, uncovered, factors, uncoveredSentence: uncovered.length ? `No forecast covers ${names(uncovered)}. Check conditions again before that part.` : '' };
 }

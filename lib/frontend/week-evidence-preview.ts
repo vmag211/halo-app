@@ -50,7 +50,7 @@ export function fixtureCheckins(today:string){return Array.from({length:24},(_,i
   const date=dayAdd(today,-i);const fine=i%2===0;
   return {id:`journal:${date}:household`,title:`${date} check-in`,revision:0,date,band:'household',fine,symptoms:fine?[]:['Sneezing'],severity:fine?'':'mild',illness:i===5,recalled:i===7,note:'',reviewOnly:true};
 });}
-export type ForecastPeriod={name:'Morning'|'Afternoon'|'Evening';start:string;end:string;air:number|null;uv:number|null;pollen:string|null;weather:string;tradeoff:string;version:string};
+export type ForecastPeriod={name:'Morning'|'Afternoon'|'Evening';start:string;end:string;air:number|null;airDaily?:string|null;uv:number|null;pollen:string|null;weather:string;tradeoff:string;version:string};
 export function forecastFixture(date:string,scenario:ForecastScenario):ForecastPeriod[]{
   if(['unavailable','loading','error'].includes(scenario))return [];
   const changed=scenario==='changed';

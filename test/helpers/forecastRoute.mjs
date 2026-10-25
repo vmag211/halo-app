@@ -3,8 +3,8 @@
  * contract suite): a fetch stub per provider host answering the recorded
  * fixtures in test/fixtures/forecast/, a fake Upstash REST server that the real
  * @upstash/redis client (the forecast cache's default store) talks to, a
- * recording `rateLimit` for the limiter stub, and a stand-in for the AirNow
- * adapter (Task 5 is not built; lib/forecast/airNowSlot.js is where it plugs in).
+ * recording `rateLimit` for the limiter stub, and the real AirNow forecast
+ * adapter (lib/forecast/airnow.js, B10 Task 5) answering AirNow-shaped rows.
  *
  *   const w = forecastWorld();
  *   const h = forecastHarness(w);
@@ -20,6 +20,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRouteHarness } from './routeHarness.mjs';
+import { fetchAirNowForecast } from '../../lib/forecast/airnow.js';
 import { haloTables } from './tables.mjs';
 
 const fixture = (name) => JSON.parse(readFileSync(new URL(`../fixtures/forecast/${name}`, import.meta.url), 'utf8')).response;
@@ -50,39 +51,18 @@ export const FORECAST_ENV = Object.freeze({
   AIRNOW_API_KEY: 'FAKE-AIRNOW-KEY-7c1e',
 });
 
-/** AirNow-shaped rows for Charlotte: ozone with a number, PM2.5 category only (AQI -1). */
+/**
+ * Rows in the shape of AirNow's Current Forecasts service (`/aq/forecast/current/`, recorded shape in
+ * docs/backend/decisions/airnow-forecast-docs.md) for Charlotte: ozone with a number, PM2.5 category
+ * only (aqi -1). Synthetic values; the agency and area code are placeholders, never shown.
+ */
 export const AIRNOW_ROWS = Object.freeze([
-  { DateIssue: '2026-10-19 ', DateForecast: '2026-10-20 ', ReportingArea: 'Charlotte', StateCode: 'NC', ParameterName: 'O3', AQI: 41, Category: { Number: 1, Name: 'Good' }, ActionDay: false },
-  { DateIssue: '2026-10-19 ', DateForecast: '2026-10-20 ', ReportingArea: 'Charlotte', StateCode: 'NC', ParameterName: 'PM2.5', AQI: -1, Category: { Number: 2, Name: 'Moderate' }, ActionDay: false },
+  { dateIssue: '2026-10-19 ', dateValid: '2026-10-20 ', reportingArea: 'Charlotte', reportingAreaCode: 'nc-test', stateCode: 'NC', parameterName: 'OZONE', aqi: 41, forecastAgency: 'Test agency', categoryNumber: 1, categoryName: 'Good', actionDay: false, discussion: '' },
+  { dateIssue: '2026-10-19 ', dateValid: '2026-10-20 ', reportingArea: 'Charlotte', reportingAreaCode: 'nc-test', stateCode: 'NC', parameterName: 'PM2.5', aqi: -1, forecastAgency: 'Test agency', categoryNumber: 2, categoryName: 'Moderate', actionDay: false, discussion: '' },
 ]);
 
-/**
- * Stands in for Task 5's adapter, with its contract (lib/forecast/airNowSlot.js): no key, no call;
- * the key in the query string; one row per received row; never throws. Not the real request shape,
- * which is gated on the authenticated AirNow documentation.
- */
-export async function airNowStandIn(point, { getJson, env, now }) {
-  const key = env.AIRNOW_API_KEY;
-  if (!key) return { ok: false, reason: 'no_key' };
-  const fetchedAt = new Date(now()).toISOString();
-  const r = await getJson(`https://airnow.forecast.test/aq/forecast/latLong/?format=application/json&latitude=${point.lat}&longitude=${point.lng}&distance=25&API_KEY=${key}`, { timeoutMs: 6000 });
-  if (!r.ok) return { ok: false, reason: r.reason };
-  if (!Array.isArray(r.json)) return { ok: false, reason: 'invalid' };
-  return {
-    ok: true,
-    fetchedAt,
-    rows: r.json.map((row) => ({
-      dateIssue: row.DateIssue,
-      dateForecast: row.DateForecast,
-      reportingArea: row.ReportingArea,
-      stateCode: row.StateCode,
-      parameter: row.ParameterName,
-      aqi: row.AQI === -1 ? null : row.AQI,
-      category: row.Category?.Name ?? null,
-      actionDay: row.ActionDay === true,
-    })),
-  };
-}
+/** The real adapter (B10 Task 5), wired through lib/forecast/airNowSlot.js as production wires it. */
+export const airNowForecastAdapter = fetchAirNowForecast;
 
 /**
  * Upstash's REST protocol, enough for the real client: one command or a
@@ -121,7 +101,7 @@ const KINDS = [
   ['meta', (u) => u.origin === 'https://api.open-meteo.com' && /^\/data\/ncep_gfs0(13|25)\/static\/meta\.json$/.test(u.pathname)],
   ['forecast', (u) => u.origin === 'https://api.open-meteo.com' && u.pathname === '/v1/forecast'],
   ['nws', (u) => u.origin === 'https://api.weather.gov' && u.pathname === '/alerts/active'],
-  ['airnow', (u) => u.origin === 'https://airnow.forecast.test' && u.pathname === '/aq/forecast/latLong/'],
+  ['airnow', (u) => u.origin === 'https://www.airnowapi.org' && u.pathname === '/aq/forecast/current/'],
 ];
 
 /**

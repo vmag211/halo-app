@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "provider": "EPA AirNow API, Current Forecasts by Reporting Area (/aq/forecast/current/), by latitude and longitude",
+    "recorded": "not recorded: built in the recorded shape of airnow-forecast-napa-recorded.json for a Charlotte, NC point",
+    "retrieved": "2026-10-25",
+    "docs": ["docs/backend/decisions/airnow-forecast-docs.md"],
+    "edits": "synthetic values in the recorded field set: two pollutants for 2026-10-20 (ozone with a number, PM2.5 category only), an action day on 2026-10-21, trailing spaces on the first row's dates as the retired service sent them. The agency and area code are placeholders"
+  },
+  "response": [
+    {"dateIssue":"2026-10-19 ","dateValid":"2026-10-20 ","reportingArea":"Charlotte","reportingAreaCode":"nc-test","stateCode":"NC","parameterName":"OZONE","aqi":55,"forecastAgency":"Test agency","categoryNumber":2,"categoryName":"Moderate","actionDay":false,"discussion":""},
+    {"dateIssue":"2026-10-19","dateValid":"2026-10-20","reportingArea":"Charlotte","reportingAreaCode":"nc-test","stateCode":"NC","parameterName":"PM2.5","aqi":-1,"forecastAgency":"Test agency","categoryNumber":1,"categoryName":"Good","actionDay":false,"discussion":""},
+    {"dateIssue":"2026-10-19","dateValid":"2026-10-21","reportingArea":"Charlotte","reportingAreaCode":"nc-test","stateCode":"NC","parameterName":"OZONE","aqi":105,"forecastAgency":"Test agency","categoryNumber":3,"categoryName":"Unhealthy for Sensitive Groups","actionDay":true,"discussion":"Ozone action day."},
+    {"dateIssue":"2026-10-19","dateValid":"2026-10-21","reportingArea":"Charlotte","reportingAreaCode":"nc-test","stateCode":"NC","parameterName":"PM2.5","aqi":48,"forecastAgency":"Test agency","categoryNumber":1,"categoryName":"Good","actionDay":true,"discussion":"Ozone action day."}
+  ]
+}

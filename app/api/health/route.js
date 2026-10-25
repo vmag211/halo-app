@@ -40,7 +40,8 @@ export async function GET(request) {
     const lat = 35.4;
     const lng = -80.5;
     const checks = [
-      probe('airnow', `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${lat}&longitude=${lng}&distance=25&API_KEY=${process.env.AIRNOW_API_KEY}`),
+      // The observation service lib/dailyReadings.js calls (the latLong one was retired 2026-09-30).
+      probe('airnow', `https://www.airnowapi.org/aq/observation/current/ziplatlong/?format=application/json&latitude=${lat}&longitude=${lng}&API_KEY=${process.env.AIRNOW_API_KEY}`),
       probe('open-meteo-air', `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi&timezone=UTC`),
       probe('open-meteo-uv', `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=UTC`),
       probe('google-pollen', `https://pollen.googleapis.com/v1/forecast:lookup?key=${process.env.GOOGLE_POLLEN_API_KEY}&location.longitude=${lng}&location.latitude=${lat}&days=1`),

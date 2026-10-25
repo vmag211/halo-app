@@ -63,7 +63,7 @@ are what show that. The 28 that answer now, by the package that made them answer
 | B04 2b | `alerts.update` (`POST /api/alerts/state`), and `GET /api/alerts` extended to the contract read |
 | B05 | `locations.search`, `explore.area.read`, `explore.area.save`, `map.comparison`; and `map.layer` and `map.district` fixed (`quarter=latest`, the incomplete geography) and conformance-tested |
 | B06 Task 5 | `week.changes`, `week.acknowledge` |
-| B10 | `forecast.read` (`GET /api/forecast`; Open-Meteo and NWS only, AirNow not yet) |
+| B10 | `forecast.read` (`GET /api/forecast`; Open-Meteo, NWS, and the AirNow daily forecast once `AIRNOW_API_KEY` is set) |
 | B12 | `food.search`, `fish.read`, `water.read`, `growers.search` (signed in, static reviewed data files, no migration) |
 
 The 9 with no route: `capabilities.read`, `community.read` and `map.brief` (dropped on purpose),
@@ -108,7 +108,7 @@ Done 2026-10-20: `next build` needs no secrets (Supabase and Redis clients are b
 | B07 privacy | Complete. `privacy.status`, `privacy.inspect`, `privacy.export`, `privacy.clear`, migration 0024, contract `b07-1`, Rulings P1 to P18. Off until 0024 is applied and `HALO_PRIVACY_REVIEW_KEY` is set (no flag); clear all is not account deletion |
 | B08 evidence | Partly merged. Merged: migration 0025 (`daily_maxima`), the method, and the recorder cron `GET\|POST /api/cron/daily-maxima` (`vercel.json`, 12:00 UTC). **Built but held, unmerged, on `origin/vmag211/b08-evidence-held`:** `GET /api/evidence`, `GET /api/profile`'s additive `home_context`, and Task 6 (contract `b08-1`, `docs/backend/contracts/b08.openapi.json`, client-path conformance over PGlite and a real recorder run, tracker and checkpoint rows; head `45bd933`, on top of `f2b49e3`). Ruling E25: emitting `home_context` makes the frontend remount (`ProductionApp.tsx:35` keys on the revision) and drop unsaved drafts, so the branch waits for Yogi (`YOUR_TODO.md` Part 4 items 24 and 25) |
 | B09 Luna household context | Planned, not built (`plans/b09-luna-context.md`); household context stays off by decision 2 |
-| B10 forecast | Complete except Task 5, the AirNow forecast adapter, gated on Vibhav capturing the AirNow docs (`YOUR_TODO.md` Part 3 item 10). `forecast.read`, contract `b10-1`; air is "not checked" until Task 5 lands. No migration |
+| B10 forecast | Complete. Task 5 (branch `vmag211/airnow-forecast`, 2026-10-25) built the AirNow adapter on AirNow's Current Forecasts service from the public record (`docs/backend/decisions/airnow-forecast-docs.md`; the per-service page needs a login). `forecast.read`, contract `b10-2` (adds each period's `airDaily`). No migration |
 | B11 Homeguard workspace | Complete. `workspace.load`, `workspace.execute` and a `workspace` overlay on `GET /api/operations`; migration 0026 (`household_workspace_records`, the read and commit functions, the privacy clear trigger); contract `b11-2` (was `b11-1`), Rulings W1 to W15. Fourteen collections stored; `homeTransitions` answers unavailable by design. `weekJournal` (My Week's Journal, Patterns and Season): since 2026-10-25 stored in the existing journal table `symptom_logs` through `lib/weekJournalStore.js` and migration 0034 (written, applied nowhere), behind flag `HALO_FEATURE_JOURNAL` (off; needs `workspace` too), contract `b11-2`; retention decided by Vibhav (kept until deleted, no purge); while off it answers unavailable and the screen says "not available yet" with no retry. Behind flag `HALO_FEATURE_WORKSPACE`, off. Plan `plans/b11-homeguard-workspace.md` |
 | B12 public fish, water, food and grower reads | Complete. `fish.read`, `water.read`, `food.search`, `growers.search`; no migration; built from reviewed static files in `lib/data/` by `scripts/build-public-evidence.mjs` (never fetches; sources retrieved 2026-10-20). Fish advisories with cut-off source text are withheld with a link, not shown partially. Food notices (openFDA) stay empty and NRCS is dropped. Drought and utility status are a dated copy that needs a weekly manual rebuild. Plan `plans/b12-public-evidence.md` |
 | B13 operator source operations | Complete as far as the data supports. `sourceOps.read`, `sourceOps.history`, `sourceOps.command`; migration 0027 (`operator_roles`, append-only `source_ops_audit`); `operator_roles` is granted by SQL only (`YOUR_TODO.md` 2.18). Every decision (approve, publish, retry, rollback and so on) is refused and audited, because no release registry exists to act on; `allowedDecisions` is `[]` so the screen offers none. Plan `plans/b13-source-operations.md` |
@@ -229,7 +229,7 @@ listing content B18 serves). The bullets below hold the detail.
 | `recovery.complete` | Deferred by Vibhav | Recovery completion waits until after the competition (decision 5); the flag stays off |
 | `capabilities.read`, `community.read`, `map.brief` | Dropped | No consumer, validator or type on the frontend ref |
 | `evidence.read` | Built, held | Ruling E25: emitting `home_context` remounts the frontend and drops drafts; on `origin/vmag211/b08-evidence-held` until Yogi's fix |
-| AirNow forecast (B10 Task 5) | Not built | Needs Vibhav to capture the AirNow forecast docs and one real North Carolina response (`YOUR_TODO.md` Part 3 item 10); air shows "not checked" until then |
+| AirNow forecast (B10 Task 5) | Built, not live-verified | Built on recorded third-party payloads; Vibhav to compare with the logged-in docs page and send the data-use notice (`YOUR_TODO.md` Part 3 item 10). Without `AIRNOW_API_KEY` air shows "not checked" |
 
 - **Account recovery cannot complete end to end.** Vibhav stopped the package on 2026-10-18 to move to
   features. `/api/recovery/complete` and the verification step (the thing that marks a challenge
@@ -487,8 +487,11 @@ numbers are the plan's own.
 - **`HALO_PRIVACY_REVIEW_KEY`** is the privacy switch and must be a different value from the recovery key.
   Rotating it only voids reviews younger than ten minutes. Clear all is irreversible and no browser pass
   has run: staging first (`YOUR_TODO.md` 2.16).
-- **The AirNow forecast is not built**: until Vibhav captures the AirNow docs (B10 Task 5), the forecast's
-  Air coverage says air was not checked, and Air and Pollen cards show "Unavailable".
+- **AirNow retired the observation service HALO called** on 2026-09-30 (AirNow's June 2026 notice).
+  Until branch `vmag211/airnow-forecast` deploys, measured AirNow AQI in `/api/daily-score` and the cron
+  falls back to modelled air. That branch moves `lib/dailyReadings.js` and `/api/health` to
+  `/aq/observation/current/ziplatlong/` and the forecast to `/aq/forecast/current/`, both built from
+  recorded third-party answers (`docs/backend/decisions/airnow-forecast-docs.md`), not yet live-verified.
 - **Model ids must be pinned in the deployment.** An unset `ASSISTANT_CHAT_MODEL` or
   `ASSISTANT_EMBED_MODEL` used to select a paid OpenAI default; `988074d` makes that fail loudly, but set
   both explicitly anyway.

@@ -1,0 +1,11 @@
+{
+  "_fixture": {
+    "provider": "EPA AirNow API, Current Observations by Latitude/Longitude or ZIP Code (/aq/observation/current/ziplatlong/), a point with no monitor in range",
+    "recorded": "https://www.airnowapi.org/aq/observation/current/ziplatLong/?format=application/json&latitude=39.5&longitude=-116.9&distance=300&API_KEY=<removed>",
+    "retrieved": "2026-10-25",
+    "recordedBy": "third party, 2026-09-12: briandconnelly/airnow, dev/superpowers/probes/new/observation_current_ziplatLong__nevada_distance300_ignored.json (https://github.com/briandconnelly/airnow)",
+    "docs": ["docs/backend/decisions/airnow-forecast-docs.md"],
+    "edits": "none; the body as recorded, served with HTTP 200"
+  },
+  "response": {"WebServiceError":[{"Message":"There are no observations available for the requested latitude/longitude: No observations were found for all monitors within 50 miles."}]}
+}

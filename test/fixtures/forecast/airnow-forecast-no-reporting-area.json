@@ -1,0 +1,11 @@
+{
+  "_fixture": {
+    "provider": "EPA AirNow API, Current Forecasts by Reporting Area (/aq/forecast/current/), a point no reporting area covers",
+    "recorded": "https://www.airnowapi.org/aq/forecast/current/?format=application/json&latitude=39.5&longitude=-116.9&distance=300&API_KEY=<removed>",
+    "retrieved": "2026-10-25",
+    "recordedBy": "third party, 2026-09-12: briandconnelly/airnow, dev/superpowers/probes/new/forecast_current__nevada_distance300_ignored.json (https://github.com/briandconnelly/airnow)",
+    "docs": ["docs/backend/decisions/airnow-forecast-docs.md"],
+    "edits": "none; the body as recorded, served with HTTP 200"
+  },
+  "response": {"WebServiceError":[{"Message":"Error - There is no reporting area at your searched location"}]}
+}

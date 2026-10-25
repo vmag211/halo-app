@@ -1,15 +1,15 @@
 /**
  * GET /api/forecast (B10 Task 8) on the isolated route harness: synthetic
  * identities, an in-memory database, a fetch stub per host (Open-Meteo forecast
- * and metadata, NWS alerts, a stand-in AirNow host, and a fake Upstash REST
+ * and metadata, NWS alerts, AirNow's forecast host, and a fake Upstash REST
  * server that the real @upstash/redis client talks to), the limiter stub with a
  * recording `rateLimit`, and a fixed clock (`t.mock.timers`, Date only). The
  * world lives in test/helpers/forecastRoute.mjs, shared with Task 9.
  *
- * Provider bodies are the recorded fixtures in test/fixtures/forecast/. AirNow
- * (Task 5) is not built: `airNowStandIn` stands in for its adapter through
- * lib/forecast/airNowSlot.js so the wiring (cache, budget, failure coverage) is
- * proved now; one test runs with the slot empty, as production is today.
+ * Provider bodies are the recorded fixtures in test/fixtures/forecast/, and
+ * AirNow-shaped rows for the real AirNow adapter (Task 5), wired through
+ * lib/forecast/airNowSlot.js; one test runs with the slot empty and one
+ * without AIRNOW_API_KEY, both of which say air was not checked.
  *
  * Every snapshot body is run through the client's own validator, transcribed in
  * test/helpers/frontendB10.mjs (WeekSources.tsx:14-17), and what the screen
@@ -27,7 +27,7 @@ import {
   HOUR,
   FORECAST_DATE as DATE,
   FORECAST_RUN as RUN,
-  airNowStandIn,
+  airNowForecastAdapter,
   forecastWorld,
   forecastHarness as harness,
   callForecast,
@@ -44,7 +44,7 @@ const META025 = FIXTURES.meta025;
 
 beforeEach(() => {
   _resetForecastCache();
-  _setAirNowAdapter(airNowStandIn);
+  _setAirNowAdapter(airNowForecastAdapter);
 });
 after(() => _setAirNowAdapter(null));
 
@@ -150,7 +150,10 @@ test('a household with a home gets a populated snapshot; the providers get the 2
   assert.equal(forecastUrl.searchParams.get('longitude'), '-80.84');
   assert.equal(new URL(w.calls.find((c) => c.kind === 'nws').url).searchParams.get('point'), '35.23,-80.84');
   const air = new URL(w.calls.find((c) => c.kind === 'airnow').url);
-  assert.deepEqual([air.searchParams.get('latitude'), air.searchParams.get('longitude')], ['35.23', '-80.84']);
+  assert.equal(`${air.origin}${air.pathname}`, 'https://www.airnowapi.org/aq/forecast/current/', 'the Current Forecasts service, not the retired latLong one');
+  assert.deepEqual([...air.searchParams.keys()], ['format', 'latitude', 'longitude', 'API_KEY'], 'no date and no distance');
+  assert.deepEqual([air.searchParams.get('format'), air.searchParams.get('latitude'), air.searchParams.get('longitude')], ['application/json', '35.23', '-80.84']);
+  assert.equal(air.searchParams.get('API_KEY'), 'FAKE-AIRNOW-KEY-7c1e', 'AIRNOW_API_KEY, the same variable the observation call uses');
   for (const call of w.calls) assert.equal(/35\.227|80\.843/.test(call.url), false, 'the stored 3-decimal point never leaves');
   assert.equal(w.calls.find((c) => c.kind === 'nws').headers['user-agent'], '(HALO, forecast-ops@halo.test)', 'NWS_CONTACT, never a literal address');
 
@@ -166,7 +169,8 @@ test('a household with a home gets a populated snapshot; the providers get the 2
   const live = { ...productionForecast({ data: body, error: null }), production: true };
   const shown = forecastScreenText(live, body.periods[1]);
   assert.equal(shown.issued, forecastIssued(RUN, body.zone));
-  assert.equal(shown.cells.air, 'Unavailable', 'AirNow is daily, so no number per period (F6)');
+  assert.equal(shown.cells.airLabel, 'Air, daily', 'AirNow is daily, so no number per period (F6)');
+  assert.equal(shown.cells.air, 'Moderate, PM2.5', 'the worst category as received, its number unknown');
   assert.match(shown.coverage.Air, /ozone Good \(AQI 41\)/);
   assert.match(shown.coverage.Air, /PM2\.5 Moderate \(category only, no AQI number issued\)/);
 });
@@ -347,7 +351,7 @@ test('AirNow failing gives 200 with the Air coverage saying air was not checked'
   for (const p of body.periods) assert.match(p.tradeoff, /Air was not checked for this date\.$/);
 });
 
-test('AirNow not wired (Task 5 absent, as in production today): no AirNow call, coverage says the connection is not set up', async (t) => {
+test('AirNow slot empty: no AirNow call, coverage says the connection is not set up', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   _setAirNowAdapter(null);
   const w = forecastWorld();

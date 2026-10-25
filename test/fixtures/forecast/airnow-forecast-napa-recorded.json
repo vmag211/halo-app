@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "provider": "EPA AirNow API, Current Forecasts by Reporting Area (/aq/forecast/current/), by latitude and longitude",
+    "recorded": "https://www.airnowapi.org/aq/forecast/current/?format=application/json&latitude=38.3191&longitude=-122.2998&API_KEY=<removed>",
+    "retrieved": "2026-10-25",
+    "recordedBy": "third party, 2026-09-09: briandconnelly/airnow, dev/superpowers/probes/new/forecast_current__latlong.json (https://github.com/briandconnelly/airnow); HALO has no AirNow login to record its own",
+    "docs": [
+      "https://docs.airnowapi.org/docs/AirNowAPIUpdates2026June.pdf",
+      "https://docs.airnowapi.org/faq",
+      "docs/backend/decisions/airnow-forecast-docs.md"
+    ],
+    "edits": "none; the response as recorded (no key in it). Six validity dates from one call, one pollutant per date, aqi -1 with a category on the later dates"
+  },
+  "response": [{"dateIssue":"2026-09-09","dateValid":"2026-09-09","reportingArea":"Napa","reportingAreaCode":"ca064","stateCode":"CA","parameterName":"OZONE","aqi":61,"forecastAgency":"Bay Area Air District","categoryNumber":2,"categoryName":"Moderate","actionDay":false,"discussion":""},{"dateIssue":"2026-09-09","dateValid":"2026-09-10","reportingArea":"Napa","reportingAreaCode":"ca064","stateCode":"CA","parameterName":"PM2.5","aqi":50,"forecastAgency":"Bay Area Air District","categoryNumber":1,"categoryName":"Good","actionDay":false,"discussion":""},{"dateIssue":"2026-09-09","dateValid":"2026-09-11","reportingArea":"Napa","reportingAreaCode":"ca064","stateCode":"CA","parameterName":"OZONE","aqi":-1,"forecastAgency":"Bay Area Air District","categoryNumber":1,"categoryName":"Good","actionDay":false,"discussion":""},{"dateIssue":"2026-09-09","dateValid":"2026-09-12","reportingArea":"Napa","reportingAreaCode":"ca064","stateCode":"CA","parameterName":"OZONE","aqi":-1,"forecastAgency":"Bay Area Air District","categoryNumber":1,"categoryName":"Good","actionDay":false,"discussion":""},{"dateIssue":"2026-09-09","dateValid":"2026-09-13","reportingArea":"Napa","reportingAreaCode":"ca064","stateCode":"CA","parameterName":"PM2.5","aqi":-1,"forecastAgency":"Bay Area Air District","categoryNumber":1,"categoryName":"Good","actionDay":false,"discussion":""},{"dateIssue":"2026-09-09","dateValid":"2026-09-14","reportingArea":"Napa","reportingAreaCode":"ca064","stateCode":"CA","parameterName":"OZONE","aqi":-1,"forecastAgency":"Bay Area Air District","categoryNumber":1,"categoryName":"Good","actionDay":false,"discussion":""}]
+}

@@ -369,15 +369,22 @@ test('never invent: a modelled evening UV of 0 stays 0 and renders as 0', () => 
   assert.equal(onScreen(body, { date: '2026-10-20', period: 'Evening' }).text.cells.uv, '0 UV index');
 });
 
-test('never invent: air is null in every period whatever AirNow says, and pollen is always null', () => {
-  for (const airNow of [airNowOk(), airNowOk([airRow({ aqi: 180, category: 'Unhealthy' })]), { ok: false, reason: 'timeout' }, undefined]) {
+test('never invent: air is null in every period whatever AirNow says, the daily air is only what AirNow issued, and pollen is always null', () => {
+  for (const [airNow, daily] of [
+    [airNowOk(), 'Moderate (AQI 55), ozone'],
+    [airNowOk([airRow({ aqi: 180, category: 'Unhealthy' })]), 'Unhealthy (AQI 180), ozone'],
+    [{ ok: false, reason: 'timeout' }, null],
+    [undefined, null],
+  ]) {
     const { body } = build({ airNow });
     for (const p of body.periods) {
       assert.equal(p.air, null);
+      assert.equal(p.airDaily, daily);
       assert.equal(p.pollen, null);
     }
     const screen = onScreen(body, { date: '2026-10-20' });
-    assert.equal(screen.text.cells.air, 'Unavailable');
+    assert.equal(screen.text.cells.airLabel, daily ? 'Air, daily' : 'Air');
+    assert.equal(screen.text.cells.air, daily ?? 'Unavailable');
     assert.equal(screen.text.cells.pollen, 'Unavailable');
   }
 });
@@ -558,9 +565,10 @@ test('F6: a category-only row shows its category and no number; two pollutants k
 });
 
 test('F6: unusable rows are dropped, never defaulted; other dates, no rows, latest issue and action day', () => {
-  // An unknown category with no number is not a reading.
-  const unknown = build({ airNow: airNowOk([airRow({ category: 'Fine', aqi: null })]) }).body.coverage.Air;
-  assert.equal(unknown, `For Charlotte, NC (Census internal point): ${COPY.coverage.airNoArea}`);
+  // An unknown category with no number is not a reading, but the pollutant is named as not issued, never dropped.
+  const unknown = build({ airNow: airNowOk([airRow({ category: 'Fine', aqi: null })]) }).body;
+  assert.match(unknown.coverage.Air, /for 2026-10-20 as a whole day: ozone not issued \(no category or AQI number\)\./);
+  for (const p of unknown.periods) assert.equal(p.airDaily, null);
   // A number without a category is shown as a number only.
   assert.match(build({ airNow: airNowOk([airRow({ category: 'Fine', aqi: 61 })]) }).body.coverage.Air, /ozone AQI 61 \(no category issued\)/);
   // Rows for other dates only.
@@ -591,6 +599,82 @@ test('F18: an AirNow answer whose fetchedAt does not parse is unavailable, as NW
     assert.equal(body.expiresAt, '2026-10-19T14:35:00.000Z', 'expiry from Open-Meteo alone');
     for (const p of body.periods) assert.match(p.tradeoff, /Air was not checked for this date\.$/);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Task 5: the "Air, daily" cell (airDaily, Open question 5)
+// ---------------------------------------------------------------------------
+
+const dailyOf = (rows) => {
+  const { body } = build({ airNow: airNowOk(rows) });
+  const values = [...new Set(body.periods.map((p) => p.airDaily))];
+  assert.equal(values.length, 1, 'the same daily value in every period');
+  for (const p of body.periods) assert.equal(p.air, null, 'never a per-period number');
+  return { daily: values[0], body };
+};
+
+test('airDaily: several pollutants, the worst category wins and its pollutant is named', () => {
+  assert.equal(dailyOf([airRow({ aqi: 55, category: 'Moderate' }), airRow({ parameter: 'PM2.5', aqi: 30, category: 'Good' })]).daily, 'Moderate (AQI 55), ozone');
+  // The worse category wins even with a lower number in it (category order is AirNow's own).
+  assert.equal(dailyOf([airRow({ aqi: 101, category: 'Unhealthy for Sensitive Groups' }), airRow({ parameter: 'PM2.5', aqi: 151, category: 'Unhealthy' })]).daily, 'Unhealthy (AQI 151), PM2.5');
+  // Same category: the higher number wins; an equal number names both.
+  assert.equal(dailyOf([airRow({ aqi: 61 }), airRow({ parameter: 'PM2.5', aqi: 72 })]).daily, 'Moderate (AQI 72), PM2.5');
+  assert.equal(dailyOf([airRow({ aqi: 61 }), airRow({ parameter: 'PM2.5', aqi: 61 })]).daily, 'Moderate (AQI 61), ozone and PM2.5');
+  // The new service's OZONE is named as the retired service's O3 was.
+  assert.equal(dailyOf([airRow({ parameter: 'OZONE' })]).daily, 'Moderate (AQI 55), ozone');
+});
+
+test('airDaily: aqi -1 (null) is unknown, never favourable: the category stands without a number', () => {
+  // Category only, alone.
+  assert.equal(dailyOf([airRow({ aqi: null, category: 'Moderate' })]).daily, 'Moderate, ozone');
+  // A category-only row is not beaten by a smaller known number in the same category: both are named, no number.
+  assert.equal(dailyOf([airRow({ aqi: 55 }), airRow({ parameter: 'PM2.5', aqi: null })]).daily, 'Moderate, ozone and PM2.5');
+  // A category-only row in a worse category still wins over a known number in a better one.
+  assert.equal(dailyOf([airRow({ aqi: 45, category: 'Good' }), airRow({ parameter: 'PM2.5', aqi: null, category: 'Moderate' })]).daily, 'Moderate, PM2.5');
+  // A row with no category cannot be ranked, so there is no daily cell; coverage still lists it as received.
+  const { daily, body } = dailyOf([airRow({ aqi: 55 }), airRow({ parameter: 'PM2.5', aqi: 61, category: 'Fine' })]);
+  assert.equal(daily, null);
+  assert.match(body.coverage.Air, /PM2\.5 AQI 61 \(no category issued\)/);
+  assert.equal(onScreen(body, { date: '2026-10-20' }).text.cells.air, 'Unavailable');
+  // A pollutant AirNow issued neither a category nor a number for (aqi -1, category 7 Unavailable)
+  // must not let a better one stand for the day: no cell, and coverage names it as not issued.
+  const unissued = dailyOf([airRow({ aqi: 55 }), airRow({ parameter: 'PM2.5', aqi: null, category: null })]);
+  assert.equal(unissued.daily, null);
+  assert.match(unissued.body.coverage.Air, /ozone Moderate \(AQI 55\) and PM2\.5 not issued \(no category or AQI number\)\./);
+});
+
+test('airDaily: an action day is said in the cell and in coverage', () => {
+  const { daily, body } = dailyOf([airRow({ aqi: 105, category: 'Unhealthy for Sensitive Groups', actionDay: true }), airRow({ parameter: 'PM2.5', aqi: 48, category: 'Good', actionDay: true })]);
+  assert.equal(daily, 'Unhealthy for Sensitive Groups (AQI 105), ozone, air quality action day');
+  assert.match(body.coverage.Air, /An air quality action day is declared\./);
+  const shown = onScreen(body, { date: '2026-10-20' }).text.cells;
+  assert.deepEqual([shown.airLabel, shown.air], ['Air, daily', daily]);
+});
+
+test('airDaily: a far reporting area keeps the reporting-area provenance, with its name and issue date, and no distance', () => {
+  const { daily, body } = dailyOf([airRow({ reportingArea: 'Coastal Plain', stateCode: 'NC' })]);
+  assert.equal(daily, 'Moderate (AQI 55), ozone');
+  assert.match(body.coverage.Air, /EPA AirNow forecast for the Coastal Plain, NC reporting area, issued 2026-10-19, for 2026-10-20 as a whole day: ozone Moderate \(AQI 55\)\. This is the forecast for the reporting area, not your exact location\./);
+  assert.doesNotMatch(body.coverage.Air, /miles|km|nearby|closest/i);
+});
+
+test('airDaily: null for an empty answer, another date only, a failure, the budget and the key missing', () => {
+  for (const airNow of [
+    airNowOk([]),
+    airNowOk([airRow({ dateForecast: '2026-10-21' })]),
+    { ok: false, reason: 'timeout' },
+    { ok: false, reason: 'provider_error' },
+    { ok: false, reason: 'budget' },
+    { ok: false, reason: 'no_key' },
+    undefined,
+  ]) {
+    const { body } = build({ airNow });
+    for (const p of body.periods) assert.equal(p.airDaily, null, JSON.stringify(airNow));
+    const cells = onScreen(body, { date: '2026-10-20' }).text.cells;
+    assert.deepEqual([cells.airLabel, cells.air], ['Air', 'Unavailable']);
+  }
+  assert.match(build({ airNow: { ok: false, reason: 'budget' } }).body.coverage.Air, /hourly limit for AirNow requests was reached/);
+  assert.match(build({ airNow: { ok: false, reason: 'no_key' } }).body.coverage.Air, /Air was not checked\. HALO's AirNow forecast connection is not set up\./);
 });
 
 test('F6: an AQI of 0 is a reading and is kept', () => {
