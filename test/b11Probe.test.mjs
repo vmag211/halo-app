@@ -333,7 +333,8 @@ test('reconcile for every ledger status passes the client adapter\'s receipt che
   assert.equal(cases.failedStale.code, 'conflict');
   assert.equal(cases.failedNoResult.status, 'failed');
   assert.equal(cases.succeededNoResult.status, 'succeeded');
-  assert.deepEqual(cases.succeededUnknownCollection.changes, { tests: [] });
+  // The journal (0034) is read back for a succeeded save even with its flag off; unknown names are dropped.
+  assert.deepEqual(cases.succeededUnknownCollection.changes, { weekJournal: [], tests: [] });
   // A workspace operation id read in another domain, or another household's, is a 404 and nothing more.
   const [id] = Object.values(cases).map((c) => c.operationId);
   assert.equal((await w.reconcile(id, { domain: 'explore' })).status, 404);

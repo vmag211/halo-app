@@ -49,8 +49,10 @@ begin;
 -- IDS. `record_id` is the app's id, kept exactly as the device sent it. A row
 -- written before this migration (or by the legacy route) has none; its id is
 -- `journal:<date>:<group>`, which is unique because (profile, date, group) is
--- (0003). Once such a row is edited here its id is written down, so a change of
--- date or group never changes it.
+-- (0003). Once such a row is edited here its id is written down. An id of that
+-- form must always name its entry's own day and group (checked here and in
+-- lib/weekJournalStore.js), so no workspace entry can take the id a later
+-- legacy save of another day would read back with.
 --
 -- RETENTION (Vibhav, 2026-10-25): a check-in is kept until the person deletes
 -- it, clears the journal or all records, or deletes the account. No purge job
@@ -242,6 +244,12 @@ begin
       raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'homeContextId must be a string or null';
     end if;
     w_home := p_write ->> 'homeContextId';
+    -- An id in the form an entry without one reads back as must name this entry's own day and
+    -- group, or a later legacy save of that day would share it (lib/weekJournalStore.js LEGACY_ID).
+    if w_id ~ '^journal:[0-9]{4}-[0-9]{2}-[0-9]{2}:(household|has_[a-z_]+)$'
+       and w_id <> 'journal:' || (w_entry ->> 'entry_date') || ':' || (w_entry ->> 'band') then
+      raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'a journal:<date>:<group> id must name its own day and group';
+    end if;
   end if;
 
   -- 1. The profile, then this operation's own ledger row (the 0026 order).

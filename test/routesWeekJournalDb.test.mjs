@@ -68,14 +68,23 @@ test('the adapter maps the screen and the table both ways, and refuses what the 
   for (const [label, broken] of [
     ['fine with symptoms', { ...base, fine: true }],
     ['fine with a rating', { ...base, fine: true, symptoms: [], severity: 'mild' }],
-    ['symptoms without a rating', { ...base, severity: '' }],
-    ['neither fine nor a symptom', { ...base, symptoms: [] }],
+    ['neither fine nor a symptom nor a rating', { ...base, symptoms: [], severity: '' }],
+    ['a rating outside the three', { ...base, severity: 'severe' }],
+    ['a journal:<date>:<group> id for another day', { ...base, id: 'journal:2026-10-05:has_teen' }],
+    ['a journal:<date>:<group> id for another group', { ...base, id: 'journal:2026-10-20:household' }],
     ['a group the table does not know', { ...base, band: 'pet' }],
     ['a note over 500 characters', { ...base, note: 'n'.repeat(501) }],
     ['a date after tomorrow', { ...base, date: '2026-10-30' }],
     ['a date before 2000', { ...base, date: '1999-12-31' }],
     ['more than 20 symptoms', { ...base, symptoms: Array.from({ length: 21 }, (_, at) => `s${at}`) }],
   ]) assert.equal(entryFromRecord(broken, { today: TODAY }).ok, false, label);
+  // What the table has always held stays editable: a rating with no symptoms, symptoms with no rating,
+  // and an entry's own derived id.
+  for (const [label, kept] of [
+    ['a rating with no symptoms', { ...base, symptoms: [] }],
+    ['symptoms with no rating', { ...base, severity: '' }],
+    ['its own derived id', { ...base, id: 'journal:2026-10-20:has_teen' }],
+  ]) assert.equal(entryFromRecord(kept, { today: TODAY }).ok, true, label);
   // A legacy row: no app id, a rating with no symptoms.
   const legacy = recordFromRow({ id: 'journal:2026-09-01:has_child', revision: 3, entry_date: '2026-09-01', band: 'has_child', symptoms: [], severity: 'mild', note: null, retrospective: false, possibly_illness: false, home_context_id: null });
   assert.deepEqual(legacy, { id: 'journal:2026-09-01:has_child', title: JOURNAL_TITLE, revision: 3, date: '2026-09-01', band: 'child', fine: false, symptoms: [], severity: 'mild', illness: false, note: '', recalled: false });
@@ -163,6 +172,11 @@ test('one entry per day and group: another id for a taken day (another home or d
     kind: 'write', id: other.id, expectedRevision: null, homeContextId: null,
     entry: { entry_date: '2026-10-20', band: 'household', symptoms: ['Cough'], severity: 'bad', note: null, retrospective: false, possibly_illness: false },
   })]), { commit: true }), /HALO_JOURNAL_DAY_TAKEN/);
+  // The SQL backstop for an id in the legacy form that names another day.
+  await assert.rejects(db.asService((tx) => tx.query('select public.commit_week_journal($1, $2, $3::jsonb)', [w.ids.alice, op, JSON.stringify({
+    kind: 'write', id: 'journal:2026-10-05:household', expectedRevision: null, homeContextId: null,
+    entry: { entry_date: '2026-10-09', band: 'household', symptoms: ['Cough'], severity: 'bad', note: null, retrospective: false, possibly_illness: false },
+  })]), { commit: true }), /HALO_INVALID_INPUT/);
 });
 
 test('the table\'s rules and the home are checked before any claim or under the lock; another household\'s home is refused', async () => {
@@ -172,7 +186,9 @@ test('the table\'s rules and the home are checked before any claim or under the 
   const before = await claims();
   for (const record of [
     checkIn(w, '2026-10-20', { fine: true }),
-    checkIn(w, '2026-10-20', { severity: '' }),
+    checkIn(w, '2026-10-20', { symptoms: [], severity: '' }),
+    // Would read back with the id a later legacy save of 2026-10-05 gets (two rows, one id).
+    checkIn(w, '2026-10-20', { id: 'journal:2026-10-05:household' }),
     checkIn(w, '2026-10-20', { note: 'n'.repeat(501) }),
     checkIn(w, '2026-10-20', { band: 'pet' }),
   ]) {
@@ -201,6 +217,23 @@ test('an entry from before 0034 (or the legacy route) loads with its derived id,
   assert.equal(await ws.write('weekJournal', { ...ws.records.weekJournal[0], note: 'stale tab' }), false);
   assert.equal(ws.state.message, REFUSALS.stale_revision.message);
   assert.deepEqual((await w.journalRows('alice')).map((row) => [row.revision, row.symptoms]), [[3, ['Cough']]]);
+  // Moving a legacy-id entry to another day would let a later legacy save share its id: refused.
+  await ws.retry('weekJournal');
+  assert.equal(await ws.write('weekJournal', { ...ws.records.weekJournal[0], date: '2026-10-02' }), false);
+  assert.equal(ws.state.message, REFUSALS.invalid_record.message);
+});
+
+test('an older entry with a rating and no symptoms can be edited, deleted and restored by Undo', async () => {
+  const w = await journalWorld();
+  await db.query(`insert into public.symptom_logs (profile_id, entry_date, band, symptoms, severity) values ($1, '2026-10-03', 'household', '{}', 'mild')`, [w.ids.alice]);
+  const ws = await loaded(w);
+  const [older] = ws.records.weekJournal;
+  assert.deepEqual([older.fine, older.symptoms, older.severity], [false, [], 'mild']);
+  assert.equal(await ws.write('weekJournal', { ...older, note: 'added later' }), true, ws.state.message);
+  const edited = ws.records.weekJournal[0];
+  assert.equal(await ws.remove('weekJournal', edited.id, edited.revision), true, ws.state.message);
+  assert.equal(await ws.write('weekJournal', { ...edited, revision: 0 }), true, ws.state.message);
+  assert.deepEqual((await w.journalRows('alice')).map((row) => [row.entry_date, row.severity, row.note]), [['2026-10-03', 'mild', 'added later']]);
 });
 
 test('a save whose answer is lost after the commit stays succeeded: the client locks, reconciles to "Saved." and holds the entry', async () => {
