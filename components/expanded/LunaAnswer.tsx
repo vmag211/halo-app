@@ -10,7 +10,7 @@ export default function LunaAnswer({message}:{message:LunaMessage}){
  return <div className="lc-answer">
   {message.text&&<p>{clean(message.text)}</p>}
   {message.evidence?.map((block,index)=>{const Icon=icons[block.kind];return <section className={`lc-evidence lc-evidence--${block.kind}`} key={index} aria-label={labels[block.kind]}>
-   <h4><Icon size={15} aria-hidden="true"/>{labels[block.kind]}</h4><p>{clean(block.text)}</p>
+   <h3><Icon size={15} aria-hidden="true"/>{labels[block.kind]}</h3><p>{clean(block.text)}</p>
    {(block.scope||block.observedAt)&&<small>{block.scope&&clean(block.scope)}{block.scope&&block.observedAt?' · ':''}{block.observedAt&&<time dateTime={block.observedAt}>Source date: {new Intl.DateTimeFormat('en-US',{dateStyle:'medium',timeZone:'UTC'}).format(new Date(block.observedAt))} (UTC)</time>}</small>}
    {block.sourceIndexes.length>0&&<ul className="lc-evidence-citations" aria-label="Sources for this statement">{block.sourceIndexes.map(sourceIndex=>{const source=message.sources![sourceIndex];return <li key={sourceIndex}><a href={source.url} target="_blank" rel="noreferrer">{clean(source.title)}</a></li>;})}</ul>}
   </section>;})}

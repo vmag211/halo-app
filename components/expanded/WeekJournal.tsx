@@ -24,7 +24,9 @@ export default function WeekJournal({href,initialView='journal'}:{href:(tab:stri
  const today=lunaCalendarAnchor();const workspace=useHomeWorkspace();const collection=useHomeCollection<WeekEntry>('weekJournal',initial);
  const [tab,setTab]=useState(initialView==='patterns'?'Patterns':initialView==='recap'?'Season':'Journal');
  const contextId=workspace.service?.context?.currentHomeId;const entryId=(date:string,band:string)=>contextId?`journal:${contextId}:${date}:${band}`:`journal:${date}:${band}`;
- const [draft,setDraft,clear]=useHomeDraft<WeekEntry>('week:journal-draft',{id:entryId(today,'household'),...(contextId?{homeContextId:contextId}:{}),title:'Household check-in',revision:0,date:today,band:'household',fine:false,symptoms:[],severity:'',illness:false,note:'',recalled:false});
+ // Until the person edits, the form shows today's saved household check-in when one exists, so a return visit updates it instead of colliding with it.
+ const savedToday=collection.records.find(e=>e.date===today&&e.band==='household');
+ const [draft,setDraft,clear]=useHomeDraft<WeekEntry>('week:journal-draft',savedToday?structuredClone(savedToday):{id:entryId(today,'household'),...(contextId?{homeContextId:contextId}:{}),title:'Household check-in',revision:0,date:today,band:'household',fine:false,symptoms:[],severity:'',illness:false,note:'',recalled:false});
  const [error,setError]=useState('');const [deleted,setDeleted]=useState<WeekEntry|null>(null);const [remove,setRemove]=useState<WeekEntry|null>(null);
  const [batch,setBatch]=useState<string[]>([]);const [batchResult,setBatchResult]=useState('');const [attempted,setAttempted]=useState(false);
  const view=workspace.mode==='production'?collectionView(collection.status):'ready';
