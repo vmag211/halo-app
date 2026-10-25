@@ -102,6 +102,14 @@ test('scoped export retains originals and revisions but omits context unless sel
   assert.equal(testExport(record, true).contextSnapshot.irrigation, 'Example well');
 });
 
+test('a production export of the person\'s own record is never labelled synthetic (release QA 2026-10-25)', () => {
+  const own = testExport(sampleTests[0], false, true);
+  assert.equal(own.synthetic, false);
+  assert.equal(own.format, 'HALO test record');
+  assert.doesNotMatch(`${own.format} ${own.caveat}`, /[Ss]ynthetic|wireframe/);
+  assert.deepEqual(own.rows, sampleTests[0].rows);
+});
+
 test('garden source snapshots and sample collection periods affect compatibility', () => {
   const first = { ...copy(sampleTests[0]), contextSnapshot: { label: 'Garden', revision: 1, irrigation: 'Example well' } };
   const second = { ...copy(sampleTests[1]), contextSnapshot: { label: 'Garden', revision: 2, irrigation: 'Example utility' } };
