@@ -1231,7 +1231,8 @@ test('every fixture has the consequence in the client that the contract says it 
       else assert.equal(panel.status.error, failureSentence(status, false), `${label}: the banner's cause`);
     } else if (id === 'privacyInspect') {
       if (status === 200) assert.equal(panel.state.review?.count, body.count, `${label}: the review opens with the count`);
-      else assert.deepEqual([panel.state.review, panel.state.message, panel.state.unknown], [null, failureSentence(status, true), null], `${label}: no review, no lock`);
+      // Inspect writes nothing (P-2), so a 5xx on it is a review that was not prepared, never an outcome to check (release QA 2026-10-25).
+      else assert.deepEqual([panel.state.review, panel.state.message, panel.state.unknown], [null, status >= 500 ? 'The review could not be prepared. Nothing was changed. Try again.' : failureSentence(status, true), null], `${label}: no review, no lock`);
     } else if (id === 'operationsRead') {
       const expected = status !== 200 ? failureSentence(status, false)
         : body.status === 'failed' ? SAY.unchanged

@@ -6,6 +6,7 @@ import { Confirm, Field, SourceNote } from './HomeWorkspaceUI';
 import { usePrivateUpload } from './usePrivateUpload';
 import type { HomeAttachment } from '@/lib/frontend/production/home-service';
 import { FrontendServiceError, serviceMessage } from '@/lib/frontend/production/runtime';
+import { reportFileCopy, reportFileError } from '@/lib/frontend/note-photo-preview';
 
 export function PrivateAttachmentDownload({ attachmentId, revision, name, image = false }: { attachmentId: string; revision: number; name: string; image?: boolean }) {
   const { service } = useHomeWorkspace();
@@ -34,12 +35,13 @@ export function PrivateObservationPhoto({id,revision,name}:{id:string;revision:n
 }
 
 /** Report originals may retain document metadata; private storage is explicitly reviewed. */
-export function PrivateReportAttachments({ recordId }: { recordId: string }) {
+/** `onStep(from)`: a stored or removed report raised the test's revision from `from` by exactly one (B14 Ruling A7), so an open results draft based on `from` can follow it instead of reporting its own upload as a change made elsewhere. */
+export function PrivateReportAttachments({ recordId, onStep }: { recordId: string; onStep?: (from: number) => void }) {
   const workspace = useHomeWorkspace(), upload = usePrivateUpload();
   const [file, setFile] = useState<File | null>(null), [reviewed, setReviewed] = useState(false), [url, setUrl] = useState('');
   const [removing, setRemoving] = useState<HomeAttachment | null>(null), [removeOperation, setRemoveOperation] = useState(''), [removeUnknown, setRemoveUnknown] = useState(false), [removeBusy, setRemoveBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
-  const record = workspace.collections.tests?.find(item => item.id === recordId) as { attachments?: HomeAttachment[] } | undefined;
+  const record = workspace.collections.tests?.find(item => item.id === recordId) as { attachments?: HomeAttachment[]; revision?: number } | undefined;
   const stored = Array.isArray(record?.attachments) ? record.attachments.filter(item => item && typeof item.id === 'string' && Number.isSafeInteger(item.revision) && ['ready', 'quarantined', 'rejected'].includes(item.status)) : [];
   const visible = [...stored, ...(upload.attachment && !stored.some(item => item.id === upload.attachment?.id) ? [upload.attachment] : [])];
   useEffect(() => () => request.current?.abort(), []);
@@ -47,13 +49,15 @@ export function PrivateReportAttachments({ recordId }: { recordId: string }) {
   const busy = upload.busy || removeBusy, blocked = busy || upload.unknown || removeUnknown;
   async function save() {
     if (!file || !reviewed) return;
+    const before = record?.revision;
     const next = await upload.upload({ collection: 'tests', recordId, file, name: file.name, metadataRemoved: false, reviewed });
+    if (next?.status === 'ready' && typeof before === 'number') onStep?.(before);
     if (next?.status === 'ready') await workspace.retry('tests');
   }
   async function remove() {
     if (!removing || !workspace.service?.attachments || removeBusy) return;
     const controller = new AbortController(); request.current = controller; setRemoveBusy(true);
-    const id = removeOperation || crypto.randomUUID(); setRemoveOperation(id);
+    const id = removeOperation || crypto.randomUUID(); setRemoveOperation(id); const before = removeUnknown ? undefined : record?.revision;
     workspace.trackPendingOperation(id, 'attachments');
     try {
       const receipt = removeUnknown ? await workspace.service.reconcile(id, controller.signal, 'attachments') : await workspace.service.attachments.remove(removing.id, removing.revision, id, controller.signal);
@@ -63,13 +67,14 @@ export function PrivateReportAttachments({ recordId }: { recordId: string }) {
       else if (receipt.status !== 'failed') throw new Error('Unconfirmed removal result');
       workspace.resolvePendingOperation(id); setRemoveUnknown(false); setRemoveOperation('');
       if (receipt.status !== 'succeeded') { upload.setMessage(receipt.message || 'The private file was not removed.'); return; }
+      if (typeof before === 'number') onStep?.(before);
       upload.reset(); setRemoving(null); setFile(null); setReviewed(false); upload.setMessage('Private file removed. Entered results remain.'); await workspace.retry('tests');
     } catch (error) { const uncertain = error instanceof FrontendServiceError ? ['unknown_outcome', 'invalid_response', 'aborted'].includes(error.code) : true; setRemoveUnknown(uncertain); if (!uncertain) workspace.resolvePendingOperation(id); upload.setMessage(serviceMessage(error)); }
     finally { if (!controller.signal.aborted) setRemoveBusy(false); }
   }
-  return <section className="hg-card hg-stack" aria-label="Private attachment review"><h3>Private originals</h3><p>PNG, JPEG or PDF, up to 10 MiB. Reports may contain identifying details. They are not sent to a laboratory or Luna.</p>
+  return <section className="hg-card hg-stack" aria-label="Private attachment review"><h3>Private originals</h3><p>{reportFileCopy.intro}</p>
     {visible.map(item => <div className="hg-stack" key={item.id}><strong>{item.name}</strong><span className="hg-meta">{item.status === 'ready' ? 'Private report' : item.status === 'quarantined' ? 'File checks pending' : 'File rejected'}</span>{item.status === 'ready' && <PrivateAttachmentDownload attachmentId={item.id} revision={item.revision} name={item.name} />}<button type="button" className="hg-text-button" disabled={blocked} onClick={() => { setRemoving(item); setRemoveOperation(''); }}>Remove stored report</button></div>)}
-    <Field label="Choose a report"><input type="file" accept="image/png,image/jpeg,application/pdf" disabled={blocked || !!upload.attachment} onChange={event => { const next = event.target.files?.[0]; if (!upload.reset()) return; setReviewed(false); setUrl(''); if (!next) { setFile(null); return; } if (!['image/png', 'image/jpeg', 'application/pdf'].includes(next.type) || next.size > 10485760 || !next.size) { setFile(null); upload.setMessage('Choose a nonempty PNG, JPEG or PDF no larger than 10 MiB.'); return; } setFile(next); }} /></Field>
+    <Field label="Choose a report"><input type="file" accept={reportFileCopy.accept} disabled={blocked || !!upload.attachment} onChange={event => { const next = event.target.files?.[0]; if (!upload.reset()) return; setReviewed(false); setUrl(''); if (!next) { setFile(null); return; } const invalid = reportFileError(next.type, next.size); if (invalid) { setFile(null); upload.setMessage(invalid); return; } setFile(next); }} /></Field>
     {file && <><p><strong>{file.name}</strong> · {Math.ceil(file.size / 1024)} KiB</p>{url && file.type.startsWith('image/') ? <img className="hg-attachment-image" src={url} alt="Selected private report original" /> : <p>Review the PDF in your original viewer before confirming.</p>}<label className="hg-check"><input type="checkbox" checked={reviewed} disabled={blocked || !!upload.attachment} onChange={event => setReviewed(event.target.checked)} />I inspected the original and agree to store this private report.</label><div className="hg-actions"><button type="button" className="hg-button" disabled={!reviewed || busy || upload.unknown || upload.attachment?.status === 'ready'} onClick={() => void save()}>{upload.busy ? 'Checking file...' : upload.attachment?.status === 'quarantined' ? 'Check file status' : 'Save private report'}</button><button type="button" className="hg-button-secondary" disabled={blocked || upload.attachment?.status === 'quarantined'} onClick={() => { if (upload.reset()) { setFile(null); setReviewed(false); } }}>{upload.attachment ? 'Add another report' : 'Remove local selection'}</button></div></>}
     {upload.unknown && <button type="button" className="hg-button" disabled={busy} onClick={() => void upload.upload().then(next => { if (next?.status === 'ready') void workspace.retry('tests'); })}>Check upload status</button>}
     {upload.busy && <div role="status">Saving private file...<button type="button" onClick={upload.stop}>Stop waiting</button></div>}{upload.message && <p role="status">{upload.message}</p>}
