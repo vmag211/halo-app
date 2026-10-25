@@ -29,6 +29,15 @@ export function productRoute(path: string): {legacy:string;destination?:string} 
   return null;
 }
 export function legacyProductPath(path:string):string {return productRoute(path)?.legacy??path;}
+/** Journal, Patterns and Season are one Journal page (its views), reached from the sidebar's own Journal entry and from My Week. */
+export const journalDestinations:readonly string[]=['journal','patterns','recap'];
+export function isJournalDestination(destination?:string|null):boolean {return !!destination&&journalDestinations.includes(destination);}
+/** A destination's page name where its key is not what the screen calls it. */
+const destinationNames:Record<string,string>={recap:'Season',opportunities:'Get involved',observations:'Notes'};
+/** The browser title of a destination page, the same words the screen uses. */
+export function destinationTitle(destination:string):string {return destinationNames[destination]??destination[0].toUpperCase()+destination.slice(1);}
+/** The app header of a destination page: Journal for its views, otherwise the owning tab's name (null). */
+export function destinationHeader(destination?:string|null):string|null {return isJournalDestination(destination)?'Journal':null;}
 export function productPath(tab:string):string {return productPaths[tab]??`/${tab}`;}
 /** Existing feature links append their safe view/record parameters with &. */
 export function productDestinationHref(tab:string,destination?:string):string {

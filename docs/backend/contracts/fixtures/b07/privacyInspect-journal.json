@@ -15,9 +15,7 @@
         "Your sign-in, so this device stays signed in.",
         "A short receipt of this request, with none of your records in it, kept for 24 hours."
       ],
-      "notStored": [
-        "Week journal check-ins are not stored on the server yet, so nothing is removed for them."
-      ],
+      "notStored": [],
       "limits": [
         "Copies you already downloaded cannot be recalled.",
         "Server backups and records held by service providers are outside this deletion."

@@ -120,7 +120,9 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
       if (!Array.isArray(snapshot.pendingOperations) || !snapshot.pendingOperations.every(item => item && typeof item.operationId === 'string' && item.operationId && ['workspace', 'attachments'].includes(item.domain))) throw new Error('Pending changes could not be checked. Refresh before editing.');
       for (const item of snapshot.pendingOperations) if (!resolvedOperations.current.has(item.operationId) && !unknownRef.current.has(item.operationId)) unknownRef.current.set(item.operationId, { kind: 'recovered', operationId: item.operationId, domain: item.domain });
       if (unknownRef.current.size) { setUnknownOperations([...unknownRef.current.keys()].map(operationId => ({ operationId, message: 'An earlier change needs a status check.' }))); setMessage('Check earlier changes before making another change.'); }
-      if (snapshot.availability === 'unavailable') throw new Error(snapshot.message || 'This collection is unavailable. Your saved records are unchanged.');
+      // A successful answer that says "unavailable" is the server's settled word (a collection it does not
+      // store, or a capability switched off), not a transient failure: shown as not available yet, no retry.
+      if (snapshot.availability === 'unavailable') throw Object.assign(new Error(snapshot.message || 'This collection is unavailable. Your saved records are unchanged.'), { reason: 'feature_unavailable' });
       commit({ ...recordsRef.current, [key]: snapshot.records });
       collectionState(key, { status: 'ready', revision: snapshot.revision, complete: snapshot.complete !== false && !snapshot.nextCursor && snapshot.availability !== 'partial', message: snapshot.message });
     } catch (error) {

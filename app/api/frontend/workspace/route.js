@@ -6,13 +6,16 @@ import { featureEnabled } from '@/lib/features';
 import { isOperationsUnavailable } from '@/lib/operations';
 import { validProductionRecord } from '@/lib/workspaceRecords';
 import {
+  JOURNAL_OFF,
   UNSTORED_COLLECTIONS,
   WORKSPACE_COLLECTIONS,
   isWorkspaceUnavailable,
+  journalEnabled,
   pendingWorkspaceOperations,
   readWorkspaceCollections,
   workspaceUnavailable,
 } from '@/lib/workspaceStore';
+import { JOURNAL_COLLECTION, readWeekJournal } from '@/lib/weekJournalStore';
 
 /**
  * GET /api/frontend/workspace?collection=<name>  (registry `workspace.load`, runtime.ts:22)
@@ -34,9 +37,14 @@ import {
  * The provider treats each listed one as a lock and offers a status check
  * (HomeWorkspaceState.tsx:109-111).
  *
- * `weekJournal` and `homeTransitions` are never stored (Rulings W2 and W3):
- * they are answered `unavailable` with the household's pending list, which the
- * provider records before it shows the message as the collection's error.
+ * `homeTransitions` is never stored (Ruling W3): it is answered `unavailable`
+ * with the household's pending list, which the provider records before it
+ * shows the collection as settled "not available yet" (no retry).
+ *
+ * `weekJournal` (migration 0034) is the journal table, read through
+ * lib/weekJournalStore.js while the `journal` flag is on: the newest 1000
+ * entries, answered `partial` with `complete: false` only beyond that. While the flag is off it is
+ * answered `unavailable` like homeTransitions (W2, superseded 2026-10-25).
  *
  * No collection `revision` (Ruling W6): per-record revisions are the
  * concurrency control. No `nextCursor`: the collection is complete (at most
@@ -72,6 +80,19 @@ export async function GET(request) {
     if (!featureEnabled('workspace')) return workspaceUnavailable(requestId);
 
     const pendingOperations = await pendingWorkspaceOperations(supabaseAdmin, userId);
+    if (collection.value === JOURNAL_COLLECTION) {
+      if (!journalEnabled()) {
+        return NextResponse.json(
+          { records: [], availability: 'unavailable', complete: false, message: JOURNAL_OFF.load, pendingOperations },
+          { headers },
+        );
+      }
+      const journal = await readWeekJournal(supabaseAdmin, userId);
+      return NextResponse.json(
+        { records: journal.records, availability: !journal.complete ? 'partial' : journal.records.length ? 'ready' : 'empty', complete: journal.complete, pendingOperations },
+        { headers },
+      );
+    }
     const unstored = UNSTORED_COLLECTIONS[collection.value];
     if (unstored) {
       return NextResponse.json(

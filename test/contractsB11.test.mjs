@@ -33,9 +33,12 @@
  * oversized body) is a plain test write.
  *
  * Declared seams: the provider never sends a write for a collection that has
- * not loaded `ready`, so the two refusals for weekJournal and homeTransitions
- * are replayed through the adapter alone (the adapter still has to accept the
- * receipt); `navigator.onLine` is true and no request is aborted.
+ * not loaded `ready`, so the refusal for homeTransitions is replayed through
+ * the adapter alone (the adapter still has to accept the receipt);
+ * `navigator.onLine` is true and no request is aborted. weekJournal (b11-2,
+ * migration 0034) is replayed like a stored collection: with the journal flag
+ * off the replayed load is ready, so the client sends the write and shows the
+ * refusal.
  *
  * Run `node test/contractsB11.test.mjs --write-b11-fixtures` to rewrite the
  * fixtures from the handlers after a deliberate contract change.
@@ -51,14 +54,16 @@ import { muteConsoleError, rpcError } from './helpers/routeHarness.mjs';
 import { REPO_ROOT } from './helpers/routeLoader.mjs';
 import { loggedText } from './helpers/envelope.mjs';
 import { createDb } from './db/pgliteHarness.mjs';
-import { createWorld, sampleRecord, LOAD, COMMANDS, OPERATIONS } from './helpers/workspaceWorld.mjs';
+import { createWorld, sampleRecord, LOAD, COMMANDS, OPERATIONS, JOURNAL_ON } from './helpers/workspaceWorld.mjs';
 import { homeWorkspace, validProductionCollection, homeReceiptCoversCommand, validHomeChanges, recordFingerprint } from './helpers/frontendB11.mjs';
 import { loadFrontend } from './frontend-test-loader.mjs';
 
 const { requestHash } = await import('../lib/operations.js');
 const store = await import('../lib/workspaceStore.js');
 const { featureDisabledReason } = await import('../lib/features.js');
-const { REFUSALS, STORED_COLLECTIONS, UNSTORED_COLLECTIONS, WORKSPACE_COLLECTIONS, LIMITS, INCOMPLETE_MESSAGE, IN_FLIGHT_MESSAGE } = store;
+const { REFUSALS, STORED_COLLECTIONS, UNSTORED_COLLECTIONS, WORKSPACE_COLLECTIONS, LIMITS, INCOMPLETE_MESSAGE, IN_FLIGHT_MESSAGE, JOURNAL_OFF } = store;
+/** Every collection with records the document describes: the fourteen, and the journal (b11-2, migration 0034). */
+const RECORD_COLLECTIONS = Object.freeze([...STORED_COLLECTIONS, 'weekJournal']);
 const { createProductionRuntime, productionOperations } = await loadFrontend('production/runtime');
 const { createHomeAdapter } = await loadFrontend('production/adapters');
 
@@ -249,10 +254,10 @@ const STAND_IN = () => ({ kind: 'write', collection: 'tests', record: sampleReco
 
 /** The loads the command's collections need, so the client holds the record it is about to change. */
 function seedFor(request) {
-  if (request.kind === 'write' && request.expectedRevision !== null && STORED_COLLECTIONS.includes(request.collection)) {
+  if (request.kind === 'write' && request.expectedRevision !== null && RECORD_COLLECTIONS.includes(request.collection)) {
     return { [request.collection]: [sampleRecord(request.collection, { id: request.record.id, homeContextId: HOME, revision: request.expectedRevision })] };
   }
-  if (request.kind === 'remove' && STORED_COLLECTIONS.includes(request.collection)) {
+  if (request.kind === 'remove' && RECORD_COLLECTIONS.includes(request.collection)) {
     return { [request.collection]: [sampleRecord(request.collection, { id: request.recordId, homeContextId: HOME, revision: request.expectedRevision })] };
   }
   if (request.kind === 'remove-notes') {
@@ -264,7 +269,7 @@ const collectionsOf = (request) => (request.kind === 'remove-notes' ? ['exploreN
 
 /** Loads what the command touches, then makes the same change through the provider. */
 async function perform(ws, request) {
-  await ws.loadAll(collectionsOf(request).filter((name) => STORED_COLLECTIONS.includes(name)));
+  await ws.loadAll(collectionsOf(request).filter((name) => RECORD_COLLECTIONS.includes(name)));
   const before = structuredClone(ws.records);
   const ok = await (() => {
     switch (request.kind) {
@@ -390,7 +395,7 @@ for (const fixture of fixtures) {
   test(`B11 fixture: ${fixture.name}`, () => {
     validate(fixture.operationId, fixture.status, fixture.body);
     assertBare(fixture.body, fixture.name);
-    if (fixture.operationId === 'workspaceLoad' && fixture.status === 200 && STORED_COLLECTIONS.includes(fixture.request.collection)) validateRows(fixture.request.collection, fixture.body.records);
+    if (fixture.operationId === 'workspaceLoad' && fixture.status === 200 && RECORD_COLLECTIONS.includes(fixture.request.collection)) validateRows(fixture.request.collection, fixture.body.records);
     if (fixture.operationId === 'workspaceExecute' && fixture.request && fixture.status !== 400) validateRequest(fixture.request);
   });
 }
@@ -401,7 +406,7 @@ for (const fixture of fixtures) {
 
 test('B11 contract covers the three operations, and every documented status has a fixture', () => {
   assert.equal(contract.openapi, '3.1.0');
-  assert.equal(contract.info.version, 'b11-1');
+  assert.equal(contract.info.version, 'b11-2');
   assert.deepEqual([...operations.keys()].sort(), ['operationsRead', 'workspaceExecute', 'workspaceLoad']);
   assert.deepEqual(Object.fromEntries([...operations].map(([id, op]) => [id, `${op.method} ${op.path} ${op['x-halo-operation']}`])), {
     workspaceLoad: 'GET /api/frontend/workspace workspace.load',
@@ -452,10 +457,11 @@ test('B11 contract covers the three operations, and every documented status has 
 test('the contract\'s collections, refusals, sentences and limits are exactly the library\'s', () => {
   const schemas = contract.components.schemas;
   assert.deepEqual(operations.get('workspaceLoad').parameters.find((p) => p.name === 'collection').schema.enum, [...WORKSPACE_COLLECTIONS]);
-  assert.deepEqual(Object.keys(schemas.Changes.properties), [...STORED_COLLECTIONS]);
-  assert.deepEqual(schemas.Record.anyOf.map((item) => item.$ref.split('Record_')[1]), [...STORED_COLLECTIONS]);
+  assert.deepEqual(Object.keys(schemas.Changes.properties), [...RECORD_COLLECTIONS]);
+  assert.deepEqual(schemas.Record.anyOf.map((item) => item.$ref.split('Record_')[1]), [...RECORD_COLLECTIONS]);
   assert.deepEqual(schemas.WorkspaceWrite.properties.collection.enum, [...WORKSPACE_COLLECTIONS]);
-  assert.deepEqual(schemas.WorkspaceOperationSucceeded.properties.collections.items.enum, [...STORED_COLLECTIONS]);
+  assert.deepEqual(schemas.WorkspaceOperationSucceeded.properties.collections.items.enum, [...RECORD_COLLECTIONS]);
+  assert.equal(schemas.Changes.properties.weekJournal.maxItems, store.LIMITS.collectionRecords, 'the journal read is bounded like a collection');
   // Each reason: its code and its sentence are the library's.
   for (const [reason, refusal] of Object.entries(REFUSALS)) {
     const rule = schemas.WorkspaceReceiptRefused.allOf.find((item) => item.if.properties.reason.const === reason);
@@ -469,7 +475,7 @@ test('the contract\'s collections, refusals, sentences and limits are exactly th
   assert.equal(store.STORED_REFUSALS.includes('changed_elsewhere'), false, 'it is computed on read, never stored');
   // The unavailable collections' load sentences, the disabled sentence, the reconcile sentences.
   const unavailable = schemas.WorkspaceSnapshot.oneOf.find((item) => item.properties.availability.const === 'unavailable');
-  assert.deepEqual(unavailable.properties.message.enum, Object.values(UNSTORED_COLLECTIONS).map((item) => item.load));
+  assert.deepEqual(unavailable.properties.message.enum, [JOURNAL_OFF.load, ...Object.values(UNSTORED_COLLECTIONS).map((item) => item.load)]);
   assert.equal(schemas.WorkspaceReceiptDisabled.properties.message.const, featureDisabledReason('workspace'));
   assert.equal(schemas.WorkspaceOperationIncomplete.properties.message.const, INCOMPLETE_MESSAGE);
   assert.equal(schemas.WorkspaceOperationOpen.properties.message.const, IN_FLIGHT_MESSAGE);
@@ -525,7 +531,7 @@ test('drift: the runtime sentences and the provider lines the suite relies on ar
 // ---------------------------------------------------------------------------
 
 test('each Record_<collection> schema and the client\'s own row check agree on a corpus of the valid and the broken', () => {
-  for (const key of STORED_COLLECTIONS) {
+  for (const key of RECORD_COLLECTIONS) {
     const schemaFor = schema(`Record_${key}`);
     const valid = { ...sampleRecord(key, { homeContextId: HOME }), revision: 1 };
     const agree = (row, label, expected) => {
@@ -641,7 +647,7 @@ async function call(w, id, { expected = 200, query = '', body, rawBody, as = 'al
     assert.equal(json.request_id, REQUEST_ID);
     assert.equal(/supabase|postgres|PGRST|P0001|HALO_[A-Z]|XX000|contractsB11|bearer|PRIVATE-B11/i.test(text), false, `${id} ${expected}: nothing proof-bearing in an error envelope`);
   }
-  if (id === 'workspaceLoad' && res.status === 200 && STORED_COLLECTIONS.includes(request.collection)) validateRows(request.collection, json.records);
+  if (id === 'workspaceLoad' && res.status === 200 && RECORD_COLLECTIONS.includes(request.collection)) validateRows(request.collection, json.records);
   if (id === 'operationsRead' && res.status === 200 && json.status === 'succeeded') {
     assert.deepEqual(Object.keys(json.changes).sort(), [...json.collections].sort(), 'a reconcile carries exactly the collections the save touched');
   }
@@ -720,9 +726,9 @@ test('B11 handler conformance: workspace.load answers empty, saved rows, a pendi
   assert.deepEqual(pending.pendingOperations, [{ operationId: other.operationId, domain: 'workspace' }]);
   assert.equal(pending.availability, 'ready');
 
-  // The two collections that are never stored answer unavailable, and the pending list still comes with them.
+  // The journal while its flag is off, and home history, answer unavailable, and the pending list still comes with them.
   const { body: journal } = await load(w, 'weekJournal', { fixture: 'workspaceLoad-unavailable-week-journal' });
-  assert.deepEqual(journal, { records: [], availability: 'unavailable', complete: false, message: UNSTORED_COLLECTIONS.weekJournal.load, pendingOperations: pending.pendingOperations });
+  assert.deepEqual(journal, { records: [], availability: 'unavailable', complete: false, message: JOURNAL_OFF.load, pendingOperations: pending.pendingOperations });
   const { body: transitions } = await load(w, 'homeTransitions', { fixture: 'workspaceLoad-unavailable-home-transitions' });
   assert.equal(transitions.message, UNSTORED_COLLECTIONS.homeTransitions.load);
 
@@ -752,6 +758,30 @@ test('B11 handler conformance: workspace.load answers empty, saved rows, a pendi
   const broken = await world({ onRead: async () => { throw rpcError('XX000', 'boom', `Failing row contains (${MARKER})`, MARKER); } });
   await load(broken, 'tests', { expected: 500, fixture: 'workspaceLoad-internal-error' });
   assert.ok(!loggedText(logged).includes('PRIVATE-B11'), 'no record content reaches a log line');
+});
+
+test('B11 handler conformance (b11-2): with the journal flag on, weekJournal loads, saves, refuses a taken day, reconciles and removes', async () => {
+  const w = await world({ env: JOURNAL_ON });
+  const { body: empty } = await load(w, 'weekJournal', {});
+  assert.deepEqual(empty, { records: [], availability: 'empty', complete: true, pendingOperations: [] });
+  // A stable id (the screen's is journal:<home>:<date>:<group>), so the fixture does not carry a random home id.
+  const entry = sampleRecord('weekJournal', { id: 'journal:current-home:2026-10-20:household', title: 'Tue, Oct 20 check-in', homeContextId: w.home.alice });
+  const create = write('weekJournal', entry);
+  const { body: made } = await execute(w, create, { fixture: 'workspaceExecute-write-created-week-journal' });
+  assert.deepEqual(made.changes.weekJournal.map((row) => [row.id, row.revision, row.title, row.homeContextId]), [[entry.id, 1, 'Check-in', w.home.alice]]);
+  assert.ok(homeReceiptCoversCommand(create, made), 'the client\'s own coverage check accepts it');
+  const { body: ready } = await load(w, 'weekJournal', { fixture: 'workspaceLoad-records-week-journal' });
+  assert.deepEqual(ready.records, made.changes.weekJournal, 'the next load is the receipt\'s rows');
+  // One entry per day and group: another device's id for the same day is refused, and nothing changes.
+  const taken = write('weekJournal', sampleRecord('weekJournal', { id: 'journal:other-device:2026-10-20:household', severity: 'bad' }));
+  const { body: refused } = await execute(w, taken, { fixture: 'workspaceExecute-refused-journal-day-taken' });
+  assert.deepEqual([refused.status, refused.code, refused.reason, refused.changes, refused.message], ['failed', 'conflict', 'journal_day_taken', {}, REFUSALS.journal_day_taken.message]);
+  assert.deepEqual((await w.journalRows('alice')).map((row) => [row.record_id, row.severity]), [[entry.id, 'mild']]);
+  const { body: settled } = await reconcile(w, create, {});
+  assert.deepEqual(settled.changes.weekJournal, made.changes.weekJournal, 'the reconcile shows the same rows');
+  const { body: gone } = await execute(w, remove('weekJournal', entry.id, 1), {});
+  assert.deepEqual(gone.changes, { weekJournal: [] });
+  assert.deepEqual(await w.journalRows('alice'), []);
 });
 
 test('B11 handler conformance: workspace.execute answers success, every 200 refusal, the disabled receipt and every 4xx and 5xx', async (t) => {
@@ -1032,8 +1062,9 @@ test('client: a new household holds fourteen ready collections and two unavailab
     assert.deepEqual(ws.status(key), { status: 'ready', revision: undefined, complete: true, message: undefined }, key);
     assert.deepEqual(ws.records[key], [], key);
   }
-  for (const [key, copy] of Object.entries(UNSTORED_COLLECTIONS)) {
-    assert.deepEqual(ws.status(key), { status: 'error', complete: false, message: copy.load }, key);
+  // A settled "not available yet" (no retry): home history, and the journal while its flag is off.
+  for (const [key, copy] of [...Object.entries(UNSTORED_COLLECTIONS), ['weekJournal', JOURNAL_OFF]]) {
+    assert.deepEqual(ws.status(key), { status: 'error', complete: false, featureUnavailable: true, message: copy.load }, key);
     assert.equal(ws.records[key], undefined, `${key} holds nothing`);
   }
   assert.deepEqual(lockedIds(ws), []);
@@ -1163,7 +1194,7 @@ test('client: the journal and home history are unavailable; no save is sent for 
   const ws = await loaded(w);
   const claims = await ledgerCount(w);
   assert.equal(await ws.write('weekJournal', { id: 'journal-1', title: 'Check-in', revision: 0 }), false);
-  assert.equal(ws.state.message, 'Load the current records before saving. Your draft is kept.');
+  assert.equal(ws.state.message, 'Saving these records is not available yet. Nothing was saved, and your draft is kept.');
   assert.equal(await ws.write('homeTransitions', { id: 'transition-1', title: 'Move', revision: 0 }), false);
   assert.equal(await ledgerCount(w), claims, 'the provider sent nothing');
   for (const [key, reason] of [['weekJournal', 'week_journal_unavailable'], ['homeTransitions', 'home_transitions_unavailable']]) {
@@ -1652,7 +1683,7 @@ test('the document rejects a corrupted copy of every recorded 200 answer it appl
     ['swaps the code', (item) => item.body.code !== undefined, (body) => ({ ...body, code: body.code === 'conflict' ? 'validation' : 'conflict' })],
     ['writes rows into a failure or an open operation', (item) => !isLoad(item) && item.body.status !== 'succeeded', (body) => ({ ...body, changes: { tests: [] } })],
     ['empties a success', (item) => item.body.status === 'succeeded', (body) => ({ ...body, changes: {} })],
-    ['names a collection that is never stored', (item) => item.body.changes !== undefined, (body) => ({ ...body, changes: { weekJournal: [] } })],
+    ['names a collection that is never stored', (item) => item.body.changes !== undefined, (body) => ({ ...body, changes: { homeTransitions: [] } })],
     ['sets a row revision to 0', (item) => rowsOf(item.body), (body) => ({ ...body, changes: Object.fromEntries(Object.entries(body.changes).map(([key, rows]) => [key, rows.map((row) => ({ ...row, revision: 0 }))])) })],
     ['lists an unresolved operation', (item) => item.body.unresolvedOperations !== undefined, (body) => ({ ...body, unresolvedOperations: ['x'] })],
     ['drops the pending list', isLoad, (body) => without(body, 'pendingOperations')],

@@ -24,9 +24,7 @@
       "after": [
         "You will set up your home again, as on first use."
       ],
-      "notStored": [
-        "Week journal check-ins are not stored on the server yet, so nothing is removed for them."
-      ],
+      "notStored": [],
       "limits": [
         "Copies you already downloaded cannot be recalled.",
         "Server backups and records held by service providers are outside this deletion."

@@ -122,6 +122,14 @@ export const BUNDLES = Object.freeze([
     verifyFile: 'verify-0033.sql',
     migrations: Object.freeze(['0033_public_evidence_snapshots']),
   }),
+  Object.freeze({
+    title: 'migration 0034',
+    checks: 'migration 0034 is',
+    needs: 'Needs 0003, 0015, 0016 and 0017 applied first (production has 0001 to 0033). Turn HALO_FEATURE_JOURNAL on only after this.',
+    bundleFile: 'apply-0034.sql',
+    verifyFile: 'verify-0034.sql',
+    migrations: Object.freeze(['0034_week_journal_records']),
+  }),
 ]);
 
 /**
@@ -134,7 +142,8 @@ export const ALL_PENDING = Object.freeze({
   needs: 'Needs 0001 to 0023 applied first (they are, on production, since 2026-10-19).',
   bundleFile: 'apply-0024-to-0033.sql',
   verifyFile: 'verify-0024-to-0033.sql',
-  migrations: Object.freeze(BUNDLES.slice(1).flatMap((bundle) => bundle.migrations)),
+  // 0024 to 0033 only: that paste was applied on 2026-10-20, so a later migration gets its own bundle.
+  migrations: Object.freeze(BUNDLES.slice(1).flatMap((bundle) => bundle.migrations).filter((name) => Number(name.slice(0, 4)) <= 33)),
 });
 
 /** The 0019 to 0023 bundle under its original names, which test/applyBundle.test.mjs and YOUR_TODO.md 2.13 use. */

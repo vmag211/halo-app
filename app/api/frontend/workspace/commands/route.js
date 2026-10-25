@@ -14,6 +14,7 @@ import {
   collectionsToRead,
   commitWorkspace,
   isWorkspaceUnavailable,
+  journalEnabled,
   parseWorkspaceCommand,
   planWorkspaceCommand,
   readSettledWorkspace,
@@ -93,6 +94,14 @@ import {
  * followed by a best-effort sweep of the household's queued objects; any
  * object it misses stays queued for /api/cron/daily. With the flag off, W4
  * stands.
+ *
+ * THE JOURNAL (migration 0034). With the `journal` flag on, a write or
+ * remove in `weekJournal` follows the same order on the journal's own table:
+ * the record is mapped and checked against lib/journalInput.js before the
+ * claim (invalid_record otherwise), and commit_week_journal settles the
+ * ledger row in its own transaction. One entry per day and group: another
+ * entry there is the stored refusal `journal_day_taken`. With the flag off,
+ * W2's refusal `week_journal_unavailable` stands.
  *
  * A database failure inside the commit is a 500, which this client reads as
  * "not confirmed" and reconciles through GET /api/operations. Until 0026 or
@@ -176,7 +185,7 @@ export async function POST(request) {
     }
 
     const files = attachmentsEnabled();
-    const parsed = parseWorkspaceCommand(body.value, { attachments: files });
+    const parsed = parseWorkspaceCommand(body.value, { attachments: files, journal: journalEnabled() });
     if (!parsed.ok) return validationError(parsed.fieldErrors, requestId);
     if (parsed.refusal) return NextResponse.json(refusalReceipt(operationId.value, parsed.refusal), { headers });
     const { command } = parsed;

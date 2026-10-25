@@ -242,7 +242,7 @@ test('Clear Journal: count = symptom logs + season summaries, and the preview sa
   assert.equal(result.review.count, expected);
   assert.ok(expected >= 6);
   assert.deepEqual(result.raw.preview.remove, { journal: expected });
-  assert.ok(result.raw.preview.notStored.includes(EXPORT_COPY.weekJournalNotStored));
+  assert.deepEqual(result.raw.preview.notStored, [], 'the week journal is symptom_logs since 0034');
   assert.ok(result.raw.preview.keep.includes(EXPORT_COPY.keepOutsideJournal));
   assert.ok(!JSON.stringify(result.raw.preview).includes(SEASON_MESSAGE));
   ledgerUntouched(h, before);
