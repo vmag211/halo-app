@@ -111,7 +111,7 @@ setOnline(true);
 
 // ------------------------------------------------------------ runtime.ts
 
-export const { FrontendServiceError, productionOperations, serviceMessage, createProductionRuntime } = runtimeModule;
+export const { FrontendServiceError, productionOperations, serviceMessage, createProductionRuntime, saveNotRecorded } = runtimeModule;
 
 /**
  * One real runtime over a canned `fetcher`, for the person `identityId`.
@@ -155,12 +155,15 @@ export const messages = await (async () => {
 /**
  * The real `createProductionRuntime(...).request` with the route harness as
  * `fetcher`. `lose(operation)` returning true drops that response after the
- * server has answered it (a lost connection).
+ * server has answered it (a lost connection). `never(operation)` returning
+ * true fails that request before it reaches the server (the connection
+ * dropped on the way out), so the server records nothing.
  */
-export function clientRuntime(h, who, { homeContextId = null, env, lose = () => false } = {}) {
+export function clientRuntime(h, who, { homeContextId = null, env, lose = () => false, never = () => false } = {}) {
   return {
     request(operation, body, options = {}) {
       const fetcher = async (requestPath, init) => {
+        if (never(operation)) throw new TypeError('Failed to fetch');
         const route = new URL(requestPath, 'http://client.invalid').pathname;
         const mutation = init.method !== 'GET';
         // The browser's session is the harness's `as`: the runtime's own bearer header is dropped so it cannot override it.
@@ -247,6 +250,7 @@ export function myWeek(service, { today = '2026-10-19' } = {}) {
       const operationId = crypto.randomUUID(); week.operationIds.push(operationId);
       try {
         const snapshot = { actions: week.actionsRef, metas: (week.drafts['week:metas'] ?? {}) };
+        week.unsent = { operationId, command, snapshot };
         const receipt = await service.commit(command, { operationId, signal: new AbortController().signal });
         if (receipt.operationId !== operationId) throw new Error('invalid receipt');
         if (receipt.status === 'pending' || receipt.status === 'unknown') { week.unknownOperation = operationId; week.error = 'The save outcome is not confirmed. Check its status before changing tasks again.'; return false; }
@@ -264,11 +268,19 @@ export function myWeek(service, { today = '2026-10-19' } = {}) {
     async reconcile() {
       if (!service || !week.unknownOperation || week.lock) return false;
       week.lock = true; week.pending = true;
+      const sent = week.unsent?.operationId === week.unknownOperation ? week.unsent : null;
       try {
-        const receipt = await service.reconcile(week.unknownOperation, new AbortController().signal);
+        let receipt, resent = false;
+        try { receipt = await service.reconcile(week.unknownOperation, new AbortController().signal); }
+        catch (error) {
+          // Never recorded (404): the same save is sent again under the same id.
+          if (!sent || !saveNotRecorded(error)) throw error;
+          receipt = await service.commit(sent.command, { operationId: sent.operationId, signal: new AbortController().signal }); resent = true;
+          if (receipt.status === 'succeeded' && !actionReceiptCoversCommand(sent.command, sent.snapshot, receipt)) throw new Error('invalid snapshot');
+        }
         if (receipt.operationId !== week.unknownOperation) return false;
-        if (receipt.status === 'succeeded' && validActionSnapshot(receipt.snapshot)) { week.commitSnapshot(receipt.snapshot); week.error = receipt.snapshot.unresolvedOperations?.length ? 'Another earlier save needs checking.' : 'Saved. The existing task result was recovered.'; return true; }
-        if (receipt.status === 'failed' || receipt.status === 'cancelled') { week.unknownOperation = ''; week.reloads += 1; week.error = 'No save was applied. Your draft is kept for review.'; return false; }
+        if (receipt.status === 'succeeded' && validActionSnapshot(receipt.snapshot)) { week.unsent = null; week.commitSnapshot(receipt.snapshot); week.error = receipt.snapshot.unresolvedOperations?.length ? 'Another earlier save needs checking.' : resent ? 'Saved.' : 'Saved. The existing task result was recovered.'; return true; }
+        if (receipt.status === 'failed' || receipt.status === 'cancelled') { week.unsent = null; week.unknownOperation = ''; week.reloads += 1; week.error = resent && receipt.message || 'No save was applied. Your draft is kept for review.'; return false; }
         week.error = 'The outcome is still unconfirmed. No new save was sent.'; return false;
       } catch { week.error = 'Could not check this save. No new save was sent.'; return false; }
       finally { week.lock = false; week.pending = false; }

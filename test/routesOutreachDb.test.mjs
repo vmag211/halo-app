@@ -109,6 +109,21 @@ test('on mount: not connected, an empty complete history, and dated public conte
   assert.deepEqual(s.state.evidenceRead.data, { revision: 20261020, availability: 'empty', entries: [], complete: true });
 });
 
+test('find a contact: a lost answer is a lookup to retry, never a save to check, and the retry works', async () => {
+  const w = await world();
+  await w.saveArea('alice', WAKE);
+  let drop = true;
+  const s = fe.outreachScreen(w.runtime('alice', { lose: (path) => path === '/api/outreach/contacts' && drop && !(drop = false) }), { area: WAKE, notes: [] });
+  await s.mount();
+  s.set({ recipient: 'Local office' });
+  await s.lookup();
+  assert.equal(s.state.message, 'Contacts could not be found right now. Nothing was saved. Try again.');
+  assert.ok(!/Check its status/.test(s.state.message));
+  await s.lookup();
+  assert.equal(s.state.message, '');
+  assert.deepEqual(s.state.candidates.items.map((c) => c.id), ['nc-lhd-37183', 'nc-deq-public-water-supply']);
+});
+
 test('find a contact: official offices with their source pages, no guessed email, and "Use this contact" only for a printed mailbox', async () => {
   const w = await world();
   const s = await screen(w);

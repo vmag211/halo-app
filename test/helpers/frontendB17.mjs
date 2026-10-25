@@ -24,6 +24,8 @@
 import { loadFrontend } from '../frontend-test-loader.mjs';
 
 const { FrontendServiceError, serviceMessage } = await loadFrontend('production/runtime');
+/** ProductionOutreach.tsx `lookupMessage`, without its type annotation; its body is a FRAGMENT. */
+const lookupMessage=(error)=>error instanceof FrontendServiceError&&['unknown_outcome','invalid_response'].includes(error.code)?'Contacts could not be found right now. Nothing was saved. Try again.':serviceMessage(error);
 const { validContacts } = await loadFrontend('production/explore-service');
 const { validEmail, validGoogleAuthorization, validOutreachAttempt, validOutreachConnection, validOutreachEvidence, validOutreachHistory, validOutreachReview } = await loadFrontend('production/outreach-service');
 const { outreachTemplate, recipients } = await loadFrontend('explore-preview');
@@ -105,7 +107,7 @@ export function outreachScreen(runtime, { notes: noteRecords = [], area = { plac
     usable(contact) { return Boolean(contact.email); },
     async lookup() {
       const { active, context } = derive(); const { topic, water, area } = s; const runtime = tracked;
-      if(lock.current||!areaLabel(area))return;lock.current=true;setBusy(true);setMessage('');const controller=new AbortController();request.current=controller;const scope=context;try{const result=await runtime.request('contacts.resolve',{topic,recipient:active,water,area},{signal:controller.signal,idempotencyKey:crypto.randomUUID()});if(controller.signal.aborted||!mounted.current)return;if(!validContacts(result))throw new Error('invalid contacts');setCandidates({scope,items:result.contacts});if(!result.contacts.length)setMessage('No matching public contact was found. You can use an official website or add a public address.');}catch(error){if(!controller.signal.aborted)setMessage(serviceMessage(error));}finally{lock.current=false;if(mounted.current)setBusy(false);}
+      if(lock.current||!areaLabel(area))return;lock.current=true;setBusy(true);setMessage('');const controller=new AbortController();request.current=controller;const scope=context;try{const result=await runtime.request('contacts.resolve',{topic,recipient:active,water,area},{signal:controller.signal,idempotencyKey:crypto.randomUUID()});if(controller.signal.aborted||!mounted.current)return;if(!validContacts(result))throw new Error('invalid contacts');setCandidates({scope,items:result.contacts});if(!result.contacts.length)setMessage('No matching public contact was found. You can use an official website or add a public address.');}catch(error){if(!controller.signal.aborted)setMessage(lookupMessage(error));}finally{lock.current=false;if(mounted.current)setBusy(false);}
     },
     async authorize() {
       const runtime = tracked;
@@ -136,6 +138,7 @@ export function outreachScreen(runtime, { notes: noteRecords = [], area = { plac
 
 /** Text that must occur in both ProductionOutreach.tsx and this file. */
 export const FRAGMENTS = Object.freeze([
+  "error instanceof FrontendServiceError&&['unknown_outcome','invalid_response'].includes(error.code)?'Contacts could not be found right now. Nothing was saved. Try again.':serviceMessage(error);",
   'const account=validOutreachConnection(connection.data)?connection.data:null;',
   "water==='Utility'?recipients:recipients.filter(item=>item!=='Utility');",
   "available.includes(recipient)?recipient:'Representative',letter=letters[active];",
@@ -152,7 +155,7 @@ export const FRAGMENTS = Object.freeze([
   'const historyReady=validOutreachHistory(history.data)&&history.data.complete;',
   "const blocked=busy||history.loading||Boolean(history.error)||!historyReady||typeof navigator!=='undefined'&&!navigator.onLine;",
   'if(validOutreachHistory(history.data))setters.current.setAttempts(history.data.attempts);',
-  "await runtime.request('contacts.resolve',{topic,recipient:active,water,area},{signal:controller.signal,idempotencyKey:crypto.randomUUID()});if(controller.signal.aborted||!mounted.current)return;if(!validContacts(result))throw new Error('invalid contacts');setCandidates({scope,items:result.contacts});if(!result.contacts.length)setMessage('No matching public contact was found. You can use an official website or add a public address.');}catch(error){if(!controller.signal.aborted)setMessage(serviceMessage(error));}finally{lock.current=false;if(mounted.current)setBusy(false);}",
+  "await runtime.request('contacts.resolve',{topic,recipient:active,water,area},{signal:controller.signal,idempotencyKey:crypto.randomUUID()});if(controller.signal.aborted||!mounted.current)return;if(!validContacts(result))throw new Error('invalid contacts');setCandidates({scope,items:result.contacts});if(!result.contacts.length)setMessage('No matching public contact was found. You can use an official website or add a public address.');}catch(error){if(!controller.signal.aborted)setMessage(lookupMessage(error));}finally{lock.current=false;if(mounted.current)setBusy(false);}",
   "await runtime.request('outreach.connect',{provider:'gmail',returnPath:'/act?view=main&destination=outreach'},{idempotencyKey:crypto.randomUUID()});if(!validGoogleAuthorization(result))throw new Error('invalid authorization');window.location.assign(result.authorizationUrl);}catch(error){setMessage(serviceMessage(error));}finally{lock.current=false;setAuthorizing(false);}",
   'if(blocked||!ready||!account?.connected||pending||unknown.length||duplicate)return;',
   "await runtime.request('outreach.prepare',{to:letter.email.trim(),name:letter.name,subject:clean(letter.subject.trim()),body,notes:letter.notes.map(note=>({id:note.id,revision:note.revision})),publicContext:selectedEvidence?{id:selectedEvidence.entry.id,revision:selectedEvidence.revision}:null,context:{topic,recipient:active,area,water},signature:captured,senderRevision:account.revision},{idempotencyKey:crypto.randomUUID()});",

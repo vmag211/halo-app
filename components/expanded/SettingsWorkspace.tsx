@@ -79,7 +79,7 @@ export default function SettingsWorkspace(props:SettingsProps){
  }
  async function save(){
   if(lock.current)return;
-  if(blocked||!navigator.onLine){setMessage(workspace.scenario==='conflict'?c.conflict:props.offline||workspace.scenario==='offline'||!navigator.onLine?c.offline:c.failed);return;}
+  if(blocked||!navigator.onLine){setMessage(workspace.scenario==='conflict'?c.conflict:props.offline||workspace.scenario==='offline'||!navigator.onLine?c.offline:production?.unknown?'Check the save status first. Your edits are kept.':c.failed);return;}
   if(panel==='home'&&current.home.year&&!/^\d{4}$/.test(current.home.year)||panel==='home'&&current.home.year&&(Number(current.home.year)<1000||Number(current.home.year)>new Date().getFullYear())){setMessage(c.yearError);return;}
   if(panel==='notifications'&&current.quiet.enabled&&(!/^([01]\d|2[0-3]):[0-5]\d$/.test(current.quiet.from)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(current.quiet.to)||current.quiet.from===current.quiet.to)){setMessage(c.quietError);return;}
   if(snapshot()!==baseline){setMessage(c.conflict);return;}
