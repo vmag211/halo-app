@@ -1,14 +1,17 @@
 'use client';
 import {useState} from 'react';
 import LunaMark from '@/components/foundation/LunaMark';
-import {useHomeDraft} from '@/components/homeguard/HomeWorkspaceState';
+import {useProductionResource} from '@/components/production/ProductionContext';
+import {validLunaCapabilities} from '@/lib/frontend/production/luna-service';
+import {lunaCapabilityCopy as copy} from '@/lib/frontend/copy/luna-capability';
 import type {FieldNote} from '@/lib/frontend/explore-preview';
+// A note is household data, and production Luna never receives it (B09 decision 2; the message
+// route validates `noteContext` and then ignores it). So this handoff offers no field selection and
+// no consent step: accepting a selection Luna would silently drop is the failure it exists to prevent.
+// It says so before anything is chosen, and offers only a general question with nothing attached.
 export default function ProductionNoteLuna({record}:{record:FieldNote}){
- const [selection,setSelection]=useState({title:true,description:true,time:false,place:false,evidence:false});
- const [purpose,setPurpose]=useState('Clarify my question'),[consent,setConsent]=useState(false),[review,setReview]=useState<{revision:number;fields:string[];text:string}|null>(null);
- const [,setDraft]=useHomeDraft('luna:production-draft','');
- const [,setNotes]=useHomeDraft<{id:string;revision:number;fields:string[]}[]>('luna:production-note-context',[]);
- const fields={title:record.title,description:record.description,time:record.observedAt?`${record.observedAt} (${record.timezone})`:'Not supplied',place:record.place||'Not supplied',evidence:record.evidence?.map(item=>`${item.title}, ${item.observedAt??'Date unknown'}. ${item.scope}`).join('\n')||'None'};
- const labels={title:'Note title',description:'Description',time:'Date and timezone',place:'Place label',evidence:'Selected public map context'};
- return <details className="ex-disclosure ex-luna-context"><summary><LunaMark size={23}/>Prepare with Luna</summary><p className="ex-meta">HALO and Luna are not emergency reporting channels.</p><label>What would you like help with?<select value={purpose} onChange={event=>{setPurpose(event.target.value);setReview(null);setConsent(false);}}>{['Clarify my question','Find a follow-up','Organize my observation','Suggest project ideas'].map(item=><option key={item}>{item}</option>)}</select></label><div className="ex-checklist">{Object.entries(labels).map(([key,label])=><label key={key} className="ex-check"><input type="checkbox" checked={selection[key as keyof typeof selection]} onChange={event=>{setSelection(old=>({...old,[key]:event.target.checked}));setReview(null);setConsent(false);}}/>{label}</label>)}</div><label className="ex-check"><input type="checkbox" checked={consent} onChange={event=>{setConsent(event.target.checked);setReview(null);}}/>I choose only these fields for this request</label><button className="ex-button" disabled={!consent||!Object.values(selection).some(Boolean)} onClick={()=>{const keys=Object.keys(selection).filter(key=>selection[key as keyof typeof selection]);setReview({revision:record.revision,fields:keys,text:keys.map(key=>`${labels[key as keyof typeof labels]}: ${fields[key as keyof typeof fields]}`).join('\n\n')});}}>Review Luna request</button>{review&&<div className="ex-luna-request" role="status"><h4>Selected context</h4><pre>{review.text}</pre>{review.revision!==record.revision?<p>This note changed. Review the current details again.</p>:<><p className="ex-meta">Only these fields will be attached when you send your message.</p><button className="ex-button" onClick={()=>{setNotes([{id:record.id,revision:review.revision,fields:review.fields}]);setDraft(`${purpose}. Do not infer a cause or treat my note as a verified measurement.`);window.dispatchEvent(new Event('halo:luna-open'));}}>Continue with Luna</button></>}</div>}</details>;
+ const [open,setOpen]=useState(false);
+ const capabilities=useProductionResource<unknown>('luna.capabilities',{},open);
+ const caps=validLunaCapabilities(capabilities.data)?capabilities.data:null;
+ return <details className="ex-disclosure ex-luna-context" data-note={record.id} onToggle={event=>setOpen(event.currentTarget.open)}><summary><LunaMark size={23}/>Luna and this note</summary><p className="ex-meta">HALO and Luna are not emergency reporting channels.</p><p>{copy.noteUnavailable}</p><p className="ex-meta">{copy.answersOnly} {copy.selfServe}</p>{!open?null:capabilities.loading?<p className="ex-meta" role="status">{copy.checking}</p>:caps?.available?<button className="ex-button" onClick={()=>window.dispatchEvent(new Event('halo:luna-open'))}>{copy.noteAsk}</button>:<p className="ex-meta" role="status">{copy.unavailable}{capabilities.error&&<> <button className="ex-text-button" onClick={capabilities.retry}>Try again</button></>}</p>}</details>;
 }
