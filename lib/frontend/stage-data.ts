@@ -121,7 +121,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   // Older responses and cached rows without it keep the honest "not supplied" disclosure.
   const uvSourceKey = typeof uv.source === 'string' ? uv.source.trim().toLowerCase() : '';
   const uvProvider = uvIndex === null ? null : uvSourceKey === 'open-meteo' ? 'Open-Meteo' : uvSourceKey === 'openuv' ? 'OpenUV' : null;
-  readings.uv = { ...readings.uv, score: uvScore, reading: uvIndex === null ? 'No data' : uvIndex.toFixed(1), unit: 'UV index', severity: uvSeverity, asOf: dailyAsOf, readingAt: readingAt(uvIndex !== null), source: uvProvider ?? 'UV forecast',
+  readings.uv = { ...readings.uv, score: uvScore, reading: uvIndex === null ? 'No data' : (Math.round(uvIndex * 10) / 10).toFixed(1), unit: 'UV index', severity: uvSeverity, asOf: dailyAsOf, readingAt: readingAt(uvIndex !== null), source: uvProvider ?? 'UV forecast',
     // Open-Meteo's UV index is a GFS model value, not a measurement (lib/forecast/copy.js).
     ...(uvProvider === 'Open-Meteo' ? { provenance: 'modeled' as const } : {}),
     sentence: uvIndex === null ? readings.uv.sentence : safeText(uv.sentence) || 'Your UV forecast is available.', detail: 'The UV index describes outdoor ultraviolet radiation. This reading does not measure individual exposure.',
@@ -196,10 +196,10 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const lithiumPpt = nonnegative(lithium?.value_ppt);
   readings.pfas = { ...readings.pfas, score: scoreable ? scoreNumber(waterBox.score) : null, severity: waterSeverity,
     reading: waterMeasured && concentration !== null ? numberText(concentration) : privateSource ? 'Not tested' : waterMeasured && coverage === 'no_detections' ? 'No detections' : 'No data',
-    unit: compound ? `ppt ${compound}` : 'Utility testing', provenance: waterMeasured ? 'measured' : null, source: utility ? `EPA UCMR 5, ${copy.reveal.likelyUtility(utility)}` : 'EPA UCMR 5',
+    unit: compound ? `ppt ${compound}` : 'Utility testing', provenance: waterMeasured ? 'measured' : null, source: privateSource ? 'Private water supply, not tested by a utility' : utility ? `EPA UCMR 5, ${copy.reveal.likelyUtility(utility)}` : 'EPA UCMR 5',
     asOf: sampleDate ? `Sample collected ${dateLabel(sampleDate)}` : 'Sample date unavailable',
-    sentence: permittedMessage ?? waterStatusCopy[String(water.status)] ?? (primary ? `${compound} is shown against its supplied ${primary.is_enforceable === true ? 'federal limit' : primary.is_enforceable === false ? 'health benchmark' : 'comparison value'}.` : privateSource ? 'A testing plan can help you find out what is in this water.' : 'Water results appear when utility testing is available.'),
-    detail: 'PFAS results come from utility sampling. Sample dates describe the testing record, not current conditions at your tap.',
+    sentence: permittedMessage ?? waterStatusCopy[String(water.status)] ?? (primary ? `${compound} is shown against its supplied ${primary.is_enforceable === true ? 'federal limit' : primary.is_enforceable === false ? 'health benchmark' : 'comparison value'}.` : waterMeasured && coverage === 'no_detections' ? 'No PFAS was detected in this utility\'s reported samples, at the reporting limits listed below.' : privateSource ? 'A testing plan can help you find out what is in this water.' : 'Water results appear when utility testing is available.'),
+    detail: privateSource ? 'No agency tests a private well or spring. A certified laboratory test of this water is the only way to know what is in it.' : 'PFAS results come from utility sampling. Sample dates describe the testing record, not current conditions at your tap.',
     // The present Learn route hard-codes "federal limit". Withhold numeric
     // benchmark context until its contract can distinguish that comparison.
     context: primary?.is_enforceable === true ? context({ contaminant: compound, value: concentration, limit: nonnegative(primary.limit_ppt), severity: waterSeverity }) : {},
@@ -209,11 +209,12 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
       sampleDate: dateLabel(sampleDate),
       rows: privateSource ? [] : scored.map(row => ({ name: safeText(row.contaminant), value_ppt: nonnegative(row.value_ppt)!, limit_ppt: nonnegative(row.limit_ppt), severity: severity(row.severity), exceeds_limit: row.exceeds_limit === true, ...(typeof row.is_enforceable === 'boolean' ? { is_enforceable: row.is_enforceable } : {}), basis: safeText(row.basis), source: safeText(row.source), date_iso: isoDate(row.date_iso), proposed_for_rescission: row.proposed_for_rescission === true })),
       lithium_ug_l: privateSource || lithiumPpt === null ? null : lithiumPpt / 1000,
-      coverage, status: safeText(water.status), is_measured: waterMeasured, includes_guidance: water.includes_guidance === true, confidence: safeText(waterBox.confidence),
+      coverage, status: safeText(water.status), is_measured: waterMeasured, includes_guidance: water.includes_guidance === true, confidence: safeText(waterBox.confidence), private_source: privateSource,
       detected_unregulated: waterMeasured ? textList(water.detected_unregulated).map(name => {
         const latest = rows(water.detected_unregulated_latest).find(row => row.contaminant === name);
         return { name, value_ppt: nonnegative(latest?.value_ppt), date_iso: isoDate(latest?.date_iso) };
       }) : [],
+      non_detects: waterMeasured ? rows(water.non_detects).filter(row => safeText(row.contaminant)).map(row => ({ name: safeText(row.contaminant), reporting_limit_ppt: nonnegative(row.reporting_limit_ppt), limit_ppt: nonnegative(row.limit_ppt), below_limit: typeof row.below_limit === 'boolean' ? row.below_limit : null, date_iso: isoDate(row.date_iso) })) : [],
     } },
     disclosures: waterDisclosures,
   };
@@ -232,12 +233,20 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const hasLead = !privateSource && Object.keys(lead).length > 0;
   const privateLeadTest = privateSource && rows(record(water.test_plan).tests).some(test => test.id === 'lead_copper');
   readings.lead = { ...readings.lead, score: null, severity: hasLead ? severity(lead.level) : 'no_data', reading: hasLead && homeYear !== null ? String(homeYear) : 'No data', unit: 'Home built',
-    provenance: hasLead && lead.is_estimate === true ? 'estimate' : null, source: 'Home age provided during setup', asOf: 'A building-era estimate',
+    provenance: hasLead && lead.is_estimate === true ? 'estimate' : null, source: homeYear !== null ? 'Home age provided during setup' : 'Home age not provided', asOf: homeYear !== null ? 'A building-era estimate' : 'No building-era estimate without a home age',
     sentence: hasLead ? safeText(lead.sentence ?? lead.text, 'No measured lead result is available for this home.') : privateLeadTest ? 'Lead is included in the private water testing plan.' : privateSource ? 'No measured tap lead result is available for this home.' : 'Add the home year to see the available building-era guidance.',
     detail: 'Building age is a clue about plumbing materials, not proof of lead. Lead does not contribute to the Homeguard score.', context: hasLead ? context({ home_year: homeYear, severity: severity(lead.level) }) : {},
     trendTitle: 'From building age to an actual answer', trendCaption: 'No measured tap lead result or numeric lead score is available.', details: { lead: { home_year: homeYear } },
     disclosures: ['Lead is shown separately and is never included in the home score.'],
   };
+
+  // Why a home reading is missing, when that is known. Outside North Carolina the water and radon
+  // datasets do not apply at all; that is a coverage limit, never an invalid address or a clean result.
+  const state = safeText(location.state).toUpperCase();
+  const outsideNC = radon.out_of_state === true || (/^[A-Z]{2}$/.test(state) && state !== 'NC');
+  if (privateSource) readings.pfas.gap = { label: 'Not tested', sentence: 'No agency tests a private well or spring, so there is no result to explain. The testing plan shows what to test.' };
+  else if (outsideNC && !scoreable) readings.pfas.gap = { label: 'Outside coverage', sentence: 'This home is outside HALO\'s water testing coverage, which is North Carolina utilities only. A missing result is not a clean result.' };
+  if (outsideNC && !hasZone) readings.radon.gap = { label: 'Outside coverage', sentence: 'This home is outside HALO\'s radon coverage, which is North Carolina counties only. A home test can give a result for your address.' };
 
   const missingDaily = [aqi === null ? 'air' : null, uvIndex === null ? 'uv' : null, !hasPollen ? 'pollen' : null, !moldRisk ? 'mold' : null].filter((key): key is string => key !== null);
   const missingHome = [!scoreable ? 'water' : null, !hasZone ? 'radon' : null].filter((key): key is string => key !== null);
@@ -252,6 +261,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   if (Object.keys(todayOverview.contributions).length) todayOverview.contributionNote = contributionNote(todayOverview.contributions);
   const homeOverview = overview(homeData.score, homeData.assembled_at ?? homeData.retrieved_at, HOME_KEYS, missingHome, privateSource);
   const homeScore = record(homeData.score);
+  if (outsideNC && !privateSource && !scoreable && !hasZone) homeOverview.notice = 'This home is outside HALO\'s current water and radon coverage, which is North Carolina only.';
   if (homeScore.capped !== true && /\bcapped\b|\bceiling\b|\bcap\b/i.test(homeOverview.notice ?? '')) homeOverview.notice = 'Some detected compounds cannot be evaluated against a supplied limit or benchmark. This score reflects what could be evaluated.';
   if (!privateSource) {
     const waterRisk = scoreNumber(homeScore.water_risk); const radonRisk = scoreNumber(homeScore.radon_risk);

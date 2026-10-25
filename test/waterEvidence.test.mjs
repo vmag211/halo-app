@@ -161,6 +161,31 @@ test('an over-limit sample stays over the limit and is never softened by missing
   assert.equal(mixed.risk, 75);
 });
 
+test('a later non-detect at another entry point does not erase an earlier detection (Raleigh after the UCMR5 reload)', () => {
+  // NC0392010's PFOS: detected at 5.3 and 5.6 ppt in 2023, then a 3/19/2024 non-detect.
+  const contaminants = {
+    PFOS: [
+      { value_ppt: 5.3, date: '7/26/2023' },
+      { value_ppt: 5.6, date: '8/8/2023' },
+      { non_detect: true, reporting_limit_ppt: 4, date: '8/8/2023' },
+      { non_detect: true, reporting_limit_ppt: 4, date: '3/19/2024' },
+    ],
+    PFOA: [{ non_detect: true, reporting_limit_ppt: 4, date: '3/19/2024' }],
+  };
+  const e = evaluate(contaminants);
+  assert.notEqual(e.detail.coverage, 'no_detections', 'a detected compound is never "No detections"');
+  assert.equal(e.detail.detected_count, 1);
+  assert.deepEqual(e.detail.scored.map((row) => [row.contaminant, row.value_ppt, row.date]), [['PFOS', 5.6, '8/8/2023']]);
+  assert.equal(e.detail.risk, getWaterRisk({ PFOS: [{ value_ppt: 5.6, date: '8/8/2023' }] }).risk);
+  assert.notEqual(e.severity, 'good');
+  // The never-detected compound keeps its dated non-detect, and the sample record still ends in 2024.
+  assert.deepEqual(e.detail.non_detects.map((row) => [row.contaminant, row.date]), [['PFOA', '3/19/2024']]);
+  assert.equal(e.detail.latest_sample_date, '3/19/2024');
+  assert.deepEqual(e.detail.regulated_panel.numeric, ['PFOS']);
+  // The district share already counted the detection; the score now agrees with it.
+  assert.equal(computeDistrict([{ pwsid: 'x', contaminants }]).systems_with_numeric_result, 1);
+});
+
 test('a lithium-only record has nothing regulated to score, so it is unknown rather than Good', () => {
   const e = evaluate({ lithium: [{ value_ppt: 12000, date: '7/1/2025' }] });
   assert.equal(e.detail.coverage, 'excluded_only');

@@ -9,7 +9,7 @@ import { learnTopic } from '@/lib/learnContent';
 import { displayText } from '@/lib/frontend/onboarding';
 import { dateLabel } from '@/lib/frontend/stage-values';
 import { readingFromLabel } from '@/lib/frontend/time-format';
-import { factorColor, factorReadings, homeFactorKeys, personalFactorKeys, previewRiskShares, readingMissing, type FactorKey, type FactorReading } from '@/lib/frontend/factor-preview';
+import { factorColor, factorReadings, homeFactorKeys, personalFactorKeys, previewRiskShares, readingMissing, segmentAbsentLabel, type FactorKey, type FactorReading } from '@/lib/frontend/factor-preview';
 import type { FoundationScenario } from '@/lib/frontend/foundation-preview';
 import EnvironmentalScene from './EnvironmentalScene';
 import { CompactContributionBar, type ScoreSegment } from './SegmentedScore';
@@ -51,7 +51,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
   const severity = overview ? overview.severity : fixture.severity;
   const segments: ScoreSegment[] = keys.filter(key => key !== 'lead').map((key, index) => ({
     key, label: readings[key].shortTitle, color: factorColor(key), href: factorHref(key),
-    ...(runtime && readings[key].severity === 'no_data' && !readingMissing(readings[key]) ? { absentLabel: readings[key].unscored?.label } : {}),
+    ...(runtime ? segmentAbsentLabel(readings[key], overview ? overview.score === null : false) : {}),
     share: overview ? overview.contributions[key] ?? null : missing || (partial && key === missingKey) ? null : zeroRisk ? 0 : scenario === 'contribution-single' ? (index === 0 ? 100 : 0) : scenario === 'contribution-sliver' ? [95, 5, 0, 0, 0][index] : home ? (key === 'pfas' ? 75 : 25) : previewRiskShares[key] ?? null,
   }));
   return <div className="halo-ph-overview halo-environment-briefing" data-home={home} data-workspace={home && homeWorkspace}>
@@ -73,7 +73,7 @@ export default function PersonalHero({ scenario, factorHref, familyHref, memberH
     <div className="halo-ph-section-label"><h2>{home ? 'Understand the evidence' : 'Your readings'}</h2><span>Open a factor</span></div>
     <div className="halo-ph-factor-grid">{keys.map((key, index) => {
       const factor = readings[key]; const Icon = factorIcons[key]; const noData = runtime ? readingMissing(factor) : missing || (partial && key === missingKey);
-      return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} unscoredLabel={noData ? undefined : factor.unscored?.label} readingAge={noData ? null : readingFromLabel(factor.readingAt)} /></Reveal>;
+      return <Reveal key={key} delay={index * 90}><FactorScoreCard title={factor.title} score={noData ? null : factor.score} reading={noData ? factor.gap?.label ?? 'Reading unavailable' : `${factor.reading} ${factor.unit}`} severity={noData ? 'no_data' : factor.severity} color={factorColor(key)} href={factorHref(key)} icon={<Icon size={22} aria-hidden="true" />} provenance={factor.provenance} unscoredLabel={noData ? undefined : factor.unscored?.label} readingAge={noData ? null : readingFromLabel(factor.readingAt)} /></Reveal>;
     })}</div>
     <p className="halo-ph-footnote">{home ? 'Lead is shown for awareness and is not included in the home score. Area evidence does not measure conditions inside your home.' : 'Readings can update at different times. Open a factor for its source, history and practical steps.'} Estimates are identified in each factor.</p>
     </section>
@@ -111,6 +111,12 @@ const pfasPracticalSteps = [
   'Replace cartridges and membranes on the manufacturer’s schedule. A filter needs maintenance to keep working as intended.',
   'Ask your local health or environmental department what steps it recommends for your water supply. A utility sample does not measure your individual exposure.',
 ];
+// A private well or spring has no utility results to ask for; the first step is a laboratory test.
+const privatePfasPracticalSteps = [
+  'No utility tests a private well or spring. Use a state-certified laboratory for a PFAS test; your county health department can suggest one.',
+  ...pfasPracticalSteps.slice(1, 3),
+  'Ask your local health or environmental department what steps it recommends for a private water supply.',
+];
 
 export function FactorDetail({ factorKey, scenario, factorHref, parentHref, reading, evidence, followThrough, showAllSteps = false }: { factorKey: FactorKey; scenario: FoundationScenario; factorHref: FactorHref; parentHref: string; reading?: FactorReading; evidence?: ReactNode; followThrough?: ReactNode; showAllSteps?: boolean }) {
   const { clock } = useSceneExperience();
@@ -137,7 +143,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
       </div>
     </section>
     <nav className="halo-ph-page-nav" aria-label="On this factor page"><PreviewSectionLink target="reading-overview">Summary</PreviewSectionLink><PreviewSectionLink target="reading-detail">Details</PreviewSectionLink><PreviewSectionLink target="protection">Tips</PreviewSectionLink><PreviewSectionLink target="reading-sources">References</PreviewSectionLink></nav>
-    <Reveal className="halo-ph-overlap"><section className="halo-ph-detail-intro" id="reading-overview" tabIndex={-1}><span className="halo-ph-kicker">The reading, in plain language</span><h2>{missing ? 'There is no reading to explain yet.' : factor.sentence}</h2><p>{factor.detail}</p><div className="halo-ph-source-line"><ProvenancePill provenance={factor.provenance} /><span>{factor.source}<br />{missing ? 'Reading unavailable' : factor.asOf}</span></div>
+    <Reveal className="halo-ph-overlap"><section className="halo-ph-detail-intro" id="reading-overview" tabIndex={-1}><span className="halo-ph-kicker">The reading, in plain language</span><h2>{missing ? factor.gap?.sentence ?? 'There is no reading to explain yet.' : factor.sentence}</h2><p>{factor.detail}</p><div className="halo-ph-source-line"><ProvenancePill provenance={factor.provenance} /><span>{factor.source}<br />{missing ? 'Reading unavailable' : factor.asOf}</span></div>
       {content && <details className="halo-ph-definition"><summary><h3>What it is</h3><span>Understand {factor.shortTitle}</span></summary><p>{displayText(content.what_it_is)}</p><a href="#reading-sources" className="halo-ph-inline-link">Explore the sources <ArrowUpRight size={15} aria-hidden="true" /></a></details>}
     </section></Reveal>
     {missing && <Callout tone="notice"><p>A missing reading is not a zero. General guidance remains available below.</p></Callout>}
@@ -154,7 +160,7 @@ export function FactorDetail({ factorKey, scenario, factorHref, parentHref, read
     {!offline && !missing && householdNote && <Reveal><aside className="halo-ph-household-note"><Users size={23} aria-hidden="true" /><div><h3>What it means for your household</h3><p>{displayText(householdNote)}</p></div></aside></Reveal>}
     {['uv', 'pollen'].includes(factorKey) && trend}
     {content && <Reveal><section className="halo-ph-protection" id="protection" tabIndex={-1}><span className="halo-ph-kicker">{actionTitles[factorKey]}</span><h2>Small steps that help</h2>
-      <FactorSteps key={`${factorKey}:${content.protect.join('|')}`} factor={factorKey} tips={factorKey === 'pfas' ? pfasPracticalSteps : content.protect} showAll={showAllSteps} />
+      <FactorSteps key={`${factorKey}:${content.protect.join('|')}`} factor={factorKey} tips={factorKey === 'pfas' ? base.details.water?.private_source ? privatePfasPracticalSteps : pfasPracticalSteps : content.protect} showAll={showAllSteps} />
       {factorKey === 'pfas' && <a className="halo-ph-inline-link" href="https://www.epa.gov/water-research/identifying-drinking-water-filters-certified-reduce-pfas" target="_blank" rel="noopener noreferrer">EPA guidance on PFAS filters <ArrowUpRight size={15} aria-hidden="true" /></a>}
     </section></Reveal>}
     {['mold', 'pfas', 'radon', 'lead'].includes(factorKey) && trend}
@@ -221,7 +227,11 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
         {live && row.date_iso && <p className="halo-f-meta">Sampled <time dateTime={row.date_iso}>{dateLabel(row.date_iso)}</time></p>}
         {live && row.proposed_for_rescission && <p className="halo-f-meta">This comparison uses a limit identified by the dataset as proposed for rescission.</p>}
       </div>;
-    })}</div>
+    })}{live && details.water.non_detects?.map(row => <div key={`nd-${row.name}`} data-result="non_detect">
+        <div className="halo-ph-panel-heading"><b>{row.name}</b><span>Not detected</span></div>
+        <p className="halo-f-meta">{row.reporting_limit_ppt === null ? 'Reporting limit not supplied.' : `Below the reporting limit of ${row.reporting_limit_ppt} ppt.`}{row.below_limit === false ? ' That limit is above the comparison value, so this result cannot show the water is below it.' : ''}</p>
+        {row.date_iso && <p className="halo-f-meta">Sampled <time dateTime={row.date_iso}>{dateLabel(row.date_iso)}</time></p>}
+      </div>)}</div>
     {details.water.lithium_ug_l !== null && <div className="halo-ph-unscored"><span><b>Lithium</b><small>Shown, not scored</small></span><strong>{details.water.lithium_ug_l.toFixed(1)} µg/L</strong></div>}
     <p className="halo-f-meta">The marker uses the limit supplied with the result.{details.water.lithium_ug_l !== null ? ' No enforceable limit is assigned to lithium here.' : ''}</p>
     <a className="halo-ph-inline-link" href="#protection">Understand filter options <ArrowUpRight size={16} aria-hidden="true" /></a>
