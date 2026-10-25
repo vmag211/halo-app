@@ -1,5 +1,5 @@
 import { finite, isoDate, nonnegative, record, rows, safeText, safeUrl, severity, textList, timestamp } from './stage-values';
-import type { MapLayer, MapSeverity, WaterFeature } from './map-preview';
+import type { MapLayer, MapSeverity, ReadingResult, WaterFeature } from './map-preview';
 import type { PublicComparisonRecord } from './map-comparison-preview';
 import type { DistrictPreviewData } from './map-district-preview';
 
@@ -40,10 +40,16 @@ export function parseMapLayer(value:unknown,layer:MapLayer,publicMode=false):Map
       const contaminants:WaterFeature['contaminants']={};
       for(const [name,raw] of Object.entries(record(row.contaminants))){
         const item=record(raw),value=nonnegative(item.value_ppt),limit=nonnegative(item.limit_ppt),ratio=nonnegative(item.ratio);
-        contaminants[safeText(name)]={limit_ppt:limit,severity:severity(item.severity) as MapSeverity,proposed_for_rescission:item.proposed_for_rescission===true,...(value!==null?{value_ppt:value}:{}),...(ratio!==null?{ratio}:{}),...(isoDate(item.date_iso)?{date_iso:isoDate(item.date_iso)!}:{})};
+        // Result kinds stay apart: a non-detect never carries a value, a numeric result always does, and
+        // anything contradictory or missing is shown as no result, never as clean.
+        const claimed=item.result;
+        const result:ReadingResult=claimed==='non_detect'?(value===null?'non_detect':'invalid'):claimed==='invalid'?'invalid':value!==null?'numeric':claimed==='numeric'?'invalid':'no_result';
+        const reportingLimit=nonnegative(item.reporting_limit_ppt);
+        const evidence=result==='numeric'||result==='non_detect';
+        contaminants[safeText(name)]={result,limit_ppt:limit,severity:(evidence?severity(item.severity):'no_data') as MapSeverity,proposed_for_rescission:item.proposed_for_rescission===true,...(result==='numeric'&&value!==null?{value_ppt:value}:{}),...(result==='numeric'&&ratio!==null?{ratio}:{}),...(result==='non_detect'?{reporting_limit_ppt:reportingLimit}:{}),...(evidence&&isoDate(item.date_iso)?{date_iso:isoDate(item.date_iso)!}:{})};
       }
       const hazard=record(row.hazard_index),hazardValue=nonnegative(hazard.value);
-      result.water.push({pwsid:id,name:point.name,lat:point.lat,lng:point.lng,population:nonnegative(row.population),overall_severity:severity(row.overall_severity) as MapSeverity,coverage:safeText(row.coverage,'unknown'),latest_sample_iso:isoDate(row.latest_sample_iso),contaminants,detected_unregulated:textList(row.detected_unregulated),hazard_index:hazardValue===null?null:{value:hazardValue,severity:severity(hazard.severity) as MapSeverity,exceeds:hazard.exceeds===true,proposed_for_rescission:hazard.proposed_for_rescission===true,components:textList(hazard.components)}});
+      result.water.push({pwsid:id,name:point.name,lat:point.lat,lng:point.lng,population:nonnegative(row.population),overall_severity:severity(row.overall_severity) as MapSeverity,coverage:safeText(row.coverage,'unknown'),no_data_reason:nullable(row.no_data_reason),latest_sample_iso:isoDate(row.latest_sample_iso),contaminants,detected_unregulated:textList(row.detected_unregulated),hazard_index:hazardValue===null?null:{value:hazardValue,severity:severity(hazard.severity) as MapSeverity,exceeds:hazard.exceeds===true,proposed_for_rescission:hazard.proposed_for_rescission===true,components:textList(hazard.components)}});
     }else if(layer==='air')result.air.push({...point,aqi:nonnegative(row.aqi),dominant_pollutant:safeText(row.dominant_pollutant,'Not reported'),last_reading_at:timestamp(row.last_reading_at),agency:safeText(row.agency,'Not reported')});
     else if(layer==='facilities')result.facilities.push({...point,county:safeText(row.county),programs:textList(row.programs),compliance_status:['no_violation','violation','significant_violation'].includes(String(row.compliance_status))?String(row.compliance_status):'unknown',recent_violations:nonnegative(row.recent_violations),open_violations:nonnegative(row.open_violations),penalties:nonnegative(row.penalties),last_inspection:dayOrTime(row.last_inspection)});
     else{const zone=finite(row.zone);result.radon.push({...point,...([1,2,3].includes(zone??0)?{zone:zone!}:{})});}
@@ -77,6 +83,15 @@ export function mapDistance(home:{lat:number;lng:number}|null,lat:number|null,ln
   return (3958.8*2*Math.atan2(Math.sqrt(a),Math.sqrt(Math.max(0,1-a)))).toFixed(1);
 }
 
+/** The statewide share's own counts, kept only when they are whole numbers that agree with each other;
+ * otherwise each is null and the panel states the rule without a statewide count. */
+function stateCounts(comparison:Record<string,unknown>){
+  const whole=(v:unknown)=>{const n=nonnegative(v);return n!==null&&Number.isInteger(n)?n:null;};
+  const over=whole(comparison.state_systems_over_limit),numeric=whole(comparison.state_systems_with_numeric_result),total=whole(comparison.state_total_systems);
+  const consistent=over!==null&&numeric!==null&&total!==null&&over<=numeric&&numeric<=total;
+  return {state_systems_over_limit:consistent?over:null,state_systems_with_numeric_result:consistent?numeric:null,state_total_systems:consistent?total:null};
+}
+
 /** This shipped atlas has an NC-08 boundary. Unsupported districts are not
  * silently renamed or drawn on that boundary. */
 export function parseMapDistrict(value:unknown):DistrictPreviewData {
@@ -90,7 +105,7 @@ export function parseMapDistrict(value:unknown):DistrictPreviewData {
     if(by_contaminant[name].over>by_contaminant[name].tested)return required();
   }
   const comparison=record(body.state_comparison),share=(v:unknown)=>{const n=nonnegative(v);return n!==null&&n<=1?n:null;};
-  const result:DistrictPreviewData={scope:'NC-08',total_systems:count(body.total_systems),systems_tested_any:count(body.systems_tested_any),systems_over_limit:count(body.systems_over_limit),affected_population:nonnegative(body.affected_population),affected_population_complete:body.affected_population_complete===true,over_limit_population_unknown:count(body.over_limit_population_unknown),by_contaminant,counties:rows(body.counties).map(row=>({county:safeText(row.county),in_district:row.in_district==='whole'?'whole':'partial',systems:count(row.systems),systems_over_limit:count(row.systems_over_limit),worst_water_severity:severity(row.worst_water_severity) as MapSeverity,radon_zone:[1,2,3].includes(Number(row.radon_zone))?Number(row.radon_zone):null})),state_comparison:{district_share_over:share(comparison.district_share_over),state_share_over:share(comparison.state_share_over)},unlocated_systems:count(body.unlocated_systems),assembled_at:timestamp(body.assembled_at)??''};
+  const result:DistrictPreviewData={scope:'NC-08',total_systems:count(body.total_systems),systems_tested_any:count(body.systems_tested_any),systems_over_limit:count(body.systems_over_limit),affected_population:nonnegative(body.affected_population),affected_population_complete:body.affected_population_complete===true,over_limit_population_unknown:count(body.over_limit_population_unknown),by_contaminant,counties:rows(body.counties).map(row=>({county:safeText(row.county),in_district:row.in_district==='whole'?'whole':'partial',systems:count(row.systems),systems_over_limit:count(row.systems_over_limit),worst_water_severity:severity(row.worst_water_severity) as MapSeverity,radon_zone:[1,2,3].includes(Number(row.radon_zone))?Number(row.radon_zone):null})),state_comparison:{district_share_over:share(comparison.district_share_over),state_share_over:share(comparison.state_share_over),...stateCounts(comparison)},unlocated_systems:count(body.unlocated_systems),assembled_at:timestamp(body.assembled_at)??''};
   if(result.systems_over_limit>result.systems_tested_any||result.systems_tested_any>result.total_systems||!result.assembled_at)return required();
   return result;
 }

@@ -1437,8 +1437,17 @@
       },
       "WaterCompound": {
         "type": "object",
-        "description": "One regulated compound for one system. Tested: value_ppt, ratio, date and date_iso are present. Not tested: severity no_data and only the limit, never a zero.",
+        "description": "One regulated compound for one system. `result` names which of four kinds it is, and none borrows another's meaning. numeric: value_ppt, ratio, date and date_iso are present. non_detect: a documented non-detect with date, date_iso, reporting_limit_ppt (null when unknown) and below_limit (true only when the reporting limit is at or below the comparison limit; only then is severity good), and never a value_ppt. invalid: stored readings that could not be used. no_result: nothing in this record; the UCMR5 import keeps detections only, so this is missing information, not \"not detected\". invalid and no_result carry severity no_data and only the limit, never a zero.",
         "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "numeric",
+              "non_detect",
+              "invalid",
+              "no_result"
+            ]
+          },
           "value_ppt": {
             "type": "number",
             "minimum": 0
@@ -1492,6 +1501,27 @@
           },
           "proposed_for_rescission": {
             "type": "boolean"
+          },
+          "reporting_limit_ppt": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "below_limit": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1596,7 +1626,59 @@
               "no_detections",
               "excluded_only",
               "no_data"
+            ],
+            "description": "Only complete, partial and no_detections rest on evidence and can carry a severity other than no_data. excluded_only (lithium only, nothing regulated) and no_data (empty, invalid or missing) are always no_data."
+          },
+          "no_data_reason": {
+            "description": "Why coverage is no_data: not_supplied, no_results (an empty record), invalid_results (only unusable readings) or no_comparable_results. Null otherwise.",
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "not_supplied",
+                  "no_results",
+                  "invalid_results",
+                  "no_comparable_results"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ]
+          },
+          "regulated_panel": {
+            "description": "Which regulated compounds have a numeric result, a documented non-detect, or no result in this record. complete is true only when none is missing.",
+            "type": "object",
+            "properties": {
+              "numeric": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "non_detect": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "no_result": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "numeric",
+              "non_detect",
+              "no_result",
+              "complete"
+            ],
+            "additionalProperties": false
           },
           "latest_sample_date": {
             "oneOf": [
@@ -2464,7 +2546,16 @@
           },
           "systems_tested_any": {
             "type": "integer",
+            "minimum": 0,
+            "description": "Systems with a numeric result for at least one regulated compound (the share denominator), not every tested system. Same value as systems_with_numeric_result."
+          },
+          "systems_with_numeric_result": {
+            "type": "integer",
             "minimum": 0
+          },
+          "inclusion_rule": {
+            "type": "string",
+            "description": "Counts only systems with a numeric (detected) result for at least one regulated compound; systems without one are left out of both the count and the denominator."
           },
           "exceedance_lines": {
             "type": "object",
@@ -2526,13 +2617,41 @@
                     "type": "null"
                   }
                 ]
+              },
+              "district_systems_over_limit": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "district_systems_with_numeric_result": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "district_total_systems": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state_systems_over_limit": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state_systems_with_numeric_result": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state_total_systems": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "inclusion_rule": {
+                "type": "string"
               }
             },
             "required": [
               "district_share_over",
               "state_share_over"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Both shares use one rule. Counts only systems with a numeric (detected) result for at least one regulated compound; systems without one are left out of both the count and the denominator."
           },
           "ranked_counties": {
             "type": "integer",
@@ -2718,7 +2837,16 @@
           },
           "systems_tested_any": {
             "type": "integer",
+            "minimum": 0,
+            "description": "Systems with a numeric result for at least one regulated compound (the share denominator), not every tested system. Same value as systems_with_numeric_result."
+          },
+          "systems_with_numeric_result": {
+            "type": "integer",
             "minimum": 0
+          },
+          "inclusion_rule": {
+            "type": "string",
+            "description": "Counts only systems with a numeric (detected) result for at least one regulated compound; systems without one are left out of both the count and the denominator."
           },
           "exceedance_lines": {
             "type": "object",
@@ -2780,13 +2908,41 @@
                     "type": "null"
                   }
                 ]
+              },
+              "district_systems_over_limit": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "district_systems_with_numeric_result": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "district_total_systems": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state_systems_over_limit": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state_systems_with_numeric_result": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state_total_systems": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "inclusion_rule": {
+                "type": "string"
               }
             },
             "required": [
               "district_share_over",
               "state_share_over"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Both shares use one rule. Counts only systems with a numeric (detected) result for at least one regulated compound; systems without one are left out of both the count and the denominator."
           },
           "ranked_counties": {
             "type": "integer",

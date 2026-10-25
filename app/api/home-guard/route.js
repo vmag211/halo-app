@@ -89,7 +89,9 @@ function buildBreakdown({
     label: 'Drinking water',
     // A private well has no measurement, so water is not part of the total at
     // all — saying otherwise would imply it was weighed and found acceptable.
-    contributes_to_score: !isPrivateSource && waterRiskDetail !== null,
+    // Nor does a record with no usable result: missing water is left out of the
+    // total, never weighed as clean (risk null, lib/scoring.js getWaterRisk).
+    contributes_to_score: !isPrivateSource && waterRiskDetail !== null && waterRiskDetail.risk !== null,
     risk: waterRiskDetail ? waterRiskDetail.risk : null,
     score:
       waterRiskDetail && waterRiskDetail.risk !== null
@@ -369,6 +371,10 @@ export async function GET(request) {
         // "detected, no published limit" instead of implying safety.
         const unregulatedOnly = waterRiskDetail.coverage === 'unscoreable';
         const unnamed = waterRiskDetail.detected_unregulated;
+        // The utility has a record, but it holds no numeric result and no
+        // documented non-detect (the UCMR5 import keeps detections only). That
+        // is missing information, never a clean result.
+        const noUsableResults = waterRiskDetail.coverage === 'no_data';
 
         // Anything scored against published guidance rather than an enforceable
         // limit, and anything whose limit EPA has proposed rescinding. Both are
@@ -381,7 +387,10 @@ export async function GET(request) {
         );
 
         let message = null;
-        if (unregulatedOnly) {
+        if (noUsableResults) {
+          message =
+            'This utility has no numeric result or documented non-detect in the EPA UCMR 5 records HALO holds. That is missing information, not a finding that the water is clean, so water is left out of the score.';
+        } else if (unregulatedOnly) {
           message = `${formatList(unnamed)} ${
             unnamed.length === 1 ? 'was' : 'were'
           } detected in this system. No enforceable federal limit or published health benchmark exists for ${
@@ -409,11 +418,21 @@ export async function GET(request) {
 
         waterData = {
           pws_name: data.pws_name,
-          status: unregulatedOnly ? 'detected_unregulated' : data.status,
+          status: unregulatedOnly ? 'detected_unregulated' : noUsableResults ? 'no_usable_results' : data.status,
           // Every reading gains date_iso alongside its original M/D/YYYY date.
           contaminants: contaminantsWithIso(data.contaminants),
           population_served: populationServed,
-          is_measured: true,
+          // Nothing usable was measured, so nothing is presented as a measurement.
+          is_measured: !noUsableResults,
+          no_data_reason: waterRiskDetail.no_data_reason,
+          // Documented non-detects (sample date, reporting limit, and whether that
+          // limit is at or below the comparison value) and compounds whose stored
+          // readings were unusable. Neither is a numeric result.
+          non_detects: waterRiskDetail.non_detects.map((entry) => ({ ...entry, date_iso: toIsoDate(entry.date) })),
+          invalid_results: waterRiskDetail.invalid_results,
+          // Which regulated compounds have a numeric result, a documented
+          // non-detect, or no result in this record.
+          regulated_panel: waterRiskDetail.regulated_panel,
           // Preserved so nothing is lost when we override `status` above.
           source_status: data.status,
           coverage: waterRiskDetail.coverage,
@@ -535,6 +554,14 @@ export async function GET(request) {
             unscoreable_detections: waterRiskDetail.detected_unregulated,
             reason:
               'Some compounds detected in this system could not be scored because no enforceable limit or published health benchmark exists for them. This score reflects only what could be evaluated, and is capped for that reason.'
+          }),
+        // A utility record with no usable water result: water is missing from
+        // this score (missing_inputs), not counted as clean.
+        ...(waterRiskDetail &&
+          waterRiskDetail.risk === null &&
+          composite.display_score !== null && {
+            reason:
+              'Water is not part of this score because the utility record has no usable result for the compounds HALO scores. Missing results are left out, not counted as clean.'
           })
       };
     }
