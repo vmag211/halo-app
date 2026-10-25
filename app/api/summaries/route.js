@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { lazyClient } from '@/lib/lazyClient';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
+import { readSummaryEvidence } from '@/lib/summaryEvidence';
+import { buildStageData } from '@/lib/frontend/stage-data';
 import { apiError, internalError, loggableError, requestIdFor, validationError, ERROR_CODES } from '@/lib/apiErrors';
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { featureDisabledReason, featureEnabled } from '@/lib/features';
@@ -76,6 +80,30 @@ import {
  */
 
 export const maxDuration = 60;
+
+// The public client GET /api/home-guard reads ucmr5_utilities with (built on first use).
+const utilities = lazyClient(() =>
+  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+);
+
+/**
+ * Today and Homeguard as the screens show them for the current home (Ruling
+ * S15-6 as revised): the score endpoints' own computations
+ * (lib/summaryEvidence.js) turned into the screens' StageData by the screens'
+ * own mapper. Read only when a score or factor section is selected.
+ */
+async function readEvidence(userId, selection, home, requestId) {
+  if (!selection.sections.scores && !selection.sections.factors) return null;
+  try {
+    const { daily, homeGuard, profile } = await readSummaryEvidence({ admin: supabaseAdmin, utilities, profileId: userId, home });
+    return { data: buildStageData(daily, homeGuard, profile), privateWater: homeGuard?.water?.status === 'private_well' };
+  } catch (err) {
+    // The selected records can still be saved: both sections are then saved as
+    // unavailable, and the scope line and omissions say so.
+    console.error(`summary prepare: the score evidence could not be read (request ${requestId}):`, loggableError(err));
+    return null;
+  }
+}
 
 const NO_STORE = 'no-store';
 
@@ -188,6 +216,7 @@ export async function POST(request) {
           const sources = await readSources(userId, selection);
           if (!requestedRecordsCurrent(records, sources)) return stored('changed');
           const categories = selection.categories ? categoryLabels(await readCategoryRow(supabaseAdmin, userId)) : [];
+          const evidence = await readEvidence(userId, selection, home, requestId);
 
           const composed = composeSummary({
             id: crypto.randomUUID(),
@@ -197,6 +226,7 @@ export async function POST(request) {
             sources,
             home,
             categories,
+            evidence,
           });
           if (!composed.ok) return stored(composed.reason);
           committed = await commitSummary(supabaseAdmin, { profileId: userId, operationId, summary: composed.summary });

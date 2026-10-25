@@ -41,7 +41,8 @@ export function pgliteSelect(db, table, log = null) {
   const builder = {
     select(columns, { count = null, head = false } = {}) {
       if (head && count !== 'exact') throw new Error('pgliteSelect: a head select must count exactly');
-      state.columns = String(columns).split(',').map(identifier);
+      // '*' is every column, as PostgREST answers it (the Homeguard and daily-score routes read bands so).
+      state.columns = String(columns).trim() === '*' ? '*' : String(columns).split(',').map(identifier);
       state.count = count;
       state.head = head;
       return builder;
@@ -98,12 +99,12 @@ export function pgliteSelect(db, table, log = null) {
     if (!state.columns) throw new Error('pgliteSelect: call select() first');
     log?.push({ table: name, operation: 'select', filters: structuredClone(state.filters), rows: [], values: null });
     const where = state.where.length ? ` where ${state.where.join(' and ')}` : '';
-    const fields = state.columns.map((col) => `'${col}', "${col}"`).join(', ');
+    const projection = state.columns === '*' ? `row_to_json(t)` : `json_build_object(${state.columns.map((col) => `'${col}', "${col}"`).join(', ')})`;
     const order = state.orders.length ? ` order by ${state.orders.join(', ')}` : '';
     const limit = Number.isInteger(state.limit) ? ` limit ${state.limit}` : '';
     try {
       return await db.asService(async (tx) => {
-        const { rows } = await tx.query(`select json_build_object(${fields}) as row from public."${name}"${where}${order}${limit}`, state.params);
+        const { rows } = await tx.query(`select ${projection} as row from public."${name}" t${where}${order}${limit}`, state.params);
         const data = rows.map((row) => row.row);
         let count = null;
         if (state.count === 'exact') {

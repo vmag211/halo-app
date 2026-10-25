@@ -20,7 +20,7 @@ test('exact origin IDs, not similar titles, determine linked home context', () =
   assert.match(weekActivityHref(context, href), /homeView=detail&record=mine/);
 });
 test('an entered report does not backfill unrecorded arranged or collected facts', () => {
-  const context = resolveWeekActivity(action('home:test'), { tests: [{ id: 'test', title: 'Test', status: 'recorded', rows: [{}], collectionStart: '', expectedDate: '2026-10-20', review: 'unreviewed' }] });
+  const context = resolveWeekActivity(action('home:test'), { tests: [{ id: 'test', title: 'Test', status: 'recorded', rows: [{ analyte: 'Lead', originalValue: '2', originalUnit: 'ug/L', qualifier: 'measured' }], collectionStart: '', expectedDate: '2026-10-20', review: 'unreviewed' }] });
   assert.deepEqual(context.milestones.map(item => item.done), [false, false, true]);
   assert.ok(!context.fields.some(item => item.label === 'Expected result'));
 });

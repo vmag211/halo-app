@@ -32,8 +32,8 @@ export const DETAIL = '/api/summaries/detail';
 
 const asRpcError = (error) => rpcError(error?.code ?? '', error?.message ?? String(error), error?.detail ?? null, error?.hint ?? null);
 
-export async function createSummaryWorld(db, { env = SUMMARIES_ON, onCommit, summaryRpcs = true, tasks = true } = {}) {
-  const w = await createWorld(db, { env });
+export async function createSummaryWorld(db, { env = SUMMARIES_ON, onCommit, summaryRpcs = true, tasks = true, profile = {}, evidenceTables = true } = {}) {
+  const w = await createWorld(db, { env, profile, tables: evidenceTables ? ['daily_scores', 'ucmr5_utilities'] : [] });
   const { h, ids, home } = w;
 
   const fakeFrom = h.db.from;

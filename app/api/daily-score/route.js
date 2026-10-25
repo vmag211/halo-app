@@ -3,7 +3,7 @@ import { openuvLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { normalizeBands } from '@/lib/household';
 import { fetchDailyReadings } from '@/lib/dailyReadings';
-import { formatDailyPayload, toIsoUtc } from '@/lib/dailyPayload';
+import { formatDailyPayload, readingsFromRow, toIsoUtc } from '@/lib/dailyPayload';
 import { localDate } from '@/lib/localDate';
 import { parseCoordinates } from '@/lib/validate';
 import { ERROR_CODES, apiError, requestIdFor, validationError, internalError } from '@/lib/apiErrors';
@@ -75,37 +75,6 @@ async function ownHomeContextId(profileId, point) {
     console.error('Could not read the current home; caching the reading without it.', error.message);
     return null;
   }
-}
-
-// AirNow is a physical monitor; Open-Meteo is a model. A row with no recorded
-// source stays null — unknown provenance, not assumed-modelled.
-function isMeasuredSource(source) {
-  if (!source) return null;
-  return source === 'airnow';
-}
-
-/** A cached daily_scores row → the readings shape formatDailyPayload takes. */
-function readingsFromRow(row) {
-  let pollen = { tree: null, grass: null, weed: null };
-  if (row.pollen_level) {
-    try {
-      pollen = { ...pollen, ...JSON.parse(row.pollen_level) };
-    } catch (e) {
-      console.error('Error parsing cached pollen data:', e);
-    }
-  }
-  const details = row.details && typeof row.details === 'object' ? row.details : {};
-  return {
-    aqi: row.aqi,
-    aqiSource: row.aqi_source ?? null,
-    aqiIsMeasured: isMeasuredSource(row.aqi_source),
-    dominantPollutant: details.dominant_pollutant ?? null,
-    uvIndex: row.uv_index,
-    uvPeakWindow: details.uv_peak_window ?? null,
-    uvSource: details.uv_source ?? null,
-    pollen,
-    mold: { risk: row.mold_risk ?? null, basis: details.mold_basis ?? null },
-  };
 }
 
 export async function GET(request) {
