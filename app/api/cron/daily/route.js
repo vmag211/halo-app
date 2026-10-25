@@ -16,6 +16,7 @@ import { buildAndStoreAll } from '@/lib/mapBuild';
 import { contextIdForPoint, readCurrentHomeContexts } from '@/lib/homeContextRpc';
 import { loggableCode, purgeAllPrivacyReceipts } from '@/lib/privacyStore';
 import { sweepAttachmentObjects } from '@/lib/attachmentStore';
+import { lunaActionsEnabled, purgeAllExpiredProposals } from '@/lib/lunaActions';
 
 // ArcGIS geography (~20s) runs in parallel with the household pass.
 export const maxDuration = 60;
@@ -278,6 +279,15 @@ async function runDaily(request) {
       return null;
     });
 
+    // Luna's reviews (B20, 0035): deleted a day after they expire, for every
+    // household. Only while the capability is on; null before 0035. Never fatal.
+    const lunaProposalsPurged = lunaActionsEnabled()
+      ? await purgeAllExpiredProposals(supabaseAdmin).catch((err) => {
+        console.error('Daily job: the Luna review purge failed; the run goes on:', loggableCode(err));
+        return null;
+      })
+      : null;
+
     let inserted = [];
     if (newAlerts.length) {
       const { data, error } = await supabaseAdmin
@@ -322,6 +332,7 @@ async function runDaily(request) {
       map_layers: await mapBuild,
       privacy_receipts_purged: privacyReceiptsPurged,
       attachment_objects: attachmentObjects,
+      luna_proposals_purged: lunaProposalsPurged,
       ran_at: now.toISOString(),
     });
   } catch (err) {

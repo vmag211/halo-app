@@ -13,7 +13,6 @@ import {
 import {
   LUNA_FEATURE,
   cancelRun,
-  conversationPayload,
   effectiveRunStatus,
   findRun,
   isLunaUnavailable,
@@ -21,6 +20,7 @@ import {
   runBody,
   unknownRunBody,
 } from '@/lib/luna';
+import { reviewedConversation } from '@/lib/lunaActionsRoute';
 
 /**
  * POST /api/luna/runs/cancel
@@ -157,7 +157,7 @@ async function currentRun(supabase, { profileId, id }) {
   const row = await findRun(supabase, { profileId, id });
   if (!row) return unknownRunBody(id);
   const status = effectiveRunStatus(row);
-  const conversation = TERMINAL.includes(status) ? await conversationPayload(supabase, { profileId }) : null;
+  const conversation = TERMINAL.includes(status) ? await reviewedConversation(supabase, { profileId }) : null;
   return runBody({ row, conversation });
 }
 

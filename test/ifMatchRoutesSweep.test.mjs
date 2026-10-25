@@ -23,7 +23,9 @@ test('readIfMatch: custom header first, standard header still honoured, absent i
   assert.equal(readIfMatch(req({})), null);
 });
 
-test('no route reads the standard If-Match directly: all 12 go through readIfMatch', () => {
+// 13 since B20: POST /api/luna/proposals/edit (confirm, cancel and the status
+// check read it through lib/lunaActionsRoute.js parseReviewReference).
+test('no route reads the standard If-Match directly: all 13 go through readIfMatch', () => {
   const routes = walk(path.join(ROOT, 'app/api')).filter((f) => /route\.js$/.test(f));
   const users = [];
   for (const f of routes) {
@@ -31,7 +33,7 @@ test('no route reads the standard If-Match directly: all 12 go through readIfMat
     assert.equal(/headers\.get\(\s*['"]if-match['"]/i.test(src), false, `${f} reads if-match directly`);
     if (/readIfMatch\(request\)/.test(src)) users.push(f);
   }
-  assert.equal(users.length, 12);
+  assert.equal(users.length, 13);
 });
 
 test('nothing in components/ or lib/ sends a standard If-Match header', () => {

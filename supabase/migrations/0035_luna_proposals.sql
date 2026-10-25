@@ -1,0 +1,156 @@
+-- HALO: Luna's proposals, the reviews of a My Week task change that Luna
+-- prepares and the person confirms (B20, Vibhav 2026-10-25: Luna acts in the
+-- app, through a review the person confirms).
+--
+-- Run once in the Supabase SQL editor, AFTER 0020 and 0023. Safe to re-run.
+--
+-- Locks: creates one new table and its indexes. It does not read or write any
+-- existing table. The foreign keys to profiles, luna_conversations and
+-- luna_turns take a brief SHARE ROW EXCLUSIVE on each as they are created.
+--
+-- WHAT A ROW IS. One assistant turn's review: what Luna proposes to change in
+-- My Week (add a task, move one, complete or reopen one, save one for later),
+-- or, for `choose`, the tasks a reference could mean, offered as choices. The
+-- frontend renders a `review` row as the proposal block under that turn
+-- (lib/frontend/production/luna-service.ts LunaProposal). NOTHING CHANGES IN
+-- MY WEEK BECAUSE A ROW EXISTS: a change is made only when the person
+-- confirms, and the confirm commits through the ordinary task path
+-- (commit_household_actions, 0023) under its own `actions` ledger row (0017).
+-- `operation_id` is that ledger row's id, so a lost confirm is reconciled from
+-- the ledger, never from this table.
+--
+-- `payload` is the review itself: for a new task, the title, date, time and
+-- estimate the person asked for; for an existing task, its id, the revision
+-- and the planning-details signature the review was prepared against (the
+-- confirm is refused when either has moved), and the title and dates shown in
+-- the review. It is household data and stays in HALO: nothing in this table is
+-- ever sent to the model provider (decision 2, B09 C13).
+--
+-- `revision` is the review's own, raised by every edit the person makes before
+-- confirming; a confirm, cancel or edit names the revision it saw, and a stale
+-- one is refused. `expires_at` ends the review: a confirm after it is refused.
+--
+-- RETENTION, SHORT-LIVED ON PURPOSE: a review expires 30 minutes after it is
+-- prepared, and its row is deleted one day after it expires (lib/lunaActions.js
+-- deletes the household's old rows whenever it writes one, and the daily cron
+-- deletes everyone's). Clearing the conversation deletes the turns and so
+-- these rows (ON DELETE CASCADE), as do clear all (through
+-- luna_conversations) and account deletion (profiles).
+--
+-- Privacy: the service role is the only reader, as for 0020's tables. Row
+-- level security is on with no policy and the default privileges are revoked.
+--
+-- Degrades cleanly: until this is applied, Luna answers as before and reports
+-- no tools; HALO_FEATURE_LUNA_ACTIONS (off by default) is what turns it on.
+
+create table if not exists public.luna_proposals (
+  id              uuid        primary key default gen_random_uuid(),
+  profile_id      uuid        not null references public.profiles (id) on delete cascade,
+  conversation_id uuid        not null,
+  -- The assistant turn the review is shown under. One review per turn.
+  turn_id         uuid        not null unique references public.luna_turns (id) on delete cascade,
+  -- For `choose`: the person's turn that picked one of the choices. Kept so
+  -- that turn (a task title the server wrote) is never sent to the model as
+  -- conversation history.
+  reply_turn_id   uuid        references public.luna_turns (id) on delete set null,
+  kind            text        not null,
+  status          text        not null default 'review',
+  revision        integer     not null default 1,
+  payload         jsonb       not null,
+  operation_id    uuid,
+  expires_at      timestamptz not null,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  foreign key (conversation_id, profile_id)
+    references public.luna_conversations (id, profile_id) on delete cascade
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'luna_proposals_kind_check') then
+    alter table public.luna_proposals add constraint luna_proposals_kind_check
+      check (kind in ('create', 'reschedule', 'complete', 'reopen', 'later', 'choose'));
+  end if;
+  -- Exactly the statuses LunaProposal accepts.
+  if not exists (select 1 from pg_constraint where conname = 'luna_proposals_status_check') then
+    alter table public.luna_proposals add constraint luna_proposals_status_check
+      check (status in ('review', 'applied', 'cancelled'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'luna_proposals_revision_check') then
+    alter table public.luna_proposals add constraint luna_proposals_revision_check
+      check (revision >= 1);
+  end if;
+  -- A small object: a review of one task, never a document.
+  if not exists (select 1 from pg_constraint where conname = 'luna_proposals_payload_check') then
+    alter table public.luna_proposals add constraint luna_proposals_payload_check
+      check (jsonb_typeof(payload) = 'object' and octet_length(payload::text) <= 16384);
+  end if;
+end $$;
+
+-- The household's old reviews, for the purge.
+create index if not exists luna_proposals_owner_expiry
+  on public.luna_proposals (profile_id, expires_at);
+create index if not exists luna_proposals_conversation
+  on public.luna_proposals (conversation_id);
+
+alter table public.luna_proposals enable row level security;
+
+revoke all on table public.luna_proposals from anon, authenticated;
+
+-- What a privacy clear all removes here, for its preview (lib/privacyStore.js
+-- privacyCounts). The rows themselves go by cascade when 0024's clear deletes
+-- the household's turns and conversation, inside the clear's transaction.
+create or replace function public.luna_proposal_privacy_counts(p_profile_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = public
+as $$
+begin
+  if p_profile_id is null then
+    raise exception 'HALO_INVALID_INPUT' using errcode = 'P0001', detail = 'p_profile_id is required';
+  end if;
+  return jsonb_build_object('luna_proposals',
+    (select count(*) from public.luna_proposals p where p.profile_id = p_profile_id));
+end;
+$$;
+
+revoke execute on function public.luna_proposal_privacy_counts(uuid) from public, anon, authenticated;
+grant execute on function public.luna_proposal_privacy_counts(uuid) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Verification (read only). Expect one row, all five columns true.
+-- ---------------------------------------------------------------------------
+--   select
+--     (select c.relrowsecurity from pg_class c where c.oid = 'public.luna_proposals'::regclass) as rls_on,
+--     not has_function_privilege('authenticated', 'public.luna_proposal_privacy_counts(uuid)', 'EXECUTE')
+--       and has_function_privilege('service_role', 'public.luna_proposal_privacy_counts(uuid)', 'EXECUTE')
+--       as counts_service_role_only,
+--     (select count(*) from pg_policies
+--       where schemaname = 'public' and tablename = 'luna_proposals') = 0
+--       as no_policies,
+--     not exists (
+--       select 1 from unnest(array['anon', 'authenticated']) as r
+--        where has_any_column_privilege(r, 'public.luna_proposals', 'SELECT')
+--           or has_any_column_privilege(r, 'public.luna_proposals', 'INSERT')
+--           or has_any_column_privilege(r, 'public.luna_proposals', 'UPDATE')
+--           or has_table_privilege(r, 'public.luna_proposals', 'DELETE'))
+--       as no_client_access,
+--     (select count(*) from pg_constraint
+--       where conrelid = 'public.luna_proposals'::regclass and contype = 'c') = 4
+--       as four_checks;
+--
+-- ---------------------------------------------------------------------------
+-- If you need to back out 0035
+-- ---------------------------------------------------------------------------
+-- Turn HALO_FEATURE_LUNA_ACTIONS off first. Luna goes back to answering
+-- only, and reports no tools. What is lost: every review not yet confirmed
+-- (a confirmed change is already in My Week and stays there). Nothing else is
+-- touched. The tested copy of this block is in docs/backend/YOUR_TODO.md.
+--
+-- <!-- backout-0035 -->
+-- drop function if exists public.luna_proposal_privacy_counts(uuid);
+-- drop table if exists public.luna_proposals;
+--
+-- Then run: notify pgrst, 'reload schema';

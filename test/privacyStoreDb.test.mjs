@@ -122,8 +122,9 @@ test('every privacyStore wrapper succeeds against the real 0024 functions, calle
 
     assert.deepEqual(await privacyCounts(client, { profileId: ALICE, scope: 'journal' }), { symptom_logs: 1, alerts: 1 });
     const all = await privacyCounts(client, { profileId: ALICE, scope: 'all' });
-    assert.equal(Object.keys(all).length, 24); // daily_maxima included (0025), the workspace (0026), the files (0028), the summaries (0029), the idea sets (0030) and the drafts (0031)
+    assert.equal(Object.keys(all).length, 25); // daily_maxima included (0025), the workspace (0026), the files (0028), the summaries (0029), the idea sets (0030), the drafts (0031) and Luna's reviews (0035)
     assert.equal(all.outreach_drafts, 0);
+    assert.equal(all.luna_proposals, 0);
     assert.equal(all.household_project_generations, 0);
     assert.equal(all.daily_maxima, 0);
     assert.equal(all.household_workspace_records, 0);
@@ -148,7 +149,7 @@ test('every privacyStore wrapper succeeds against the real 0024 functions, calle
   const { rows } = await db.query(
     `select p.proname::text as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = any ($1::text[]) and p.prorettype <> 'trigger'::regtype order by 1`,
-    [['privacy_schema_version', 'privacy_fingerprint', 'privacy_counts', 'clear_household_records', 'purge_privacy_receipts', 'guard_settled_privacy_operation', 'workspace_privacy_counts', 'attachment_privacy_counts', 'summary_privacy_counts', 'project_privacy_counts', 'outreach_privacy_counts']],
+    [['privacy_schema_version', 'privacy_fingerprint', 'privacy_counts', 'clear_household_records', 'purge_privacy_receipts', 'guard_settled_privacy_operation', 'workspace_privacy_counts', 'attachment_privacy_counts', 'summary_privacy_counts', 'project_privacy_counts', 'outreach_privacy_counts', 'luna_proposal_privacy_counts']],
   );
   assert.deepEqual([...new Set(called)].sort(), rows.map((row) => row.name));
 });

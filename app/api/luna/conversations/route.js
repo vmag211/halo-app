@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireUser, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
 import { internalError, requestIdFor } from '@/lib/apiErrors';
 import { featureEnabled } from '@/lib/features';
-import { conversationPayload, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
+import { isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
+import { reviewedConversation } from '@/lib/lunaActionsRoute';
 
 /**
  * GET /api/luna/conversations?current=true
@@ -89,6 +90,11 @@ async function requireLunaTables(supabase, profileId, tables) {
   }
 }
 
+// B20: the review overlay can settle an abandoned confirm's ledger row (a
+// reap), so this read sits under the ledger's staleness window like every
+// ledger route (test/operationsMaxDuration.test.mjs).
+export const maxDuration = 60;
+
 export async function GET(request) {
   const requestId = requestIdFor(request);
   const headers = { 'X-Request-Id': requestId };
@@ -102,7 +108,8 @@ export async function GET(request) {
     // The whole conversation if there is one. This read proves all three of
     // 0020's tables are present before it answers, so a partial schema is
     // reported as unavailable rather than as an empty transcript.
-    const existing = await conversationPayload(supabaseAdmin, { profileId: userId });
+    // With B20 on, each answer carries its review (lib/lunaActions.js withProposals).
+    const existing = await reviewedConversation(supabaseAdmin, { profileId: userId });
     if (existing) return NextResponse.json(existing, { headers });
 
     // Nothing asked yet. The other two tables are still proved, because this

@@ -4,21 +4,17 @@ import { apiError, internalError, requestIdFor, validationError, ERROR_CODES } f
 import { readJsonBody, parseUuid } from '@/lib/validate';
 import { featureDisabledReason, featureEnabled } from '@/lib/features';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, requestHash, runOperation } from '@/lib/operations';
-import { ACTION_REFUSAL_MESSAGES, ACTION_REFUSAL_REASONS, parseActionCommand, planActionCommand } from '@/lib/actionRules';
+import { parseActionCommand } from '@/lib/actionRules';
 import { readIfMatch } from '@/lib/ifMatch';
 import {
   ACTIONS_DOMAIN,
-  ACTIONS_REFUSALS,
-  actionCheckCode,
-  actionCheckMessage,
-  actionsRefusal,
   actionsUnavailable,
-  commitActions,
   isActionsUnavailable,
   liveActionsSnapshot,
   readActionsState,
   unresolvedActionOperations,
 } from '@/lib/actionsStore';
+import { COMMIT_REFUSAL_REASONS, commitCommand, refusalBody } from '@/lib/actionsCommit';
 
 /**
  * POST /api/frontend/actions/commands  (registry `actions.commit`, runtime.ts:30)
@@ -127,12 +123,6 @@ export const maxDuration = 60;
 /** Sized for the weekly planner's whole map under the platform's 4.5 MB request limit (Ruling H21). */
 const MAX_BYTES = 4_000_000;
 
-/** Lost races with another save before answering `busy` (Ruling H10). */
-const MAX_ATTEMPTS = 3;
-
-/** The refusals this route records and replays as a 200 `failed` receipt (Ruling H11). */
-const REFUSAL_REASONS = new Set(Object.values(ACTION_REFUSAL_REASONS));
-
 /**
  * Every server-authored string (Ruling H22), none with an em dash. The
  * refusal sentences are lib/actionRules.js's ACTION_REFUSAL_MESSAGES, shared
@@ -162,37 +152,6 @@ const inFlight = (requestId) =>
 /** A terminal 409, carrying why for a log and a contract test. */
 const conflict = (message, requestId, reason) =>
   apiError({ status: 409, code: ERROR_CODES.CONFLICT, message, retryable: false, requestId, extra: { reason } });
-
-/**
- * The ledger's copy of a refusal: the reason, the current revisions for
- * `stale_revision`, the sentence's code for `invalid_result`, and the empty
- * unresolved list every stored receipt carries (Ruling S14). Codes and ids
- * only (Ruling H3).
- */
-function storedRefusal(plan) {
-  const receipt = { status: 'failed', reason: plan.reason };
-  if (plan.reason === ACTION_REFUSAL_REASONS.STALE_REVISION) receipt.revisions = plan.revisions;
-  if (plan.reason === ACTION_REFUSAL_REASONS.INVALID_RESULT) {
-    const check = actionCheckCode(plan.message);
-    if (check) receipt.check = check;
-  }
-  receipt.unresolvedOperations = [];
-  return receipt;
-}
-
-/** The 200 refusal answered from a stored one, live or replayed alike. */
-function refusalBody(operationId, stored) {
-  const message = stored.reason === ACTION_REFUSAL_REASONS.INVALID_RESULT
-    ? actionCheckMessage(stored.check) ?? ACTION_REFUSAL_MESSAGES.invalid_result
-    : ACTION_REFUSAL_MESSAGES[stored.reason];
-  return {
-    operationId,
-    status: 'failed',
-    reason: stored.reason,
-    message,
-    ...(stored.reason === ACTION_REFUSAL_REASONS.STALE_REVISION && Array.isArray(stored.revisions) ? { revisions: stored.revisions } : {}),
-  };
-}
 
 export async function POST(request) {
   const requestId = requestIdFor(request);
@@ -252,7 +211,7 @@ export async function POST(request) {
 
     // Proves 0023 (and with it 0017) before the claim, and is the first
     // attempt's base. A version that moves before the commit is caught there.
-    let state = await readActionsState(supabaseAdmin, userId);
+    const state = await readActionsState(supabaseAdmin, userId);
     // The live list for a live success, read before the claim (Ruling H32).
     const unresolvedOperations = await unresolvedActionOperations(supabaseAdmin, userId, { exclude: [operationId.value] });
     let committedSnapshot = null;
@@ -261,29 +220,16 @@ export async function POST(request) {
       supabaseAdmin,
       { operationId: operationId.value, profileId: userId, domain: ACTIONS_DOMAIN, kind: 'actions.commit', input },
       async () => {
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-          if (!state) state = await readActionsState(supabaseAdmin, userId);
-          const plan = planActionCommand(state.snapshot, command);
-          if (!plan.ok) return storedRefusal(plan);
-          if (plan.noop) {
-            committedSnapshot = state.snapshot;
-            return { status: 'succeeded', affected: [], removed: [], unresolvedOperations: [] };
-          }
-          try {
-            const committed = await commitActions(supabaseAdmin, {
-              profileId: userId,
-              operationId: operationId.value,
-              baseVersion: state.version,
-              writes: plan.writes,
-            });
-            committedSnapshot = committed.snapshot;
-            return { ...committed.receipt, unresolvedOperations: [] };
-          } catch (error) {
-            if (actionsRefusal(error) !== ACTIONS_REFUSALS.STALE_BASE) throw error;
-            state = null;
-          }
-        }
-        return storedRefusal({ reason: ACTION_REFUSAL_REASONS.BUSY });
+        // The shared write path (lib/actionsCommit.js), which Luna's confirm
+        // commits through as well: plan, commit, and plan again after a lost race.
+        const committed = await commitCommand(supabaseAdmin, {
+          profileId: userId,
+          operationId: operationId.value,
+          command,
+          state,
+        });
+        committedSnapshot = committed.snapshot;
+        return committed.receipt;
       },
     );
 
@@ -301,7 +247,7 @@ export async function POST(request) {
         : { ...committedSnapshot, unresolvedOperations };
       return NextResponse.json({ operationId: operationId.value, status: 'succeeded', snapshot }, { headers });
     }
-    if (result.status === 'failed' && REFUSAL_REASONS.has(result.reason)) {
+    if (result.status === 'failed' && COMMIT_REFUSAL_REASONS.has(result.reason)) {
       return NextResponse.json(refusalBody(operationId.value, result), { headers });
     }
     // Reaped: the claim never settled within the ledger's window.

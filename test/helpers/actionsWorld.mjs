@@ -44,7 +44,7 @@ let worlds = 0;
  * @param {object} db a database from createDb()
  * @param {{ ledger?: 'pglite'|'fake', env?: object, onCommit?: Function, onRead?: Function }} [options]
  */
-export async function createWorld(db, { ledger = 'pglite', env = ON, onCommit, onRead } = {}) {
+export async function createWorld(db, { ledger = 'pglite', env = ON, onCommit, onRead, tables: extraTables = [], fetch: harnessFetch } = {}) {
   worlds += 1;
   const prefix = (0xa0000000 + worlds).toString(16);
   const alice = `${prefix}-0000-4000-8000-00000000000a`;
@@ -53,8 +53,10 @@ export async function createWorld(db, { ledger = 'pglite', env = ON, onCommit, o
 
   const fake = ledger === 'fake';
   const h = createRouteHarness({
-    tables: fake ? haloTables('profiles', 'operations') : haloTables('profiles'),
+    // `tables` adds fake tables beside the PGlite-backed ones (B20's Luna world adds Luna's).
+    tables: fake ? haloTables('profiles', 'operations', ...extraTables) : haloTables('profiles', ...extraTables),
     env,
+    fetch: harnessFetch,
     identities: { alice: { id: alice }, bob: { id: bob } },
     seed: { profiles: [{ id: alice }, { id: bob }] },
   });

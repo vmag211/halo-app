@@ -130,6 +130,14 @@ export const BUNDLES = Object.freeze([
     verifyFile: 'verify-0034.sql',
     migrations: Object.freeze(['0034_week_journal_records']),
   }),
+  Object.freeze({
+    title: 'migration 0035',
+    checks: 'migration 0035 is',
+    needs: 'Needs 0020 (Luna) applied first, which production has; a confirm also needs 0017 and 0023 (production has them). Turn HALO_FEATURE_LUNA_ACTIONS on only after this.',
+    bundleFile: 'apply-0035.sql',
+    verifyFile: 'verify-0035.sql',
+    migrations: Object.freeze(['0035_luna_proposals']),
+  }),
 ]);
 
 /**

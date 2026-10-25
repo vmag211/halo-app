@@ -100,8 +100,10 @@ test('privacyCounts passes p_profile_id and p_scope, for a clear scope only', as
   assert.deepEqual(client.calls[5], { name: 'project_privacy_counts', args: { p_profile_id: ALICE } });
   // B17 Ruling O8: and the outreach drafts.
   assert.deepEqual(client.calls[6], { name: 'outreach_privacy_counts', args: { p_profile_id: ALICE } });
+  // B20: and Luna's reviews.
+  assert.deepEqual(client.calls[7], { name: 'luna_proposal_privacy_counts', args: { p_profile_id: ALICE } });
   await assert.rejects(privacyCounts(client, { profileId: ALICE, scope: 'export' }), /clear scope/);
-  assert.equal(client.calls.length, 7);
+  assert.equal(client.calls.length, 8);
 });
 
 test('privacyCounts for clear all adds the workspace count, and before 0026 counts without it', async () => {
@@ -110,28 +112,29 @@ test('privacyCounts for clear all adds the workspace count, and before 0026 coun
     : name === 'attachment_privacy_counts' ? ok({ household_attachments: 1 })
       : name === 'summary_privacy_counts' ? ok({ household_summaries: 3 })
         : name === 'project_privacy_counts' ? ok({ household_project_generations: 5 })
-          : name === 'outreach_privacy_counts' ? ok({ outreach_drafts: 6 }) : ok({ household_workspace_records: 4 }))();
+          : name === 'outreach_privacy_counts' ? ok({ outreach_drafts: 6, luna_proposals: 7 })
+            : name === 'luna_proposal_privacy_counts' ? ok({ luna_proposals: 7 }) : ok({ household_workspace_records: 4 }))();
   const client = { rpc: async (name) => { calls.push(name); return answer(name); } };
-  assert.deepEqual(await privacyCounts(client, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_attachments: 1, household_summaries: 3, household_project_generations: 5, outreach_drafts: 6 });
-  assert.deepEqual(calls, ['privacy_counts', 'workspace_privacy_counts', 'attachment_privacy_counts', 'summary_privacy_counts', 'project_privacy_counts', 'outreach_privacy_counts']);
+  assert.deepEqual(await privacyCounts(client, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_attachments: 1, household_summaries: 3, household_project_generations: 5, outreach_drafts: 6, luna_proposals: 7 });
+  assert.deepEqual(calls, ['privacy_counts', 'workspace_privacy_counts', 'attachment_privacy_counts', 'summary_privacy_counts', 'project_privacy_counts', 'outreach_privacy_counts', 'luna_proposal_privacy_counts']);
   // 0026 applied, 0028 not yet: the workspace is counted, the files are not (0029, which needs only 0026, still is).
   const missingFn = { data: null, error: { code: 'PGRST202', message: 'missing' } };
   const noFiles = { rpc: async (name) => (name === 'attachment_privacy_counts' ? missingFn : answer(name)) };
-  assert.deepEqual(await privacyCounts(noFiles, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_summaries: 3, household_project_generations: 5, outreach_drafts: 6 });
+  assert.deepEqual(await privacyCounts(noFiles, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_summaries: 3, household_project_generations: 5, outreach_drafts: 6, luna_proposals: 7 });
   // 0026 and 0028 applied, 0029 not yet: the summaries are not counted.
   const noSummaries = { rpc: async (name) => (name === 'summary_privacy_counts' ? { data: null, error: { code: '42883', message: 'missing' } } : answer(name)) };
-  assert.deepEqual(await privacyCounts(noSummaries, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_attachments: 1, household_project_generations: 5, outreach_drafts: 6 });
+  assert.deepEqual(await privacyCounts(noSummaries, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_attachments: 1, household_project_generations: 5, outreach_drafts: 6, luna_proposals: 7 });
   const badSummaries = { rpc: async (name) => (name === 'summary_privacy_counts' ? ok({ household_summaries: 'x' })() : answer(name)) };
   await assert.rejects(privacyCounts(badSummaries, { profileId: ALICE, scope: 'all' }), /summary_privacy_counts/);
   // 0026 and 0029 applied, 0028 and 0030 not yet: the workspace and the summaries are counted.
   const noFilesOrProjects = { rpc: async (name) => (name === 'attachment_privacy_counts' || name === 'project_privacy_counts' ? missingFn : answer(name)) };
-  assert.deepEqual(await privacyCounts(noFilesOrProjects, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_summaries: 3, outreach_drafts: 6 });
+  assert.deepEqual(await privacyCounts(noFilesOrProjects, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_summaries: 3, outreach_drafts: 6, luna_proposals: 7 });
   // B16: 0030 does not need 0026 or 0028, so its idea sets are counted without them (and B17: 0031's drafts too).
   const onlyProjects = { rpc: async (name) => (name === 'workspace_privacy_counts' || name === 'attachment_privacy_counts' ? missingFn : answer(name)) };
-  assert.deepEqual(await privacyCounts(onlyProjects, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_project_generations: 5, outreach_drafts: 6 });
+  assert.deepEqual(await privacyCounts(onlyProjects, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_project_generations: 5, outreach_drafts: 6, luna_proposals: 7 });
   // 0031 not applied: the drafts are not counted, everything else is.
   const noDrafts = { rpc: async (name) => (name === 'outreach_privacy_counts' ? { data: null, error: { code: '42883', message: 'missing' } } : answer(name)) };
-  assert.deepEqual(await privacyCounts(noDrafts, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_attachments: 1, household_summaries: 3, household_project_generations: 5 });
+  assert.deepEqual(await privacyCounts(noDrafts, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2, household_workspace_records: 4, household_attachments: 1, household_summaries: 3, household_project_generations: 5, luna_proposals: 7 });
   const missing = { rpc: async (name) => (name === 'privacy_counts' ? ok({ symptom_logs: 2 })() : { data: null, error: { code: 'PGRST202', message: 'missing' } }) };
   assert.deepEqual(await privacyCounts(missing, { profileId: ALICE, scope: 'all' }), { symptom_logs: 2 });
   const broken = { rpc: async (name) => (name === 'privacy_counts' ? ok({ symptom_logs: 2 })() : { data: null, error: { code: '57014', message: 'timeout' } }) };

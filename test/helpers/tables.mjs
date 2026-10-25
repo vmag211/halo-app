@@ -178,6 +178,15 @@ export const HALO_TABLES = {
     ownerColumn: 'profile_id',
     defaults: { id: uuid, status: 'queued', created_at: now, updated_at: now },
   },
+  // 0035: one review per assistant turn of a My Week task change Luna
+  // prepared (B20). The fake does not model the cascades from luna_turns, so
+  // the clear route deletes a cleared conversation's reviews itself as well.
+  luna_proposals: {
+    primaryKey: 'id',
+    unique: [['turn_id']],
+    ownerColumn: 'profile_id',
+    defaults: { id: uuid, status: 'review', revision: 1, created_at: now, updated_at: now },
+  },
 
   // 0021: the settings values that have nowhere else to live (display, quiet
   // hours, calendar, Luna's context switches) plus the settings aggregate

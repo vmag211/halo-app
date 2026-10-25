@@ -1313,6 +1313,34 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: each check-in's app id, revision and home are dropped (the entries themselves stay). Nothing else is touched.
 
+### 2.26 Apply 0035 (Luna's task reviews), then turn on `HALO_FEATURE_LUNA_ACTIONS`
+
+**Written, applied nowhere yet.** Needs 0020 (Luna's tables, on production); a confirm also uses 0017 and 0023 (on production). Quiet: one new table, `luna_proposals`, two indexes and one count function; no existing table or row is touched.
+
+What it is for (B20, your decision of 2026-10-25 that Luna acts in the app): when a person asks Luna to add, move, complete, reopen or save a My Week task for later, Luna prepares a **review**; nothing changes until the person presses Confirm, and the confirm saves through the same path as a save in My Week (`actions.commit`, its ledger and its unknown-outcome check). The model is sent only the person's own message: HALO finds the task itself, and no task, note, Journal entry or household member is ever sent. Luna never offers reminders. Retention: a review can be confirmed for 30 minutes and its row is deleted a day after that (the daily cron and every new review delete old ones); clearing the conversation, clear all and account deletion remove them too (`docs/backend/privacy-and-retention.md`).
+
+**Applying this does not turn it on.** Until `HALO_FEATURE_LUNA_ACTIONS=on` (it also needs `HALO_FEATURE_LUNA=on` and `HALO_FEATURE_TASKS=on`), Luna answers exactly as today and reports no tools.
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0035_luna_proposals.sql`, or `docs/backend/apply/apply-0035.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run `docs/backend/apply/verify-0035.sql`: **one row, `all_migrations_ok` true, five checks**. If `no_client_access` is false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+4. Set `HALO_FEATURE_LUNA_ACTIONS=on` in Vercel (Production; check `HALO_FEATURE_LUNA=on` and `HALO_FEATURE_TASKS=on` too), redeploy, open Luna and ask "Add a task to test the kitchen tap on Friday": a review appears, My Week is unchanged; press Confirm changes, and the task is in My Week. Then try "Mark the kitchen tap done" and Cancel review: nothing changes.
+
+#### If you need to back out 0035
+
+Turn `HALO_FEATURE_LUNA_ACTIONS` off first. Luna goes back to answering only and reports no tools. In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0035 -->
+
+```sql
+drop function if exists public.luna_proposal_privacy_counts(uuid);
+drop table if exists public.luna_proposals;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: every review not yet confirmed is deleted (a confirmed change is already in My Week and stays). Nothing else is touched.
+
 ---
 
 ## Part 3. Decisions only you can make
