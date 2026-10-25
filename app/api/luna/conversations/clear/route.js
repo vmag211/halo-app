@@ -6,6 +6,7 @@ import { featureEnabled } from '@/lib/features';
 import { ABANDONED_REASON, OPERATION_INPUT_MISMATCH, isOperationsUnavailable, runOperation } from '@/lib/operations';
 import { clearConversation, isLunaUnavailable, lunaUnavailable } from '@/lib/luna';
 import { readIfMatch } from '@/lib/ifMatch';
+import { deleteConversationProposals, lunaActionsEnabled } from '@/lib/lunaActions';
 
 /**
  * POST /api/luna/conversations/clear
@@ -274,7 +275,11 @@ export async function POST(request) {
           conversationId: id.value,
           expectedRevision: revision.value,
         });
-        if (cleared.ok) return { status: 'succeeded', conversation: cleared.conversation };
+        if (cleared.ok) {
+          // B20: the conversation's reviews go with it (only while the capability is on).
+          if (lunaActionsEnabled()) await deleteConversationProposals(supabaseAdmin, { profileId: userId, conversationId: id.value });
+          return { status: 'succeeded', conversation: cleared.conversation };
+        }
         // A terminal refusal, recorded as what happened: the ledger holds the
         // reason so a replay answers the same way, and the route turns it back
         // into the status the client reads as a conflict. Nothing of the

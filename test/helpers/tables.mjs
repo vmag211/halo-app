@@ -180,7 +180,7 @@ export const HALO_TABLES = {
   },
   // 0035: one review per assistant turn of a My Week task change Luna
   // prepared (B20). The fake does not model the cascades from luna_turns, so
-  // lib/lunaActions.js never relies on them for correctness, only for cleanup.
+  // the clear route deletes a cleared conversation's reviews itself as well.
   luna_proposals: {
     primaryKey: 'id',
     unique: [['turn_id']],

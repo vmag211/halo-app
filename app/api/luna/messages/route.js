@@ -11,6 +11,7 @@ import {
   runOperation,
 } from '@/lib/operations';
 import {
+  LUNA_CHOICE_PREFIX,
   LUNA_FEATURE,
   LUNA_QUESTION_MAX,
   LUNA_RUN_DEADLINE_MS,
@@ -35,6 +36,7 @@ import {
   unknownRunBody,
 } from '@/lib/luna';
 import {
+  LUNA_ACTION_COPY,
   answerPick,
   findPick,
   isProposalsMissing,
@@ -516,9 +518,15 @@ export async function POST(request) {
     // here with no model at all (lib/lunaActions.js findPick). Only with the
     // capability on; off, nothing is read.
     let pick = null;
+    let closedChoice = false;
     if (existing && lunaActionsEnabled()) {
       try {
         pick = await findPick(supabaseAdmin, { profileId: userId, conversationId: existing.id, text: question.value });
+        // A choice's text holds a task title the server wrote. One that is no
+        // longer open (pressed already, expired, cleared) is answered with a
+        // fixed sentence and no model too, or that title would be sent to the
+        // provider as the question (decision 2).
+        closedChoice = !pick && question.value.startsWith(LUNA_CHOICE_PREFIX);
       } catch (err) {
         if (!isProposalsMissing(err)) throw err;
       }
@@ -528,7 +536,7 @@ export async function POST(request) {
     // /api/assistant orders it (route.js:86): a refusal is decided by a
     // function, not asked of a model. A pick asks no model and is not a
     // question, so it is never refused.
-    const refusal = pick ? null : diagnosticRefusal(question.value);
+    const refusal = pick ? null : closedChoice ? LUNA_ACTION_COPY.choiceClosed : diagnosticRefusal(question.value);
 
     // Per household, failing open: a limiter outage must not block the critical
     // path. Checked for every accepted message, refusals included, because
