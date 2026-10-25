@@ -4,7 +4,7 @@ import {jsonRoute} from './stage-fixtures';
 
 // Luna with the capability ON, end to end, against a stateful stand-in for the five
 // /api/luna routes that answers in the shapes the real routes do (app/api/luna/*).
-const caps={available:true,providerLabel:'Luna answers questions from published health and environmental sources',retentionSummary:'Luna quotes and cites those sources, and cannot change anything in HALO or act for you. Your home readings, notes, journal and tasks are not part of this conversation. Your questions and the answers are kept in your account until you clear this conversation or delete your account.',publicRetrieval:false,context:{tasks:false,home:false,projects:false},tools:[]};
+const caps={available:true,providerLabel:'Luna answers questions from published health and environmental sources',retentionSummary:'Luna quotes and cites those sources, and cannot add tasks, set reminders, change anything in HALO or act for you. Your home readings, notes, journal and tasks are not part of this conversation. Your questions and the answers are kept in your account until you clear this conversation or delete your account.',publicRetrieval:false,context:{tasks:false,home:false,projects:false},tools:[]};
 type Turn={id:string;role:'user'|'assistant';text:string;sources?:{title:string;url:string}[];evidence?:unknown[]};
 type Options={polls?:number;answer?:(question:string)=>Omit<Turn,'id'|'role'>;turns?:Turn[]};
 
@@ -128,7 +128,7 @@ test('with published sources only, Luna offers questions it can answer, not acti
  await expect(dialog.getByLabel('Message Luna')).toHaveAttribute('placeholder','Ask Luna a question...');
  await expect(dialog.getByRole('button',{name:'New conversation'})).toBeDisabled();
  await dialog.getByRole('button',{name:'Context & privacy'}).click();
- await expect(dialog).toContainText('cannot change anything in HALO');
+ await expect(dialog).toContainText('cannot add tasks, set reminders, change anything in HALO');
  await expect(dialog).not.toContainText('Choose note context');await expect(dialog).not.toContainText('Review every proposed change');
  await expect(dialog.getByRole('button',{name:'Manage context in Settings'})).toHaveCount(0);
  await dialog.getByRole('button',{name:'What is radon and how do I test for it?'}).click();

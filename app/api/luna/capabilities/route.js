@@ -122,13 +122,13 @@ const PROVIDER_LABEL = 'Luna answers health and environment questions from publi
  *
  * Three claims, each of which has to be true:
  *
- *   1. Luna cites what it answers from, and cannot act. This is the prose half
- *      of `tools: []`, and it also offsets the static UI line "Review every
- *      proposed change", which shows even when no proposal can exist.
- *   2. No household record is in the conversation (Ruling L2). This offsets
- *      the static line "Notes are included only when you choose them", which
- *      also shows although note context cannot reach an answer in this
- *      package.
+ *   1. Luna cites what it answers from, and cannot act: no task, no reminder,
+ *      no change in HALO. This is the prose half of `tools: []`, worded like
+ *      the client's lib/frontend/copy/luna-capability.ts so every entry point
+ *      says the same thing.
+ *   2. No household record is in the conversation (Ruling L2). Notes are named
+ *      because they never reach an answer (B09 decision 2), and the client no
+ *      longer offers to attach one (F07).
  *   3. What happens to the text. NO RETENTION PERIOD IS STATED, because none
  *      is approved: the period for a conversation turn is undecided
  *      (docs/backend/privacy-and-retention.md, B03 blocker 2). What is true,
@@ -136,7 +136,7 @@ const PROVIDER_LABEL = 'Luna answers health and environment questions from publi
  *      `POST /api/luna/conversations/clear` really does delete the turns.
  */
 const RETENTION_SUMMARY =
-  'Luna cites the sources behind health and environment answers, marks general answers as its own, and cannot change anything in HALO or act for you. '
+  'Luna cites the sources behind health and environment answers, marks general answers as its own, and cannot add tasks, set reminders, change anything in HALO or act for you. '
   + 'Your home readings, notes, journal and tasks are not part of this conversation. '
   + 'Your questions and the answers are kept in your account until you clear this conversation or delete your account.';
 
