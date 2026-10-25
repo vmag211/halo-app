@@ -41,6 +41,7 @@ const ROUTE_COVERAGE = {
   'POST /api/cron/public-evidence': 'publicWaterImport: shares the GET handler; secret required (checked there), run covered through GET',
   'GET /api/daily-score': 'isolation: read matrix, 403 for a foreign profile_id; flows: cache miss, own-row write, provider requests',
   'GET /api/district': 'isolation: read matrix; routesMapPublic: with no Authorization header the read is the stored view only, reads no profiles row and carries no household_county, and any Authorization header is checked as before',
+  'GET /api/evidence': 'routesEvidence: the daily_maxima read is filtered by the caller\'s id and the caller\'s current home context on the query itself, and the home is read owner-scoped with no id from the request, so another household\'s maxima and an earlier home\'s are never in the answer (on the real 0025 tables too); a foreign X-Halo-Home-Context changes nothing; daily_scores is never read and nothing is written',
   'GET /api/health': 'isolation: read matrix (no household data)',
   'GET /api/history': 'isolation: read matrix, identity-from-token; routesHistoryContext: another household\'s home in ?context= is the identical 404, two households in every scope',
   'GET /api/home-contexts': 'isolation: read matrix, identity-from-token',

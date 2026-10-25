@@ -1,0 +1,12 @@
+{
+  "operationId": "dailyMaximaRecord",
+  "status": 503,
+  "body": {
+    "error": "Daily maxima are not available yet.",
+    "code": "feature_unavailable",
+    "message": "Daily maxima are not available yet.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b08-contract-0001"
+  }
+}

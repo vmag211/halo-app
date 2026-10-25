@@ -44,11 +44,18 @@ import {
  *     logged.
  *   - not located (not onboarded): the profile write below, as before.
  * Saved through a home, the answer adds `home_context` (lib/homeContext.js
- * contextSummary); otherwise it is exactly as before. GET adds the same
- * `home_context` for a located household's current home. Until 0016 is applied
+ * contextSummary); otherwise it is exactly as before. Until 0016 is applied
  * (PGRST205 or 42P01 for the table, PGRST202 or 42883 for the functions) the
  * PATCH is the profile write below, unchanged, and one warning is logged per
  * process.
+ *
+ * The GET adds `home_context`, the household's current home in the PATCH's
+ * shape (contextSummary), read owner-scoped with readCurrentHomeContext: the
+ * client takes its home context id from it (components/production/
+ * ProductionApp.tsx:41; B08 E20). It is `null` when the household has no
+ * current home. Until 0016 is applied the key is left out, so the answer is
+ * exactly as before, and a context read that fails leaves it out too and is
+ * logged: the profile is still answered.
  *
  * `onboarded` — an address has been processed (coordinates stored).
  * `onboarding_complete` — coordinates AND a water source are stored, i.e. the
@@ -108,33 +115,40 @@ async function profileResponse(userId, { onBandsError } = {}) {
   };
 }
 
+/**
+ * GET only: the household's current home as the PATCH answers it (contextSummary), or `null` when
+ * there is none. `undefined` (the key is left out) until 0016 is applied, and when the read fails,
+ * which is logged with the request id and the error's message only. Never rejects.
+ */
+async function currentHomeSummary(userId, requestId) {
+  try {
+    const current = await readCurrentHomeContext(supabaseAdmin, userId);
+    if (current.unavailable) return undefined;
+    return contextSummary(current.context);
+  } catch (error) {
+    console.error(`Profile home context read failed (request ${requestId}):`, error.message);
+    return undefined;
+  }
+}
+
 export async function GET(request) {
   const requestId = requestIdFor(request);
   try {
     const { userId } = await requireUser(request);
     let bandsFailed = false;
-    const body = await profileResponse(userId, {
-      onBandsError: (error) => {
-        bandsFailed = true;
-        console.error(`Profile household read failed (request ${requestId}):`, error.message);
-      },
-    });
-    // The current home, as the PATCH answers it, so the app can attach home-owned records (a
-    // Homeguard test's home context) to it. None before 0016 or before a home exists; a failed read
-    // is logged and the answer goes without it, as it did before.
-    let homeContext = null;
-    if (body.onboarded) {
-      try {
-        const current = await readCurrentHomeContext(supabaseAdmin, userId);
-        if (!current.unavailable) homeContext = contextSummary(current.context);
-      } catch (error) {
-        console.error(`Profile home read failed (request ${requestId}):`, error.message);
-      }
-    }
-    const answer = homeContext ? { ...body, home_context: homeContext } : body;
+    const [profileBody, homeContext] = await Promise.all([
+      profileResponse(userId, {
+        onBandsError: (error) => {
+          bandsFailed = true;
+          console.error(`Profile household read failed (request ${requestId}):`, error.message);
+        },
+      }),
+      currentHomeSummary(userId, requestId),
+    ]);
+    const body = homeContext === undefined ? profileBody : { ...profileBody, home_context: homeContext };
     // A composition that could not be read looks like "no composition yet", so say which it is.
     return NextResponse.json(
-      bandsFailed ? { ...answer, unavailable: true, reason: 'household_unavailable' } : answer,
+      bandsFailed ? { ...body, unavailable: true, reason: 'household_unavailable' } : body,
       { headers: { 'X-Request-Id': requestId } },
     );
   } catch (err) {

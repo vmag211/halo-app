@@ -1,0 +1,12 @@
+{
+  "operationId": "profileRead",
+  "status": 401,
+  "body": {
+    "error": "Your session has expired. Please reload the app.",
+    "code": "auth_required",
+    "message": "Your session has expired. Please reload the app.",
+    "field_errors": [],
+    "retryable": false,
+    "request_id": "b08-contract-0001"
+  }
+}

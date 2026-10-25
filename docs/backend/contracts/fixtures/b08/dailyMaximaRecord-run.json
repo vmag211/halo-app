@@ -1,0 +1,32 @@
+{
+  "operationId": "dailyMaximaRecord",
+  "status": 200,
+  "body": {
+    "ok": true,
+    "stopped": null,
+    "contexts": 2,
+    "eligible": 2,
+    "outside": 0,
+    "noPoint": 0,
+    "notYet": 0,
+    "upToDate": 0,
+    "deferred": 0,
+    "points": 2,
+    "pointsCalled": 2,
+    "airnowCalls": 0,
+    "openMeteoCalls": 4,
+    "airnowFailed": 0,
+    "forecastFailed": 0,
+    "airQualityFailed": 0,
+    "rows": 12,
+    "inserted": 12,
+    "updated": 0,
+    "kept": 0,
+    "skipped": 0,
+    "refused": 0,
+    "finalized": 0,
+    "batches": 1,
+    "failedBatches": 0,
+    "finishFailed": 0
+  }
+}

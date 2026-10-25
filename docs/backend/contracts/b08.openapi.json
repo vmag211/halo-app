@@ -1,0 +1,910 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HALO B08 evidence backend contract",
+    "version": "b08-1",
+    "description": "What B08 built (docs/backend/plans/b08-evidence.md): evidence.read, GET /api/evidence (app/api/evidence/route.js), the recorded environmental history Patterns and Season compare check-ins with (components/expanded/WeekEvidence.tsx through useProductionHistory in components/production/WeekSources.tsx); the additive home_context of GET /api/profile (Ruling E20), from which the client takes the home context id the history is checked against (components/production/ProductionApp.tsx:41); and the daily maxima recorder cron, GET|POST /api/cron/daily-maxima, whose answer is counts only. HELD (ruling E25): GET /api/evidence and the profile's home_context are built and tested here but are not merged into the backend branch, because emitting home_context makes the frontend remount on a revision change and drop unsaved drafts (YOUR_TODO.md Part 4 items 24 and 25). Until the frontend's remount fix, production has neither, and every Patterns and Season screen shows \"Environmental history is unavailable.\" The recorder is merged and records from the day it first runs. The response schema follows the frontend's validator (WeekSources.tsx:8), which drops the whole snapshot and shows \"History could not be verified.\" on one wrong field; test/contractsB08.test.mjs runs that validator, the real runtime and the screen's own decisions on every real answer. Every body is bare: none carries a top-level data key, which runtime.ts:149-153 would unwrap. No U+2014 anywhere. Nothing here is a deployment, a provider right or an approval claim, and nothing has run against a real Supabase project.",
+    "x-halo-rulings": {
+      "E1": "The history is built from public.daily_maxima only (migration 0025), written by the recorder from each completed day's hourly provider series. daily_scores (app-time observations and the onboarding backfill) is never read, relabelled or served.",
+      "E7": "Air and UV are recorded. Pollen and Outdoor mold are never recorded: every date carries value null with their reason.",
+      "E10": "version is the method version, daily-max-v1, on every row and on comparison.",
+      "E11": "comparison.context and every row's context is the caller's current home context id, read owner-scoped on the server; X-Halo-Home-Context is ignored. An earlier home's rows and another household's are never served.",
+      "E12": "No current home, or migration 0016 not applied: {rows: [], comparison: {context: null, basis: 'daily maximum', version: 'daily-max-v1'}, complete: true}, status 200. null is the only value that passes the client's context check for a client with no context id. It breaks the declared type context:string (WeekSources.tsx:4); Yogi is asked to widen it to string|null.",
+      "E13": "One row per date and factor, every date of the range, oldest first, factors in the order Air, UV, Pollen, Outdoor mold. A null value always carries a missing reason from one frozen table; a value is never 0 unless the source said 0.",
+      "E14": "Only the latest 84 days are served; older dates are null rows with \"Outside the twelve-week history window\". Nothing is purged: retention is undecided.",
+      "E15": "Query keys are exactly kind, from and to, each once; kind is history; from and to are real calendar dates, from <= to, at most 92 days inclusive. A to after today is accepted (its dates are null rows).",
+      "E16": "issued is 'Unknown' on every row: neither AirNow's hourly data nor Open-Meteo publishes an issue time, and retrieval time is never substituted. The screen prints \"Issued Unknown.\" and \"Latest issue: Unknown\".",
+      "E18": "complete: true means nothing was withheld (the bounded range is read whole), not that every date has a value.",
+      "E20": "GET /api/profile adds home_context, the current home in the PATCH's shape, or null when there is none. A MISSING home_context key means migration 0016 is not applied or the context read failed (logged); the profile is still answered, and the client's context id is then null.",
+      "E25": "evidence.read and the profile's home_context are held from the backend branch until the frontend keys ConnectedApp on identity and context id only (or keeps drafts across a remount) and keeps the last known context id when a re-read omits home_context."
+    }
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/evidence": {
+      "get": {
+        "operationId": "evidenceRead",
+        "x-halo-operation": "evidence.read",
+        "x-halo-held": "E25",
+        "summary": "The recorded daily maxima of the caller's current home for a date range",
+        "description": "Called by the real client as runtime.request('evidence.read',{kind:'history',from,to}) (WeekSources.tsx:6), which builds ?kind=history&from=...&to=... with URLSearchParams (runtime.ts:125-128). Patterns asks for today - 83 to today (WeekEvidence.tsx:31); Season asks for the season's first day to the earlier of its last day and today (WeekEvidence.tsx:43). No outbound network call is made. Headers: X-Request-Id on every answer, Cache-Control private, no-store on the 200.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "history"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "The first date, YYYY-MM-DD, a real calendar date.",
+            "schema": {
+              "$ref": "#/components/schemas/LocalDate"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "The last date, inclusive, on or after from, at most 91 days after it.",
+            "schema": {
+              "$ref": "#/components/schemas/LocalDate"
+            }
+          },
+          {
+            "name": "X-Halo-Home-Context",
+            "in": "header",
+            "required": false,
+            "description": "Sent by the client on every private request (runtime.ts:132). Ignored (E11): the home is always the session's own current home.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The history snapshot, or the E12 body when the household has no current home (or 0016 is not applied).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorySnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed, before anything is read (not even the probe). field_errors: a missing key (required), an unknown key (unknown_field, named by its plain name or 'query', so caller text is never echoed), a repeated key (duplicate_field), kind other than history (unsupported_kind), a non-calendar date (invalid_date), from after to (range_inverted), a span over 92 days (range_too_large). The client shows \"Check the highlighted information and try again.\"",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required (auth_required). Nothing is read.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (internal_error): any database error other than a missing 0025. Logged with the request id and the error's code only, never an id, a point or a row.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "feature_unavailable, not retryable: migration 0025 is not applied (the probe daily_maxima_schema_version, or a table it made, is missing, or another version answers). Or auth_unavailable, retryable with Retry-After: the session service is down. The client shows \"This service is unavailable. Try again later.\" with Retry history.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "operationId": "profileRead",
+        "x-halo-operation": null,
+        "x-halo-client": "lib/frontend/stage-api.ts getProfile, read by components/stage/StageSession.tsx; ProductionApp.tsx:41 takes home_context.id",
+        "x-halo-held": "E25",
+        "summary": "The household's profile, with the additive home_context (E20)",
+        "description": "Only the B08 addition is documented strictly: home_context. The legacy keys are as they were (onboarded, onboarding_complete, profile, household, household_set, and unavailable with reason household_unavailable when the composition read failed). home_context is the current home in the PATCH's shape (lib/homeContext.js contextSummary; the b01 HomeContext schema), or null when the household has no current home. A missing key means migration 0016 is not applied or the context read failed (logged with the request id, no coordinates); the profile is still a 200, and the client's context id is then null, so its evidence check passes only the E12 body. The PATCH is unchanged.",
+        "responses": {
+          "200": {
+            "description": "The profile.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileRead"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required (auth_required).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The profile read failed (internal_error). A failed home context read alone is never a 500.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The session service is down (auth_unavailable).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cron/daily-maxima": {
+      "get": {
+        "operationId": "dailyMaximaRecord",
+        "x-halo-operation": null,
+        "x-halo-caller": "Vercel Cron, vercel.json, 0 12 * * * (12:00 UTC)",
+        "security": [
+          {
+            "cronSecret": []
+          }
+        ],
+        "summary": "Records the three most recent completed America/New_York days for every current home context",
+        "description": "The recorder (lib/dailyMaximaRecorder.js runRecorder): one AirNow aq/data call per run, at most two Open-Meteo calls per distinct stored point, no other provider. Rows are written through record_daily_maxima, which never rewrites a valued or final row. The answer is counts only, never an id, a point or a value. Merged and running; independent of E25.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RecorderOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/CronUnauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/RecorderInternal"
+          },
+          "503": {
+            "$ref": "#/components/responses/RecorderUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "dailyMaximaRecordPost",
+        "x-halo-operation": null,
+        "security": [
+          {
+            "cronSecret": []
+          }
+        ],
+        "summary": "The same recorder as GET",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RecorderOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/CronUnauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/RecorderInternal"
+          },
+          "503": {
+            "$ref": "#/components/responses/RecorderUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "cronSecret": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Authorization: Bearer <CRON_SECRET> (lib/cronAuth.js), as Vercel Cron sends it."
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "The caller's x-request-id when it is well formed, else a fresh UUID. Error bodies carry the same value as request_id.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "NoStore": {
+        "description": "private, no-store: the history describes the household's home.",
+        "schema": {
+          "type": "string",
+          "const": "private, no-store"
+        }
+      },
+      "RetryAfter": {
+        "description": "Whole seconds, at least 1, on the auth_unavailable 503 only.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[1-9]\\d*$"
+        }
+      }
+    },
+    "responses": {
+      "RecorderOk": {
+        "description": "The run's counts.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RecorderRun"
+            }
+          }
+        }
+      },
+      "CronUnauthorized": {
+        "description": "No or wrong CRON_SECRET. Nothing is read or fetched.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CronUnauthorized"
+            }
+          }
+        }
+      },
+      "RecorderInternal": {
+        "description": "An unexpected database failure (internal_error), logged by its code only.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "RecorderUnavailable": {
+        "description": "feature_unavailable, not retryable: migration 0025 is not applied. No provider is called.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "LocalDate": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,40}$"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "required",
+              "unknown_field",
+              "duplicate_field",
+              "unsupported_kind",
+              "invalid_date",
+              "range_inverted",
+              "range_too_large"
+            ]
+          },
+          "message": {
+            "$ref": "#/components/schemas/PresentableText"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "description": "The shared HALO error envelope (lib/apiErrors.js). The client reads none of it: runtime.ts:144 maps the status to a failure code and shows its own sentence.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "validation_failed",
+              "auth_required",
+              "auth_unavailable",
+              "feature_unavailable",
+              "internal_error"
+            ]
+          },
+          "message": {
+            "$ref": "#/components/schemas/PresentableText"
+          },
+          "field_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{8,64}$"
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "message",
+          "field_errors",
+          "retryable",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "PresentableText": {
+        "description": "Text the screen may render: no U+2014 (house rule) and no control characters.",
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^\\u0000-\\u001f\\u2014]*$"
+      },
+      "MissingReason": {
+        "description": "The frozen table of lib/dailyMaxima.js MISSING (E13). The first four are the frontend's own phrases (week-evidence-preview.ts:33).",
+        "anyOf": [
+          {
+            "enum": [
+              "Current day is not complete",
+              "Source gap",
+              "No reading for this day",
+              "No compatible historical mold series",
+              "Pollen has a daily forecast index, not a daily maximum.",
+              "Not recorded yet",
+              "Outside the twelve-week history window"
+            ]
+          },
+          {
+            "type": "string",
+            "pattern": "^Recorded from \\d{4}-\\d{2}-\\d{2}\\. Earlier days have no daily maximum\\.$"
+          }
+        ]
+      },
+      "HistoryRow": {
+        "description": "One date and factor (HistoryReading, week-evidence-preview.ts:7). The validator (WeekSources.tsx:8) checks date, factor, value, source, issued, version and context; the rest is the contract's.",
+        "type": "object",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "factor": {
+            "enum": [
+              "Air",
+              "UV",
+              "Pollen",
+              "Outdoor mold"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Air an integer AQI, UV to 0.1. null when missing; Pollen and Outdoor mold always null (E7)."
+          },
+          "unit": {
+            "enum": [
+              "AQI",
+              "UV index",
+              "category"
+            ]
+          },
+          "source": {
+            "enum": [
+              "AirNow monitoring station, measured, preliminary",
+              "Open-Meteo with the CAMS air quality model, modeled, not measured",
+              "Open-Meteo forecast model, modeled, not measured",
+              "Not recorded"
+            ],
+            "description": "From the stored source code, never upstream text (E17)."
+          },
+          "issued": {
+            "const": "Unknown",
+            "description": "E16."
+          },
+          "basis": {
+            "const": "daily maximum"
+          },
+          "context": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Always comparison.context (E11)."
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The stored row's method version; daily-max-v1 for every row today."
+          },
+          "missing": {
+            "$ref": "#/components/schemas/MissingReason"
+          }
+        },
+        "required": [
+          "date",
+          "factor",
+          "value",
+          "unit",
+          "source",
+          "issued",
+          "basis",
+          "context",
+          "version"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "missing"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "missing"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "factor": {
+                  "enum": [
+                    "Pollen",
+                    "Outdoor mold"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                },
+                "unit": {
+                  "const": "category"
+                },
+                "source": {
+                  "const": "Not recorded"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "factor": {
+                  "const": "Air"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "AQI"
+                },
+                "source": {
+                  "enum": [
+                    "AirNow monitoring station, measured, preliminary",
+                    "Open-Meteo with the CAMS air quality model, modeled, not measured",
+                    "Not recorded"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "factor": {
+                  "const": "UV"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "UV index"
+                },
+                "source": {
+                  "enum": [
+                    "Open-Meteo forecast model, modeled, not measured",
+                    "Not recorded"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "HistorySnapshot": {
+        "description": "HistorySnapshot (WeekSources.tsx:4) as the server sends it. nextCursor is never sent (no caller pages). With context null the rows are empty (E12).",
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "maxItems": 368,
+            "items": {
+              "$ref": "#/components/schemas/HistoryRow"
+            }
+          },
+          "comparison": {
+            "type": "object",
+            "properties": {
+              "context": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The current home context id, or null (E12)."
+              },
+              "basis": {
+                "const": "daily maximum"
+              },
+              "version": {
+                "const": "daily-max-v1"
+              }
+            },
+            "required": [
+              "context",
+              "basis",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          "complete": {
+            "const": true,
+            "description": "E18."
+          }
+        },
+        "required": [
+          "rows",
+          "comparison",
+          "complete"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "comparison": {
+              "properties": {
+                "context": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "rows": {
+              "maxItems": 0
+            }
+          }
+        }
+      },
+      "HomeContextOrNull": {
+        "oneOf": [
+          {
+            "$ref": "b01.openapi.json#/components/schemas/HomeContext"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "ProfileRead": {
+        "type": "object",
+        "properties": {
+          "onboarded": {
+            "type": "boolean"
+          },
+          "onboarding_complete": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "household": {
+            "type": "object"
+          },
+          "household_set": {
+            "type": "boolean"
+          },
+          "home_context": {
+            "$ref": "#/components/schemas/HomeContextOrNull"
+          },
+          "unavailable": {
+            "const": true
+          },
+          "reason": {
+            "const": "household_unavailable"
+          }
+        },
+        "required": [
+          "onboarded",
+          "onboarding_complete",
+          "profile",
+          "household",
+          "household_set"
+        ],
+        "additionalProperties": false
+      },
+      "CronUnauthorized": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "const": "Unauthorized"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "Count": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "RecorderRun": {
+        "description": "lib/dailyMaximaRecorder.js runRecorder's counts. contexts: current home contexts read; eligible: those with a day to record; outside: outside North Carolina's padded box or not NC; noPoint: no stored point; notYet: no day after recording_from and the home's first full day; upToDate: nothing left to record; deferred: contexts left for the next run by the budget or deadline; points: distinct stored points; pointsCalled: points given Open-Meteo calls; airnowCalls, openMeteoCalls: provider calls made; airnowFailed, forecastFailed, airQualityFailed: failed calls; rows: rows sent; inserted, updated, kept, skipped, refused: record_daily_maxima's answer; finalized: pending rows that left the window and were made final; batches, failedBatches: write batches; finishFailed: 1 when the counts could not be stored.",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "stopped": {
+            "enum": [
+              null,
+              "budget",
+              "deadline"
+            ]
+          },
+          "contexts": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "eligible": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "outside": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "noPoint": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "notYet": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "upToDate": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "deferred": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "points": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "pointsCalled": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "airnowCalls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "openMeteoCalls": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "airnowFailed": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "forecastFailed": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "airQualityFailed": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "rows": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "inserted": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "updated": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "kept": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "refused": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "finalized": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "batches": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "failedBatches": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "finishFailed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "ok",
+          "stopped",
+          "contexts",
+          "eligible",
+          "outside",
+          "noPoint",
+          "notYet",
+          "upToDate",
+          "deferred",
+          "points",
+          "pointsCalled",
+          "airnowCalls",
+          "openMeteoCalls",
+          "airnowFailed",
+          "forecastFailed",
+          "airQualityFailed",
+          "rows",
+          "inserted",
+          "updated",
+          "kept",
+          "skipped",
+          "refused",
+          "finalized",
+          "batches",
+          "failedBatches",
+          "finishFailed"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

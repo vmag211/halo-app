@@ -177,10 +177,12 @@ test('profile: a located household gets its current home as home_context, never 
   assert.ok(read.length && read.every((q) => q.filters.some((f) => f.op === 'eq' && f.column === 'profile_id')), 'owner-scoped');
 });
 
-test('profile: no home yet, or a home read that fails, answers the profile without home_context', async (t) => {
+// B08 contract b08-1 (E20): no home yet is `home_context: null`; only a failed read (or no 0016)
+// leaves the key out, which the client reads as "unknown, keep the last known home".
+test('profile: no home yet answers home_context null; a home read that fails answers without home_context', async (t) => {
   const logged = muteConsoleError(t);
   const none = await (await get(harness({ tables: haloTables(...ALL, 'home_contexts') }), 'profile')).json();
-  assert.equal('home_context' in none, false);
+  assert.equal(none.home_context, null);
   assert.equal(none.profile.county, 'Cabarrus County');
   const h = harness({ tables: haloTables(...ALL, 'home_contexts') });
   breakReads(h, 'home_contexts');
@@ -189,5 +191,5 @@ test('profile: no home yet, or a home read that fails, answers the profile witho
   const body = await res.json();
   assert.equal('home_context' in body, false);
   assert.equal(body.onboarded, true);
-  assert.ok(loggedText(logged).includes('Profile home read failed'));
+  assert.ok(loggedText(logged).includes('Profile home context read failed'));
 });
