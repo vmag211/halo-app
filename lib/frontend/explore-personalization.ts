@@ -182,3 +182,25 @@ export function projectGenerationNotice(context: ProjectEnvironmentContext, stat
   if (state.items.length < state.constraints.count) return `${state.items.length} reviewed ideas fit these choices. HALO does not invent unsuitable projects to fill the list.`;
   return 'Ideas use your HALO context, interests and reviewed guides.';
 }
+
+/** The settled message for a completed set. An empty set keeps the service's own explanation. */
+export function projectReadyMessage(count: number, message?: string): string {
+  return count ? `${count} idea${count === 1 ? '' : 's'} ready.` : message || 'No reviewed projects fit all of those choices. Broaden one preference to see other practical options.';
+}
+/** True for the message of a completed set (ideas or an honest no-match), which needs no retry. */
+export const projectMessageIsResult = (message: string) => /^\d+ ideas? ready\.$/.test(message) || /^No reviewed projects? /.test(message);
+
+export type ProjectIdeasView = 'loading-saved' | 'picking' | 'off' | 'ready' | 'filtered' | 'problem' | 'none-fit' | 'first';
+/**
+ * What the idea area shows. 'first': no set has been picked yet (a new
+ * household, or a saved set made for an earlier home). 'none-fit': a completed
+ * set with no idea. 'problem': nothing to show and a request or read to retry.
+ */
+export function projectIdeasView(input: { busy: boolean; loadingSaved: boolean; off: boolean; itemCount: number; visibleCount: number; generation: number; canRetry: boolean; pendingGeneration: boolean }): ProjectIdeasView {
+  if (input.loadingSaved) return 'loading-saved';
+  if (input.busy) return 'picking';
+  if (input.off) return 'off';
+  if (input.itemCount) return input.visibleCount ? 'ready' : 'filtered';
+  if (input.canRetry || input.pendingGeneration) return 'problem';
+  return input.generation > 0 ? 'none-fit' : 'first';
+}

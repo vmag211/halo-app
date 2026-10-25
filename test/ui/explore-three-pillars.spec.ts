@@ -27,13 +27,13 @@ test('interests generate a few relevant illustrated ideas with loading, cancel a
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
   const first = await page.locator('.ex-generated-item').evaluateAll(items => items.map(item => item.getAttribute('data-project-id')));
   await page.getByLabel('What interests you right now?').fill('native plants and pollinators');
-  await page.getByRole('button', { name: 'Generate a few ideas' }).click();
-  await expect(page.locator('.ex-project-generating')).toContainText('Ideas taking shape');
-  await page.getByRole('button', { name: 'Cancel generation', exact: true }).click();
+  await page.getByRole('button', { name: 'Find matching projects' }).click();
+  await expect(page.locator('.ex-project-generating')).toContainText("Picking from HALO's reviewed guides");
+  await page.getByRole('button', { name: 'Cancel request', exact: true }).click();
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
   expect(await page.locator('.ex-generated-item').evaluateAll(items => items.map(item => item.getAttribute('data-project-id')))).toEqual(first);
   await expect(page.getByLabel('What interests you right now?')).toHaveValue('native plants and pollinators');
-  await page.getByRole('button', { name: 'Generate a few ideas' }).click();
+  await page.getByRole('button', { name: 'Find matching projects' }).click();
   await expect(page.locator('.ex-project-generating')).toHaveCount(0);
   await expect(page.locator('.ex-generated-item')).toHaveCount(3);
   await expect(page.locator('.ex-generated-item .ex-photo')).toHaveCount(3);
@@ -44,12 +44,12 @@ test('failed generation and unreviewed interests keep the prior set and editable
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Project generation review state').selectOption('failed');
   await page.getByLabel('What interests you right now?').fill('native plants');
-  await page.getByRole('button', { name: 'Generate a few ideas' }).click();
-  await expect(page.locator('.ex-generation-message')).toContainText('Could not generate ideas');
+  await page.getByRole('button', { name: 'Find matching projects' }).click();
+  await expect(page.locator('.ex-generation-message')).toContainText('Could not load recommendations');
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
   await page.getByLabel('Project generation review state').selectOption('ready');
   await page.getByLabel('What interests you right now?').fill('an aquaponics installation');
-  await page.getByRole('button', { name: 'Generate a few ideas' }).click();
+  await page.getByRole('button', { name: 'Find matching projects' }).click();
   await expect(page.locator('.ex-generation-message')).toContainText('No source-backed match');
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
 });
@@ -59,11 +59,11 @@ test('slow generation is cancellable and its animation respects reduced motion',
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Project generation review state').selectOption('slow');
   await page.getByLabel('What interests you right now?').fill('native plants');
-  await page.getByRole('button', { name: 'Generate a few ideas' }).click();
+  await page.getByRole('button', { name: 'Find matching projects' }).click();
   await expect(page.locator('.ex-project-generating')).toBeVisible();
   expect(await page.locator('.ex-project-generating .halo-loading-orbit').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
   await expect(page.getByRole('button', { name: 'Preferences', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Cancel generation', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel request', exact: true }).click();
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
 });
 
@@ -72,7 +72,7 @@ test('a newer Luna request wins over a pending Explore generation', async ({ pag
   await page.getByText('Expanded app review · Not approved', { exact: true }).click();
   await page.getByLabel('Project generation review state').selectOption('slow');
   await page.getByLabel('What interests you right now?').fill('native plants');
-  await page.getByRole('button', { name: 'Generate a few ideas' }).click();
+  await page.getByRole('button', { name: 'Find matching projects' }).click();
   await page.getByRole('button', { name: 'Ask Luna', exact: true }).click();
   await page.getByRole('textbox', { name: 'Message Luna', exact: true }).fill('Find 5 project ideas for a bee house');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();

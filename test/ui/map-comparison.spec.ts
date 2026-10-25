@@ -50,7 +50,7 @@ test('changing home removes old map location and previously generated project ev
   await page.getByRole('button',{name:'Close sheet',exact:true}).click();
   await page.getByRole('link',{name:'Back to Explore',exact:true}).click();
   await page.getByRole('button',{name:/Projects for you: see all \d+/}).click();
-  await page.locator('summary').filter({hasText:'Generation details and sources'}).click();
+  await page.locator('summary').filter({hasText:'Why these projects and sources'}).click();
   await expect(page.locator('.ex-generation-details')).toContainText('Public environmental readings are unavailable');
   await expect(page.locator('.ex-generation-details li')).toHaveCount(0);
   await expect(page.locator('.ex-generated-list')).not.toContainText('You recorded an indoor moisture observation.');

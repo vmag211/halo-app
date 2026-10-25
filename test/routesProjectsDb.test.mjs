@@ -128,7 +128,7 @@ test('a direct interest is a smaller shortlist of what it names, and an interest
   assert.ok(ui.batch.items.some((item) => item.id === 'bee-house'));
   await ui.regenerate({ space: 'any', mode: 'any', time: 'any', budget: 'any', count: 3 }, 'quantum knitting', true);
   assert.equal(ui.batch.items.length, 0);
-  assert.equal(ui.message, '0 ideas ready.');
+  assert.equal(ui.message, SELECTION_COPY.noInterest);
   assert.equal((await w.generations()).at(-1).idea_set.message, SELECTION_COPY.noInterest);
 });
 
