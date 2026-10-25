@@ -60,6 +60,7 @@
 .halo-ph-card-score span { font-size:calc(.65rem * var(--halo-text-scale)); color:var(--ph-muted); }
 .halo-ph-card-score[data-unscored="true"] strong { font-size:calc(1rem * var(--halo-text-scale)); line-height:1.35; letter-spacing:-.02em; overflow-wrap:normal; }
 .halo-ph-card-reading { font-size:calc(.73rem * var(--halo-text-scale)); color:var(--ph-muted); margin-bottom:12px; }
+.halo-ph-card-age { display:block; margin-top:2px; font-size:.9em; color:var(--ph-muted); }
 .halo-ph-factor-card .halo-severity { margin-top:auto; font-size:calc(.6875rem * var(--halo-text-scale)); width:fit-content; justify-self:center; }
 .halo-f-app .halo-ph-footnote { font-size:calc(.76rem * var(--halo-text-scale)); color:var(--ph-muted); line-height:1.6; }
 .halo-ph-factor-hero .halo-ph-scene-content { padding-bottom:40px; min-height:340px; }

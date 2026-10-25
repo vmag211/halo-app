@@ -102,6 +102,7 @@ function readingsFromRow(row) {
     dominantPollutant: details.dominant_pollutant ?? null,
     uvIndex: row.uv_index,
     uvPeakWindow: details.uv_peak_window ?? null,
+    uvSource: details.uv_source ?? null,
     pollen,
     mold: { risk: row.mold_risk ?? null, basis: details.mold_basis ?? null },
   };

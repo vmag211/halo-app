@@ -5,6 +5,7 @@ import {BookOpen,Search,ArrowUpRight,Wind,Sun,Flower2,Droplets,House,FlaskConica
 import {LEARN_CONTENT} from '@/lib/learnContent';
 import {factorKeys,type FactorKey} from '@/lib/frontend/factor-preview';
 import {completionCopy as c} from '@/lib/frontend/copy/completion';
+import {learnSearchMatches,learnTermFields,learnTopicFields} from '@/lib/frontend/learn-search';
 import {useHomeDraft} from '@/components/homeguard/HomeWorkspaceState';
 import './completion-workflows.css';
 import './learn-library.css';
@@ -17,9 +18,8 @@ export default function LearnLibrary({factorHref,level}:{factorHref?:(key:Factor
  const [filter,setFilter]=useHomeDraft('view:learn:filter','all');
  const [selected,setSelected]=useState<string|null>(null);
  const [scenario,setScenario]=useHomeDraft('review:learn','ready');
- const q=query.trim().toLowerCase();
- const topics=factorKeys.filter(key=>(filter==='all'||filter===key)&&`${key} ${LEARN_CONTENT[key].title} ${LEARN_CONTENT[key].what_it_is}`.toLowerCase().includes(q));
- const terms=c.glossary.filter(term=>(filter==='all'||filter===term.related)&&`${term.title} ${term.text}`.toLowerCase().includes(q));
+ const topics=factorKeys.filter(key=>(filter==='all'||filter===key)&&learnSearchMatches(query,learnTopicFields(key,LEARN_CONTENT[key])));
+ const terms=c.glossary.filter(term=>(filter==='all'||filter===term.related)&&learnSearchMatches(query,learnTermFields(term)));
  return <section className="hc-library" id="learn-topics" aria-label={c.learn}><h3 aria-level={level}><BookOpen size={20} aria-hidden="true"/>{c.learn}</h3>
  <div className="hc-library-tools"><label className="hc-search"><Search size={17} aria-hidden="true"/><span className="halo-sr-only">{c.search}</span><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={c.search}/></label>
  <label className="hc-filter"><span className="halo-sr-only">{c.filter}</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">{c.all}</option>{factorKeys.map(key=><option key={key} value={key}>{LEARN_CONTENT[key].title}</option>)}</select></label></div>
