@@ -6,6 +6,7 @@ import SeverityPill from '@/components/ui/SeverityPill';
 import { useStageSession } from './StageSession';
 import { dateLabel, finite, isoDate, nonnegative, record, rows, safeText, safeUrl, severity, textList } from '@/lib/frontend/stage-values';
 import type { FactorKey } from '@/lib/frontend/factor-preview';
+import { copy } from '@/lib/frontend/copy';
 
 const money = (value: unknown) => {
   const cost = record(value); const low = nonnegative(cost.low), high = nonnegative(cost.high);
@@ -27,7 +28,7 @@ export function HomeEvidence({ factor }: { factor: FactorKey }) {
     const readingCount = nonnegative(water.reading_count);
     const source = safeUrl(water.source_url);
     return <section className="halo-ph-panel"><span className="halo-ph-kicker">About these results</span><h2>Your water source</h2>
-      {safeText(water.pws_name) && <p>{safeText(water.pws_name)}</p>}
+      {safeText(water.pws_name) && <p>{copy.reveal.likelyUtility(safeText(water.pws_name))}</p>}
       {profile?.profile?.pwsid && <p className="halo-f-meta">Utility ID: <code>{safeText(profile.profile.pwsid)}</code></p>}
       {profile?.profile?.water_source === 'other' && <p>You told HALO you are not sure where your water comes from. You can change this in Settings.</p>}
       {water.status === 'lookup_failed' && <Callout tone="error"><p>This is a problem on our end, not a finding about your water.</p><button className="halo-text-button" disabled={home.loading || offline} onClick={() => void refresh()}>Retry water lookup</button></Callout>}

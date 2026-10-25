@@ -21,6 +21,14 @@ export interface ProfileResponse {
 }
 export interface OnboardResponse extends LocationProfile {
   service_area_status?: "measured" | "outside_known_area" | "lookup_failed" | null;
+  /** What the geocoder found, for the person to check before continuing. Never the street line. */
+  place_label?: string | null;
+  /** "area" for a ZIP or town whose centre may not be the home. */
+  place_precision?: "address" | "area" | null;
+  /** Another equally good match elsewhere. */
+  place_ambiguous?: boolean;
+  /** Every water system at the point; pwsid is only a suggestion for the area. */
+  utility_candidates?: string[] | null;
   /** True when the stored request ID matches, or a legacy first location was confirmed. */
   recovered_after_timeout?: boolean;
 }

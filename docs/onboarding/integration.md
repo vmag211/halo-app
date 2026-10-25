@@ -8,7 +8,7 @@ The frontend is implemented against the repository's current route contracts. Au
 | --- | --- | --- | --- |
 | Session bootstrap | `ensureAnonSession()` from `lib/auth.js` | No identity input | Enable Get started |
 | First-visit routing | `GET /api/profile` | No parameters | Route using `onboarding_complete`, never `onboarded` alone |
-| Address | `POST /api/onboard` | `{ address, request_id }`, including device GPS as `"lng,lat"` | Household |
+| Address | `POST /api/onboard` | `{ address, request_id }`, including device GPS as `"lat,lng"` (typed pairs too; the route swaps them for Mapbox) | Household |
 | Household Continue | `PUT /api/household` | All seven real boolean keys, every time | Home details |
 | Household Skip | None | No save | Home details |
 | Home details | `PATCH /api/profile` | `{ water_source, home_year }` | Reveal only after a complete profile is returned |
