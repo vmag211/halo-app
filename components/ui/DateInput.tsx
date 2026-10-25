@@ -109,7 +109,7 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
     const position = () => {
       const anchor = input.current?.getBoundingClientRect();
       if (!anchor) return;
-      const width = Math.min(324, window.innerWidth - 24);
+      const width = Math.min(340, window.innerWidth - 24);
       element.style.width = `${width}px`;
       const height = element.getBoundingClientRect().height;
       const below = anchor.bottom + 8;

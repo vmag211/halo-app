@@ -67,5 +67,5 @@ export function AnimatedNumber({ value, delay = 0 }: { value: number; delay?: nu
     observer.observe(target);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); clearTimeout(timer); };
   }, [value, delay, motion, ready]);
-  return <span ref={ref} className="halo-number" aria-label={String(value)}><span aria-hidden="true">{motion ? display : value}</span></span>;
+  return <span ref={ref} className="halo-number" role="img" aria-label={String(value)}><span aria-hidden="true">{motion ? display : value}</span></span>;
 }

@@ -98,9 +98,12 @@ export function RiskBar({ risk, severity, notScored = false }: { risk: number | 
 export function BottomSheet({ id, title, height, onClose, children, fallbackFocus }: { id: string; title: string; height: 'standard' | 'tall' | 'content'; onClose: () => void; children: ReactNode; fallbackFocus?: RefObject<HTMLElement | null> }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const dragStart = useRef<number | null>(null);
+  // The opener is read while rendering, before the close button's autoFocus runs: WebKit (Safari)
+  // blurs the opener even though the not-yet-open dialog cannot take focus, which left the body as
+  // the "opener" and focus lost on close.
+  const [opener] = useState(() => typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
   useEffect(() => {
     const element = dialog.current;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const y = window.scrollY;
     const saved = { position: document.body.style.position, top: document.body.style.top, width: document.body.style.width };
     document.body.style.position = 'fixed'; document.body.style.top = `${-y}px`; document.body.style.width = '100%';
@@ -114,7 +117,7 @@ export function BottomSheet({ id, title, height, onClose, children, fallbackFocu
       const target = opener?.isConnected ? opener : fallbackFocus?.current;
       if (target?.isConnected) target.focus({ preventScroll: true });
     };
-  }, [fallbackFocus]);
+  }, [fallbackFocus, opener]);
   return <dialog ref={dialog} id={id} className="halo-f-sheet" data-height={height} aria-labelledby={`${id}-title`} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => {
     if (e.target !== e.currentTarget) return;
     const rect = e.currentTarget.getBoundingClientRect();

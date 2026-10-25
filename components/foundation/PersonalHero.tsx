@@ -179,7 +179,7 @@ function FactorFocus({ factor }: { factor: FactorReading }) {
       <span className="halo-ph-kicker">Inside the index</span><h2>The particles behind the number</h2>
       <div className="halo-ph-pollutant"><span>{air.pollutant}</span><div><b>{air.pollutantName}</b><p>Dominant pollutant in this reading</p></div></div>
       <p>{air.explanation}</p>
-      <div className="halo-ph-scale" aria-label={`AQI ${air.aqi} on a zero to 100 comparison scale`}><span style={{ width: `${Math.min(100, air.aqi)}%` }} /></div>
+      <div className="halo-ph-scale" role="img" aria-label={`AQI ${air.aqi} on a zero to 100 comparison scale`}><span style={{ width: `${Math.min(100, air.aqi)}%` }} /></div>
       <div className="halo-ph-axis"><span>0 AQI</span><span>100 AQI{air.aqi > 100 ? ' (chart continues)' : ''}</span></div>
       <p className="halo-f-meta">{live && factor.score === null ? 'Lower AQI means less pollution. A separate factor score is not supplied for this reading.' : 'Lower AQI means less pollution. Your factor score runs the other way: higher is better.'}</p>
     </section>;
