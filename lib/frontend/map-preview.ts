@@ -17,8 +17,12 @@ export const mapScenarios = [
   ['map-unavailable', 'Map unavailable, text fallback'], ['long-text', 'Long labels'], ['session-required', 'Session needs verification'],
 ] as const;
 export type MapScenario = typeof mapScenarios[number][0];
-export type Reading = { value_ppt?: number; limit_ppt: number | null; ratio?: number; severity: MapSeverity; date_iso?: string; proposed_for_rescission: boolean };
-export type WaterFeature = { pwsid: string; name: string; lat: number | null; lng: number | null; population: number | null; overall_severity: MapSeverity; coverage: string; latest_sample_iso: string | null; contaminants: Record<string, Reading>; hazard_index: null | { value: number; severity: MapSeverity; exceeds: boolean; proposed_for_rescission: boolean; components: string[] }; detected_unregulated: string[] };
+/** One compound's result in a water record. `result` keeps the kinds apart: a numeric concentration, a documented
+ * non-detect (sample date and reporting limit), unusable stored readings, or no result in the record. An absent
+ * `result` (older responses and fixtures) is read from `value_ppt` alone: a value is numeric, no value is no result. */
+export type ReadingResult = 'numeric' | 'non_detect' | 'invalid' | 'no_result';
+export type Reading = { result?: ReadingResult; value_ppt?: number; reporting_limit_ppt?: number | null; limit_ppt: number | null; ratio?: number; severity: MapSeverity; date_iso?: string; proposed_for_rescission: boolean };
+export type WaterFeature = { pwsid: string; name: string; lat: number | null; lng: number | null; population: number | null; overall_severity: MapSeverity; coverage: string; no_data_reason?: string | null; latest_sample_iso: string | null; contaminants: Record<string, Reading>; hazard_index: null | { value: number; severity: MapSeverity; exceeds: boolean; proposed_for_rescission: boolean; components: string[] }; detected_unregulated: string[] };
 export const sampleHome = { lat: 35.04, lng: -80.52, county: 'Union County', pwsid: 'SAMPLE-01', score: 78 };
 export const assembledAt = '2026-10-01T11:00:00Z';
 const locations = [
@@ -52,7 +56,7 @@ export function waterFeatures(quarter: string = 'latest'): WaterFeature[] {
       contaminants[key] = { limit_ppt: limit, severity: value === undefined ? 'no_data' : k < 2 ? sampleSeverity : value > 10 ? 'elevated' : 'good', proposed_for_rescission: k > 1,
         ...(value === undefined ? {} : { value_ppt: value, ratio: value / limit, date_iso: date }) };
     });
-    return [{ pwsid: `SAMPLE-${String(i+1).padStart(2,'0')}`, name, lat, lng, population, overall_severity: sampleSeverity, coverage: i === 5 ? 'unscoreable' : 'full', latest_sample_iso: i === 12 ? null : date,
+    return [{ pwsid: `SAMPLE-${String(i+1).padStart(2,'0')}`, name, lat, lng, population, overall_severity: sampleSeverity, coverage: i === 5 ? 'unscoreable' : sampleValues.every(v => v === undefined) ? 'no_data' : 'complete', latest_sample_iso: i === 12 ? null : date,
       contaminants, hazard_index: [0,4,8].includes(i) ? { value: i === 4 ? 1.6 : .7, severity: i === 4 ? 'high' : 'good', exceeds: i === 4, proposed_for_rescission: true, components: ['PFHxS', 'PFNA'] } : null,
       detected_unregulated: i === 5 ? ['Lithium'] : [] }];
   });
@@ -76,21 +80,43 @@ export function exceedsLimit(reading: Reading | undefined) {
   return (reading.ratio ?? 0) > 1;
 }
 export function waterSeverity(feature: WaterFeature, compound: Compound): MapSeverity {
-  if (compound === 'overall') return feature.overall_severity;
+  // Only coverage built on evidence, with at least one comparable compound result, is coloured; any other
+  // coverage word (including one this client does not know) is no_data, whatever severity arrives with it.
+  if (compound === 'overall') return ['complete', 'partial', 'no_detections'].includes(feature.coverage) && Object.values(feature.contaminants).some(comparableResult) ? feature.overall_severity : 'no_data';
   if (compound === 'hazard') return feature.hazard_index?.severity ?? 'no_data';
-  return feature.contaminants[compoundKey[compound]]?.severity ?? 'no_data';
+  const reading = feature.contaminants[compoundKey[compound]];
+  const kind = readingResult(reading);
+  return kind === 'numeric' || kind === 'non_detect' ? reading?.severity ?? 'no_data' : 'no_data';
 }
 export function quarterLabel(value: string) { return value === 'latest' ? 'Latest' : `Q${value.slice(-1)} ${value.slice(0,4)}`; }
+export function readingResult(reading: Reading | undefined): ReadingResult {
+  if (!reading) return 'no_result';
+  if (reading.result === 'non_detect' || reading.result === 'invalid' || reading.result === 'no_result') return reading.result;
+  return typeof reading.value_ppt === 'number' ? 'numeric' : 'no_result';
+}
+/** A result that can be compared with a limit: a numeric value, or a non-detect whose reporting limit established
+ * it is below the limit (the server marks only that case good). */
+export function comparableResult(reading: Reading | undefined) {
+  const kind = readingResult(reading);
+  return kind === 'numeric' || (kind === 'non_detect' && reading?.severity === 'good');
+}
+/** One compound's result in words. A missing or unusable result is never worded as "not detected". */
+export function compoundReadingText(reading: Reading | undefined) {
+  const kind = readingResult(reading);
+  if (kind === 'numeric') return `${reading!.value_ppt} ppt`;
+  if (kind === 'non_detect') return typeof reading!.reporting_limit_ppt === 'number' ? `Not detected (reporting limit ${reading!.reporting_limit_ppt} ppt)` : 'Not detected (reporting limit not supplied)';
+  if (kind === 'invalid') return 'Result could not be read';
+  return 'No result in this source';
+}
 export function waterMapReading(feature: WaterFeature, compound: Compound) {
   if (compound === 'hazard') return feature.hazard_index ? `Index ${feature.hazard_index.value}` : 'No index available';
-  if (compound !== 'overall') {
-    const value = feature.contaminants[compoundKey[compound]]?.value_ppt;
-    return value === undefined ? 'No detection reported' : `${value} ppt`;
-  }
+  if (compound !== 'overall') return compoundReadingText(feature.contaminants[compoundKey[compound]]);
   const readings = Object.values(feature.contaminants);
-  if (!readings.some(r => r.value_ppt !== undefined)) return 'No comparable result';
+  const comparable = readings.filter(comparableResult).length;
+  if (!comparable) return 'No comparable result';
   const count = readings.filter(exceedsLimit).length;
-  return count ? `${count} over limit` : 'No over-limit detection';
+  if (count) return `${count} over limit`;
+  return comparable < readings.length ? `No over-limit result, ${comparable} of ${readings.length} compounds have a comparable result` : 'No over-limit result';
 }
 export function waterSampleDate(feature: WaterFeature, compound: Compound) {
   return compound === 'overall' || compound === 'hazard' ? feature.latest_sample_iso : feature.contaminants[compoundKey[compound]]?.date_iso;

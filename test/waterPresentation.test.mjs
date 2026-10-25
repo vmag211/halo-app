@@ -43,7 +43,10 @@ test('latest unregulated reading is chosen by date, not array order', () => {
 
 test('confidence: limited only for partial coverage; age only ever makes it stale', () => {
   assert.equal(waterConfidence('complete', 800), 'full'); // 2–3 years old is still full
-  assert.equal(waterConfidence('excluded_only', 100), 'full'); // lithium-only
+  // Lithium-only: nothing regulated has a result, so there is nothing to be confident in (audit F01).
+  assert.equal(waterConfidence('excluded_only', 100), 'none');
+  assert.equal(waterConfidence('no_data', 100), 'none');
+  assert.equal(waterConfidence('no_detections', 100), 'full'); // documented non-detects
   assert.equal(waterConfidence('partial', 100), 'limited');
   assert.equal(waterConfidence('complete', 1200), 'stale');
   assert.equal(waterConfidence('partial', 1200), 'stale');

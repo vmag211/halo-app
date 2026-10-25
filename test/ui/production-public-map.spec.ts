@@ -41,7 +41,7 @@ test('public map uses actual records and ignores fake review scenario in URL',as
  await expect(page.getByText('Loading map data.',{exact:true})).toHaveCount(0);
  await expect(page.getByText(/Map design review/)).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Locate your home'})).toHaveCount(0);
- await page.getByRole('button',{name:'Find a location'}).click();
+ await page.getByRole('button',{name:'Search by name'}).click();
  await expect(page.getByRole('dialog')).toContainText('Contract Test Utility');
  await page.getByRole('button',{name:/Contract Test Utility/}).click();
  await expect(page.getByRole('dialog')).toContainText('REAL-PWS-88');
@@ -65,7 +65,7 @@ test('real layer switch retains missing air values as unavailable and counts onl
  await page.goto('/map');await expect(page.getByText('Loading map data.',{exact:true})).toHaveCount(0);
  await page.getByRole('radio',{name:'Air',exact:true}).click();
  await expect(page.getByText('Loading map data.',{exact:true})).toHaveCount(0);
- await page.getByRole('button',{name:'Find a location'}).click();await page.getByRole('button',{name:/Source Monitor/}).click();
+ await page.getByRole('button',{name:'Search by name'}).click();await page.getByRole('button',{name:/Source Monitor/}).click();
  await expect(page.getByRole('dialog')).toContainText('No data');await expect(page.getByRole('dialog')).toContainText('No observation time available');
  expect(network.requests.some(path=>path.includes('layer=air'))).toBe(true);expect(network.forbidden).toEqual([]);
 });
@@ -80,7 +80,7 @@ test('district source failure never exposes review totals or exports',async({pag
 
 test('pagination retains unmapped observations and loads the exact continuation cursor',async({page})=>{
  const network=await protect(page,(route,url)=>json(route,{layer:'air',assembled_at:'2026-10-13T14:00:00Z',features:[url.searchParams.has('cursor')?{id:'unmapped-second',name:'Second unlocated monitor',aqi:21}:{id:'unmapped-first',name:'First unlocated monitor',aqi:0}],next_cursor:url.searchParams.has('cursor')?null:'canonical-next-page'}));
- await page.goto('/map?layer=air');await page.getByRole('button',{name:'Find a location'}).click();
+ await page.goto('/map?layer=air');await page.getByRole('button',{name:'Search by name'}).click();
  await expect(page.getByRole('button',{name:/First unlocated monitor/})).toBeVisible();
  await page.getByRole('button',{name:'Load more locations',exact:true}).click();
  await expect(page.getByRole('button',{name:/Second unlocated monitor/})).toBeVisible();
@@ -97,8 +97,8 @@ test('Find a location starts in the search field and the count line matches the 
  const network=await protect(page,async(route,url)=>json(route,url.pathname==='/api/map'?layer:{error:'not ready'},url.pathname==='/api/map'?200:503));
  await page.goto('/map');
  await expect(page.getByText('2 of 3 systems exceed a supplied limit.',{exact:false})).toBeVisible();
- await page.getByRole('button',{name:'Find a location'}).click();
- await expect(page.getByRole('searchbox',{name:'Find a location in this layer'})).toBeFocused();
+ await page.getByRole('button',{name:'Search by name'}).click();
+ await expect(page.getByRole('searchbox',{name:'Search by name in this layer'})).toBeFocused();
  await page.keyboard.type('Edge');
  await expect(page.getByRole('dialog')).toContainText('1 record matching');
  await expect(page.getByRole('button',{name:/Edge Utility/})).toContainText('1 over limit');

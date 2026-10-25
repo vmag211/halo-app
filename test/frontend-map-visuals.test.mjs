@@ -35,7 +35,7 @@ test('empty and invalid density do not paint a low-value pollution surface', () 
 test('point and list readings preserve zero, missing, selected units and index', () => {
   const records = waterFeatures();
   assert.equal(waterMapReading(records[3], 'pfoa'), '0 ppt');
-  assert.equal(waterMapReading(records[5], 'pfoa'), 'No detection reported');
+  assert.equal(waterMapReading(records[5], 'pfoa'), 'No result in this source');
   assert.equal(waterMapReading(records[5], 'overall'), 'No comparable result');
   assert.equal(waterMapReading(records[0], 'pfoa'), '5.8 ppt');
   assert.equal(waterMapReading(records[0], 'overall'), '2 over limit');

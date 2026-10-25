@@ -165,7 +165,9 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const privateSource = water.status === 'private_well' || ['well', 'spring'].includes(String(location.water_source));
   const coverage = safeText(water.coverage);
   const waterMeasured = water.is_measured === true && !privateSource;
-  const scoreable = waterMeasured && ['complete', 'no_detections', 'excluded_only', 'partial'].includes(coverage);
+  // Only coverage built on evidence carries a water score. A lithium-only record
+  // (excluded_only) has nothing regulated to score, so it shows no water score.
+  const scoreable = waterMeasured && ['complete', 'no_detections', 'partial'].includes(coverage);
   const scored = waterMeasured ? rows(water.scored_contaminants).filter(row => nonnegative(row.value_ppt) !== null && safeText(row.contaminant)) : [];
   const enforceable = scored.filter(row => row.is_enforceable === true);
   const pool = enforceable.length ? enforceable : scored;
@@ -178,6 +180,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const waterStatusCopy: Record<string, string> = {
     lookup_failed: 'Water results could not be loaded. Try again shortly.',
     no_data_yet: 'Published testing results are not available for this utility yet.',
+    no_usable_results: 'This utility has no usable result in the EPA testing records. A missing result is not a clean result.',
     no_pwsid_available: 'No water utility is matched to this home. Confirm your water source in Settings.',
   };
   const waterDisclosures = [

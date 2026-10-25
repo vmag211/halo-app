@@ -9,7 +9,7 @@ import MapSymbol from './MapSymbol';
 export default function MapResults({ records, layer, visibleIds, home, query, onQuery, onSelect, blocked, loading, focusSearch = false, onSearchFocused }: {
   records: MapResult[]; layer: MapLayer; visibleIds: string[]; home: { lat: number; lng: number } | null;
   query: string; onQuery: (query: string) => void; onSelect: (id: string) => void; blocked: boolean; loading: boolean;
-  /** Opened from Find a location: start in the search field rather than on the sheet's Close. */
+  /** Opened from Search by name: start in the search field rather than on the sheet's Close. */
   focusSearch?: boolean; onSearchFocused?: () => void;
 }) {
   const search = useRef<HTMLInputElement>(null);
@@ -18,12 +18,14 @@ export default function MapResults({ records, layer, visibleIds, home, query, on
   const [scope,setScope] = useState('all');
   const [sort,setSort] = useState('name');
   const canSortNearby = home && layer !== 'radon';
-  const matches = findMapRecords(records, query, scope === 'view' ? visibleIds : null, sort === 'nearest' && canSortNearby ? home : null);
+  const matches = findMapRecords(records, query, scope === 'view' ? visibleIds : null, sort === 'nearest' && canSortNearby ? home : null, sort === 'severity' ? 'severity' : 'name');
+  const placeholder = layer === 'radon' ? 'County name' : layer === 'water' ? 'System name or ID' : layer === 'air' ? 'Station name or agency' : 'Facility name or county';
   return <div className="halo-map-results">
-    <label>Find a location in this layer<input ref={search} type="search" value={query} onChange={e=>onQuery(e.target.value)} placeholder={layer==='radon'?'County name':'Name or system ID'}/></label>
+    <label>Search by name in this layer<input ref={search} type="search" value={query} onChange={e=>onQuery(e.target.value)} placeholder={placeholder}/></label>
+    <p className="halo-map-results-hint">{layer === 'radon' ? 'Matches county names.' : 'Matches record names and IDs, not cities or addresses. A name does not always include its city.'}</p>
     <div className="halo-map-results-tools">
       <div role="group" aria-label="Results area">{[['all','All records'],['view','In this view']].map(([key,label])=><button key={key} aria-pressed={scope===key} onClick={()=>setScope(key)}>{label}</button>)}</div>
-      <label>Sort results<select aria-label="Sort results" value={sort} onChange={e=>setSort(e.target.value)}><option value="name">Name</option>{canSortNearby&&<option value="nearest">Nearest my home</option>}</select></label>
+      <label>Sort results<select aria-label="Sort results" value={sort} onChange={e=>setSort(e.target.value)}><option value="name">Name</option><option value="severity">{layer === 'radon' ? 'Highest potential first' : 'Highest severity first'}</option>{canSortNearby&&<option value="nearest">Nearest my home</option>}</select></label>
     </div>
     <p>{layer==='water'?'Includes unmapped systems. Records cover the state.':'This list is an alternative to selecting markers on the map.'} {scope==='view'&&'Only records in the current map window are shown.'}</p>
     {sort==='nearest'&&canSortNearby&&<p className="halo-map-results-caution">Straight-line distance from your approximate home. Nearby utilities may not supply your water. Unmapped records appear last.</p>}
