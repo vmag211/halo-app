@@ -30,6 +30,33 @@ export function emptyTest(id = 'draft-test'): TestRecord {
 export function emptyResult(id = 'row-1'): TestResultRow {
   return { id, analyte: '', originalValue: '', originalUnit: '', qualifier: 'unknown', limit: '', limitUnit: '', basis: '', reportDate: '', reportReference: '' };
 }
+/** A row nobody typed into: every field empty and the qualifier still at its default. */
+export function blankResultRow(row: Partial<TestResultRow> | null | undefined): boolean {
+  if (!row || typeof row !== 'object') return true;
+  const fields = ['analyte', 'originalValue', 'originalUnit', 'limit', 'limitUnit', 'basis', 'reportDate', 'reportReference'] as const;
+  return fields.every(key => typeof row[key] !== 'string' || !row[key]!.trim()) && (row.qualifier === undefined || row.qualifier === 'unknown');
+}
+/** The rows that carry something the person entered. Untouched rows are never saved or counted. */
+export function enteredResultRows<T extends Partial<TestResultRow>>(rows: unknown): T[] {
+  return Array.isArray(rows) ? rows.filter((row): row is T => !!row && typeof row === 'object' && !blankResultRow(row as Partial<TestResultRow>)) : [];
+}
+/**
+ * Whether a row states a result: a named analyte with a reported value, or a
+ * qualifier that is itself the reported outcome (non-detect, numeric zero, not
+ * reported, or less than a stated limit). A partial transcription, such as an
+ * analyte with no value yet, is kept as an incomplete record and does not
+ * complete the "Result recorded" milestone.
+ */
+export function recordedResultRow(row: Partial<TestResultRow> | null | undefined): boolean {
+  if (!row || typeof row !== 'object' || typeof row.analyte !== 'string' || !row.analyte.trim()) return false;
+  if (typeof row.originalValue === 'string' && row.originalValue.trim()) return true;
+  if (row.qualifier === 'non_detect' || row.qualifier === 'zero' || row.qualifier === 'absent') return true;
+  return row.qualifier === 'less_than' && typeof row.limit === 'string' && !!row.limit.trim();
+}
+/** True when at least one row states a result (recordedResultRow). */
+export function hasRecordedResult(rows: unknown): boolean {
+  return Array.isArray(rows) && rows.some(row => recordedResultRow(row as Partial<TestResultRow>));
+}
 export function validTestDate(value: string): boolean {
   if (!value) return true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -51,12 +78,14 @@ export function testDraftErrors(record: TestRecord): string[] {
 }
 export function resultIssues(record: TestRecord, rows = record.rows): string[] {
   const issues: string[] = [];
-  if (!rows.length) issues.push('No result rows have been entered.');
+  if (!enteredResultRows(rows).length) issues.push('No result rows have been entered.');
   if (!record.collectionStart) issues.push('Collection date is missing.');
   if (!record.method.trim()) issues.push('Collection or test method is not known.');
   if (record.medium === 'unknown' || !record.medium) issues.push('Sample medium is unknown.');
   if (record.kind === 'radon' && !record.collectionEnd) issues.push('Radon collection end is missing.');
   rows.forEach((row, index) => {
+    // An untouched row is never saved, so it raises nothing (the numbering still matches the form).
+    if (blankResultRow(row)) return;
     const prefix = `Row ${index + 1}: `;
     if (!row.analyte.trim()) issues.push(`${prefix}analyte is missing.`);
     if (!row.reportDate || !validTestDate(row.reportDate)) issues.push(`${prefix}report date is missing or invalid.`);
@@ -116,6 +145,43 @@ export function correctResults(record: TestRecord, rows: TestResultRow[], reason
   if (!reason.trim()) throw new Error('A correction reason is required.');
   const issues = resultIssues(record, rows);
   return { ...record, rows: rows.map(row => ({ ...row })), review: issues.length ? 'needs_clarification' : confirmed ? 'user_confirmed' : 'unreviewed', reviewReason: issues.join(' '), history: [...record.history, { revision: record.revision, date, reason: reason.trim(), rows: record.rows.map(row => ({ ...row })), review: record.review }] };
+}
+export type ResultEntryDraft = { rows: TestResultRow[]; reason: string; confirmed: boolean };
+/** The previous status for a record whose results no longer state a result. */
+function statusWithoutResult(record: Pick<TestRecord, 'awaitingRecorded' | 'collectionStart' | 'arrangedByUser'>): TestStatus {
+  return record.awaitingRecorded ? 'awaiting' : record.collectionStart ? 'sampled' : record.arrangedByUser ? 'arranged' : 'draft';
+}
+/**
+ * The status to show and filter by. An earlier build saved one untouched row
+ * as "recorded"; such a record, with no row that states a result, reads as
+ * its last real stage instead, so it is neither labelled "Result recorded"
+ * nor dropped from the views that continue an unfinished test.
+ */
+export function effectiveTestStatus<T extends { status?: unknown; rows?: unknown; awaitingRecorded?: unknown; collectionStart?: unknown; arrangedByUser?: unknown }>(record: T): TestStatus {
+  const status = testStatuses.includes(record.status as TestStatus) ? record.status as TestStatus : 'draft';
+  if (status !== 'recorded' || hasRecordedResult(record.rows)) return status;
+  return statusWithoutResult({ awaitingRecorded: record.awaitingRecorded === true, collectionStart: typeof record.collectionStart === 'string' ? record.collectionStart : '', arrangedByUser: record.arrangedByUser === true });
+}
+/**
+ * Saving the result editor. Untouched rows are dropped, never saved. A form
+ * with nothing entered is refused (cancel keeps the test as it was), while a
+ * partial transcription is saved, flagged for clarification, and leaves the
+ * record short of "Result recorded". Unconfirmed transcriptions stay allowed.
+ * Correcting earlier entered rows needs a reason and keeps them in history.
+ */
+export function applyResultEntry(record: TestRecord, draft: ResultEntryDraft, date: string): { errors: string[]; record?: TestRecord } {
+  const rows = enteredResultRows<TestResultRow>(draft.rows);
+  const previous = enteredResultRows<TestResultRow>(record.rows);
+  const errors: string[] = [];
+  if (!rows.length) errors.push('Enter at least one result from your report, or cancel to keep this test without results.');
+  if (previous.length && !draft.reason.trim()) errors.push('Give a reason for this correction.');
+  if (errors.length) return { errors };
+  const issues = resultIssues(record, rows);
+  const next: TestRecord = previous.length
+    ? correctResults({ ...record, rows: previous }, rows, draft.reason, draft.confirmed, date)
+    : { ...record, rows: rows.map(row => ({ ...row })), review: draft.confirmed && !issues.length ? 'user_confirmed' : issues.length ? 'needs_clarification' : 'unreviewed', reviewReason: issues.join(' ') };
+  const status: TestStatus = record.status === 'followup' ? 'followup' : hasRecordedResult(rows) ? 'recorded' : record.status === 'recorded' ? statusWithoutResult(record) : record.status;
+  return { errors: [], record: { ...next, status } };
 }
 export function testExport(record: TestRecord, includeContext: boolean) {
   return { format: 'HALO synthetic test review', schemaVersion: 1, synthetic: true, title: record.title, kind: record.kind, purpose: record.purpose, status: record.status, revision: record.revision, medium: record.medium, collectionStart: record.collectionStart, collectionEnd: record.collectionEnd, method: record.method, provider: record.provider || 'User-entered', ...(includeContext ? { contextId: record.contextId, contextSnapshot: record.contextSnapshot, sampleLabel: record.sampleLabel } : {}), review: record.review, reviewReason: record.reviewReason, rows: record.rows, history: record.history, omitted: ['File contents', ...(includeContext ? [] : ['Home or site context', 'Sample location'])], caveat: 'Synthetic wireframe record. Original values are uninterpreted and never change a HALO score.' };

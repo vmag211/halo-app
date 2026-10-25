@@ -36,7 +36,7 @@ const asRpcError = (error) => rpcError(error?.code ?? '', error?.message ?? Stri
 
 let worlds = 0;
 
-export async function createWorld(db, { env = ON, onCommit, onRead } = {}) {
+export async function createWorld(db, { env = ON, onCommit, onRead, tables = [], profile = {} } = {}) {
   worlds += 1;
   const prefix = (0xb1100000 + worlds).toString(16);
   const alice = `${prefix}-0000-4000-8000-00000000000a`;
@@ -53,10 +53,10 @@ export async function createWorld(db, { env = ON, onCommit, onRead } = {}) {
   }
 
   const h = createRouteHarness({
-    tables: haloTables('profiles'),
+    tables: haloTables('profiles', ...tables),
     env,
     identities: { alice: { id: alice }, bob: { id: bob } },
-    seed: { profiles: [{ id: alice }, { id: bob }] },
+    seed: { profiles: [{ id: alice, ...profile }, { id: bob, ...profile }] },
   });
   const fakeFrom = h.db.from;
   h.db.from = (name) => (name === 'operations' ? pgliteLedger(db, name, h.db.queryLog) : fakeFrom(name));

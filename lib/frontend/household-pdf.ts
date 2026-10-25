@@ -27,7 +27,11 @@ export function wrapReportText(text: string, font: Pick<PDFFont, 'widthOfTextAtS
 }
 
 /** Local layout only: no AI request, upload, new measurements or inferred conclusions. */
-export async function createHouseholdPdf(report: HouseholdReport, fontBytes: Uint8Array, onProgress: (progress: ReportProgress) => void, signal: AbortSignal, fallbackFontBytes?: Uint8Array) {
+// A saved production summary is the household's own records and dated evidence, never sample data.
+const footers = { preview: 'Sample-data review. Not a live home assessment.', production: 'Saved household summary. Each reading keeps its original source date.' };
+const subjects = { preview: 'Selected sample records and original evidence dates', production: 'Selected household records and original evidence dates' };
+export async function createHouseholdPdf(report: HouseholdReport, fontBytes: Uint8Array, onProgress: (progress: ReportProgress) => void, signal: AbortSignal, fallbackFontBytes?: Uint8Array, production = false) {
+  const kind = production ? 'production' : 'preview';
   const checkpoint = async (value: number, label: string) => {
     signal.throwIfAborted(); onProgress({ value, label });
     await new Promise<void>(resolve => setTimeout(resolve, 0)); signal.throwIfAborted();
@@ -42,7 +46,7 @@ export async function createHouseholdPdf(report: HouseholdReport, fontBytes: Uin
   if (!supports(font) && fallbackFontBytes) font = await pdf.embedFont(fallbackFontBytes, { subset: true });
   if (!supports(font)) font = await pdf.embedFont(StandardFonts.Helvetica);
   if (!supports(font)) throw new Error('Some characters are not supported by the PDF font. Download the accessible text copy to keep the original wording.');
-  pdf.setTitle('HALO household summary'); pdf.setCreator('HALO local report builder'); pdf.setSubject('Selected sample records and original evidence dates'); pdf.setLanguage('en-US');
+  pdf.setTitle('HALO household summary'); pdf.setCreator('HALO local report builder'); pdf.setSubject(subjects[kind]); pdf.setLanguage('en-US');
   const timestamp = new Date(report.generated); if (Number.isFinite(timestamp.getTime())) pdf.setCreationDate(timestamp);
   let page = pdf.addPage([width, height]), y = height - 112;
   function decorate() {
@@ -84,7 +88,7 @@ export async function createHouseholdPdf(report: HouseholdReport, fontBytes: Uin
   const pages = pdf.getPages();
   pages.forEach((item, index) => {
     item.drawLine({ start: { x: margin, y: 48 }, end: { x: width - margin, y: 48 }, thickness: .6, color: rgb(.75, .83, .83) });
-    item.drawText('Sample-data review. Not a live home assessment.', { x: margin, y: 32, size: 8, font, color: muted });
+    item.drawText(footers[kind], { x: margin, y: 32, size: 8, font, color: muted });
     const label = `${index + 1} / ${pages.length}`;
     item.drawText(label, { x: width - margin - font.widthOfTextAtSize(label, 8), y: 32, size: 8, font, color: muted });
   });

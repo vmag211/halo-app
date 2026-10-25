@@ -22,7 +22,7 @@
  */
 import { statSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SUFFIXES = ['', '.js', '.mjs', '.ts', '.json', '/index.js'];
 const ESM_DIRS = ['app', 'lib'];
@@ -70,6 +70,15 @@ export function createRouteHooks({ repoRoot, stubDir }) {
       target = pathToFileURL(file).href;
     }
 
+    // A frontend TypeScript module a route reads (lib/frontend/stage-data.ts)
+    // imports its siblings without an extension, as the bundler allows.
+    const parent = context.parentURL?.split('?')[0] ?? '';
+    if (/^\.\.?\//.test(target) && parent.endsWith('.ts') && esmPrefixes.some((prefix) => parent.startsWith(prefix))) {
+      const base = fileURLToPath(new URL(target, parent));
+      const file = SUFFIXES.map((suffix) => base + suffix).find(isFile);
+      if (file) target = pathToFileURL(file).href;
+    }
+
     const resolved = nextResolve(target, context);
     const replacement = fileStubs.get(resolved.url);
     if (replacement) return { url: replacement, format: 'module', shortCircuit: true };
@@ -77,6 +86,9 @@ export function createRouteHooks({ repoRoot, stubDir }) {
     const withoutQuery = resolved.url.split('?')[0];
     if (withoutQuery.endsWith('.js') && esmPrefixes.some((prefix) => withoutQuery.startsWith(prefix))) {
       return { ...resolved, format: 'module' };
+    }
+    if (withoutQuery.endsWith('.ts') && esmPrefixes.some((prefix) => withoutQuery.startsWith(prefix))) {
+      return { ...resolved, format: 'module-typescript' };
     }
     return resolved;
   }

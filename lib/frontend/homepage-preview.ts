@@ -1,4 +1,5 @@
 import {validActionDate,type PreviewAction} from './expanded-preview';
+import {enteredResultRows,hasRecordedResult} from './home-test-preview';
 import {actionCategory,dayAdd,emptyWeekMeta,weekStart,type WeekMeta} from './week-preview';
 import {actionDisplayDay} from './week-timeline';
 import {resolveWeekActivity,type WeekActivityCollections,type WeekActivityRoute} from './week-activity';
@@ -20,7 +21,7 @@ export function homepageAttention(actions:PreviewAction[],metas:Record<string,We
     else if(usable(date)&&date<today)result.push({id:`task:${a.id}`,title:a.title,label:'Earlier plan, choose what happens next',date,actionId:a.id});
   }
   for(const r of records.filter(r=>r.date<=today))result.push({id:r.id,title:r.title,label:r.kind==='test-result'?'Expected result, check your record':r.kind==='routine'?'Home-care date to review':'Chosen date to review',date:r.date,record:r});
-  for(const r of rows(collections,'tests'))if(!r.archived&&Array.isArray(r.rows)&&r.rows.length&&r.review!=='user_confirmed')result.push({id:`report:${text(r.id)}`,title:text(r.title),label:'Recorded report needs your review',date:'',route:{tab:'home',destination:'tests',view:'detail',id:text(r.id)}});
+  for(const r of rows(collections,'tests'))if(!r.archived&&enteredResultRows(r.rows).length&&r.review!=='user_confirmed')result.push({id:`report:${text(r.id)}`,title:text(r.title),label:hasRecordedResult(r.rows)?'Recorded report needs your review':'Result entry not finished',date:'',route:{tab:'home',destination:'tests',view:'detail',id:text(r.id)}});
   for(const r of rows(collections,'exploreOutcomes'))if(r.status==='Waiting for a response'&&!result.some(i=>i.actionId&&actions.find(a=>a.id===i.actionId)?.key===`explore:followthrough:${text(r.id)}`))result.push({id:`case:${text(r.id)}`,title:text(r.title),label:'Waiting for a response',date:text(r.followupDate),route:{tab:'act',destination:text(r.id).startsWith('note-case:')?'observations':'outreach',view:text(r.id).startsWith('note-case:')?'detail':'list',id:text(r.id).startsWith('note-case:')?text(r.id).slice(10):''}});
   return result.filter(i=>i.title).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999')||a.title.localeCompare(b.title));
 }

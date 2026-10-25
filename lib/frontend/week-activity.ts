@@ -3,7 +3,7 @@ import { findProjectGuide, projectActionKey, type ProjectGuide } from './explore
 import { safePublicLink, type Engagement, type ProjectRecord } from './explore-workspace';
 import type { ExplorePhotoScene } from './explore-photos';
 import type { HomeAsset } from './home-maintenance-preview';
-import type { TestRecord } from './home-test-preview';
+import { effectiveTestStatus, enteredResultRows, hasRecordedResult, type TestRecord } from './home-test-preview';
 import type { WeekMeta } from './week-preview';
 import {validProjectGuide} from './production/explore-service';
 
@@ -72,12 +72,14 @@ export function resolveWeekActivity(action: PreviewAction, collections: WeekActi
     const id = action.key.slice(5);
     const test = records<TestRecord>(collections, 'tests').find(item => item.id === id);
     if (test) {
-      const milestones = [{ label: 'Arranged', done: test.arrangedByUser === true || test.status === 'arranged' }, { label: 'Collected', done: Boolean(test.collectionStart) }, { label: 'Result entered', done: Array.isArray(test.rows) && test.rows.length > 0 }];
+      const milestones = [{ label: 'Arranged', done: test.arrangedByUser === true || test.status === 'arranged' }, { label: 'Collected', done: Boolean(test.collectionStart) }, { label: 'Result entered', done: hasRecordedResult(test.rows) }];
       const received = milestones[2].done;
+      // A partial transcription (for example an analyte with no value yet) is kept, but is not a recorded result.
+      const partial = !received && enteredResultRows(test.rows).length > 0;
       return {
-        kind: 'test', label: 'Test follow-up', subtitle: received ? 'Results entered by you' : test.status === 'awaiting' ? 'Awaiting result' : 'Test record', recordHref: route('home', 'tests', id), milestones,
+        kind: 'test', label: 'Test follow-up', subtitle: received ? 'Results entered by you' : partial ? 'Result entry not finished' : test.status === 'awaiting' ? 'Awaiting result' : 'Test record', recordHref: route('home', 'tests', id), milestones,
         fields: [...field('Provider', test.provider), ...(!received ? field('Expected result', test.expectedDate) : []), ...field('Sample location', test.sampleLabel)],
-        preparation: received ? test.review === 'user_confirmed' ? 'Transcription checked by you, not independently verified.' : 'Review the original report and any unclear values.' : 'An expected date is your record, not a laboratory delivery guarantee.',
+        preparation: received ? test.review === 'user_confirmed' ? 'Transcription checked by you, not independently verified.' : 'Review the original report and any unclear values.' : partial ? 'Add the reported value or qualifier from your report to finish this result.' : 'An expected date is your record, not a laboratory delivery guarantee.',
       };
     }
     const asset = records<HomeAsset>(collections, 'assets').find(item => item.id === id);
@@ -130,9 +132,9 @@ export function weekProgressEntries(collections: WeekActivityCollections, action
     const context = resolveWeekActivity(action ?? { id: '', key: `explore:commitment:${engagement.id}`, title: engagement.title, origin: 'Explore', reason: '', date: engagement.date, state: 'saved' }, collections, actions);
     entries.push({ ...context, id: `engagement:${engagement.id}`, title: engagement.title, status: engagement.status, subtitle: engagement.status === 'Participated' ? 'Keep your result or choose a follow-up' : engagement.preparation ? 'Review your preparation' : 'Review the organizer’s next step' });
   }
-  for (const test of records<TestRecord>(collections, 'tests').filter(item => !item.archived && ['draft', 'arranged', 'sampled', 'awaiting', 'followup'].includes(item.status))) {
+  for (const test of records<TestRecord>(collections, 'tests').filter(item => !item.archived && ['draft', 'arranged', 'sampled', 'awaiting', 'followup'].includes(effectiveTestStatus(item)))) {
     const context = resolveWeekActivity({ id: '', key: `home:${test.id}`, title: test.title, origin: 'Homeguard', reason: '', date: '', state: 'saved' }, collections, actions);
-    entries.push({ ...context, id: `test:${test.id}`, title: test.title, status: context.subtitle, subtitle: test.rows?.length ? 'Review the recorded result' : test.expectedDate ? `Expected ${test.expectedDate}` : test.collectionStart ? 'Keep track of the result' : 'Continue your test plan' });
+    entries.push({ ...context, id: `test:${test.id}`, title: test.title, status: context.subtitle, subtitle: hasRecordedResult(test.rows) ? 'Review the recorded result' : enteredResultRows(test.rows).length ? 'Finish entering the result' : test.expectedDate ? `Expected ${test.expectedDate}` : test.collectionStart ? 'Keep track of the result' : 'Continue your test plan' });
   }
   return entries;
 }

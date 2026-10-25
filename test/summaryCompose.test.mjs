@@ -22,7 +22,9 @@ import { loadFrontend } from './frontend-test-loader.mjs';
 import {
   CATEGORY_LABELS, EMPTY_SECTION_LINE, LIMITS, PURPOSES, REFUSALS, RESULT_QUALIFIERS, SECTION_LABELS, UNAVAILABLE_SECTION_LINE,
   categoryLabels, composeSummary, parseSummaryRequest, recordDate, recordDescription, recordDetails, requestedRecordsCurrent, resultLines,
+  FACTOR_KEYS, factorAppendixDetail, factorLine, scoreClosingLine, scoreLine,
 } from '../lib/summaryStore.js';
+import { RETRIEVED_AT, WELL_PROFILE, dailyPayload, stageFor } from './helpers/summaryEvidenceFixtures.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TSX = readFileSync(path.join(ROOT, 'components/homeguard/SummaryWorkspace.tsx'), 'utf8');
@@ -49,7 +51,7 @@ async function clientBuilders() {
     'type SummarySection = string;',
     helpers,
     `function recordDetails(section: string, record: SummaryRecord, selection: any) {${body} return details; }`,
-    'export { sectionLabels, recordSections, recordDate, recordDescription, resultLines, recordDetails };',
+    'export { sectionLabels, recordSections, recordDate, recordDescription, resultLines, recordDetails, scoreClosingLine, scoreLine, factorLine, factorAppendixDetail };',
   ].join('\n');
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
@@ -128,21 +130,26 @@ const all = (over = {}) => ({ id: '5a3a0000-0000-4000-8000-000000000001', create
 const requested = (sources, kinds = Object.keys(sources)) => kinds.flatMap((kind) => (sources[kind] ?? []).map((row) => ({ kind, id: row.id, revision: row.revision })));
 const texts = (summary) => JSON.stringify(summary);
 
-test('the default selection (scores and factors) saves a valid snapshot that says scores are not included yet, and every omission', () => {
+test('the default selection (scores and factors) with no evidence read says both sections were unavailable, never that they were included', () => {
   const selection = selectionWith();
   const out = composeSummary(all({ selection, records: [], sources: {} }));
   assert.equal(out.ok, true);
   const snapshot = { ...out.summary, revision: 1 };
   assert.equal(validSummarySnapshot(snapshot), true);
   assert.deepEqual(out.summary.report.sections.map((s) => s.title), ['Two score snapshot', 'Seven factors, with their original dates', 'Omissions and scope']);
-  assert.match(out.summary.report.sections[0].lines[0], /not included in saved summaries yet\. No score is inferred\./);
+  assert.deepEqual(out.summary.report.sections[0].lines, [UNAVAILABLE_SECTION_LINE]);
+  assert.deepEqual(out.summary.report.sections[1].lines, [UNAVAILABLE_SECTION_LINE]);
   assert.deepEqual(out.summary.report.introduction, [
     'Purpose: Household review.',
     `Generated: ${NOW}. Selected private-record dates: 2026-01-01 through 2026-12-31. Existing environmental observations retain their original dates even when older than this range.`,
     'Water context: Private well, no inferred utility match.',
   ]);
-  assert.ok(out.summary.omissions.includes('Today & Homeguard scores are not included in saved summaries yet.'));
-  assert.ok(out.summary.omissions.includes('Factors & sources are not included in saved summaries yet.'));
+  const scope = out.summary.report.sections.at(-1).lines;
+  assert.equal(scope[0], 'Selected sections: Today & Homeguard scores; Factors & sources. Included: none.');
+  assert.equal(scope[1], 'Selected but unavailable when this summary was prepared: Today & Homeguard scores; Factors & sources.');
+  assert.ok(out.summary.omissions.includes('Today & Homeguard scores were unavailable when this summary was prepared.'));
+  assert.ok(out.summary.omissions.includes('Factors & sources were unavailable when this summary was prepared.'));
+  assert.ok(!texts(out.summary).includes('not included in saved summaries yet'));
   assert.ok(out.summary.omissions.includes('Test reports were not selected.'));
   assert.ok(out.summary.omissions.includes('Original attachment contents and metadata are never included.'));
   assert.deepEqual(out.summary.manifest, []);
@@ -274,4 +281,100 @@ test('parseSummaryRequest refuses what the screen never sends', () => {
     [goodBody({ homeContextId: 7 }), 'homeContextId'],
   ];
   for (const [body, expected] of cases) assert.equal(field(parseSummaryRequest(body)), expected, JSON.stringify(body)?.slice(0, 120));
+});
+
+// ---------------------------------------------------------------------------
+// Scores and factors (Ruling S15-6 as revised): the screens' StageData, frozen
+// ---------------------------------------------------------------------------
+
+const STAGES = {
+  public: await stageFor(),
+  well: await stageFor({ profileRow: WELL_PROFILE }),
+  noToday: await stageFor({ daily: null }),
+  noHome: await stageFor({ home: null }),
+  earlierHome: await stageFor({ daily: { ...dailyPayload(), home_context_id: 'an-earlier-home' } }),
+};
+
+test('drift: the server\'s score, factor and appendix lines are the client\'s own, for every evidence state', () => {
+  assert.equal(scoreClosingLine, client.scoreClosingLine);
+  assert.deepEqual([...FACTOR_KEYS], ['air', 'uv', 'pollen', 'mold', 'pfas', 'radon', 'lead']);
+  for (const [name, stage] of Object.entries(STAGES)) {
+    for (const home of [false, true]) {
+      for (const preview of [false, true]) {
+        const score = home ? stage.home : stage.today;
+        assert.equal(scoreLine(home, score, preview), client.scoreLine(home, score, preview), `${name} score ${home} ${preview}`);
+      }
+    }
+    for (const key of FACTOR_KEYS) {
+      for (const missing of [false, true]) {
+        for (const privateWater of [false, true]) {
+          assert.equal(factorLine(key, stage.readings[key], missing, privateWater), client.factorLine(key, stage.readings[key], missing, privateWater), `${name} ${key}`);
+          assert.equal(factorAppendixDetail(key, stage.readings[key], missing, privateWater), client.factorAppendixDetail(key, stage.readings[key], missing, privateWater), `${name} ${key} appendix`);
+        }
+      }
+    }
+  }
+});
+
+test('selected scores and factors are composed from the evidence with their source dates, and the report says both were included', () => {
+  const selection = selectionWith({ appendix: true });
+  const stage = STAGES.public;
+  const out = composeSummary(all({ selection, records: [], sources: {}, home: { ...HOME, water_source: 'utility' }, evidence: { data: stage } }));
+  assert.equal(out.ok, true);
+  assert.equal(validSummarySnapshot({ ...out.summary, revision: 1 }), true);
+  const byTitle = Object.fromEntries(out.summary.report.sections.map((s) => [s.title, s.lines]));
+  const scores = byTitle['Two score snapshot'];
+  assert.equal(typeof stage.today.score, 'number');
+  assert.equal(typeof stage.home.score, 'number');
+  assert.equal(scores[0], `Today: ${stage.today.score} / 100 · ${stage.today.partial ? 'Partial · ' : ''}${stage.today.severity} · ${stage.today.asOf}.`);
+  assert.match(scores[0], /Oct 20/, 'Today keeps the reading\'s retrieval date');
+  assert.match(scores[1], new RegExp(`^Homeguard: ${stage.home.score} / 100`));
+  assert.equal(scores[2], scoreClosingLine);
+  const factors = byTitle['Seven factors, with their original dates'];
+  assert.equal(factors.length, 7);
+  assert.match(factors[0], /^Air quality: 42 AQI · good · measured\. Source: AirNow\. Original observation or classification date: Oct 20/);
+  assert.match(factors[4], /^PFAS in water: .* Source: EPA UCMR 5, Example County Water\. Original observation or classification date: Sample collected Mar 14, 2024\./);
+  assert.match(factors[5], /^Radon: Zone 2 County estimate/);
+  assert.match(factors[6], /^Lead in plumbing: 1962 Home built/);
+  assert.equal(byTitle['Evidence appendix'].length, 8);
+  assert.equal(byTitle['Evidence appendix'][0], `Air quality: ${stage.readings.air.detail}`);
+  const scope = byTitle['Omissions and scope'];
+  assert.equal(scope[0], 'Selected sections: Today & Homeguard scores; Factors & sources. Included: Today & Homeguard scores; Factors & sources.');
+  assert.ok(!scope.some((line) => line.startsWith('Selected but unavailable')));
+  assert.ok(!out.summary.omissions.some((line) => /Today & Homeguard scores|Factors & sources/.test(line)), 'no omission for an included section');
+  assert.ok(!texts(out.summary).includes('—'));
+  assert.deepEqual(out.summary.manifest, [], 'evidence is dated in its lines; the manifest names records only');
+});
+
+test('a private well: Homeguard has no score and PFAS says the utility result does not apply, as the screen says', () => {
+  const selection = selectionWith({ appendix: true });
+  const out = composeSummary(all({ selection, records: [], sources: {}, evidence: { data: STAGES.well } }));
+  const byTitle = Object.fromEntries(out.summary.report.sections.map((s) => [s.title, s.lines]));
+  assert.equal(byTitle['Two score snapshot'][1], 'Homeguard: unavailable for the current home. No score is inferred.');
+  assert.match(byTitle['Two score snapshot'][0], /^Today: \d+ \/ 100/);
+  assert.match(byTitle['Seven factors, with their original dates'][4], /^PFAS in water: missing household measurement\. Private well or spring; the utility result does not apply\./);
+  assert.equal(byTitle['Evidence appendix'][4], 'PFAS in water: No applicable household water measurement.');
+});
+
+test('no reading today, or a reading from an earlier home, is said to be unavailable; nothing is inferred or reused', () => {
+  for (const stage of [STAGES.noToday, STAGES.earlierHome]) {
+    const out = composeSummary(all({ selection: selectionWith(), records: [], sources: {}, home: { ...HOME, water_source: 'utility' }, evidence: { data: stage } }));
+    const lines = out.summary.report.sections[0].lines;
+    assert.equal(lines[0], 'Today: unavailable for the current home. No score is inferred.');
+    assert.match(lines[1], /^Homeguard: \d+ \/ 100/);
+    assert.match(out.summary.report.sections[1].lines[0], /^Air quality: No data AQI · no data · source supplied\. Source: Source unavailable\. Original observation or classification date: Update time unavailable\./);
+  }
+  const noHome = composeSummary(all({ selection: selectionWith(), records: [], sources: {}, evidence: { data: STAGES.noHome } }));
+  assert.equal(noHome.summary.report.sections[0].lines[1], 'Homeguard: unavailable for the current home. No score is inferred.');
+  assert.ok(RETRIEVED_AT.startsWith('2026-10-20'));
+});
+
+test('an evidence object that is not StageData marks both sections unavailable rather than throwing or guessing', () => {
+  const emptyReadings = Object.fromEntries(FACTOR_KEYS.map((key) => [key, {}]));
+  for (const evidence of [null, {}, { data: {} }, { data: { today: {}, home: {}, readings: { air: {} } } }, { data: { today: {}, home: {}, readings: emptyReadings } }, { data: { ...STAGES.public, today: { severity: 'good' } } }]) {
+    const out = composeSummary(all({ selection: selectionWith(), records: [], sources: {}, evidence }));
+    assert.equal(out.ok, true);
+    assert.deepEqual(out.summary.report.sections[0].lines, [UNAVAILABLE_SECTION_LINE]);
+    assert.ok(out.summary.omissions.includes('Today & Homeguard scores were unavailable when this summary was prepared.'));
+  }
 });

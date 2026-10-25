@@ -27,7 +27,7 @@ function ReportAttempt({ snapshot, onRetry, onReady, production }: { snapshot: s
       try {
         const [builder, response, fallback] = await Promise.all([import('@/lib/frontend/household-pdf'), fetch('/fonts/instrument-sans-report.ttf', { signal: abort.signal }), fetch('/fonts/onest-variable.ttf', { signal: abort.signal })]);
         if (!response.ok || !fallback.ok) throw new Error('The report font could not load. Try again, or download the accessible text copy.');
-        const built = await builder.createHouseholdPdf(JSON.parse(snapshot) as HouseholdReport, new Uint8Array(await response.arrayBuffer()), setProgress, abort.signal, new Uint8Array(await fallback.arrayBuffer()));
+        const built = await builder.createHouseholdPdf(JSON.parse(snapshot) as HouseholdReport, new Uint8Array(await response.arrayBuffer()), setProgress, abort.signal, new Uint8Array(await fallback.arrayBuffer()), production);
         abort.signal.throwIfAborted();
         const blob = new Blob([new Uint8Array(built.bytes)], { type: 'application/pdf' });
         objectUrl = URL.createObjectURL(blob); setReady({ url: objectUrl, blob, pages: built.pages });
@@ -36,7 +36,7 @@ function ReportAttempt({ snapshot, onRetry, onReady, production }: { snapshot: s
       } catch (error) { if (!abort.signal.aborted) setFailure(error instanceof Error ? error.message : 'The PDF could not be created. Your selections are still here.'); }
     })();
     return () => { abort.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [snapshot]);
+  }, [snapshot, production]);
   async function share() {
     if (!ready) return; setStatus('');
     const file = new File([ready.blob], 'halo-household-summary.pdf', { type: 'application/pdf' });
