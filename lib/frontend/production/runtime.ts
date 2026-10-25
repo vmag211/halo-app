@@ -11,8 +11,14 @@ export interface ProductionRuntime {
 }
 export type FailureCode = 'offline' | 'session' | 'permission' | 'conflict' | 'validation' | 'rate_limited' | 'unavailable' | 'invalid_response' | 'aborted' | 'unknown_outcome';
 export class FrontendServiceError extends Error {
-  constructor(public readonly code: FailureCode, message: string, public readonly operationId?: string, public readonly retryAfter?: number, public readonly fields?: Record<string,string>, public readonly reason?: 'feature_unavailable') { super(message); this.name = 'FrontendServiceError'; }
+  constructor(public readonly code: FailureCode, message: string, public readonly operationId?: string, public readonly retryAfter?: number, public readonly fields?: Record<string,string>, public readonly reason?: 'feature_unavailable', public readonly status?: number) { super(message); this.name = 'FrontendServiceError'; }
 }
+/**
+ * True when a status check (`operations.read`) found no record of the save: the server answers 404 for an id
+ * it never claimed. Every write route claims its id before it changes anything and replays a claimed id
+ * instead of applying it twice, so sending the same save again under the same id is the safe next step.
+ */
+export function saveNotRecorded(error: unknown): boolean { return error instanceof FrontendServiceError && error.status === 404; }
 type Endpoint = { path: string; method?: 'GET'|'POST'|'PATCH'|'DELETE'; public?: boolean };
 /** These are explicit frontend contracts, not claims that the backend implements them. */
 export const productionOperations: Readonly<Record<string, Endpoint>> = {
@@ -142,6 +148,8 @@ export function createProductionRuntime(input: {
         const multipart=typeof FormData!=='undefined'&&body instanceof FormData;
         if(mutation&&!multipart) headers['Content-Type']='application/json';
         if(mutation&&input.writeAllowed?.()===false)throw new FrontendServiceError('permission','Reconnect your profile before making changes.');
+        // A device that knows it is offline cannot deliver the write: refuse it as offline, never as an unconfirmed save.
+        if(mutation&&typeof navigator!=='undefined'&&navigator.onLine===false)throw new FrontendServiceError('offline',messages.offline,operationId);
         sent = true;
         const response = await bounded((input.fetcher ?? fetch)(path,{method,headers,body:mutation?(multipart?body as FormData:JSON.stringify(body ?? {})):undefined,signal:controller.signal,cache:'no-store',credentials:'same-origin',redirect:'error'}));
         current();
@@ -155,7 +163,7 @@ export function createProductionRuntime(input: {
           // Mutations keep their existing outcome authority; a write refused up front with 403 (attachments,
           // Ruling A6) stays a settled permission failure, marked so the screen can name the real cause.
           const off=(!mutation&&response.status===503||response.status===403)&&!!json&&typeof json==='object'&&(json as {code?:unknown}).code==='feature_unavailable';
-          throw new FrontendServiceError(code,messages[code],operationId,Number.isFinite(retry)&&retry>0?retry:undefined,undefined,off?'feature_unavailable':undefined);
+          throw new FrontendServiceError(code,messages[code],operationId,Number.isFinite(retry)&&retry>0?retry:undefined,undefined,off?'feature_unavailable':undefined,response.status);
         }
         if(json===null || typeof json!=='object') throw new FrontendServiceError(mutation?'unknown_outcome':'invalid_response',messages[mutation?'unknown_outcome':'invalid_response'],operationId);
         // The response envelope is unwrapped once. Domain adapters validate its canonical schema.

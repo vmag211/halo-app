@@ -7,6 +7,7 @@ import { initialGardens, initialUsage } from '@/lib/frontend/home-food-preview';
 import {recordFingerprint} from '@/lib/frontend/settings-preview';
 import { acceptedHomeReceipt, homeReceiptCoversCommand, validHomeChanges, validHomeRecords, type HomeCollectionSnapshot, type HomeWorkspaceCommand, type HomeWorkspaceReceipt, type HomeWorkspaceService } from '@/lib/frontend/production/home-service';
 import { validProductionCollection } from '@/lib/frontend/production/home-records';
+import { saveNotRecorded } from '@/lib/frontend/production/runtime';
 import { clearHomeDraft } from '@/lib/frontend/home-drafts';
 
 export type HomeScenario = 'ready' | 'empty' | 'loading' | 'error' | 'offline' | 'stale' | 'conflict' | 'save-error';
@@ -212,7 +213,17 @@ function HomeWorkspaceSession({ children, service }: { children: ReactNode; serv
     const command = unknownRef.current.get(operationId);
     if (!service || !command || locks.current.size) return false;
     const request = new AbortController(); requests.current.add(request); locks.current.add(operationId); setPending(true);
-    try { const receipt = await service.reconcile(operationId, request.signal, command.kind === 'recovered' ? command.domain : 'workspace'); const accepted = alive.current && !request.signal.aborted ? applyReceipt(command, receipt) : false; if (accepted && command.kind === 'recovered') await retry(); return accepted; }
+    try {
+      let receipt: HomeWorkspaceReceipt;
+      try { receipt = await service.reconcile(operationId, request.signal, command.kind === 'recovered' ? command.domain : 'workspace'); }
+      catch (error) {
+        // Never recorded: send the same command again under the same id, which the server applies at most once.
+        if (command.kind === 'recovered' || !saveNotRecorded(error)) throw error;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) { if (alive.current) setMessage('Offline: the save was not recorded. Your draft remains here. Reconnect, then check again.'); return false; }
+        receipt = await service.execute(command, request.signal);
+      }
+      const accepted = alive.current && !request.signal.aborted ? applyReceipt(command, receipt) : false; if (accepted && command.kind === 'recovered') await retry(); return accepted;
+    }
     catch { if (alive.current) setMessage('Save status is still unavailable. Your draft remains here. Do not repeat the change.'); return false; }
     finally { requests.current.delete(request); locks.current.delete(operationId); if (alive.current) setPending(false); }
   }

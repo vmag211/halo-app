@@ -120,8 +120,8 @@ export async function createWorld(db, { ledger = 'pglite', env = ON, onCommit, o
       h.call(OPERATIONS, 'GET', { as, url: `${OPERATIONS}?operationId=${operationId}&domain=${domain}`, env: callEnv }),
 
     /** My Week as the client runs it, through the real handlers. */
-    week(as = 'alice', { lose, today, homeContextId } = {}) {
-      return myWeek(createActionAdapter(clientRuntime(h, as, { lose, homeContextId })), { today });
+    week(as = 'alice', { lose, never, today, homeContextId } = {}) {
+      return myWeek(createActionAdapter(clientRuntime(h, as, { lose, never, homeContextId })), { today });
     },
 
     /** The household's stored tasks, as the 0023 table holds them, oldest first. */
