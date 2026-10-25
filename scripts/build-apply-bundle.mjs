@@ -138,6 +138,14 @@ export const BUNDLES = Object.freeze([
     verifyFile: 'verify-0035.sql',
     migrations: Object.freeze(['0035_luna_proposals']),
   }),
+  Object.freeze({
+    title: 'migration 0036',
+    checks: 'migration 0036 is',
+    needs: 'Needs 0024 applied first, which production has. Fixes Settings > Clear all and the home and preferences privacy exports.',
+    bundleFile: 'apply-0036.sql',
+    verifyFile: 'verify-0036.sql',
+    migrations: Object.freeze(['0036_profiles_address_column']),
+  }),
 ]);
 
 /**
