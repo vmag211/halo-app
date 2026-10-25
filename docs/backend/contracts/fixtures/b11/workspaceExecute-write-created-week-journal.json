@@ -1,0 +1,50 @@
+{
+  "operationId": "workspaceExecute",
+  "status": 200,
+  "request": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "kind": "write",
+    "collection": "weekJournal",
+    "record": {
+      "id": "journal:current-home:2026-10-20:household",
+      "title": "Tue, Oct 20 check-in",
+      "revision": 0,
+      "homeContextId": "0b110000-0000-4000-8000-000000000002",
+      "band": "household",
+      "severity": "mild",
+      "note": "",
+      "date": "2026-10-20",
+      "fine": false,
+      "symptoms": [
+        "Cough"
+      ],
+      "illness": false,
+      "recalled": false
+    },
+    "expectedRevision": null
+  },
+  "body": {
+    "operationId": "0b110000-0000-4000-8000-000000000001",
+    "status": "succeeded",
+    "changes": {
+      "weekJournal": [
+        {
+          "id": "journal:current-home:2026-10-20:household",
+          "title": "Check-in",
+          "revision": 1,
+          "date": "2026-10-20",
+          "band": "household",
+          "fine": false,
+          "symptoms": [
+            "Cough"
+          ],
+          "severity": "mild",
+          "illness": false,
+          "note": "",
+          "recalled": false,
+          "homeContextId": "0b110000-0000-4000-8000-000000000002"
+        }
+      ]
+    }
+  }
+}

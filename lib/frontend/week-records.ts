@@ -1,4 +1,5 @@
 import { validActionDate, type PreviewAction } from './expanded-preview';
+import { effectiveTestStatus, hasRecordedResult } from './home-test-preview';
 import { dayAdd, weekStart } from './week-preview';
 
 export type WeekRecord = {
@@ -20,8 +21,8 @@ export function datedWeekRecords(collections:Record<string,unknown[]|undefined>,
     const recordId=text(row.id);result.push({id:`record:${kind}:${recordId}`,title:text(row.title),date,kind,category,annotation,destination,recordId,view});
   }
   for(const row of rows(collections,'tests')){if(row.archived===true)continue;
-    if(['draft','arranged'].includes(text(row.status)))push(row,text(row.plannedDate),'test-plan','Home','Proposed test date, not a completed sample','tests','detail',`home:${text(row.id)}`);
-    if(['sampled','awaiting','arranged'].includes(text(row.status))&&!(Array.isArray(row.rows)&&row.rows.length))push(row,text(row.expectedDate),'test-result','Home','Expected result date, not a laboratory delivery guarantee','tests','detail',`home:${text(row.id)}`);
+    if(['draft','arranged'].includes(effectiveTestStatus(row)))push(row,text(row.plannedDate),'test-plan','Home','Proposed test date, not a completed sample','tests','detail',`home:${text(row.id)}`);
+    if(['sampled','awaiting','arranged'].includes(effectiveTestStatus(row))&&!hasRecordedResult(row.rows))push(row,text(row.expectedDate),'test-result','Home','Expected result date, not a laboratory delivery guarantee','tests','detail',`home:${text(row.id)}`);
   }
   for(const row of rows(collections,'assets')){if(row.status!=='active')continue;const date=text(row.snoozedUntil)||text(row.nextDue);if(text(row.endDate)&&date>text(row.endDate))continue;push(row,date,'routine','Home',row.snoozedUntil?'User-snoozed routine date':'Routine date from your home-care record','maintenance','detail',`home:${text(row.id)}`);}
   for(const row of rows(collections,'exploreProjects')){if(row.status==='Paused')continue;push(row,text(row.reviewDate),'project','Projects','Chosen project review date','projects','detail');}

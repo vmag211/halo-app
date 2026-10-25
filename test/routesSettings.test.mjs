@@ -597,6 +597,7 @@ for (const code of ['42703', 'PGRST204']) {
 
 const HOME = '5e771265-cccc-4000-8000-0000000000aa';
 const PLACE = {
+  place_type: ['address'], relevance: 1,
   center: [-80.61, 35.41],
   context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }],
 };

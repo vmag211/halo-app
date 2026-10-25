@@ -70,7 +70,8 @@ export const HALO_TABLES = {
   },
   symptom_logs: {
     primaryKey: 'id',
-    unique: [['profile_id', 'entry_date', 'band']],
+    // 0034 adds the app's record id, unique per household where it is set (NULLs never collide).
+    unique: [['profile_id', 'entry_date', 'band'], ['profile_id', 'record_id']],
     ownerColumn: 'profile_id',
     defaults: {
       id: uuid,

@@ -43,8 +43,8 @@ test('coordinates round to ~100 m', () => {
 });
 
 test('ArcGIS: found / not found / failed are three different outcomes', () => {
-  assert.deepEqual(serviceAreaFromArcgis({ ok: true, json: { features: [{ attributes: { PWSID: 'NC0113010' } }] } }), { pwsid: 'NC0113010', status: 'measured' });
-  assert.deepEqual(serviceAreaFromArcgis({ ok: true, json: { features: [] } }), { pwsid: null, status: 'outside_known_area' });
+  assert.deepEqual(serviceAreaFromArcgis({ ok: true, json: { features: [{ attributes: { PWSID: 'NC0113010' } }] } }), { pwsid: 'NC0113010', status: 'measured', candidates: ['NC0113010'] });
+  assert.deepEqual(serviceAreaFromArcgis({ ok: true, json: { features: [] } }), { pwsid: null, status: 'outside_known_area', candidates: [] });
   assert.equal(serviceAreaFromArcgis(null).status, 'lookup_failed');
   assert.equal(serviceAreaFromArcgis({ ok: false }).status, 'lookup_failed');
   assert.equal(serviceAreaFromArcgis({ ok: true, json: { error: { code: 400 } } }).status, 'lookup_failed');

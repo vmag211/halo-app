@@ -4,7 +4,19 @@ export type FishWaterbody = { id: string; title: string; extent: string; jurisdi
 export type FishAudience = { id: string; title: string };
 export type FishRule = { id: string; title: string; kind: string; waterbody: string; waterbodyIds?: readonly string[]; species: string; revision: number; status: string; date: string; extent: string; pollutant: string; wording: string; condition: string; previous: string; url?: string };
 export type FishCatalogue = { waterbodies: readonly FishWaterbody[]; audiences: readonly FishAudience[]; rules: readonly FishRule[]; species: readonly string[]; sourceUrl?: string };
-export type FoodNotice = { id: string; title: string; kind: string; region: string; category: string; status: string; version: number; issued: string; sampleDate: string; scope: string; finding: string; applicability: string; instruction: string; previous: string; url: string };
+export type FoodNotice = { id: string; title: string; kind: string; region: string; category: string; status: string; version: number; issued: string; sampleDate: string; scope: string; finding: string; applicability: string; instruction: string; previous: string; url: string; contaminant?: string; sourceTitle?: string };
+/**
+ * The source link's caption: the record's own publication and contaminant, so
+ * a lead study never reads as a PFAS publication. Without them the caption
+ * names only what is known.
+ */
+export function foodSourceCaption(record: Pick<FoodNotice, 'kind'> & { contaminant?: unknown; sourceTitle?: unknown }): string {
+  if (record.kind === 'Notice') return 'FDA enforcement source documentation';
+  const contaminant = typeof record.contaminant === 'string' ? record.contaminant.trim() : '';
+  const title = typeof record.sourceTitle === 'string' ? record.sourceTitle.trim() : '';
+  if (title) return contaminant ? `${contaminant} results: ${title}` : title;
+  return contaminant ? `Official ${contaminant} food monitoring publication` : 'Official food monitoring publication';
+}
 export type GrowerResource = { id: string; title: string; concern: string; region: string; matrix: string; scope: string; documents: readonly string[]; qualifications: string; cost: string; deadline: string; url: string; revision?: number };
 export type WaterStewardship = {
   counties: { id: string; title: string }[];

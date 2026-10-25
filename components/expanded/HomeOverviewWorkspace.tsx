@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, ClipboardList, Droplets, FileText, Fish, Plus, Refrigerator, Sprout, Wrench } from 'lucide-react';
 import { useHomeWorkspace } from '@/components/homeguard/HomeWorkspaceState';
-import { testStatusLabels, type TestRecord } from '@/lib/frontend/home-test-preview';
+import { effectiveTestStatus, hasRecordedResult, testStatusLabels, type TestRecord } from '@/lib/frontend/home-test-preview';
 import type { HomeAsset, MoistureObservation } from '@/lib/frontend/home-maintenance-preview';
 import type { GardenSite } from '@/lib/frontend/home-food-preview';
 import { collectionsOff, homeguardOffMessage } from '@/lib/frontend/collection-availability';
@@ -20,8 +20,8 @@ function RecordDate({ value }: { value: string }) {
 }
 
 function TestContinuation({ record, href }: { record:TestRecord; href:string }) {
-  const stages=[{label:'Arranged',recorded:record.arrangedByUser===true||record.status==='arranged'},{label:'Collected',recorded:!!record.collectionStart},{label:'Result',recorded:record.rows.length>0}];
-  return <aside className="how-continue how-priority" aria-label="Continue your home task"><span className="how-kicker">{record.rows.length ? 'Review your results' : 'Your next step'}</span><div className="how-record-line"><span><strong>{record.title}</strong><small>{testStatusLabels[record.status]}{record.expectedDate && !record.rows.length ? <> · Expected <RecordDate value={record.expectedDate} /></> : null}</small></span><Link className="how-action how-primary-action" aria-label="Continue test" href={href} prefetch={false}>{record.rows.length ? 'Review' : 'Continue'} <ArrowRight size={17} aria-hidden="true" /></Link></div><details className="how-stage-details"><summary aria-label="Stages recorded">Recorded stages <span>{stages.filter(stage=>stage.recorded).length} of {stages.length}</span></summary><ol className="how-test-track" aria-label={`Recorded milestones for ${record.title}`}>{stages.map(stage=><li key={stage.label} data-recorded={stage.recorded}><span aria-hidden="true" /><strong>{stage.label}</strong><small>{stage.recorded?'Recorded':'Not recorded'}</small></li>)}</ol></details></aside>;
+  const stages=[{label:'Arranged',recorded:record.arrangedByUser===true||record.status==='arranged'},{label:'Collected',recorded:!!record.collectionStart},{label:'Result',recorded:hasRecordedResult(record.rows)}];
+  return <aside className="how-continue how-priority" aria-label="Continue your home task"><span className="how-kicker">{hasRecordedResult(record.rows) ? 'Review your results' : 'Your next step'}</span><div className="how-record-line"><span><strong>{record.title}</strong><small>{testStatusLabels[effectiveTestStatus(record)]}{record.expectedDate && !hasRecordedResult(record.rows) ? <> · Expected <RecordDate value={record.expectedDate} /></> : null}</small></span><Link className="how-action how-primary-action" aria-label="Continue test" href={href} prefetch={false}>{hasRecordedResult(record.rows) ? 'Review' : 'Continue'} <ArrowRight size={17} aria-hidden="true" /></Link></div><details className="how-stage-details"><summary aria-label="Stages recorded">Recorded stages <span>{stages.filter(stage=>stage.recorded).length} of {stages.length}</span></summary><ol className="how-test-track" aria-label={`Recorded milestones for ${record.title}`}>{stages.map(stage=><li key={stage.label} data-recorded={stage.recorded}><span aria-hidden="true" /><strong>{stage.label}</strong><small>{stage.recorded?'Recorded':'Not recorded'}</small></li>)}</ol></details></aside>;
 }
 
 export default function HomeOverviewWorkspace({ href }: { href: Href }) {
@@ -58,8 +58,8 @@ export default function HomeOverviewWorkspace({ href }: { href: Href }) {
     ? Promise.all(required.filter(key => workspace.collectionStates[key]?.status === 'error' && !workspace.collectionStates[key]?.featureUnavailable).map(key => workspace.retry(key)))
     : workspace.retry();
   const tests = ((workspace.collections.tests ?? []) as TestRecord[]).filter(record => !record.archived);
-  const active = tests.filter(record => ['draft', 'arranged', 'sampled', 'awaiting'].includes(record.status));
-  const reports = tests.filter(record => record.rows.length > 0);
+  const active = tests.filter(record => ['draft', 'arranged', 'sampled', 'awaiting'].includes(effectiveTestStatus(record)));
+  const reports = tests.filter(record => hasRecordedResult(record.rows));
   const currentContext=workspace.mode === 'production' ? workspace.service?.context?.currentHomeId : workspace.collections.homeTransitions?.at(-1)?.id??'sample-current-home';
   const currentTest = active.find(record => record.contextId === currentContext) ?? (workspace.mode === 'preview' && currentContext==='sample-current-home'?active[0]:undefined);
   const currentReport = reports.filter(record => record.contextId === currentContext).sort((a, b) => b.collectionStart.localeCompare(a.collectionStart))[0];

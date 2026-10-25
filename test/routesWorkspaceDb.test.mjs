@@ -19,7 +19,7 @@ import { createDb } from './db/pgliteHarness.mjs';
 import { createWorld, body, sampleRecord, COMMANDS } from './helpers/workspaceWorld.mjs';
 import { validProductionCollection } from './helpers/frontendB11.mjs';
 // Dynamic, so the route harness's module hooks (the @/ alias) are registered first.
-const { STORED_COLLECTIONS, UNSTORED_COLLECTIONS, WORKSPACE_COLLECTIONS, REFUSALS } = await import('../lib/workspaceStore.js');
+const { STORED_COLLECTIONS, UNSTORED_COLLECTIONS, WORKSPACE_COLLECTIONS, REFUSALS, JOURNAL_OFF } = await import('../lib/workspaceStore.js');
 
 const MARKER = 'PRIVATE-TEST-MARKER kitchen tap near the old pipes';
 const SAVED = 'Saved.';
@@ -44,8 +44,9 @@ test('a new household loads all sixteen collections: fourteen ready and empty, t
     assert.deepEqual(ws.status(key), { status: 'ready', revision: undefined, complete: true, message: undefined }, key);
     assert.deepEqual(ws.records[key], [], key);
   }
-  for (const [key, copy] of Object.entries(UNSTORED_COLLECTIONS)) {
-    assert.deepEqual(ws.status(key), { status: 'error', complete: false, message: copy.load }, key);
+  // Settled "not available yet", no retry: home history, and the journal while its flag is off.
+  for (const [key, copy] of [...Object.entries(UNSTORED_COLLECTIONS), ['weekJournal', JOURNAL_OFF]]) {
+    assert.deepEqual(ws.status(key), { status: 'error', complete: false, featureUnavailable: true, message: copy.load }, key);
     assert.equal(ws.records[key], undefined);
   }
   assert.deepEqual(locked(ws), []);
@@ -243,7 +244,7 @@ test('the journal, home history and attachments are refused before any claim wit
   const w = await createWorld(db);
   const send = async (command) => (await w.command(body(command))).json();
   const journal = await send({ kind: 'write', collection: 'weekJournal', record: { id: 'j1', title: 'Today', revision: 0 }, expectedRevision: null });
-  assert.deepEqual([journal.status, journal.code, journal.message, journal.changes], ['failed', 'unavailable', UNSTORED_COLLECTIONS.weekJournal.write, {}]);
+  assert.deepEqual([journal.status, journal.code, journal.message, journal.changes], ['failed', 'unavailable', JOURNAL_OFF.write, {}], 'the journal flag is off');
   const moved = await send({ kind: 'write', collection: 'homeTransitions', record: { id: 'h1', title: 'Moved', revision: 0 }, expectedRevision: null });
   assert.equal(moved.message, UNSTORED_COLLECTIONS.homeTransitions.write);
   const withFile = sampleRecord('tests', { homeContextId: w.home.alice, attachments: [{ id: 'a1', name: 'r.pdf', mime: 'application/pdf', revision: 1, bytes: 10, status: 'ready', metadataRemoved: true }] });

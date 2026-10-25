@@ -38,7 +38,9 @@ export type DistrictPreviewData = {
     over_population_unknown: number;
   }>;
   counties: DistrictCounty[];
-  state_comparison: { district_share_over: number | null; state_share_over: number | null };
+  // Both shares count only systems with a numeric regulated result. The statewide counts are optional so an
+  // older response without them still renders; the district counts are the top-level fields above.
+  state_comparison: { district_share_over: number | null; state_share_over: number | null; state_systems_over_limit?: number | null; state_systems_with_numeric_result?: number | null; state_total_systems?: number | null };
   unlocated_systems: number;
   assembled_at: string;
 };
@@ -71,7 +73,7 @@ export const districtFixture: DistrictPreviewData = {
     { county: "Mecklenburg County", in_district: "partial", systems: 0, systems_over_limit: 0, worst_water_severity: "no_data", radon_zone: 3 },
     { county: "Robeson County", in_district: "partial", systems: 0, systems_over_limit: 0, worst_water_severity: "no_data", radon_zone: 3 },
   ],
-  state_comparison: { district_share_over: 0.333, state_share_over: 0.5 },
+  state_comparison: { district_share_over: 0.333, state_share_over: 0.5, state_systems_over_limit: 6, state_systems_with_numeric_result: 12, state_total_systems: 15 },
   unlocated_systems: 2,
   assembled_at: "2026-10-01T11:00:00.000Z",
 };

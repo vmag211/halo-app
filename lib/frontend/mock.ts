@@ -5,7 +5,7 @@ import type { DailyResponse, ErrorCode, HomeResponse, OnboardingApi, ProfileResp
 /** Deliberately opt-in. This module performs no fetch, authentication or persistence. */
 export const mockScenarios = [
   "default", "below", "well", "spring", "no-utility", "no-results", "unregulated", "lookup-failed", "boundary-failed",
-  "radon-missing", "outside", "air-missing", "air-error", "home-error", "all-error", "null-fields", "unknown-severity",
+  "several-matches", "radon-missing", "outside", "air-missing", "air-error", "home-error", "all-error", "null-fields", "unknown-severity",
   "captcha", "signin", "session-timeout", "profile-error", "address-not-found", "rate-limited", "address-error", "timeout", "household-error", "home-save-error", "loading", "returning", "incomplete",
 ] as const;
 export type MockScenario = (typeof mockScenarios)[number];
@@ -80,6 +80,10 @@ export function createMockOnboardingApi(scenario: MockScenario = "default", opti
         county: scenario === "outside" ? "Union County" : "Cabarrus County", state: scenario === "outside" ? "SC" : "NC",
         pwsid: ["no-utility", "boundary-failed", "outside"].includes(scenario) ? null : "NC0112010", lat: 35.409, lng: -80.579,
         service_area_status: scenario === "boundary-failed" ? "lookup_failed" as const : ["no-utility", "outside"].includes(scenario) ? "outside_known_area" as const : "measured" as const,
+        place_label: scenario === "outside" ? "Union County, South Carolina" : "Concord, North Carolina 28027",
+        place_precision: "address" as const,
+        place_ambiguous: scenario === "several-matches",
+        utility_candidates: ["no-utility", "boundary-failed", "outside"].includes(scenario) ? [] : scenario === "several-matches" ? ["NC0112010", "NC0113010"] : ["NC0112010"],
       };
       profile = { ...profile, onboarded: true, onboarding_complete: false, profile: { ...profile.profile, ...location } };
       return location;

@@ -248,9 +248,11 @@ test('the 0025 bundle over a schema without 0016 refuses and leaves nothing appl
 // bundles, in the same order, so it repeats them and is not in BUNDLES.
 
 const ALL = ALL_PENDING;
+// The bundles that paste covers: 0024 to 0033. A later migration has its own bundle only.
+const UP_TO_0033 = BUNDLES.slice(1).filter((bundle) => bundle.migrations.every((name) => Number(name.slice(0, 4)) <= 33));
 
 test('the 0024 to 0033 bundle and check are committed, current, and hold every pending migration in order', () => {
-  assert.deepEqual([...ALL.migrations], BUNDLES.slice(1).flatMap((bundle) => [...bundle.migrations]));
+  assert.deepEqual([...ALL.migrations], UP_TO_0033.flatMap((bundle) => [...bundle.migrations]));
   assert.deepEqual(ALL.migrations.map((name) => Number(name.slice(0, 4))), ALL.migrations.map((_, at) => 24 + at));
   assert.equal(committed(ALL.bundleFile), buildBundle(ALL), 'run node scripts/build-apply-bundle.mjs');
   assert.equal(committed(ALL.verifyFile), buildVerify(ALL), 'run node scripts/build-apply-bundle.mjs');
@@ -262,7 +264,7 @@ test('the 0024 to 0033 bundle applies on top of 0001 to 0023, twice, and every c
   try {
     await applySql(db.pg, 'the 0024 to 0033 bundle', buildBundle(ALL));
     const first = asNumbers(await verify(db, ALL));
-    const each = await Promise.all(BUNDLES.slice(1).map(async (bundle) => Number((await verify(db, bundle)).checks_run)));
+    const each = await Promise.all(UP_TO_0033.map(async (bundle) => Number((await verify(db, bundle)).checks_run)));
     assert.deepEqual(first, { all_migrations_ok: true, checks_run: each.reduce((a, b) => a + b, 0), failing: 'none' });
     await applySql(db.pg, 'the 0024 to 0033 bundle, again', buildBundle(ALL));
     assert.deepEqual(asNumbers(await verify(db, ALL)), first);
@@ -292,6 +294,38 @@ test('a failure part way through the 0024 to 0033 bundle leaves nothing applied'
     await db.exec('rollback');
     const { rows } = await db.query("select to_regprocedure('public.privacy_schema_version()') as privacy, to_regclass('public.household_workspace_records') as workspace, to_regclass('public.participation_profiles') as participation");
     assert.deepEqual(rows[0], { privacy: null, workspace: null, participation: null });
+  } finally {
+    await db.close();
+  }
+});
+
+// ---- The 0034 bundle (the My Week journal on symptom_logs): one migration over
+// 0001 to 0033, which is what production has since 2026-10-20.
+
+const JOURNAL = BUNDLES.find((bundle) => bundle.bundleFile === 'apply-0034.sql');
+const JOURNAL_CHECKS = { all_migrations_ok: true, checks_run: 5, failing: 'none' };
+
+test('the 0034 bundle and check are committed, current, and hold exactly 0034', () => {
+  assert.ok(JOURNAL, 'no apply-0034.sql bundle in BUNDLES');
+  assert.deepEqual([...JOURNAL.migrations], ['0034_week_journal_records']);
+  assert.equal(committed(JOURNAL.bundleFile), buildBundle(JOURNAL), 'run node scripts/build-apply-bundle.mjs');
+  assert.equal(committed(JOURNAL.verifyFile), buildVerify(JOURNAL), 'run node scripts/build-apply-bundle.mjs');
+  assert.ok(!buildBundle(JOURNAL).includes('-- 0033_public_evidence_snapshots.sql'), 'an applied migration is not bundled again');
+  assert.ok(!buildBundle(ALL).includes('-- 0034_week_journal_records.sql'), 'the applied 0024 to 0033 paste is unchanged');
+});
+
+test('the 0034 bundle applies on top of 0001 to 0033, twice, keeps an older entry, and every check passes', async () => {
+  const db = await createDb({ upTo: 33 });
+  const owner = 'a11ce000-0000-4000-8000-000000000034';
+  try {
+    await db.exec(`insert into auth.users (id, is_anonymous) values ('${owner}', true);
+      insert into public.symptom_logs (profile_id, entry_date, band, symptoms, severity) values ('${owner}', '2026-10-01', 'household', array['Cough'], 'mild');`);
+    await applySql(db.pg, 'the 0034 bundle', buildBundle(JOURNAL));
+    assert.deepEqual(asNumbers(await verify(db, JOURNAL)), JOURNAL_CHECKS);
+    await applySql(db.pg, 'the 0034 bundle, again', buildBundle(JOURNAL));
+    assert.deepEqual(asNumbers(await verify(db, JOURNAL)), JOURNAL_CHECKS);
+    const { rows } = await db.query(`select revision, record_id, home_context_id, symptoms from public.symptom_logs where profile_id = '${owner}'`);
+    assert.deepEqual(rows, [{ revision: 1, record_id: null, home_context_id: null, symptoms: ['Cough'] }], 'the older entry is untouched');
   } finally {
     await db.close();
   }

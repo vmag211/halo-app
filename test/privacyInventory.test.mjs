@@ -484,8 +484,9 @@ test('the decisions are encoded: D-P1 keeps only the login, D-P4 clears the jour
   const journal = Object.keys(PRIVACY_INVENTORY).filter((table) => clearActionFor(table, 'journal').action !== 'keep').sort();
   assert.deepEqual(journal, ['alerts', 'symptom_logs']);
   assert.deepEqual(clearActionFor('alerts', 'journal').where, { column: 'type', equals: 'season_summary' });
-  assert.deepEqual(UNSTORED_RECORDS.weekJournal.clear, { journal: 'delete', all: 'delete' });
-  assert.equal(UNSTORED_RECORDS.weekJournal.storage, 'none');
+  // 0034: the week journal is stored in symptom_logs, so no record is outside the inventory.
+  assert.deepEqual(UNSTORED_RECORDS, {});
+  for (const column of ['record_id', 'revision', 'home_context_id']) assert.ok(PRIVACY_INVENTORY.symptom_logs.export.withheld[column], column);
   // D-P5: in the base tier, so present without private text.
   assert.deepEqual(columnsFor(AUTH_USERS, false), ['email']);
   assert.ok(columnsFor('profiles', false, 'home').includes('lat'));

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useHomeDraft } from '@/components/homeguard/HomeWorkspaceState';
 import { useProductionResource, useProductionRuntime } from '@/components/production/ProductionContext';
-import { defaultProjectConstraints, type ProjectConstraints, type ProjectEnvironmentContext, type ProjectGenerationState } from '@/lib/frontend/explore-personalization';
+import { defaultProjectConstraints, projectMessageIsResult, projectReadyMessage, type ProjectConstraints, type ProjectEnvironmentContext, type ProjectGenerationState } from '@/lib/frontend/explore-personalization';
 import { validProjectGeneration, type ProductionProjectGuide, type ProjectGenerationResult } from '@/lib/frontend/production/explore-service';
 import { FrontendServiceError,serviceMessage } from '@/lib/frontend/production/runtime';
 import { projectsOff } from '@/lib/frontend/explore-availability';
@@ -34,7 +34,7 @@ export function useProductionProjectGeneration() {
     if(!runtime||busy||lock.current)return;
     // A switched-off capability is settled: never send a generation it would refuse.
     if(saved.off){setMessage('');return;}
-    if(pending&&!retry){setMessage('Check or cancel the existing generation before starting another.');return;}
+    if(pending&&!retry){setMessage('Check or cancel the existing request before starting another.');return;}
     active.current?.abort();const controller=new AbortController();active.current=controller;const captured=++version.current;
     const attempt=retry&&pending?pending:{id:crypto.randomUUID(),constraints,request,interpret,jobId:undefined};const id=attempt.id;requestId.current=id;jobId.current=attempt.jobId??'';last.current={constraints:attempt.constraints,request:attempt.request,interpret:attempt.interpret,done};setPending(attempt);lock.current=true;setBusy(true);setMessage('');
     try{
@@ -44,19 +44,19 @@ export function useProductionProjectGeneration() {
         if(!validProjectGeneration(result))throw new Error('invalid generation');
         jobId.current=result.id;setPending({...attempt,jobId:result.id});
         if(result.contextKey!==contextKey)throw new Error('context changed');
-        if(result.status==='completed'){if(!commitRef.current(result))throw new Error('invalid result');setPending(null);setMessage(`${result.batch!.items.length} ideas ready.`);last.current=null;done?.();return;}
-        if(result.status==='failed'||result.status==='cancelled'){setPending(null);setMessage(result.message||'Could not generate ideas. Your current set is kept.');return;}
+        if(result.status==='completed'){if(!commitRef.current(result))throw new Error('invalid result');setPending(null);setMessage(projectReadyMessage(result.batch!.items.length,result.message));last.current=null;done?.();return;}
+        if(result.status==='failed'||result.status==='cancelled'){setPending(null);setMessage(result.message||'Could not load recommendations. Your current set is kept.');return;}
         await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{controller.signal.removeEventListener('abort',cancel);resolve();},1500);const cancel=()=>{clearTimeout(timer);reject(new Error('cancelled'));};controller.signal.addEventListener('abort',cancel,{once:true});});
         result=await runtime.request('projects.generation',{id:jobId.current},{signal:controller.signal});
       }
-      setMessage('Generation is taking longer than expected. Your current ideas are kept. Check this request again before starting another.');
+      setMessage('Picking recommendations is taking longer than expected. Your current ideas are kept. Check this request again before starting another.');
     }catch(error){if(!controller.signal.aborted&&captured===version.current){if(error instanceof FrontendServiceError&&error.code!=='unknown_outcome'&&!jobId.current)setPending(null);setMessage(serviceMessage(error));}}
     finally{lock.current=false;if(captured===version.current){active.current=null;setBusy(false);}}
   }
   const regenerateRef=useRef(regenerate);useEffect(()=>{regenerateRef.current=regenerate;});
   useEffect(()=>{if(!runtime||!intent||busy)return;clearIntent();void regenerateRef.current({...defaultProjectConstraints,count:3},intent,true);},[runtime,intent,busy,clearIntent]);
-  function cancel(){const id=pending?.jobId||pending?.id||jobId.current||requestId.current;version.current++;active.current?.abort();active.current=null;lock.current=false;setBusy(false);setMessage('Stopped waiting. Checking cancellation...');if(runtime&&id)void runtime.request<unknown>('projects.cancel',{id},{idempotencyKey:`cancel:${id}`}).then(result=>{if(!validProjectGeneration(result)||!['completed','cancelled','failed'].includes(result.status))throw new Error('unconfirmed');if(result.status==='completed')commitRef.current(result);setPending(null);setMessage(result.status==='completed'?'Ideas were ready before cancellation.':'Generation cancelled. Your current ideas are kept.');}).catch(()=>setMessage('Stopped waiting. Cancellation is unconfirmed. Check the existing request before starting another.'));}
+  function cancel(){const id=pending?.jobId||pending?.id||jobId.current||requestId.current;version.current++;active.current?.abort();active.current=null;lock.current=false;setBusy(false);setMessage('Stopped waiting. Checking cancellation...');if(runtime&&id)void runtime.request<unknown>('projects.cancel',{id},{idempotencyKey:`cancel:${id}`}).then(result=>{if(!validProjectGeneration(result)||!['completed','cancelled','failed'].includes(result.status))throw new Error('unconfirmed');if(result.status==='completed')commitRef.current(result);setPending(null);setMessage(result.status==='completed'?'Ideas were ready before cancellation.':'Request cancelled. Your current ideas are kept.');}).catch(()=>setMessage('Stopped waiting. Cancellation is unconfirmed. Check the existing request before starting another.'));}
   function retry(){if(pending)void regenerate(pending.constraints,pending.request,pending.interpret,last.current?.done,true);else if(last.current){const input=last.current;void regenerate(input.constraints,input.request,input.interpret,input.done);}else saved.retry();}
   const context:ProjectEnvironmentContext={key:contextKey,isSample:false,state:'',county:'',renter:null,evidence:batch.contextKey===contextKey?evidence:[],hasGarden:false,gardenWaterKnown:false,hasMoistureObservation:false,filterModelKnown:false,sourceStatus:'published'};
-  return runtime?{production:true,off:saved.off,pendingGeneration:Boolean(pending),canRetry:!saved.off&&Boolean(pending||saved.error||saved.data&&!validProjectGeneration(saved.data)||message&&!/ideas ready/.test(message)),context,batch:batch.contextKey===contextKey?batch:{...empty,constraints:batch.constraints,request:batch.request},fitOpen,setFitOpen,regenerate,busy:busy||saved.loading,message:message||(saved.off?projectsOff:saved.error)||(pending?'A generation needs checking. Retry checks the existing request.':saved.data&&!validProjectGeneration(saved.data)?'Saved project ideas could not be read. Try again.':''),cancel,retry,serviceState:'ready',setServiceState:()=>{},findGuide:(id:string)=>guides[id]}:null;
+  return runtime?{production:true,off:saved.off,pendingGeneration:Boolean(pending),canRetry:!saved.off&&Boolean(pending||saved.error||saved.data&&!validProjectGeneration(saved.data)||message&&!projectMessageIsResult(message)),context,batch:batch.contextKey===contextKey?batch:{...empty,constraints:batch.constraints,request:batch.request},fitOpen,setFitOpen,regenerate,busy:busy||saved.loading,loadingSaved:saved.loading&&!busy,message:message||(saved.off?projectsOff:saved.error)||(pending?'An earlier request needs checking. Try again to check it.':saved.data&&!validProjectGeneration(saved.data)?'Saved project ideas could not be read. Try again.':''),cancel,retry,serviceState:'ready',setServiceState:()=>{},findGuide:(id:string)=>guides[id]}:null;
 }

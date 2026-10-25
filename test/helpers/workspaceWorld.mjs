@@ -28,6 +28,8 @@ const { createProductionRuntime } = await loadFrontend('production/runtime');
 const { createHomeAdapter } = await loadFrontend('production/adapters');
 
 export const ON = Object.freeze({ HALO_FEATURE_WORKSPACE: 'on' });
+/** The workspace with the journal stored (migration 0034, flag `journal`). */
+export const JOURNAL_ON = Object.freeze({ HALO_FEATURE_WORKSPACE: 'on', HALO_FEATURE_JOURNAL: 'on' });
 export const LOAD = '/api/frontend/workspace';
 export const COMMANDS = '/api/frontend/workspace/commands';
 export const OPERATIONS = '/api/operations';
@@ -36,7 +38,7 @@ const asRpcError = (error) => rpcError(error?.code ?? '', error?.message ?? Stri
 
 let worlds = 0;
 
-export async function createWorld(db, { env = ON, onCommit, onRead } = {}) {
+export async function createWorld(db, { env = ON, onCommit, onRead, tables = [], profile = {} } = {}) {
   worlds += 1;
   const prefix = (0xb1100000 + worlds).toString(16);
   const alice = `${prefix}-0000-4000-8000-00000000000a`;
@@ -53,10 +55,10 @@ export async function createWorld(db, { env = ON, onCommit, onRead } = {}) {
   }
 
   const h = createRouteHarness({
-    tables: haloTables('profiles'),
+    tables: haloTables('profiles', ...tables),
     env,
     identities: { alice: { id: alice }, bob: { id: bob } },
-    seed: { profiles: [{ id: alice }, { id: bob }] },
+    seed: { profiles: [{ id: alice, ...profile }, { id: bob, ...profile }] },
   });
   const fakeFrom = h.db.from;
   h.db.from = (name) => (name === 'operations' ? pgliteLedger(db, name, h.db.queryLog) : fakeFrom(name));
@@ -78,6 +80,28 @@ export async function createWorld(db, { env = ON, onCommit, onRead } = {}) {
       throw asRpcError(error);
     }
   };
+  // 0034: the journal on symptom_logs, the same way.
+  const readJournal = async (args) => {
+    try {
+      return await db.asService(async (tx) => (await tx.query('select public.read_week_journal($1) as result', [args.p_profile_id])).rows[0].result);
+    } catch (error) {
+      throw asRpcError(error);
+    }
+  };
+  const commitJournal = async (args) => {
+    try {
+      return await db.asService(async (tx) => (await tx.query(
+        'select public.commit_week_journal($1, $2, $3::jsonb) as result',
+        [args.p_profile_id, args.p_operation_id, JSON.stringify(args.p_write)],
+      )).rows[0].result, { commit: true });
+    } catch (error) {
+      throw asRpcError(error);
+    }
+  };
+  h.db.registerRpc('read_week_journal', readJournal, { args: ['p_profile_id'] });
+  h.db.registerRpc('commit_week_journal', (args) => (onCommit ? onCommit(args, () => commitJournal(args)) : commitJournal(args)), {
+    args: ['p_profile_id', 'p_operation_id', 'p_write'],
+  });
   h.db.registerRpc('read_household_workspace', (args) => (onRead ? onRead(args, () => read(args)) : read(args)), { args: ['p_profile_id', 'p_collections'] });
   h.db.registerRpc('commit_household_workspace', (args) => (onCommit ? onCommit(args, () => commit(args)) : commit(args)), {
     args: ['p_profile_id', 'p_operation_id', 'p_writes'],
@@ -133,6 +157,12 @@ export async function createWorld(db, { env = ON, onCommit, onRead } = {}) {
         `select collection, record_id, revision, record from public.household_workspace_records
           where profile_id = $1 and ($2::text is null or collection = $2) order by collection, created_at, record_id`, [owner, collection])).rows;
     },
+    /** The household's journal rows, as 0003 and 0034 hold them. */
+    async journalRows(who = 'alice') {
+      return (await db.query(
+        `select record_id, revision, to_char(entry_date, 'YYYY-MM-DD') as entry_date, band, symptoms, severity, note, retrospective,
+                possibly_illness, home_context_id from public.symptom_logs where profile_id = $1 order by entry_date, band`, [ids[who] ?? who])).rows;
+    },
     async ledgerRow(operationId) {
       return (await db.query('select operation_id::text, profile_id::text, domain, kind, status, result from public.operations where operation_id = $1', [operationId])).rows[0] ?? null;
     },
@@ -164,6 +194,8 @@ export function sampleRecord(collection, { id = `${collection}-${crypto.randomUU
     exploreNotes: { ...base, kind: 'Observation', timezone: 'America/New_York', place: '', description: 'Foam on the creek', reference: '', observedAt: '2026-10-10T12:00:00Z', status: 'draft' },
     exploreOutcomes: { ...base, goal: 'Report it', result: '', reference: '', nextStep: '', date: '2026-10-10', followupDate: '', status: 'Open', history: [] },
     exploreProjects: { ...base, goal: 'Rain garden', outcome: '', guideId: 'g1', guideVersion: 'v1', reviewDate: '', status: 'Active', stepNotes: {}, history: [], guide: { id: 'g1', version: 'v1', title: 'Rain garden', description: 'd', purpose: 'p', effort: 'e', cost: 'c', scope: 's', suitability: 's', completion: 'c', followup: 'f', cause: 'Water', scene: 'garden', icon: 'plant', materials: [], constraints: ['yard'], sources: [{ id: 's1', title: 'Guide', publisher: 'NCSU', checked: '2026-10-01', url: 'https://example.org/guide' }], steps: [{ id: 'step-1', title: 'Dig', instructions: ['Dig a basin.'], checkpoint: '', sourceIds: ['s1'] }] } },
+    // 0034: a My Week check-in, as WeekJournal.tsx saves one (stored in symptom_logs).
+    weekJournal: { ...base, ...home, band: 'household', severity: 'mild', note: '', date: '2026-10-20', fine: false, symptoms: ['Cough'], illness: false, recalled: false },
     exploreEngagements: { ...base, organizer: 'Riverkeeper', cause: 'Water', url: '', place: '', hours: '', preparation: '', outcome: '', reference: '', date: '', statusDate: '', followupDate: '', status: 'Considering', history: [] },
   };
   if (!records[collection]) throw new Error(`sampleRecord: no sample for ${collection}`);

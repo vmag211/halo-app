@@ -1279,6 +1279,40 @@ Then run `notify pgrst, 'reload schema';`.
 
 What this does NOT restore or undo: every stored copy and every run row is deleted. The bundled file in `lib/data/` is untouched, so the screen loses only the newer dates. Nothing else is touched.
 
+### 2.25 Apply 0034 (My Week's Journal on the journal table), then turn on `HALO_FEATURE_JOURNAL`
+
+**Written, applied nowhere yet.** Needs 0003, 0015, 0016 and 0017 (production has them). Quiet: three nullable or defaulted columns on `symptom_logs` (no rewrite), one partial unique index, one trigger, two functions; no existing row is changed.
+
+What it is for: Journal, Patterns and Season in My Week keep check-ins as the `weekJournal` workspace collection, which until now answered "not available yet" (Ruling W2). 0034 stores them in the journal table that already exists, `symptom_logs`, through the same workspace routes (`lib/weekJournalStore.js` maps the two shapes), so there is ONE store of check-ins: Clear Journal, clear all, the privacy export and account deletion already cover it. Retention, decided by you on 2026-10-25: kept until the person deletes the entry, clears the journal or all records, or deletes the account; no purge (`docs/backend/privacy-and-retention.md`).
+
+**Applying this does not turn it on.** Until `HALO_FEATURE_JOURNAL=on` (it also needs `HALO_FEATURE_WORKSPACE=on`), Journal keeps saying "Check-ins are not available yet" with no retry button, and nothing is saved.
+
+1. SQL Editor, **New query**: paste the whole of `supabase/migrations/0034_week_journal_records.sql`, or `docs/backend/apply/apply-0034.sql` (the same file inside one transaction). Either is safe to re-run.
+2. Run `docs/backend/apply/verify-0034.sql`: **one row, `all_migrations_ok` true, five checks**. If `functions_service_role_only` is false, stop and send Claude the row.
+3. Run `notify pgrst, 'reload schema';`.
+4. Set `HALO_FEATURE_JOURNAL=on` in Vercel (Production; check `HALO_FEATURE_WORKSPACE=on` too), redeploy, open My Week, Journal: save a check-in, reload, and it is still there.
+
+#### If you need to back out 0034
+
+Turn `HALO_FEATURE_JOURNAL` off first. Journal goes back to "not available yet"; every check-in stays in `symptom_logs` (the legacy journal route still reads it). In a **New query**, paste and run this (safe to run twice).
+
+<!-- backout-0034 -->
+
+```sql
+drop function if exists public.commit_week_journal(uuid, uuid, jsonb);
+drop function if exists public.read_week_journal(uuid);
+drop trigger if exists symptom_logs_revision on public.symptom_logs;
+drop function if exists public.bump_symptom_log_revision();
+drop index if exists public.symptom_logs_owner_record;
+alter table public.symptom_logs drop column if exists home_context_id;
+alter table public.symptom_logs drop column if exists record_id;
+alter table public.symptom_logs drop column if exists revision;
+```
+
+Then run `notify pgrst, 'reload schema';`.
+
+What this does NOT restore or undo: each check-in's app id, revision and home are dropped (the entries themselves stay). Nothing else is touched.
+
 ---
 
 ## Part 3. Decisions only you can make

@@ -1,6 +1,6 @@
 import { copy } from "./copy";
 import { householdKeys } from "./types";
-import type { DataResult, DailyResponse, HomeResponse, Household, LocationProfile, ProfileResponse, RevealRow, Severity, WaterSource } from "./types";
+import type { DataResult, DailyResponse, HomeResponse, Household, LocationProfile, OnboardResponse, ProfileResponse, RevealRow, Severity, WaterSource } from "./types";
 
 export function emptyHousehold(): Household {
   return Object.fromEntries(householdKeys.map((key) => [key, false])) as Household;
@@ -48,6 +48,30 @@ export function isOutsideNC(location?: LocationProfile | null): boolean {
   return typeof location?.state === "string" && /^[A-Z]{2}$/i.test(location.state) && location.state.toUpperCase() !== "NC";
 }
 
+export interface PlaceReview { label: string; notes: string[] }
+
+/**
+ * What the household step shows of the place the address step found, so a wrong match can be
+ * changed before anything else is answered. The label is area level (never the street line);
+ * a timeout-recovered profile without one falls back to its county and state. The water note
+ * keeps a service-area match a suggestion: several systems, none, or a likely one.
+ */
+export function placeReview(location?: OnboardResponse | null): PlaceReview | null {
+  if (!location) return null;
+  const label = displayText(location.place_label) || [displayText(location.county), displayText(location.state)].filter(Boolean).join(", ");
+  if (!label) return null;
+  const notes: string[] = [];
+  if (location.place_ambiguous === true) notes.push(copy.household.place.ambiguous);
+  if (location.place_precision === "area") notes.push(copy.household.place.area);
+  const candidates = Array.isArray(location.utility_candidates) ? location.utility_candidates.filter((id) => typeof id === "string" && id) : [];
+  // A home already on a well or spring (changing the address from Settings) gets no supplier note.
+  const ownSupply = ["well", "spring"].includes(normalizeWaterAnswer(location.water_source ?? "") ?? "");
+  if (ownSupply) return { label, notes };
+  if (location.service_area_status === "outside_known_area") notes.push(copy.household.place.noUtility);
+  else if (location.service_area_status === "measured") notes.push(candidates.length > 1 ? copy.household.place.severalUtilities : copy.household.place.likelyUtility);
+  return { label, notes };
+}
+
 /** Bind server facts only. This module never computes environmental severity or limits. */
 export function getRevealRows(location: LocationProfile | null, homeResult: DataResult<HomeResponse>, dailyResult: DataResult<DailyResponse>): RevealRow[] {
   const pendingHome = homeResult.status === "loading";
@@ -76,7 +100,8 @@ export function getRevealRows(location: LocationProfile | null, homeResult: Data
       } else {
         const name = displayText(water.pws_name);
         const id = displayText(location?.pwsid);
-        if (name) { utility.result = name; utility.missing = false; }
+        // A service-area match is a suggestion for the area, never a confirmed supplier.
+        if (name) { utility.result = copy.reveal.likelyUtility(name); utility.missing = false; }
         else if (id) { utility.result = copy.reveal.foundSystem(id); utility.missing = false; }
         if (water.status === "no_data_yet") waterRow.result = isOutsideNC(location) ? copy.reveal.outsideWater : copy.reveal.noResults;
         else if (water.status === "detected_unregulated") waterRow.result = copy.reveal.unregulated;

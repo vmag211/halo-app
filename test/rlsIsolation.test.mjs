@@ -177,6 +177,9 @@ const PUBLIC_FUNCTIONS = {
   workspace_privacy_counts: 'service_role',       // 0026: what clear all removes from the workspace, for inspect's count
   guard_settled_workspace_operation: 'trigger',   // 0026: a settled 'workspace' operation keeps its status
   clear_workspace_with_privacy_clear: 'trigger',  // 0026: clear all removes the workspace in the clear's own transaction
+  read_week_journal: 'service_role',              // 0034: My Week's Journal entries from symptom_logs, one consistent read
+  commit_week_journal: 'service_role',            // 0034: one journal change and its ledger settle in one transaction
+  bump_symptom_log_revision: 'trigger',           // 0034: every journal update is a new revision, whoever writes it
   guard_source_ops_audit: 'trigger',              // 0027: a source operations audit entry is never changed or removed
   household_attachment_json: 'service_role',      // 0028: a file row as the client's HomeAttachment, called inside the 0028 functions
   read_household_attachment: 'service_role',      // 0028: one file of a household, for inspect, download and remove

@@ -41,9 +41,9 @@ const R3 = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const TODAY = `(now() at time zone '${HOUSEHOLD_TZ}')::date`;
 
 const PLACES = {
-  '2 Elm Court': { center: [-80.61, 35.41], context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
-  '9 Oak Lane': { center: [-80.84313, 35.22712], context: [{ id: 'district.1', text: 'Mecklenburg County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
-  '4 Pine Street': { center: [-78.64, 35.78], context: [{ id: 'district.1', text: 'Wake County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
+  '2 Elm Court': { place_type: ['address'], relevance: 1, center: [-80.61, 35.41], context: [{ id: 'postcode.1', text: '28027' }, { id: 'district.1', text: 'Cabarrus County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
+  '9 Oak Lane': { place_type: ['address'], relevance: 1, center: [-80.84313, 35.22712], context: [{ id: 'district.1', text: 'Mecklenburg County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
+  '4 Pine Street': { place_type: ['address'], relevance: 1, center: [-78.64, 35.78], context: [{ id: 'district.1', text: 'Wake County' }, { id: 'region.1', text: 'North Carolina', short_code: 'US-NC' }] },
 };
 
 let db;

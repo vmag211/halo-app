@@ -1,7 +1,7 @@
 'use client';
 import DateInput from '@/components/ui/DateInput';
 
-import { createContext, useCallback,useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback,useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BottomSheet, Callout } from '@/components/ui/Foundation';
 import Button from '@/components/ui/Button';
 import { actionDraftError, type ActionRevision, type ActionSeed, type PreviewAction } from '@/lib/frontend/expanded-preview';
@@ -16,6 +16,11 @@ import {actionFingerprint} from '@/lib/frontend/settings-preview';
 import { actionReceiptCoversCommand,applyReviewActionCommand, validActionSnapshot, type ActionCommand, type ActionCommitOptions, type ActionSnapshot, type ExpandedActionAdapter } from '@/lib/frontend/production/action-service';
 import { dayLabel, emptyWeekMeta, type WeekMeta } from '@/lib/frontend/week-preview';
 import { lunaCalendarAnchor } from '@/lib/frontend/luna-tools-preview';
+import { unresolvedWeekSources, weekSourceRefreshPlan, weekSourceStatus, type WeekSourceChecks } from '@/lib/frontend/week-activity';
+
+/** Collections whose records give My Week tasks their context, re-read when the page regains focus. */
+const weekLinkedCollections = ['exploreProjects', 'exploreEngagements', 'exploreNotes', 'exploreOutcomes', 'tests', 'assets', 'observations', 'gardens'];
+const focusRefreshInterval = 30000;
 
 type Draft = { seed: ActionSeed; title: string; date: string; revision?: number; id?: string };
 type PreviewState = {
@@ -32,6 +37,8 @@ type PreviewState = {
   deleteAction: (id: string, revision: number) => Promise<boolean>;
   eraseActions: (expected:string) => boolean;
   getSnapshot: () => ActionSnapshot;
+  /** Tasks whose origin record is still being re-read, or whose re-read failed. */
+  sourceChecks: WeekSourceChecks;
 };
 const State = createContext<PreviewState | null>(null);
 const Mode = createContext(false);
@@ -78,8 +85,50 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
     }
     return () => { alive.current = false; controller.abort(); activeRequests.forEach(request => request.abort()); activeRequests.clear(); };
   }, [service, loadVersion,commitSnapshot]);
+  // Every command start invalidates a background task read begun before it.
+  const commands = useRef(0);
+  const settled = useRef(false);
+  useEffect(() => { settled.current = readiness === 'ready' && !unknownOperation; }, [readiness, unknownOperation]);
+  // A task saved in another tab can arrive before this page has re-read the record it came from.
+  // Re-read that collection quietly; the task says it is being checked until a real read answers.
+  const production = workspace.mode === 'production';
+  const sourceGaps = useMemo(() => production ? unresolvedWeekSources(actions, workspace.collections) : [], [production, actions, workspace.collections]);
+  const [sourceResults, setSourceResults] = useState<Record<string, 'checked' | 'failed'>>({});
+  const sourceReads = useRef(new Set<string>());
+  useEffect(() => {
+    const plan = weekSourceRefreshPlan(sourceGaps, sourceResults, sourceReads.current, collection => workspace.collectionStates[collection]?.status === 'loading');
+    if (!plan.keys.length) return;
+    for (const key of plan.keys) sourceReads.current.add(key);
+    void workspaceRef.current.refresh(plan.collections).then(read => {
+      for (const key of plan.keys) sourceReads.current.delete(key);
+      setSourceResults(previous => ({ ...previous, ...Object.fromEntries(plan.keys.map(key => [key, read ? 'checked' : 'failed'] as const)) }));
+    });
+  }, [sourceGaps, sourceResults, workspace.collectionStates]);
+  const sourceChecks = useMemo(() => weekSourceStatus(sourceGaps, sourceResults), [sourceGaps, sourceResults]);
+  // Returning to the page re-reads tasks and their linked records in the background. A save in
+  // progress, an unconfirmed save or an open editor's draft is never replaced by this read.
+  useEffect(() => {
+    if (!service) return;
+    let last = Date.now();
+    const controller = new AbortController();
+    const reread = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < focusRefreshInterval || !settled.current || lock.current) return;
+      last = Date.now();
+      const version = generation.current, started = commands.current;
+      service.load(controller.signal).then(snapshot => {
+        if (controller.signal.aborted || version !== generation.current || started !== commands.current || lock.current || !settled.current || !validActionSnapshot(snapshot)) return;
+        commitSnapshot(snapshot);
+      }).catch(() => { /* The tasks already shown stay; the next return to the page tries again. */ });
+      const states = workspaceRef.current.collectionStates;
+      void workspaceRef.current.refresh(weekLinkedCollections.filter(key => states[key]?.status === 'ready'));
+    };
+    window.addEventListener('focus', reread);
+    document.addEventListener('visibilitychange', reread);
+    return () => { controller.abort(); window.removeEventListener('focus', reread); document.removeEventListener('visibilitychange', reread); };
+  }, [service, commitSnapshot]);
   const mutate = async (command: ActionCommand): Promise<boolean> => {
     if (lock.current || unknownOperation || service && readiness !== 'ready') return false;
+    commands.current++;
     if (fail || ['offline','loading','error','save-error','conflict'].includes(workspaceRef.current.scenario) || typeof navigator !== 'undefined' && !navigator.onLine) { setError('Could not save. Your edits are kept. Reconnect or review the current record.'); return false; }
     lock.current = true; setPending(true); setError('');
     const operationId = crypto.randomUUID(), version = generation.current, controller = new AbortController(); requests.current.add(controller);
@@ -106,7 +155,7 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
   };
   const reconcile = async () => {
     if (!service || !unknownOperation || lock.current) return false;
-    lock.current = true; setPending(true); const controller = new AbortController(); requests.current.add(controller);
+    commands.current++; lock.current = true; setPending(true); const controller = new AbortController(); requests.current.add(controller);
     try {
       const receipt = await service.reconcile(unknownOperation, controller.signal);
       if (!alive.current || receipt.operationId !== unknownOperation) return false;
@@ -151,7 +200,7 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
     return reviseAction(id, current.revision ?? 1, { title: current.title, date: current.date, state }, { expectedMetadata: { [current.key]: JSON.stringify(metas[current.key] ?? null) }, metadata: { [current.key]: { ...old, completedOn: state === 'completed' ? today : '', history: [...old.history, `${dayLabel(today)}: ${state === 'completed' ? 'Completed' : state === 'waiting' ? 'Waiting' : 'Reopened'} by you.`] } } });
   };
   const eraseActions=(expected:string)=>{if(service||pending||unknownOperation||fail||actionFingerprint(actionsRef.current)!==expected)return false;actionsRef.current=[];setActions([]);setDraft(null);setVisible(false);setHouseholdDraft(null);return true;};
-  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, pending, error, readiness, production: Boolean(service), unknownOperation, retryLoad: () => setLoadVersion(value => value + 1), reconcile, addActions, updateAction, reviseAction, reviseActions, deleteAction, eraseActions, changeState, getSnapshot:()=>snapshotRef.current, reset: () => { if (service) return; close(); actionsRef.current = []; snapshotRef.current={actions:[],metas:{}}; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
+  return <State.Provider value={{ actions, draft, visible, fail, householdDraft, setHouseholdDraft, open, close, setDraft, setFail, save, pending, error, readiness, production: Boolean(service), unknownOperation, retryLoad: () => setLoadVersion(value => value + 1), reconcile, addActions, updateAction, reviseAction, reviseActions, deleteAction, eraseActions, changeState, getSnapshot:()=>snapshotRef.current, sourceChecks, reset: () => { if (service) return; close(); actionsRef.current = []; snapshotRef.current={actions:[],metas:{}}; setActions([]); setDraft(null); setFail(false); } }}>{children}</State.Provider>;
 }
 
 /** quietLoading: the screen already shows its own loading placeholder, so the loading line is announced but takes no space. */

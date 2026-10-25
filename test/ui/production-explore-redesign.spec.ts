@@ -14,12 +14,12 @@ const opportunity = {
 test('an empty production hub has one project entrance and no pretend refresh controls', async ({ page }) => {
   const network = await mockProduction(page);
   await page.goto('/app/explore');
-  await expect(page.getByRole('button',{name:'Projects for you: find ideas',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Projects for you: see recommendations',exact:true})).toBeVisible();
   await expect(page.locator('.ex-personalized-preview button')).toHaveCount(1);
   await expect(page.locator('.ex-involvement-preview button')).toHaveCount(1);
   await expect(page.getByRole('button',{name:'Refresh ideas',exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Projects for you: find ideas',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Generate project ideas',exact:true})).toHaveCount(1);
+  await page.getByRole('button',{name:'Projects for you: see recommendations',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Show my recommendations',exact:true})).toHaveCount(1);
   await expect(page.getByRole('button',{name:'Preferences',exact:true})).toHaveCount(1);
   await expect(page.getByRole('searchbox',{name:'Find a project'})).toHaveCount(0);
   expect(network.blocked).toEqual([]);

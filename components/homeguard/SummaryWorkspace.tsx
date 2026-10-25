@@ -42,6 +42,24 @@ function resultLines(record: SummaryRecord): string[] {
     return [scalar(result.analyte) || 'Unlabelled analyte', resultQualifiers[qualifier as keyof typeof resultQualifiers] || qualifier, scalar(result.originalValue) || 'Original value not supplied', scalar(result.originalUnit) || 'Reported unit missing', result.limit ? `Reporting limit: ${scalar(result.limit)} ${scalar(result.limitUnit) || '(limit unit missing)'}` : '', result.basis ? `Basis: ${scalar(result.basis)}` : ['soil', 'tissue'].includes(scalar(record.medium)) ? 'Sample basis missing' : '', scalar(result.reportDate) || 'Report date not supplied', 'User-entered transcription, no scored interpretation'].filter(Boolean).join(' · ');
   });
 }
+// The score and factor lines. The saved summary composes the same lines on the
+// server (lib/summaryStore.js), and test/summaryCompose.test.mjs runs both copies.
+type ScoreGlance = { score: number | null; partial: boolean; severity: string; asOf: string };
+type FactorGlance = { title: string; reading: string; unit: string; severity: string; provenance: string | null; source: string; asOf: string; detail: string };
+const scoreClosingLine = 'Higher scores are better. Today uses air, UV, pollen and the outdoor mold estimate. Homeguard uses available PFAS and radon inputs. Lead is shown separately, not scored. Completing an action does not change either score.';
+function scoreLine(home: boolean, score: ScoreGlance, previewPrivateWater: boolean): string {
+  const label = home ? 'Homeguard' : 'Today';
+  return score.score === null ? `${label}: unavailable for the current home. No score is inferred.` : home && previewPrivateWater ? 'Homeguard: unavailable for this private-water context. No household water test is available.' : `${label}: ${score.score} / 100 · ${score.partial ? 'Partial · ' : ''}${score.severity} · ${score.asOf}.`;
+}
+function factorLine(key: string, factor: FactorGlance, evidenceMissing: boolean, privateWater: boolean): string {
+  if (evidenceMissing) return `${factor.title}: current-home evidence unavailable. Previous-home readings are not reused.`;
+  if (key === 'pfas' && privateWater) return 'PFAS in water: missing household measurement. Private well or spring; the utility result does not apply. Review the selected private tests below, or arrange a test.';
+  const kind = factor.provenance || (key === 'uv' || key === 'pollen' ? 'forecast' : 'source supplied');
+  return `${factor.title}: ${factor.reading} ${factor.unit} · ${factor.severity.replace('_', ' ')} · ${kind}. Source: ${factor.source}. Original observation or classification date: ${factor.asOf}.${key === 'pfas' ? ' Older utility sample, not a current tap measurement.' : key === 'radon' ? ' County estimate, not a home measurement.' : key === 'mold' ? ' Outdoor weather estimate, not detected mold.' : key === 'lead' ? ' Building-era estimate, not measured lead; not scored.' : ''}`;
+}
+function factorAppendixDetail(key: string, factor: FactorGlance, evidenceMissing: boolean, privateWater: boolean): string {
+  return evidenceMissing ? 'No current-home evidence is available.' : key === 'pfas' && privateWater ? 'No applicable household water measurement.' : factor.detail;
+}
 
 export default function SummaryWorkspace(props: WorkspaceProps) {
   const { collections, scenario, setDraft, mode, service, collectionStates } = useHomeWorkspace();
@@ -65,18 +83,12 @@ export default function SummaryWorkspace(props: WorkspaceProps) {
   const sources = useMemo<Record<string, SummaryRecord[]>>(() => ({ tests: (collections.tests ?? []) as SummaryRecord[], actions: (expanded?.actions ?? []) as unknown as SummaryRecord[], maintenance: (collections.assets ?? []) as SummaryRecord[], observations: (collections.observations ?? []) as SummaryRecord[], gardens: (collections.gardens ?? []) as SummaryRecord[] }), [collections, expanded?.actions]);
   const selectedCategories = homeMemberKeys.filter(key => bands[memberCatalog[key].band]).map(key => memberCatalog[key].label);
   const privateWater = waterContext === 'well' || waterContext === 'spring';
-  const appendixDetail = (key: typeof factorKeys[number]) => evidenceMissing ? 'No current-home evidence is available.' : key === 'pfas' && privateWater ? 'No applicable household water measurement.' : factorReadings[key].detail;
+  const appendixDetail = (key: typeof factorKeys[number]) => factorAppendixDetail(key, factorReadings[key], evidenceMissing, privateWater);
   const missingSections: SummarySection[] = mode === 'production' ? recordSections.filter(section => section !== 'actions' && (collectionStates[section === 'maintenance' ? 'assets' : section]?.status !== 'ready' || !collectionStates[section === 'maintenance' ? 'assets' : section]?.complete)) : scenario === 'error' ? ['tests' as const] : unavailable ? [unavailable] : [];
   const selectedRecords = (section: SummarySection) => (sources[section] ?? []).filter(record => !selection.excluded.includes(`${section}:${record.id}`) && withinSummaryDates(recordDate(record), selection));
   const sections: { title: string; lines: string[] }[] = [];
-  if (selection.sections.scores) sections.push({ title: 'Two score snapshot', lines: [false,true].map(home=>{const score=mode === 'production' ? home ? liveData.home : liveData.today : previewOverviewScore(home,evidenceMissing?'no-data':evidenceScenario);const label=home?'Homeguard':'Today';return score.score===null?`${label}: unavailable for the current home. No score is inferred.`:home&&privateWater&&mode==='preview'?'Homeguard: unavailable for this private-water context. No household water test is available.':`${label}: ${score.score} / 100 · ${score.partial?'Partial · ':''}${score.severity} · ${score.asOf}.`;}).concat(['Higher scores are better. Today uses air, UV, pollen and the outdoor mold estimate. Homeguard uses available PFAS and radon inputs. Lead is shown separately, not scored. Completing an action does not change either score.']) });
-  if (selection.sections.factors) sections.push({ title: 'Seven factors, with their original dates', lines: factorKeys.map(key => {
-    const factor = factorReadings[key];
-    if(evidenceMissing)return `${factor.title}: current-home evidence unavailable. Previous-home readings are not reused.`;
-    if (key === 'pfas' && privateWater) return 'PFAS in water: missing household measurement. Private well or spring; the utility result does not apply. Review the selected private tests below, or arrange a test.';
-    const kind = factor.provenance || (key === 'uv' || key === 'pollen' ? 'forecast' : 'source supplied');
-    return `${factor.title}: ${factor.reading} ${factor.unit} · ${factor.severity.replace('_', ' ')} · ${kind}. Source: ${factor.source}. Original observation or classification date: ${factor.asOf}.${key === 'pfas' ? ' Older utility sample, not a current tap measurement.' : key === 'radon' ? ' County estimate, not a home measurement.' : key === 'mold' ? ' Outdoor weather estimate, not detected mold.' : key === 'lead' ? ' Building-era estimate, not measured lead; not scored.' : ''}`;
-  }) });
+  if (selection.sections.scores) sections.push({ title: 'Two score snapshot', lines: [false,true].map(home => scoreLine(home, mode === 'production' ? home ? liveData.home : liveData.today : previewOverviewScore(home,evidenceMissing?'no-data':evidenceScenario), privateWater && mode === 'preview')).concat([scoreClosingLine]) });
+  if (selection.sections.factors) sections.push({ title: 'Seven factors, with their original dates', lines: factorKeys.map(key => factorLine(key, factorReadings[key], evidenceMissing, privateWater)) });
   for (const section of recordSections) {
     if (!selection.sections[section]) continue;
     if (missingSections.includes(section)) { sections.push({ title: sectionLabels[section], lines: ['Omitted: this optional section is unavailable. The remaining selected evidence is retained. Retry this section before exporting if it is needed.'] }); continue; }

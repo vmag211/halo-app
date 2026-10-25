@@ -65,7 +65,7 @@ function harness({ empty = false, tables = ['profiles', 'home_contexts', 'daily_
       daily_scores: empty ? [] : [{ profile_id: alice.id, home_context_id: HOME, date: localDate(), score: 75, aqi: 30, uv_index: 4, pollen_level: '{"tree":1}', mold_risk: null, created_at: new Date().toISOString() }],
     }; return Object.fromEntries(Object.entries(rows).filter(([name]) => tables.includes(name))); },
     fetch: async (url) => {
-      if (String(url).startsWith('https://api.mapbox.com/')) return Response.json({ features: [{ center: [-80.5, 35.4], context: [{ id: 'district.1', text: 'Example County' }, { id: 'region.1', short_code: 'US-NC' }] }] });
+      if (String(url).startsWith('https://api.mapbox.com/')) return Response.json({ features: [{ place_type: ['address'], relevance: 1, center: [-80.5, 35.4], context: [{ id: 'district.1', text: 'Example County' }, { id: 'region.1', short_code: 'US-NC' }] }] });
       if (String(url).startsWith('https://services.arcgis.com/')) return Response.json({ features: [] });
       throw new Error(`Unexpected contract-test network request: ${url}`);
     },

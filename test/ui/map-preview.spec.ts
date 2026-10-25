@@ -98,7 +98,7 @@ test('list search includes unlocated systems and distinguishes zero from missing
   await expect(page.getByRole('status').filter({ hasText: 'No matching locations' })).toBeVisible();
   await openReadyMap(page, 'system=SAMPLE-04');
   await expect(page.getByRole('dialog')).toContainText('0 ppt');
-  await expect(page.getByRole('dialog')).toContainText('No detection reported');
+  await expect(page.getByRole('dialog')).toContainText('No result in this source');
   await expect(page.getByRole('img', { name: /^0 ppt, supplied limit 4 ppt/ })).toBeVisible();
   await openReadyMap(page, 'system=SAMPLE-13');
   await expect(page.getByRole('dialog')).toContainText('Population served: No data');
@@ -163,7 +163,7 @@ test('fit and previous view preserve filters and return to the same rendered atl
 
 test('record search intersects visible scope, recovers empty matches and sorts missing positions last', async ({ page }) => {
   await openReadyMap(page);
-  await page.getByRole('button',{name:'Find a location',exact:true}).click();
+  await page.getByRole('button',{name:'Search by name',exact:true}).click();
   const rows=page.locator('.halo-map-results > button');
   await expect(rows).toHaveCount(15);
   await page.getByRole('button',{name:'In this view',exact:true}).click();
@@ -183,7 +183,7 @@ test('record search intersects visible scope, recovers empty matches and sorts m
 
 test('focus a searched public record, then return without putting household coordinates in the URL', async ({ page }) => {
   await openReadyMap(page,'contaminant=pfoa');
-  await page.getByRole('button',{name:'Find a location',exact:true}).click();
+  await page.getByRole('button',{name:'Search by name',exact:true}).click();
   await page.getByRole('searchbox').fill('Longleaf');
   await page.locator('.halo-map-results > button').click();
   await page.getByRole('button',{name:'Focus on map',exact:true}).click();
@@ -224,7 +224,7 @@ for(const [width,scale] of [[320,150],[375,100],[1440,100]]) test(`new map tools
   await openReadyMap(page,`scale=${scale}`);
   await expect(page.getByRole('button',{name:'Fit layer',exact:true})).toBeVisible();
   await assertFits(page);
-  await page.getByRole('button',{name:'Find a location',exact:true}).click();
+  await page.getByRole('button',{name:'Search by name',exact:true}).click();
   await assertFits(page);
   await page.getByRole('searchbox').fill('water');
   await assertFits(page);
@@ -549,7 +549,7 @@ for (const [width, scale] of [[320, '150'], [375, '100'], [1440, '100']]) test(`
   await page.getByRole('button', { name: 'Close sheet' }).click();
   await page.getByRole('button', { name: 'List', exact: true }).click();
   await list.getByRole('searchbox').fill('Sandhill');
-  await expect(list).toContainText('No detection reported');
+  await expect(list).toContainText('No result in this source');
   await assertFits(page);
   await page.getByRole('button', { name: 'Close sheet' }).click();
   await scratchScreenshot(page, `workbench-${width}-${scale}`);

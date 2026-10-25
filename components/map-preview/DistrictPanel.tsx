@@ -90,21 +90,28 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect, sourc
             <div className="halo-map-district-section-title"><Droplets size={20} aria-hidden="true" /><h3 id="district-comparison-title">District &amp; state, in context</h3></div>
             {hasComparison ? (
               <figure className="halo-map-district-comparison">
+                <p className="halo-map-district-comparison-label"><strong>Share of systems with a numeric result that have at least one over-limit result</strong></p>
+                <p className="halo-map-district-coverage-note">Only systems with a numeric result for a regulated compound are counted. Systems without one, including systems whose results were non-detects, are left out of both shares, so neither is the share of all systems.</p>
                 {[
-                  { label: "NC-08", share: comparison.district_share_over!, district: true },
-                  { label: "North Carolina", share: comparison.state_share_over!, district: false },
-                ].map(({ label, share, district }) => (
+                  { label: "NC-08", share: comparison.district_share_over!, district: true,
+                    counts: `${data.systems_over_limit} of ${data.systems_tested_any} systems with a numeric result. ${data.total_systems - data.systems_tested_any} of ${data.total_systems} mapped district systems have none and are not counted.` },
+                  { label: "North Carolina", share: comparison.state_share_over!, district: false,
+                    counts: typeof comparison.state_systems_with_numeric_result === "number" && typeof comparison.state_systems_over_limit === "number" && typeof comparison.state_total_systems === "number"
+                      ? `${comparison.state_systems_over_limit} of ${comparison.state_systems_with_numeric_result} systems with a numeric result. ${comparison.state_total_systems - comparison.state_systems_with_numeric_result} of ${comparison.state_total_systems} statewide systems have none and are not counted.`
+                      : "Same rule: systems with a numeric result only." },
+                ].map(({ label, share, district, counts }) => (
                   <div className="halo-map-district-bar-row" key={label}>
                     <div><span>{label}</span><strong>{formatPercent.format(share)}</strong></div>
                     <div className="halo-map-district-bar-track" aria-hidden="true"><span className={district ? "is-district" : "is-state"} style={{ width: `${Math.max(0, Math.min(1, share)) * 100}%` }} /></div>
+                    <p className="halo-map-district-note">{counts}</p>
                   </div>
                 ))}
-                <figcaption>Share of tested systems with at least one over-limit result. NC-08: {data.systems_over_limit} of {data.systems_tested_any}. Each bar uses its own tested-system denominator.</figcaption>
+                <figcaption>Both bars use the same rule, each with its own denominator of systems with a numeric result.</figcaption>
               </figure>
-            ) : <p className="halo-map-district-inline-notice">The district/state comparison is unavailable because one tested-system share is missing. No substitute percentage is shown.</p>}
+            ) : <p className="halo-map-district-inline-notice">The district/state comparison is unavailable because one share is missing. No substitute percentage is shown.</p>}
             <details className="halo-map-district-explainer">
-              <summary><CircleHelp size={16} aria-hidden="true" /><span>What does “tested” mean here?</span><ChevronDown size={16} aria-hidden="true" /></summary>
-              <p>“Tested” counts systems with a numeric regulated-compound result, not all testing. Systems with only non-detect records may be missing.</p>
+              <summary><CircleHelp size={16} aria-hidden="true" /><span>Why only systems with a numeric result?</span><ChevronDown size={16} aria-hidden="true" /></summary>
+              <p>The source release keeps detections as numbers and does not keep non-detects. A system with no numeric regulated-compound result may have been tested and found nothing, or may have no usable record, so it cannot be placed on either side of the share.</p>
               <p>These summaries use each compound’s latest available sample, so the underlying samples can have different dates.</p>
             </details>
           </section>
@@ -137,7 +144,7 @@ export function DistrictPanel({ variant = "full", onRetry, onCountySelect, sourc
                   <summary><span>{name === "HFPO-DA" ? "HFPO-DA (GenX)" : name}</span><span className="halo-map-district-compound-count">{compound.tested === 0 ? "No data" : `${compound.over} of ${compound.tested} over`}</span><ChevronDown size={17} aria-hidden="true" /></summary>
                   <div className="halo-map-district-compound-body">
                     {compound.tested === 0 ? <p>No numeric records were returned for {name === "HFPO-DA" ? "HFPO-DA (GenX)" : name}. This is missing information, not a finding of no concern.</p> : <p><strong>{compound.over} of {compound.tested} systems</strong> with a numeric record for {name === "HFPO-DA" ? "HFPO-DA (GenX)" : name} have a latest sample above the returned limit.</p>}
-                    <dl><div><dt>Systems tested</dt><dd>{compound.tested}</dd></div><div><dt>Systems over limit</dt><dd>{compound.tested === 0 ? "Not available" : compound.over}</dd></div><div><dt>Comparison limit in this response</dt><dd>{compound.limit} ppt</dd></div><div><dt>People served by over-limit systems</dt><dd>{compound.population_over === null ? "Not available" : `${compound.over_population_unknown > 0 ? "At least " : ""}${formatNumber.format(compound.population_over)}`}</dd></div></dl>
+                    <dl><div><dt>Systems with a numeric result</dt><dd>{compound.tested}</dd></div><div><dt>Systems over limit</dt><dd>{compound.tested === 0 ? "Not available" : compound.over}</dd></div><div><dt>Comparison limit in this response</dt><dd>{compound.limit} ppt</dd></div><div><dt>People served by over-limit systems</dt><dd>{compound.population_over === null ? "Not available" : `${compound.over_population_unknown > 0 ? "At least " : ""}${formatNumber.format(compound.population_over)}`}</dd></div></dl>
                     <p className="halo-map-district-note">Comparison uses the supplied limit, not a determination of current regulation.</p>
                     {compound.over_population_unknown > 0 && <p className="halo-map-district-note">Population is unknown for {compound.over_population_unknown} over-limit {compound.over_population_unknown === 1 ? "system" : "systems"} in this row.</p>}
                     {compound.over === 0 && compound.tested > 0 && <p className="halo-map-district-note">Zero over-limit findings in the available records does not establish complete testing or no risk.</p>}

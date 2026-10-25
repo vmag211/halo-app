@@ -2,6 +2,7 @@ import type { FactorKey, FactorReading, TrendPoint } from './factor-preview';
 import type { DailyResponse, HomeResponse, ProfileResponse } from './types';
 import type { HistoryResponse } from './stage-api';
 import { dateLabel, finite, isoDate, nonnegative, record, rows, safeText, scoreNumber, severity, textList, timeLabel, timestamp } from './stage-values';
+import { copy } from './copy';
 
 export interface StageOverview {
   score: number | null; severity: string; partial: boolean; missingInputs: string[];
@@ -85,6 +86,9 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const waterBox = breakdown.find(row => row.key === 'water') ?? {};
   const radonBox = breakdown.find(row => row.key === 'radon') ?? {};
   const dailyAsOf = timeLabel(dailyData.retrieved_at);
+  const dailyAt = timestamp(dailyData.retrieved_at);
+  // The retrieval instant goes beside a top-level reading only when there is a reading to date.
+  const readingAt = (present: boolean) => present ? dailyAt : null;
   const readings: Record<FactorKey, FactorReading> = {
     air: base('air', 'Air quality', 'Air'), uv: base('uv', 'UV index', 'UV'), pollen: base('pollen', 'Pollen', 'Pollen'), mold: base('mold', 'Mold conditions', 'Mold'),
     pfas: base('pfas', 'PFAS in water', 'PFAS'), radon: base('radon', 'Radon', 'Radon'), lead: base('lead', 'Lead in plumbing', 'Lead'),
@@ -99,7 +103,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
     O3: ['Ozone', 'The AQI reflects the pollutant with the highest index.'],
   };
   const airScore = factorScore('air', aqi !== null);
-  readings.air = { ...readings.air, score: airScore, reading: aqi === null ? 'No data' : String(Math.round(aqi)), unit: 'AQI', severity: airSeverity, asOf: dailyAsOf, source: airSource,
+  readings.air = { ...readings.air, score: airScore, reading: aqi === null ? 'No data' : String(Math.round(aqi)), unit: 'AQI', severity: airSeverity, asOf: dailyAsOf, readingAt: readingAt(aqi !== null), source: airSource,
     provenance: aqi === null ? null : air.is_measured === true ? 'measured' : air.is_measured === false ? 'modeled' : null,
     sentence: aqi === null ? readings.air.sentence : safeText(air.sentence) || 'Your outdoor air reading is available.', detail: 'This describes outdoor air in your area, not the air inside your home.',
     context: context({ value: aqi, severity: aqi === null ? null : airSeverity, source: fieldText(air.source), pollutant: pollutant || null }),
@@ -113,11 +117,18 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const isClock = (value: unknown): value is string => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
   const peakWindow = isClock(peak.start) && isClock(peak.end) && peakMax !== null ? { start: peak.start, end: peak.end, max: peakMax } : null;
   const uvScore = factorScore('uv', uvIndex !== null);
-  readings.uv = { ...readings.uv, score: uvScore, reading: uvIndex === null ? 'No data' : uvIndex.toFixed(1), unit: 'UV index', severity: uvSeverity, asOf: dailyAsOf, source: 'UV forecast',
+  // Newer responses name the UV provider (lib/dailyReadings.js: Open-Meteo first, OpenUV as fallback).
+  // Older responses and cached rows without it keep the honest "not supplied" disclosure.
+  const uvSourceKey = typeof uv.source === 'string' ? uv.source.trim().toLowerCase() : '';
+  const uvProvider = uvIndex === null ? null : uvSourceKey === 'open-meteo' ? 'Open-Meteo' : uvSourceKey === 'openuv' ? 'OpenUV' : null;
+  readings.uv = { ...readings.uv, score: uvScore, reading: uvIndex === null ? 'No data' : uvIndex.toFixed(1), unit: 'UV index', severity: uvSeverity, asOf: dailyAsOf, readingAt: readingAt(uvIndex !== null), source: uvProvider ?? 'UV forecast',
+    // Open-Meteo's UV index is a GFS model value, not a measurement (lib/forecast/copy.js).
+    ...(uvProvider === 'Open-Meteo' ? { provenance: 'modeled' as const } : {}),
     sentence: uvIndex === null ? readings.uv.sentence : safeText(uv.sentence) || 'Your UV forecast is available.', detail: 'The UV index describes outdoor ultraviolet radiation. This reading does not measure individual exposure.',
     context: context({ value: uvIndex, severity: uvIndex === null ? null : uvSeverity, peak_start: peakWindow?.start, peak_end: peakWindow?.end }),
     trend: dailyTrend(history, 'uv'), trendTitle: 'Your UV week', details: { uv: { peak_window: peakWindow } },
-    disclosures: [uvScore === null ? 'A separate UV score and the current provider name are not supplied with this reading.' : 'The current UV provider name is not supplied with this reading.'],
+    disclosures: uvProvider ? (uvScore === null ? ['A separate UV score is not supplied with this reading.'] : [])
+      : [uvScore === null ? 'A separate UV score and the current provider name are not supplied with this reading.' : 'The current UV provider name is not supplied with this reading.'],
   };
 
   const categories = record(pollen.categories);
@@ -129,7 +140,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const allOutOfSeason = !hasPollen && pollenRows.every(row => row.outOfSeason);
   const pollenScore = factorScore('pollen', hasPollen);
   readings.pollen = { ...readings.pollen, score: pollenScore, reading: dominant ? numberText(dominant.value) : hasPollen ? 'See categories' : allOutOfSeason ? 'Out of season' : 'No data', unit: dominant ? `${dominant.name} index` : allOutOfSeason ? 'Tree, grass and weed' : 'Pollen index',
-    severity: hasPollen ? severity(pollen.severity) : 'no_data', asOf: dailyAsOf, source: 'Google Pollen', sentence: hasPollen || allOutOfSeason ? safeText(pollen.sentence) || (allOutOfSeason ? 'Tree, grass and weed pollen are all out of season where you live.' : 'Your pollen category readings are available.') : readings.pollen.sentence,
+    severity: hasPollen ? severity(pollen.severity) : 'no_data', asOf: dailyAsOf, readingAt: readingAt(hasPollen || allOutOfSeason), source: 'Google Pollen', sentence: hasPollen || allOutOfSeason ? safeText(pollen.sentence) || (allOutOfSeason ? 'Tree, grass and weed pollen are all out of season where you live.' : 'Your pollen category readings are available.') : readings.pollen.sentence,
     detail: 'Tree, grass, and weed retain their own readings. The leading category does not describe every type of pollen.',
     context: context({ value: dominant?.value, severity: hasPollen ? severity(pollen.severity) : null, category: dominant?.name }),
     trend: dailyTrend(history, 'pollen'), trendTitle: 'The leading pollen each day', details: { pollen: { categories: pollenRows } },
@@ -141,7 +152,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const moldRisk = ['low', 'moderate', 'high'].includes(String(mold.risk)) ? String(mold.risk) : null;
   const moldBasis = record(mold.basis); const humidity = scoreNumber(moldBasis.humidity_pct); const precip = scoreNumber(moldBasis.precip_pct);
   readings.mold = { ...readings.mold, reading: moldRisk ? 'Estimate' : 'No data', unit: 'Weather based', severity: moldRisk ? severity(mold.severity) : 'no_data',
-    provenance: moldRisk ? 'estimate' : null, asOf: dailyAsOf, source: 'National Weather Service', sentence: moldRisk ? safeText(mold.sentence) || 'Outdoor weather conditions inform this estimate.' : readings.mold.sentence,
+    provenance: moldRisk ? 'estimate' : null, asOf: dailyAsOf, readingAt: readingAt(moldRisk !== null), source: 'National Weather Service', sentence: moldRisk ? safeText(mold.sentence) || 'Outdoor weather conditions inform this estimate.' : readings.mold.sentence,
     detail: 'This estimate uses outdoor humidity and rain forecasts. It is not a measurement of mold or humidity inside your home.',
     context: context({ risk: moldRisk, severity: moldRisk ? severity(mold.severity) : null, humidity, precip }),
     trendTitle: 'Conditions, not a mold count', trendCaption: 'No measured indoor mold series is available.', details: { mold: { humidity_pct: humidity, precip_pct: precip } },
@@ -154,7 +165,9 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const privateSource = water.status === 'private_well' || ['well', 'spring'].includes(String(location.water_source));
   const coverage = safeText(water.coverage);
   const waterMeasured = water.is_measured === true && !privateSource;
-  const scoreable = waterMeasured && ['complete', 'no_detections', 'excluded_only', 'partial'].includes(coverage);
+  // Only coverage built on evidence carries a water score. A lithium-only record
+  // (excluded_only) has nothing regulated to score, so it shows no water score.
+  const scoreable = waterMeasured && ['complete', 'no_detections', 'partial'].includes(coverage);
   const scored = waterMeasured ? rows(water.scored_contaminants).filter(row => nonnegative(row.value_ppt) !== null && safeText(row.contaminant)) : [];
   const enforceable = scored.filter(row => row.is_enforceable === true);
   const pool = enforceable.length ? enforceable : scored;
@@ -167,6 +180,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const waterStatusCopy: Record<string, string> = {
     lookup_failed: 'Water results could not be loaded. Try again shortly.',
     no_data_yet: 'Published testing results are not available for this utility yet.',
+    no_usable_results: 'This utility has no usable result in the EPA testing records. A missing result is not a clean result.',
     no_pwsid_available: 'No water utility is matched to this home. Confirm your water source in Settings.',
   };
   const waterDisclosures = [
@@ -182,7 +196,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const lithiumPpt = nonnegative(lithium?.value_ppt);
   readings.pfas = { ...readings.pfas, score: scoreable ? scoreNumber(waterBox.score) : null, severity: waterSeverity,
     reading: waterMeasured && concentration !== null ? numberText(concentration) : privateSource ? 'Not tested' : waterMeasured && coverage === 'no_detections' ? 'No detections' : 'No data',
-    unit: compound ? `ppt ${compound}` : 'Utility testing', provenance: waterMeasured ? 'measured' : null, source: utility ? `EPA UCMR 5, ${utility}` : 'EPA UCMR 5',
+    unit: compound ? `ppt ${compound}` : 'Utility testing', provenance: waterMeasured ? 'measured' : null, source: utility ? `EPA UCMR 5, ${copy.reveal.likelyUtility(utility)}` : 'EPA UCMR 5',
     asOf: sampleDate ? `Sample collected ${dateLabel(sampleDate)}` : 'Sample date unavailable',
     sentence: permittedMessage ?? waterStatusCopy[String(water.status)] ?? (primary ? `${compound} is shown against its supplied ${primary.is_enforceable === true ? 'federal limit' : primary.is_enforceable === false ? 'health benchmark' : 'comparison value'}.` : privateSource ? 'A testing plan can help you find out what is in this water.' : 'Water results appear when utility testing is available.'),
     detail: 'PFAS results come from utility sampling. Sample dates describe the testing record, not current conditions at your tap.',

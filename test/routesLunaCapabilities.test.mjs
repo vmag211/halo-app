@@ -157,11 +157,10 @@ test('the prose says Luna answers and cites but cannot act, which is what the co
   assertLunaCapabilities(body);
   const prose = `${body.providerLabel}. ${body.retentionSummary}`;
   assert.match(prose, /cite/i, 'the answering half is described as cited');
-  assert.match(prose, /cannot change anything in HALO/, 'the tool half is stated in words, not only as tools: []');
-  // The static UI copy says "Notes are included only when you choose them" and
-  // "Review every proposed change", and both will show even though neither is
-  // true in this release. These two strings are the only slots that can offset
-  // that, so they must.
+  assert.match(prose, /cannot add tasks, set reminders, change anything in HALO/, 'the tool half is stated in words, not only as tools: []');
+  // An answers-only client no longer shows "Review every proposed change" or offers
+  // note context (F07, ProductionLunaConversation.tsx), but these two strings are
+  // what every client renders, so they still name what Luna cannot read.
   assert.match(prose, /not part of this conversation/, 'the excluded household records are named');
 });
 

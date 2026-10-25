@@ -700,7 +700,7 @@ function chooser(runtime, drafts = { area: blankArea, areaRevision: 0, areaOpera
   const setEditing = (value) => { s.editing = value; };
   const request = { current: null };
   s.open = () => { const area = drafts.area; setDraft(area);setCandidates([]);setError(''); setEditing(true); };
-  s.search = async function lookup(){const draft = s.draft, busy = s.busy;if(!draft.place.trim()||busy)return;request.current?.abort();const controller=new AbortController();request.current=controller;setBusy(true);setError('');setCandidates([]);try{const result=await runtime.request('locations.search',{query:draft.place.trim(),state:draft.state.trim()},{signal:controller.signal});if(controller.signal.aborted)return;if(!validPlaces(result))throw new Error('invalid place');setCandidates(result.candidates);if(!result.candidates.length)setError('No matching area was found. Try a nearby city or a ZIP code.');}catch(error){if(!controller.signal.aborted)setError(serviceMessage(error));}finally{if(!controller.signal.aborted)setBusy(false);}};
+  s.search = async function lookup(){const draft = s.draft, busy = s.busy;if(!draft.place.trim()||busy)return;request.current?.abort();const controller=new AbortController();request.current=controller;setBusy(true);setError('');setCandidates([]);try{const result=await runtime.request('locations.search',{query:draft.place.trim(),state:draft.state.trim()},{signal:controller.signal});if(controller.signal.aborted)return;if(!validPlaces(result))throw new Error('invalid place');setCandidates(result.candidates);if(!result.candidates.length)setError('No North Carolina area matched. Area lookup covers North Carolina for now, so try a North Carolina city, county or ZIP code.');}catch(error){if(!controller.signal.aborted)setError(serviceMessage(error));}finally{if(!controller.signal.aborted)setBusy(false);}};
   s.applyPlace = async function applyPlace(place){
     const areaRevision = drafts.areaRevision, areaOperation = drafts.areaOperation, busy = s.busy;
     if(!runtime||busy)return;if(!areaRevision){setError('Your saved area could not load. Try again.');savedArea.retry();return;}if(areaOperation&&JSON.stringify(areaOperation.place)!==JSON.stringify(place)){setError('Check the previous area change before choosing another.');return;}const operation=areaOperation??{id:crypto.randomUUID(),place,revision:areaRevision};setAreaOperation(operation);setBusy(true);setError('');try{const result=await runtime.request('explore.area.save',{place:operation.place,revision:operation.revision},{idempotencyKey:operation.id,expectedRevision:operation.revision});if(!validDiscoveryArea(result))throw new Error('invalid saved area');setArea(result.place??blankArea);setAreaRevision(result.revision);setAreaOperation(null);setLocalAutoScope();close();}catch(error){if(error instanceof FrontendServiceError&&error.code!=='unknown_outcome')setAreaOperation(null);setError(serviceMessage(error));}finally{setBusy(false);}
@@ -820,7 +820,7 @@ test('client: the sheet\'s own example, "Charlotte or 28208", finds, saves and f
   ui.draft = { place: '29707', state: '' };
   await ui.search();
   assert.deepEqual(ui.candidates, []);
-  assert.equal(ui.error, 'No matching area was found. Try a nearby city or a ZIP code.');
+  assert.equal(ui.error, 'No North Carolina area matched. Area lookup covers North Carolina for now, so try a North Carolina city, county or ZIP code.');
 });
 
 test('client: a lost response parks the operation, and the replay unparks it with the first outcome', async () => {
