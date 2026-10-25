@@ -35,7 +35,7 @@ export default function ScoreTransparency({ home, keys, readings, overview, fact
       <div className="halo-score-source-list" aria-label="Reading sources and dates">{keys.map(key => {
         const factor = readings[key];
         const missing = readingMissing(factor) || missingKeys.includes(key);
-        return <Link href={factorHref(key)} prefetch={false} key={key} className="halo-score-source-row"><div><strong>{factor.title}</strong><span>{missing ? 'Reading unavailable' : `${factor.reading} ${factor.unit}`}</span><small>{factor.source} · {missing ? 'No current reading' : factor.asOf}</small></div><div><ProvenancePill provenance={missing ? null : factor.provenance} /><ArrowUpRight size={16} aria-hidden="true" /></div></Link>;
+        return <Link href={factorHref(key)} prefetch={false} key={key} className="halo-score-source-row"><div><strong>{factor.title}</strong><span>{missing ? factor.gap?.label ?? 'Reading unavailable' : `${factor.reading} ${factor.unit}`}</span><small>{factor.source} · {missing ? 'No current reading' : factor.asOf}</small></div><div><ProvenancePill provenance={missing ? null : factor.provenance} /><ArrowUpRight size={16} aria-hidden="true" /></div></Link>;
       })}</div>
       {overview?.missingInputs.length ? <p className="halo-f-meta">Missing score inputs: {overview.missingInputs.join(', ')}.</p> : null}
     </div>

@@ -12,7 +12,11 @@ export type FactorDetails = {
     rows: { name: string; value_ppt: number; limit_ppt: number | null; severity: string; exceeds_limit: boolean; is_enforceable?: boolean; basis?: string; source?: string; date_iso?: string | null; proposed_for_rescission?: boolean }[];
     lithium_ug_l: number | null;
     coverage?: string; status?: string; is_measured?: boolean; includes_guidance?: boolean; confidence?: string;
+    /** A private well or spring: no utility tests it, so utility-sample wording does not apply. */
+    private_source?: boolean;
     detected_unregulated?: { name: string; value_ppt: number | null; date_iso: string | null }[];
+    /** Documented non-detects: the lab found nothing at or above the reporting limit on that date. */
+    non_detects?: { name: string; reporting_limit_ppt: number | null; limit_ppt: number | null; below_limit: boolean | null; date_iso: string | null }[];
   };
   radon?: { zone: number; county: string };
   lead?: { home_year: number | null };
@@ -43,6 +47,8 @@ export type FactorReading = {
   disclosures?: string[];
   /** Shown in place of a score when a reading is deliberately unscored (an estimate), so it never reads as missing. */
   unscored?: { label: string; kicker: string };
+  /** Why a missing reading is missing, when that is known (outside coverage), in place of the generic "unavailable". */
+  gap?: { label: string; sentence: string };
 };
 import type { MotionMode, SceneTime } from './scene-clock';
 import {colorPalette,type ColorPalette} from './settings-preview';
@@ -63,6 +69,11 @@ export function isFactorKey(value: unknown): value is FactorKey {
 }
 /** A gap in the evidence. A deliberately unscored reading (a weather estimate, or pollen out of season) is known information, not a gap. */
 export function readingMissing(factor: FactorReading) { return factor.severity === 'no_data' && !factor.unscored; }
+/** What a score segment with no share says: a known gap, an unscored estimate, or a reading that exists but has no combined score to share in. Never "No data" for a reading that is there. */
+export function segmentAbsentLabel(reading: FactorReading, noCombinedScore: boolean): { absentLabel?: string } {
+  if (reading.severity === 'no_data') return readingMissing(reading) ? reading.gap ? { absentLabel: reading.gap.label } : {} : { absentLabel: reading.unscored?.label };
+  return noCombinedScore ? { absentLabel: 'Not combined' } : {};
+}
 /** A factor's short name inside a sentence: lowercase, except acronyms such as UV and PFAS. */
 export function factorInlineName(factor: FactorReading) { return factor.shortTitle === factor.shortTitle.toUpperCase() ? factor.shortTitle : factor.shortTitle.toLowerCase(); }
 export function factorColor(key: FactorKey) { return `var(--factor-${key})`; }

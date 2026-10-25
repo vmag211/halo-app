@@ -9,6 +9,9 @@ test('air uses the value, severity, provenance and driving pollutant', () => {
   assert.match(s, /index is 78 \(moderate\)/);
   assert.match(s, /modeled estimate/);
   assert.match(s, /PM2\.5 is setting it/);
+  // AirNow's current service has no 25-mile radius any more (#35), so the line names no distance.
+  assert.doesNotMatch(s, /25 miles/);
+  assert.match(s, /no AirNow monitor reported a current reading/);
 });
 
 test('uv uses the value and severity, and the peak window when given', () => {
