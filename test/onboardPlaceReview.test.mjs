@@ -12,7 +12,7 @@ import { createRouteHarness } from './helpers/routeHarness.mjs';
 import { haloTables } from './helpers/tables.mjs';
 import { expectEnvelope } from './helpers/envelope.mjs';
 import { loadFrontend } from './frontend-test-loader.mjs';
-import { chooseGeocodeFeature, areaLabel, isCoordinateQuery, MIN_RELEVANCE } from '../lib/geocode.js';
+import { chooseGeocodeFeature, areaLabel, isCoordinateQuery, MIN_RELEVANCE, serviceAreaFromArcgis } from '../lib/geocode.js';
 
 const domain = await loadFrontend('onboarding');
 const { copy } = await loadFrontend('copy');
@@ -76,6 +76,15 @@ test('chooseGeocodeFeature: an ambiguous town name is flagged so the person chec
   const street = chooseGeocodeFeature([ADDRESS, { ...ADDRESS, relevance: 0.97 }], '2 Elm Court, Concord');
   assert.equal(street.ambiguous, false, 'two hits in the same area are one place');
   assert.deepEqual([street.label, street.precision], ['Concord, North Carolina 28027', 'address']);
+  // Two Franklins in North Carolina share a label but are different towns in different counties.
+  const franklin = (county, center) => ({ ...town('Franklin', 'North Carolina', 'NC', 1, center), context: [{ id: 'district.1', text: county }, NC, US] });
+  const franklins = chooseGeocodeFeature([franklin('Macon County', [-83.38, 35.18]), franklin('Franklin County', [-78.3, 36.1])], 'Franklin, NC');
+  assert.deepEqual([franklins.label, franklins.ambiguous], ['Franklin, North Carolina', true]);
+});
+
+test('serviceAreaFromArcgis: padded duplicates are one system, not several', () => {
+  const outcome = serviceAreaFromArcgis({ ok: true, json: { features: [' NC1', 'NC1 ', 'NC1', null, ''].map((PWSID) => ({ attributes: { PWSID } })) } });
+  assert.deepEqual(outcome, { pwsid: 'NC1', status: 'measured', candidates: ['NC1'] });
 });
 
 test('chooseGeocodeFeature: device GPS ("lng,lat") takes the most specific home-like reverse result', () => {
@@ -172,7 +181,15 @@ test('route: a private well with no public system at the point still onboards', 
   const json = await body.json();
   assert.deepEqual([json.water_source, json.pwsid, json.service_area_status, json.utility_candidates], ['well', null, 'outside_known_area', []]);
   assert.equal(aliceRow(h).water_source, 'well');
-  assert.ok(domain.placeReview(json).notes.includes(copy.household.place.noUtility));
+  assert.deepEqual(domain.placeReview(json), { label: 'Concord, North Carolina 28027', notes: [] }, 'a well gets no supplier note');
+  assert.ok(domain.placeReview({ ...json, water_source: null }).notes.includes(copy.household.place.noUtility), 'nor does an unanswered source get a utility claim');
+});
+
+test('route: a "lng,lat" that is no point on Earth is the friendly 404, never asked of Mapbox', async () => {
+  const h = harness();
+  const body = await expectEnvelope(await post(h, { address: '-999,99' }), { status: 404, code: 'not_found', retryable: false });
+  assert.equal(body.error, NOT_FOUND);
+  assert.deepEqual(h.outbound, []);
 });
 
 test('route: after a rejected place, a corrected one is saved', async (t) => {

@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode, chooseGeocodeFeature } from '@/lib/geocode';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode, chooseGeocodeFeature, isCoordinateQuery, coordinatesInRange } from '@/lib/geocode';
 import { localDate } from '@/lib/localDate';
 import { backfillHousehold, backfillHomeContext } from '@/lib/backfill';
 import { ERROR_CODES, apiError, internalError, requestIdFor, validationError } from '@/lib/apiErrors';
@@ -251,6 +251,8 @@ export async function POST(request) {
     }
 
     // --- MAPBOX GEOCODING API ---
+    // A "lng,lat" that is no point on Earth is no place (Mapbox would answer 422, a 500 here).
+    if (isCoordinateQuery(address) && !coordinatesInRange(address)) return noCoordinates();
     const mapboxToken = process.env.MAPBOX_TOKEN;
     const encodedAddress = encodeURIComponent(address);
     const mapboxParams = new URLSearchParams({ access_token: mapboxToken });
@@ -357,6 +359,10 @@ export async function POST(request) {
     const answered = homeContext && savedByThisRequest(homeContext, onboardRequestId)
       ? { lat: homeContext.lat ?? null, lng: homeContext.lng ?? null, county: homeContext.county ?? null, state: homeContext.state ?? null }
       : { lat: profileUpdate.lat, lng: profileUpdate.lng, county, state };
+    // The place fields describe this request's geocode. When the answer is a home saved earlier
+    // that this geocode no longer matches (a retry that drifted), they would describe another
+    // place, so they are left out and the screen falls back to the saved county and state.
+    const sameGeocode = answered.lat === profileUpdate.lat && answered.lng === profileUpdate.lng;
 
     if (moved) await resetDailyScoreLimit(userId);
 
@@ -384,11 +390,11 @@ export async function POST(request) {
       pwsid,
       service_area_status: serviceAreaStatus,
       // What this request's geocode found, for the person to check (not stored).
-      place_label: match.label,
-      place_precision: match.precision,
-      place_ambiguous: match.ambiguous,
+      place_label: sameGeocode ? match.label : null,
+      place_precision: sameGeocode ? match.precision : null,
+      place_ambiguous: sameGeocode ? match.ambiguous : false,
       // Every water system at the point; pwsid is only the first, a suggestion for the area.
-      utility_candidates: serviceArea.candidates,
+      utility_candidates: sameGeocode ? serviceArea.candidates : [],
       water_source: waterSource,
       home_year: homeYear,
       // Echoed only if it was stored (null before migration 0014).

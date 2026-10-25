@@ -64,6 +64,9 @@ export function placeReview(location?: OnboardResponse | null): PlaceReview | nu
   if (location.place_ambiguous === true) notes.push(copy.household.place.ambiguous);
   if (location.place_precision === "area") notes.push(copy.household.place.area);
   const candidates = Array.isArray(location.utility_candidates) ? location.utility_candidates.filter((id) => typeof id === "string" && id) : [];
+  // A home already on a well or spring (changing the address from Settings) gets no supplier note.
+  const ownSupply = ["well", "spring"].includes(normalizeWaterAnswer(location.water_source ?? "") ?? "");
+  if (ownSupply) return { label, notes };
   if (location.service_area_status === "outside_known_area") notes.push(copy.household.place.noUtility);
   else if (location.service_area_status === "measured") notes.push(candidates.length > 1 ? copy.household.place.severalUtilities : copy.household.place.likelyUtility);
   return { label, notes };

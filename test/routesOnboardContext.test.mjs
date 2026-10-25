@@ -202,8 +202,13 @@ test('a retry whose geocode now answers differently reports the saved home\'s lo
   assert.deepEqual([retry.lat, retry.lng, retry.county, retry.state], [35.41, -80.61, 'Cabarrus County', 'NC'], 'not this request\'s geocode (35.5, -80.5, Old County)');
   assert.deepEqual(Object.keys(retry), Object.keys(first), 'the same keys, in the same order');
   // zip is never stored, so it is this request's geocode as before (here none: string or null).
-  for (const key of Object.keys(first).filter((name) => name !== 'zip')) assert.equal(typeof retry[key], typeof first[key], `${key} keeps its type`);
+  // The place fields described this request's drifted geocode (7 Old Road), not the saved home,
+  // so they are left out and the household step falls back to the saved county and state.
+  const drifted = ['zip', 'place_label', 'place_precision'];
+  for (const key of Object.keys(first).filter((name) => !drifted.includes(name))) assert.equal(typeof retry[key], typeof first[key], `${key} keeps its type`);
   assert.equal(retry.zip, null);
+  assert.deepEqual([retry.place_label, retry.place_precision, retry.place_ambiguous, retry.utility_candidates], [null, null, false, []]);
+  assert.equal(first.place_label, 'Cabarrus County, North Carolina 28027', 'the request that saved it does describe its place');
   assert.deepEqual(writes(h, from), [], 'a retry writes nothing');
   assert.deepEqual(homesOf(h, 'alice').map((home) => [home.lat, home.lng, home.county]), [[35.41, -80.61, 'Cabarrus County']]);
 });
