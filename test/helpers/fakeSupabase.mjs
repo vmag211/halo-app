@@ -76,6 +76,8 @@ export function createFakeSupabase({ tables = {}, seed = {}, identities = [] } =
     email_confirmed_at: user.emailConfirmedAt ?? null,
     new_email: user.newEmail ?? null,
     email_change_sent_at: user.emailChangeSentAt ?? null,
+    // The provider identities (Google and so on), only when a test models them.
+    ...(user.identities ? { identities: user.identities } : {}),
   });
 
   const authError = (status, message, extra = {}) => ({

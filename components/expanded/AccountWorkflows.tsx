@@ -10,7 +10,7 @@ import './completion-workflows.css';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {useProductionRuntime} from '@/components/production/ProductionContext';
-import {ProductionHomeTransitionFlow,ProductionRecoveryFlow,ProductionDeviceSetupFlow,ProductionConnectionsFlow} from '@/components/production/ProductionAccountFlows';
+import {ProductionHomeTransitionFlow,ProductionRecoveryFlow,ProductionGoogleSigninFlow,ProductionDeviceSetupFlow,ProductionConnectionsFlow} from '@/components/production/ProductionAccountFlows';
 import ProductionRestoreAccessFlow from '@/components/production/ProductionRestoreAccessFlow';
 
 const labels={home:'Home lookup',recovery:'Recovery service',device:'Device delivery',email:'Email authorization',calendar:'Calendar authorization'} as const;
@@ -68,7 +68,7 @@ function PreviewHomeTransitionFlow(){
  </div></details>;
 }
 
-export function RecoveryFlow(){const runtime=useProductionRuntime();return runtime?<ProductionRecoveryFlow/>:<PreviewRecoveryFlow/>;}
+export function RecoveryFlow(){const runtime=useProductionRuntime();return runtime?<><ProductionGoogleSigninFlow/><ProductionRecoveryFlow/></>:<PreviewRecoveryFlow/>;}
 function PreviewRecoveryFlow(){
  const service=useService('recovery');
  const [record,setRecord]=useHomeDraft<{email:string;revision:number;verified:boolean;otherDevice:boolean}>('settings:recovery',{email:'',revision:0,verified:false,otherDevice:false});

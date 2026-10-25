@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
-import {ChevronRight,MapPin,ShieldCheck,Monitor,Link2} from 'lucide-react';
+import {ChevronRight,MapPin,ShieldCheck,Monitor,Link2,KeyRound} from 'lucide-react';
 import {useAccountService} from './useAccountService';
 import {useHomeDraft,useHomeWorkspace} from '@/components/homeguard/HomeWorkspaceState';
 import {useStageSession} from '@/components/stage/StageSession';
@@ -9,6 +9,8 @@ import {useExpandedPreview} from '@/components/expanded/ExpandedPreviewState';
 import {validArea,validRecoveryEmail} from '@/lib/frontend/account-review';
 import {completionCopy as c} from '@/lib/frontend/copy/completion';
 import {pushApplicationKey} from '@/lib/frontend/production/account-service';
+import {supabase} from '@/lib/supabase';
+import {LINK_MESSAGES,fetchGoogleSigninStatus,startGoogleLink} from '@/lib/googleSignin';
 
 function Feedback({service}:{service:ReturnType<typeof useAccountService>}) {
  return <>{service.loading&&<p className="hc-state" role="status">Loading account information...</p>}{service.busy&&<p className="hc-state" role="status">Checking...</p>}{service.message&&<p className="hc-state" role="status">{service.message}</p>}{!service.loading&&!service.snapshot&&!service.off&&<button type="button" className="hp-text" onClick={service.retry}>Try again</button>}{service.snapshot&&!service.snapshot.enabled&&<p className="hc-state">{service.snapshot.reason||'This feature is not available right now. Your existing records are unchanged.'}</p>}{service.unknown.map(id=><button key={id} type="button" className="hp-text" disabled={service.busy} onClick={()=>void service.reconcile(id)}>Check earlier request</button>)}</>;
@@ -39,6 +41,22 @@ export function ProductionRecoveryFlow() {
  {data?.method?<><strong>{c.verified}</strong><p>{data.method.maskedAddress}</p><button type="button" className="hp-text hp-danger" disabled={service.disabled} onClick={()=>setConfirmation({kind:'remove',id:data.method!.id,revision:service.snapshot!.revision,accountRevision:service.snapshot!.revision})}>{c.removeRecovery}</button></>:data?.challenge&&data.challenge.status==='pending'?<><p>{data.challenge.maskedAddress}</p><p>{c.verifyPending}</p><button type="button" className="hp-primary" disabled={service.disabled} onClick={()=>void service.run('check-recovery',{challengeId:data.challenge!.id}).then(next=>{if(next?.recovery?.method)setEmail('');})}>{c.verify}</button><button type="button" className="hp-text" disabled={service.disabled} onClick={()=>void service.run('cancel-recovery',{challengeId:data.challenge!.id})}>{c.cancel}</button></>:<><label>{c.email}<input type="email" autoComplete="email" maxLength={254} value={email} disabled={service.disabled} onChange={event=>setEmail(event.target.value)}/></label><small>{c.emailHint}</small>{data?.challenge?.status==='expired'&&<p role="status">{c.expired}</p>}<button type="button" className="hp-primary" disabled={service.disabled} onClick={()=>{if(!validRecoveryEmail(email.trim())){service.setMessage(c.invalidEmail);return;}void service.run('request-recovery',{email:email.trim()});}}>{c.sendLink}</button></>}
  {!!data?.devices.length&&<><h3>{c.devices}</h3>{data.devices.map(device=><div className="hc-device" key={device.id}><Monitor size={18}/><span>{device.current?c.thisDevice:device.label}<small>Last seen {new Date(device.lastSeen).toLocaleDateString()}</small></span>{!device.current&&<button type="button" className="hp-text" disabled={service.disabled} onClick={()=>setConfirmation({kind:'revoke',id:device.id,revision:device.revision,accountRevision:service.snapshot!.revision})}>{c.revoke}</button>}</div>)}</>}
  {confirmation&&<section className="hc-review"><p>{confirmation.kind==='remove'?c.removeRecoveryHint:c.revokeHint}</p><button type="button" className="hp-danger-button" disabled={service.disabled} onClick={()=>void service.run(confirmation.kind==='remove'?'remove-recovery':'revoke-device',{id:confirmation.id,revision:confirmation.revision},confirmation.accountRevision).then(next=>{if(next)setConfirmation(null);})}>{c.remove}</button><button type="button" className="hp-text" disabled={service.busy} onClick={()=>setConfirmation(null)}>{c.keep}</button></section>}<Feedback service={service}/></div></details>;
+}
+
+/** Feasibility spike (HALO_FEATURE_GOOGLE_SIGNIN, off): renders nothing until the server says the capability is on. */
+export function ProductionGoogleSigninFlow() {
+ const [status,setStatus]=useState<Awaited<ReturnType<typeof fetchGoogleSigninStatus>>>(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
+ useEffect(()=>{let live=true;void fetchGoogleSigninStatus({auth:supabase.auth,fetcher:fetch}).then(value=>{if(live)setStatus(value);});return()=>{live=false;};},[]);
+ if(!status?.enabled)return null;
+ async function start(){
+  setBusy(true);setMessage('');
+  try{const result=await startGoogleLink({auth:supabase.auth,storage:window.sessionStorage,origin:window.location.origin});if(result.ok){window.location.assign(result.url);return;}setMessage(LINK_MESSAGES[result.outcome]);}
+  catch{setMessage(LINK_MESSAGES.failed);}
+  finally{setBusy(false);}
+ }
+ return <details className="hp-disclosure"><summary><KeyRound size={18}/>Sign in with Google<ChevronRight size={16}/></summary><div className="hc-flow">
+ {status.linked?<><strong>Kept with Google</strong>{status.maskedAccount&&<p>{status.maskedAccount}</p>}<small>Your household is kept with this Google account. Opening it on another device is not available yet.</small></>:<><p>Your household is kept only on this device right now. Sign in with Google to keep it with your Google account. HALO asks Google only for your name and email address, and your household stays the same.</p><button type="button" className="hp-primary" disabled={busy} onClick={()=>void start()}>{busy?'Opening Google...':'Sign in with Google to keep your household'}</button></>}
+ {message&&<p className="hc-state" role="status">{message}</p>}</div></details>;
 }
 
 export function ProductionDeviceSetupFlow() {

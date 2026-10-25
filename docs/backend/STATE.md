@@ -215,6 +215,9 @@ environment that should have the feature, then redeploy.
 - `HALO_FEATURE_PUBLIC_IMPORT=on` (the weekly public water import) once 0033 is applied and you have
   confirmed automated reuse of the NC DWR table (DS-113, B19 decision 1); the cron also needs the
   existing `CRON_SECRET` (`YOUR_TODO.md` 2.24).
+- `HALO_FEATURE_GOOGLE_SIGNIN=on` (spike: link Google to the anonymous household, same user id) only
+  after the Google OAuth client, Supabase's Google provider, manual linking and the callback redirect
+  URLs exist (`decisions/google-signin-feasibility.md`, on `vmag211/google-feasibility`).
 - No variable switches B12 (always on, signed in) or B13 (the `operator_roles` row is the switch).
 
 ## What is deliberately not built, and why
