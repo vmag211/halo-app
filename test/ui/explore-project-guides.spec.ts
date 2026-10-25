@@ -70,12 +70,12 @@ test('project preferences regenerate the shared set and keep narrower constraint
   await fit.getByLabel('Where could you do this?').selectOption('indoors');
   await fit.getByLabel('Who would take part?').selectOption('solo');
   await fit.getByLabel('Materials and spending').selectOption('reuse');
-  await fit.getByRole('button', { name: 'Generate my project ideas', exact: true }).click();
+  await fit.getByRole('button', { name: 'Update my recommendations', exact: true }).click();
   await expect(page.locator('.ex-project-generating')).toHaveCount(0);
   const count = await page.locator('.ex-generated-item').count();
   expect(count).toBeGreaterThan(0); expect(count).toBeLessThan(12);
   await expect(page.locator('.ex-generated-list')).not.toContainText('Build a solar-energy experiment');
-  await page.getByText('Generation details and sources', { exact: true }).click();
+  await page.getByText('Why these projects and sources', { exact: true }).click();
   await expect(page.locator('.ex-generation-details')).toContainText('does not invent unsuitable projects');
   await page.getByRole('button', { name: 'Back to Explore', exact: true }).click();
   await expect(page.getByRole('button', { name: `Projects for you: see all ${count}`, exact: true })).toBeVisible();
@@ -97,7 +97,7 @@ test('refresh varies relevant ideas without creating projects or losing old guid
 test('missing public environmental data never contributes fixture reasons to generation', async ({ page }) => {
   await page.goto(`${root}&scenario=no-data`);
   await expect(page.locator('.ex-generated-item')).toHaveCount(12);
-  await page.getByText('Generation details and sources', { exact: true }).click();
+  await page.getByText('Why these projects and sources', { exact: true }).click();
   await expect(page.locator('.ex-generation-details > ul')).not.toContainText('Utility water sample');
   await expect(page.locator('.ex-generation-details > ul')).not.toContainText('Sunlight forecast');
   await expect(page.locator('.ex-generation-details > ul')).not.toContainText('Outdoor air');

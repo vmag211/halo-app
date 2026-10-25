@@ -35,8 +35,8 @@ test('Projects says ideas are not available yet and never sends a generation', a
   await page.goto('/app/explore/projects');
   await expect(page.getByText('Project ideas are not available yet. The rest of Explore still works.')).toBeVisible();
   await expect(page.getByText(generic)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Retry generation|Check existing generation/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Generate project ideas' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Retry recommendations|Check existing request/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show my recommendations' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Preferences' })).toBeDisabled();
   await page.getByLabel('What interests you right now?').fill('native plants');
   await page.getByLabel('What interests you right now?').press('Enter');

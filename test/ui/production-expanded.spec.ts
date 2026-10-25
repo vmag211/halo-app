@@ -11,9 +11,9 @@ test('project generation is explicit, unknown results reconcile without a second
  await page.goto('/act?view=main&destination=projects');
  await expect(page.getByRole('heading',{name:'Projects for you',exact:true})).toBeVisible();expect(posts).toBe(0);
  await page.getByLabel('What interests you right now?').fill('A balcony pollinator planter');
- await page.getByRole('button',{name:'Generate a few ideas'}).click();
- await expect(page.getByRole('button',{name:'Check existing generation'})).toBeVisible();expect(posts).toBe(1);
- await page.getByRole('button',{name:'Check existing generation'}).click();await expect(page.getByText('This request did not produce a project set.')).toBeVisible();expect(posts).toBe(1);
+ await page.getByRole('button',{name:'Find matching projects'}).click();
+ await expect(page.getByRole('button',{name:'Check existing request'})).toBeVisible();expect(posts).toBe(1);
+ await page.getByRole('button',{name:'Check existing request'}).click();await expect(page.getByText('This request did not produce a project set.')).toBeVisible();expect(posts).toBe(1);
  await expect(page.locator('.ex-generated-item')).toHaveCount(0);expect(network.blocked).toEqual([]);
 });
 
