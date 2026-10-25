@@ -3,6 +3,8 @@
 .halo-date input.halo-date-input.halo-date-input[type="date"] { width:100%; min-width:0; min-height:48px; box-sizing:border-box; margin:0; padding:11px 49px 11px 12px; border:1px solid var(--halo-border,#ccd8d5); border-radius:8px; background:var(--halo-card,#fff); color:var(--halo-ink,#173e3b); font:inherit; font-variant-numeric:tabular-nums; color-scheme:inherit; }
 .halo-date input.halo-date-input.halo-date-input[type="date"]::-webkit-calendar-picker-indicator { display:none; }
 .halo-date input.halo-date-input.halo-date-input[type="date"]::-webkit-date-and-time-value { text-align:left; }
+/* Firefox draws its own calendar button inside a date field and offers no way to hide it, so there it is the only one: HALO's trigger steps aside and the native picker opens instead. */
+@supports (-moz-appearance:none) { .halo-date .halo-date-trigger { display:none; } .halo-date input.halo-date-input.halo-date-input[type="date"] { padding-right:12px; } }
 .halo-date .halo-date-trigger { position:absolute; inset:2px 2px 2px auto; display:flex; justify-content:center; align-items:center; width:44px; min-width:44px; min-height:44px; margin:0; padding:0; border:0; border-radius:6px; background:transparent; color:var(--halo-primary,#127d78); cursor:pointer; }
 .halo-date .halo-date-trigger:hover { background:var(--halo-tint,#eaf4f1); }
 .halo-date[data-disabled="true"] { opacity:.6; }
