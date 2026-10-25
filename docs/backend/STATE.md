@@ -487,10 +487,11 @@ numbers are the plan's own.
 - **`HALO_PRIVACY_REVIEW_KEY`** is the privacy switch and must be a different value from the recovery key.
   Rotating it only voids reviews younger than ten minutes. Clear all is irreversible and no browser pass
   has run: staging first (`YOUR_TODO.md` 2.16).
-- **AirNow retired the services HALO's observations call** on 2026-09-30 (AirNow's June 2026 notice):
-  `lib/dailyReadings.js` still calls `/aq/observation/latLong/current/`, so measured AirNow AQI in
-  `/api/daily-score` and the cron is likely failing over to modelled air. The B10 forecast (Task 5) already
-  uses the replacement `/aq/forecast/current/`. See `docs/backend/decisions/airnow-forecast-docs.md`.
+- **AirNow retired the observation service HALO called** on 2026-09-30 (AirNow's June 2026 notice).
+  Until branch `vmag211/airnow-forecast` deploys, measured AirNow AQI in `/api/daily-score` and the cron
+  falls back to modelled air. That branch moves `lib/dailyReadings.js` and `/api/health` to
+  `/aq/observation/current/ziplatlong/` and the forecast to `/aq/forecast/current/`, both built from
+  recorded third-party answers (`docs/backend/decisions/airnow-forecast-docs.md`), not yet live-verified.
 - **Model ids must be pinned in the deployment.** An unset `ASSISTANT_CHAT_MODEL` or
   `ASSISTANT_EMBED_MODEL` used to select a paid OpenAI default; `988074d` makes that fail loudly, but set
   both explicitly anyway.

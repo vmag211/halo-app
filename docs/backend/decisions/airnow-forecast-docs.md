@@ -16,11 +16,13 @@ Status: **built on the public record below; the authenticated documentation page
   "AirNow API - Log In" page (checked 2026-10-25). The exact parameter table, the per-service hourly
   limit and the meaning of `aqi: -1` are therefore taken from the public sources below, not from the
   authenticated page. The adapter is written so that a difference found later changes one parser.
-- **The same retirement affects HALO's AirNow observations.** `lib/dailyReadings.js:155` still calls
+- **The same retirement affected HALO's AirNow observations, now moved.** `lib/dailyReadings.js` (used
+  by `/api/daily-score`, the daily cron and backfill) and the `/api/health` probe called
   `/aq/observation/latLong/current/`, which is on the same retirement list ("Current Observations by
   Reporting Area by Latitude/Longitude ... Retirement September 30, 2026"; replacement "Current
-  Observations by Latitude/Longitude or ZIP Code, `/aq/observation/current/ziplatlong/`"). That code is
-  outside B10 and is not changed here; it is raised for Vibhav.
+  Observations by Latitude/Longitude or ZIP Code, `/aq/observation/current/ziplatlong/`"). Both now call
+  the replacement; see "Observations" below. The daily-maxima recorder and the map's station layer use
+  `/aq/data/`, which AirNow lists as "Remain".
 
 ## Sources (all retrieved 2026-10-25)
 
@@ -107,6 +109,30 @@ S4 recommends.
 horizon is today plus at most 6 (F12); an AirNow date outside the dates AirNow returned is "no air
 forecast for this date", with the dates it did issue named in coverage.
 
+## Observations (`/aq/observation/current/ziplatlong/`)
+
+Request: `format=application/json`, `latitude`, `longitude`, `API_KEY`; no `distance` ("`distance` is
+ignored by the new services", S6, which recorded byte-identical answers with and without it).
+
+Recorded answer (S6, `observation_current_ziplatLong__latlong.json`, one row shown):
+
+```json
+{"dateObserved":"2026-09-12","hourObserved":"08:00","localTimeZone":"PDT","reportingAreaName":"Napa","siteID":"060950004","siteName":"Vallejo","parameterName":"PM2.5","nowcastAQI":52,"aqiCategoryName":"Moderate","reportingAgency":"Bay Area Air District","lookupBehavior":"Closest Reading By Pollutant","consideredMonitors":"All","lookupBoundary":"50 Miles"}
+```
+
+| New field | Retired field | HALO use |
+| --- | --- | --- |
+| `parameterName` (`OZONE`, `PM2.5`, `PM10`) | `ParameterName` (`O3`, ...) | The dominant pollutant, normalised to O3, PM2.5, PM10 |
+| `nowcastAQI` | `AQI` | The reading; HALO's AQI is the highest; `-1`, missing or negative is unknown and never a reading |
+| `aqiCategoryName`, `dateObserved`, `hourObserved`, `siteID`, `reportingAreaName` | `Category.Name`, `DateObserved`, `HourObserved`, (none), `ReportingArea` | Not stored, as before: `fetchDailyReadings` kept only the AQI, the source (measured AirNow) and the dominant pollutant. S6: `hourObserved` labels the END of the hour ("18:00" for 17:00 to 17:59), one hour later than the retired `HourObserved` |
+
+No monitor in range is a 200 `{"WebServiceError":[{"Message":"There are no observations available for
+the requested latitude/longitude: No observations were found for all monitors within 50 miles."}]}`
+(recorded, S6). That, an empty array, only unknown values, or any failure falls back to Open-Meteo's
+modeled AQI, labelled modeled, as before. S6 also found the new service's values can differ from the
+retired one's for the same instant ("The lookup methodologies differ"): one row per pollutant from its
+closest monitor.
+
 ## What Vibhav still has to do
 
 1. Log in once and compare `https://docs.airnowapi.org/CurrentForecasts/docs` with the request and
@@ -114,5 +140,6 @@ forecast for this date", with the dates it did issue named in coverage.
    500, set the AirNow budget to 40% of it.
 2. Send the AirNow data-use notification (S5) to `dmc@airnowtech.org`, or confirm the API key request
    covered it (`YOUR_TODO.md` Part 3 item 10b).
-3. Move `lib/dailyReadings.js` off the retired `/aq/observation/latLong/current/` (separate work; its
-   parser also reads the retired PascalCase `AQI` and `ParameterName`).
+3. Check the observation request against `https://docs.airnowapi.org/CurrentObservationsByLatLon/docs`
+   (or the ziplatlong service's own page) the same way: `lib/dailyReadings.js` and `/api/health` now call
+   `/aq/observation/current/ziplatlong/`, built from the recorded answers above.
