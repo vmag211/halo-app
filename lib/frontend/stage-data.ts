@@ -2,6 +2,7 @@ import type { FactorKey, FactorReading, TrendPoint } from './factor-preview';
 import type { DailyResponse, HomeResponse, ProfileResponse } from './types';
 import type { HistoryResponse } from './stage-api';
 import { dateLabel, finite, isoDate, nonnegative, record, rows, safeText, scoreNumber, severity, textList, timeLabel, timestamp } from './stage-values';
+import { copy } from './copy';
 
 export interface StageOverview {
   score: number | null; severity: string; partial: boolean; missingInputs: string[];
@@ -182,7 +183,7 @@ export function buildStageData(daily: DailyResponse | null, home: HomeResponse |
   const lithiumPpt = nonnegative(lithium?.value_ppt);
   readings.pfas = { ...readings.pfas, score: scoreable ? scoreNumber(waterBox.score) : null, severity: waterSeverity,
     reading: waterMeasured && concentration !== null ? numberText(concentration) : privateSource ? 'Not tested' : waterMeasured && coverage === 'no_detections' ? 'No detections' : 'No data',
-    unit: compound ? `ppt ${compound}` : 'Utility testing', provenance: waterMeasured ? 'measured' : null, source: utility ? `EPA UCMR 5, ${utility}` : 'EPA UCMR 5',
+    unit: compound ? `ppt ${compound}` : 'Utility testing', provenance: waterMeasured ? 'measured' : null, source: utility ? `EPA UCMR 5, ${copy.reveal.likelyUtility(utility)}` : 'EPA UCMR 5',
     asOf: sampleDate ? `Sample collected ${dateLabel(sampleDate)}` : 'Sample date unavailable',
     sentence: permittedMessage ?? waterStatusCopy[String(water.status)] ?? (primary ? `${compound} is shown against its supplied ${primary.is_enforceable === true ? 'federal limit' : primary.is_enforceable === false ? 'health benchmark' : 'comparison value'}.` : privateSource ? 'A testing plan can help you find out what is in this water.' : 'Water results appear when utility testing is available.'),
     detail: 'PFAS results come from utility sampling. Sample dates describe the testing record, not current conditions at your tap.',

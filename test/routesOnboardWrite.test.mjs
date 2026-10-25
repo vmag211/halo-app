@@ -108,10 +108,11 @@ test('legacy request: the bare address of lib/api.js, water_source and home_year
   }
 });
 
-test('legacy request: a GPS "lng,lat" string, a bare ZIP and a 3 or 200 character address all reach the geocoder as before', async (t) => {
+test('legacy request: a GPS "lat,lng" string, a bare ZIP and a 3 or 200 character address all reach the geocoder', async (t) => {
   quietFallback(t);
   const h = harness();
-  assert.equal((await post(h, { address: '-80.57952,35.40881' })).status, 200);
+  // Read as lat,lng (typed or Use my location) and sent to Mapbox in its own lng,lat order.
+  assert.equal((await post(h, { address: '35.40881,-80.57952' })).status, 200);
   assert.match(mapboxUrl(h), /mapbox\.places\/-80\.57952%2C35\.40881\.json/);
   // A bare ZIP must come back as that ZIP's own postcode feature (test/onboardPlaceReview.test.mjs).
   const zip = harness({ mapbox: { features: [{ ...FEATURE, place_type: ['postcode'], text: '28025' }] } });

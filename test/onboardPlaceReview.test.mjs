@@ -87,13 +87,13 @@ test('serviceAreaFromArcgis: padded duplicates are one system, not several', () 
   assert.deepEqual(outcome, { pwsid: 'NC1', status: 'measured', candidates: ['NC1'] });
 });
 
-test('chooseGeocodeFeature: device GPS ("lng,lat") takes the most specific home-like reverse result', () => {
-  assert.equal(isCoordinateQuery('-80.57952,35.40881'), true);
+test('chooseGeocodeFeature: a point ("lat,lng", typed or from device GPS) takes the most specific home-like reverse result', () => {
+  assert.equal(isCoordinateQuery('35.40881,-80.57952'), true);
   assert.equal(isCoordinateQuery('28027'), false);
-  const reverse = chooseGeocodeFeature([STATE_ONLY[0], ADDRESS], '-80.57952,35.40881');
+  const reverse = chooseGeocodeFeature([STATE_ONLY[0], ADDRESS], '35.40881,-80.57952');
   assert.equal(reverse.feature, ADDRESS);
   assert.equal(reverse.precision, 'address');
-  assert.deepEqual(chooseGeocodeFeature(STATE_ONLY, '-80.5,35.4'), { ok: false, reason: 'too_broad' });
+  assert.deepEqual(chooseGeocodeFeature(STATE_ONLY, '35.4,-80.5'), { ok: false, reason: 'too_broad' });
 });
 
 test('areaLabel never echoes the street line', () => {
@@ -185,11 +185,42 @@ test('route: a private well with no public system at the point still onboards', 
   assert.ok(domain.placeReview({ ...json, water_source: null }).notes.includes(copy.household.place.noUtility), 'nor does an unanswered source get a utility claim');
 });
 
-test('route: a "lng,lat" that is no point on Earth is the friendly 404, never asked of Mapbox', async () => {
+test('route: a "lat,lng" that is no point on Earth is the friendly 404, never asked of Mapbox', async () => {
   const h = harness();
-  const body = await expectEnvelope(await post(h, { address: '-999,99' }), { status: 404, code: 'not_found', retryable: false });
-  assert.equal(body.error, NOT_FOUND);
+  // -999,99 and a lat,lng pasted the wrong way round with a longitude past 90 as the latitude.
+  for (const address of ['-999,99', '135.4088, -80.5795', '35.4, 200', '91,0']) {
+    const body = await expectEnvelope(await post(h, { address }), { status: 404, code: 'not_found', retryable: false });
+    assert.equal(body.error, NOT_FOUND, address);
+  }
   assert.deepEqual(h.outbound, []);
+});
+
+test('route: a pasted "lat, lng" is read as latitude first and sent to Mapbox as lng,lat', async (t) => {
+  quiet(t);
+  const h = harness({ places: { '-80.5795,35.4088': [ADDRESS] } });
+  const body = await (await post(h, { address: '35.4088, -80.5795' })).json();
+  assert.equal(body.place_label, 'Concord, North Carolina 28027');
+  assert.match(h.outbound[0], /mapbox\.places\/-80\.5795%2C35\.4088\.json/);
+});
+
+test('parseCoordinateQuery: latitude first, both in range, or nothing', async () => {
+  const { parseCoordinateQuery } = await import('../lib/geocode.js');
+  assert.deepEqual(parseCoordinateQuery(' 35.4088 , -80.5795 '), { lat: 35.4088, lng: -80.5795 });
+  assert.deepEqual(parseCoordinateQuery('-90,180'), { lat: -90, lng: 180 });
+  for (const bad of ['90.1,0', '0,180.5', '-999,99', '28027', 'Concord', '1,2,3', '', null]) assert.equal(parseCoordinateQuery(bad), null, String(bad));
+});
+
+test('Homeguard and Luna name the matched utility as the likely supplier, never as confirmed', async () => {
+  const { buildStageData } = await loadFrontend('stage-data');
+  const data = buildStageData(null, { water: { is_measured: true, coverage: 'no_detections', pws_name: 'CONCORD CITY OF', scored_contaminants: [] } }, null);
+  assert.equal(data.readings.pfas.source, 'EPA UCMR 5, CONCORD CITY OF (likely supplier for this area)');
+  const evidence = readFileSync(new URL('../components/stage/HomeEvidence.tsx', import.meta.url), 'utf8');
+  assert.match(evidence, /<p>\{copy\.reveal\.likelyUtility\(safeText\(water\.pws_name\)\)\}<\/p>/, 'the Homeguard water panel uses the same wording');
+  const { buildHouseholdContext } = await import('../lib/assistantContext.js');
+  const clean = buildHouseholdContext({ page: 'home', home: { utility: 'CONCORD CITY OF', water_source: 'utility', worst: null } });
+  assert.match(clean, /Water \(CONCORD CITY OF, likely supplier for this area\): no regulated contaminant/);
+  const worst = buildHouseholdContext({ page: 'home', home: { utility: null, water_source: 'utility', worst: { contaminant: 'PFOS', value_ppt: 8, limit_ppt: 4 } } });
+  assert.match(worst, /Water \(the likely utility for this area\): PFOS/);
 });
 
 test('route: after a rejected place, a corrected one is saved', async (t) => {

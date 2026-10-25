@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { mapboxLimiter, onboardLimiter, dailyScoreLimiter, checkLimit } from '@/lib/ratelimit';
 import { requireUser, assertProfileMatches, authErrorResponse, supabaseAdmin } from '@/lib/serverAuth';
-import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode, chooseGeocodeFeature, isCoordinateQuery, coordinatesInRange } from '@/lib/geocode';
+import { parseMapboxFeature, roundCoord, serviceAreaFromArcgis, locationMoved, isUsZipCode, chooseGeocodeFeature, isCoordinateQuery, parseCoordinateQuery } from '@/lib/geocode';
 import { localDate } from '@/lib/localDate';
 import { backfillHousehold, backfillHomeContext } from '@/lib/backfill';
 import { ERROR_CODES, apiError, internalError, requestIdFor, validationError } from '@/lib/apiErrors';
@@ -251,10 +251,17 @@ export async function POST(request) {
     }
 
     // --- MAPBOX GEOCODING API ---
-    // A "lng,lat" that is no point on Earth is no place (Mapbox would answer 422, a 500 here).
-    if (isCoordinateQuery(address) && !coordinatesInRange(address)) return noCoordinates();
+    // Two numbers are a point, read as "lat,lng" (as typed from a map, and as the app's own Use my
+    // location sends it); Mapbox reverse lookups take "lng,lat". A pair that is no point on Earth
+    // is no place (Mapbox would answer 422, a 500 here).
+    let query = address;
+    if (isCoordinateQuery(address)) {
+      const point = parseCoordinateQuery(address);
+      if (!point) return noCoordinates();
+      query = `${point.lng},${point.lat}`;
+    }
     const mapboxToken = process.env.MAPBOX_TOKEN;
-    const encodedAddress = encodeURIComponent(address);
+    const encodedAddress = encodeURIComponent(query);
     const mapboxParams = new URLSearchParams({ access_token: mapboxToken });
     if (isUsZipCode(address)) mapboxParams.set('country', 'us');
     const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?${mapboxParams}`;

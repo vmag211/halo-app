@@ -222,7 +222,7 @@ export default function OnboardingScreen({ api = liveApi, preview = false, stack
       if (!mounted.current || id !== gpsRequest.current || stepRef.current !== 1) return;
       const {longitude,latitude} = position.coords;
       if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {setLocating(false); setErrors(previous => ({...previous,location:copy.address.denied})); return;}
-      setCoordinates(`${longitude},${latitude}`); setAddress(copy.address.currentLocation);
+      setCoordinates(`${latitude},${longitude}`); setAddress(copy.address.currentLocation);
       setErrors(previous => ({...previous,address:'',location:''})); setLocating(false);
     }, () => {
       if (!mounted.current || id !== gpsRequest.current) return;
