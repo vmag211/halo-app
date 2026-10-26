@@ -16,6 +16,7 @@ import {actionFingerprint} from '@/lib/frontend/settings-preview';
 import { actionReceiptCoversCommand,applyReviewActionCommand, validActionSnapshot, type ActionCommand, type ActionCommitOptions, type ActionSnapshot, type ExpandedActionAdapter } from '@/lib/frontend/production/action-service';
 import { dayLabel, emptyWeekMeta, type WeekMeta } from '@/lib/frontend/week-preview';
 import { lunaCalendarAnchor } from '@/lib/frontend/luna-tools-preview';
+import { saveNotRecorded } from '@/lib/frontend/production/runtime';
 import { unresolvedWeekSources, weekSourceRefreshPlan, weekSourceStatus, type WeekSourceChecks } from '@/lib/frontend/week-activity';
 
 /** Collections whose records give My Week tasks their context, re-read when the page regains focus. */
@@ -63,6 +64,8 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
   const [unknownOperation, setUnknownOperation] = useState('');
   const [loadVersion, setLoadVersion] = useState(0);
   const lock = useRef(false), alive = useRef(true), generation = useRef(0);
+  /** The last save sent, kept so a status check that finds no record of it can send it again under the same id. */
+  const unsent = useRef<{ operationId: string; command: ActionCommand; snapshot: ActionSnapshot } | null>(null);
   const requests = useRef(new Set<AbortController>());
   const commitSnapshot = useCallback((snapshot: ActionSnapshot) => {
     snapshotRef.current = snapshot;
@@ -135,6 +138,7 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
     try {
       const snapshot: ActionSnapshot = { actions: actionsRef.current, metas: (workspaceRef.current.drafts['week:metas'] ?? {}) as Record<string, WeekMeta> };
       if (service) {
+        unsent.current = { operationId, command, snapshot };
         const receipt = await service.commit(command, { operationId, signal: controller.signal });
         if (!alive.current || version !== generation.current) return false;
         if (receipt.operationId !== operationId) throw new Error('invalid receipt');
@@ -156,11 +160,20 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
   const reconcile = async () => {
     if (!service || !unknownOperation || lock.current) return false;
     commands.current++; lock.current = true; setPending(true); const controller = new AbortController(); requests.current.add(controller);
+    const sent = unsent.current?.operationId === unknownOperation ? unsent.current : null;
     try {
-      const receipt = await service.reconcile(unknownOperation, controller.signal);
+      let receipt, resent = false;
+      try { receipt = await service.reconcile(unknownOperation, controller.signal); }
+      catch (error) {
+        // Never recorded: send the same save again under the same id, which the server applies at most once.
+        if (!sent || !saveNotRecorded(error)) throw error;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) { if (alive.current) setError('You are offline. The save was not recorded, and your draft is kept. Reconnect, then check again.'); return false; }
+        receipt = await service.commit(sent.command, { operationId: sent.operationId, signal: controller.signal }); resent = true;
+        if (receipt.status === 'succeeded' && !actionReceiptCoversCommand(sent.command, sent.snapshot, receipt)) throw new Error('invalid snapshot');
+      }
       if (!alive.current || receipt.operationId !== unknownOperation) return false;
-      if (receipt.status === 'succeeded' && validActionSnapshot(receipt.snapshot)) { commitSnapshot(receipt.snapshot); setError(receipt.snapshot.unresolvedOperations?.length?'Another earlier save needs checking.':'Saved. The existing task result was recovered.'); return true; }
-      if (receipt.status === 'failed' || receipt.status === 'cancelled') { setUnknownOperation('');setLoadVersion(value=>value+1);setError('No save was applied. Your draft is kept for review.'); return false; }
+      if (receipt.status === 'succeeded' && validActionSnapshot(receipt.snapshot)) { unsent.current = null; commitSnapshot(receipt.snapshot); setError(receipt.snapshot.unresolvedOperations?.length?'Another earlier save needs checking.':resent?'Saved.':'Saved. The existing task result was recovered.'); return true; }
+      if (receipt.status === 'failed' || receipt.status === 'cancelled') { unsent.current = null; setUnknownOperation('');setLoadVersion(value=>value+1);setError(resent && receipt.message || 'No save was applied. Your draft is kept for review.'); return false; }
       setError('The outcome is still unconfirmed. No new save was sent.'); return false;
     } catch { if (alive.current) setError('Could not check this save. No new save was sent.'); return false; }
     finally { requests.current.delete(controller); lock.current = false; if (alive.current) setPending(false); }
@@ -204,9 +217,10 @@ export function ExpandedPreviewProvider({ children, service }: { children: React
 }
 
 /** quietLoading: the screen already shows its own loading placeholder, so the loading line is announced but takes no space. */
-export function ExpandedActionStatus({ quietLoading = false }: { quietLoading?: boolean } = {}) {
+/** onRecovered: a sheet whose save was unconfirmed closes once the check confirms that save. */
+export function ExpandedActionStatus({ quietLoading = false, onRecovered }: { quietLoading?: boolean; onRecovered?: () => void } = {}) {
   const state = useExpandedPreview(); if (!state || !state.error && state.readiness !== 'loading') return null;
-  return <div role="status" className={quietLoading && !state.error && state.readiness === 'loading' ? 'mw-notice halo-sr-only' : 'mw-notice'}><p>{state.readiness === 'loading' ? 'Loading your tasks...' : state.error}</p>{state.unknownOperation ? <button className="mw-text" disabled={state.pending} onClick={() => void state.reconcile()}>Check save status</button> : state.readiness === 'error' ? <button className="mw-text" onClick={state.retryLoad}>Try again</button> : null}</div>;
+  return <div role="status" className={quietLoading && !state.error && state.readiness === 'loading' ? 'mw-notice halo-sr-only' : 'mw-notice'}><p>{state.readiness === 'loading' ? 'Loading your tasks...' : state.error}</p>{state.unknownOperation ? <button className="mw-text" disabled={state.pending} onClick={() => void state.reconcile().then(saved => { if (saved) onRecovered?.(); })}>Check save status</button> : state.readiness === 'error' ? <button className="mw-text" onClick={state.retryLoad}>Try again</button> : null}</div>;
 }
 
 export function ExpandedReviewControls() {

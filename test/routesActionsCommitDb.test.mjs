@@ -168,12 +168,50 @@ test('T7: a commit whose response is discarded is answered by the reconcile with
   assert.deepEqual(state(week), UNLOCKED(RECOVERED));
   assert.deepEqual(week.actions.map((action) => action.key), ['personal:1', 'personal:2']);
 
-  // A save whose request never arrived has no row: 404, which the client keeps
-  // as a lock until a reload (finding F7, a client-side item).
+  // An id with no row that this client did not send itself: 404, and with no
+  // command to send again the client keeps the lock until a reload. A save it
+  // did send is sent again under its id (finding F7, fixed in the next test).
   week.unknownOperation = crypto.randomUUID();
   await expectEnvelope(await w.reconcile(week.unknownOperation), { status: 404, code: 'not_found' });
   assert.equal(await week.reconcile(), false);
   assert.deepEqual([week.error, Boolean(week.unknownOperation)], ['Could not check this save. No new save was sent.', true]);
+});
+
+test('F7 fixed: a save lost before it reached the server is sent again under its own id by the status check, and stored exactly once', async () => {
+  let drop = true;
+  const w = await createWorld(db);
+  const week = w.week('alice', { never: (operation) => operation === 'actions.commit' && drop && !(drop = false) });
+  await week.load();
+  assert.equal(await week.addActions([seed('personal:1', 'Water the beds')], '2026-10-21'), false);
+  const operationId = week.operationIds[0];
+  assert.deepEqual(state(week), { error: NOT_CONFIRMED, locked: operationId, canMutate: false }, 'a request lost on the way out is still unconfirmed to the client');
+  assert.equal(await w.ledgerRow(operationId), null, 'the server recorded nothing');
+  await expectEnvelope(await w.reconcile(operationId), { status: 404, code: 'not_found' });
+
+  // The check finds no record and sends the same command under the same id: applied once, My Week unlocked.
+  assert.equal(await week.reconcile(), true);
+  assert.deepEqual(state(week), UNLOCKED('Saved.'));
+  assert.deepEqual((await w.tasks()).map((task) => task.title), ['Water the beds']);
+  assert.equal((await w.ledgerRow(operationId)).status, 'succeeded', 'under the original id');
+
+  // A late copy of that same request (the first one arriving after all) replays and adds nothing.
+  const replay = await (await w.commit({ operationId, kind: 'add', date: '2026-10-21', seeds: [seed('personal:1', 'Water the beds')] })).json();
+  assert.equal(replay.status, 'succeeded');
+  assert.deepEqual((await w.tasks()).map((task) => task.title), ['Water the beds']);
+  assert.equal((await reloaded(w)).actions.length, 1);
+});
+
+test('F7 fixed: when the lost save did reach the server, the status check recovers it and never sends it again', async () => {
+  let drop = true, commits = 0;
+  const w = await createWorld(db, { onCommit: async (_args, call) => { commits++; return call(); } });
+  const week = w.week('alice', { lose: (operation) => operation === 'actions.commit' && drop && !(drop = false) });
+  await week.load();
+  assert.equal(await week.addActions([seed('personal:1', 'Check the filter')], ''), false);
+  assert.equal(commits, 1);
+  assert.equal(await week.reconcile(), true);
+  assert.deepEqual(state(week), UNLOCKED(RECOVERED));
+  assert.equal(commits, 1, 'recovered from the ledger, not sent again');
+  assert.deepEqual((await w.tasks()).map((task) => task.title), ['Check the filter']);
 });
 
 // ---------------------------------------------------------------------------

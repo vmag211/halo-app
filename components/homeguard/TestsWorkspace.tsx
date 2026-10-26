@@ -243,13 +243,13 @@ function ResultEditor({ record, save, navigate }: WorkspaceProps & { record: Tes
     {duplicates.length > 0 && <SourceNote>Repeated analyte names: {duplicates.join(', ')}. Rows will remain separate. If these are separate samples, record each sample independently before comparing.</SourceNote>}
     {issues.length > 0 && enteredResultRows(draft.rows).length > 0 && <div className="hg-card"><h3>Some details need checking</h3><p>You can save now and return later. The result will remain uninterpreted.</p><details className="hg-filter-details"><summary>{issues.length} {issues.length === 1 ? 'detail' : 'details'} to check</summary><ul>{issues.map(issue => <li key={issue}>{issue}</li>)}</ul></details></div>}
     {correcting && <Field label="Correction reason (required)" hint="The previous version is preserved in correction history."><textarea required maxLength={600} value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} /></Field>}
-    <label className="hg-option"><input type="checkbox" checked={draft.confirmed} onChange={event => setDraft({ ...draft, confirmed: event.target.checked })} /><span>I compared these fields with my original report and confirm the transcription.</span></label>{dirty && <Button variant="tertiary" onClick={() => setDiscard(true)}>Discard draft</Button>}<p className="hg-meta">This confirms your entry, not that the result is safe. {issues.length ? 'Missing details will stay flagged.' : ''}</p><details><summary>Review a local report</summary><LocalAttachmentReview recordId={record.id} /></details>
+    <label className="hg-option"><input type="checkbox" checked={draft.confirmed} onChange={event => setDraft({ ...draft, confirmed: event.target.checked })} /><span>I compared these fields with my original report and confirm the transcription.</span></label>{dirty && <Button variant="tertiary" onClick={() => setDiscard(true)}>Discard draft</Button>}<p className="hg-meta">This confirms your entry, not that the result is safe. {issues.length ? 'Missing details will stay flagged.' : ''}</p><details><summary>Review a local report</summary><LocalAttachmentReview recordId={record.id} onStep={from => setDraft(current => current.baseRevision === from ? { ...current, baseRevision: from + 1 } : current)} /></details>
   </RecordForm>{discard && <Confirm title="Discard unsaved result edits?" onConfirm={() => { clearDraft(); navigate('detail', record.id); }} onCancel={() => setDiscard(false)}>Your saved original values and correction history will remain.</Confirm>}</div>;
 }
 
-function LocalAttachmentReview({ recordId }: { recordId?: string }) {
+function LocalAttachmentReview({ recordId, onStep }: { recordId?: string; onStep?: (from: number) => void }) {
   const workspace = useHomeWorkspace();
-  if (workspace.mode === 'production') return recordId ? <PrivateReportAttachments recordId={recordId} /> : <SourceNote>Save the test record before attaching its private report.</SourceNote>;
+  if (workspace.mode === 'production') return recordId ? <PrivateReportAttachments recordId={recordId} onStep={onStep} /> : <SourceNote>Save the test record before attaching its private report.</SourceNote>;
   return <PreviewLocalAttachmentReview />;
 }
 function PreviewLocalAttachmentReview() {
@@ -292,7 +292,7 @@ function CompareTests({ record, records, navigate, ...props }: WorkspaceProps & 
 function TestExport(props: WorkspaceProps & { record: TestRecord }) {
   const [includeContext, setIncludeContext] = useState(false);
   const [state, setState] = useState('');
-  const payload = testExport(props.record, includeContext);
+  const payload = testExport(props.record, includeContext, useHomeWorkspace().mode === 'production');
   function download() {
     try {
       setState('Preparing export...');

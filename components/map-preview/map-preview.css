@@ -41,7 +41,7 @@
 .halo-map-timeline { padding:5px 12px 8px; border:1px solid var(--halo-border); border-radius:17px; background:var(--map-control); }
 .halo-map-timeline > div:first-child { display:flex; align-items:center; justify-content:space-between; font-size:calc(.8rem * var(--halo-text-scale)); font-weight:600; min-height:27px; }
 .halo-map-timeline button { display:grid;place-items:center; width:44px; min-height:28px; border:0; background:none; color:var(--halo-primary); margin-block:-4px; }
-.halo-map-timeline input { display:block; width:100%; height:20px; margin:2px 0 3px; accent-color:var(--halo-primary); cursor:pointer; }
+.halo-map-timeline input { display:block; width:100%; height:44px; margin:-10px 0 -9px; accent-color:var(--halo-primary); cursor:pointer; }
 .halo-map-ticks { display:flex;justify-content:space-between;color:var(--map-muted); font-size:calc(.67rem * var(--halo-text-scale)); }
 .halo-map-comparison { text-align:left; border:1px solid var(--halo-border); border-radius:16px; background:var(--map-control); color:var(--halo-ink); padding:11px 14px; }
 .halo-map-comparison span { display:block; font:600 calc(.82rem * var(--halo-text-scale))/1.5 var(--font-onest),sans-serif; }
@@ -130,7 +130,7 @@
 .halo-map-left-controls,.halo-map-stage:not([data-layer="water"]) .halo-map-left-controls { top:125px; }
 .halo-map-stage:not([data-layer="water"]) .halo-map-left-controls { top:75px; }
 .halo-map-presentation { display:flex; border:1px solid var(--halo-border); border-radius:12px; padding:3px; background:var(--map-control); }
-.halo-map-left-controls .halo-map-presentation button { min-height:36px; border:0; padding:6px 10px; background:transparent; border-radius:9px; color:var(--map-muted); }
+.halo-map-left-controls .halo-map-presentation button { min-height:44px; border:0; padding:6px 10px; background:transparent; border-radius:9px; color:var(--map-muted); }
 .halo-map-left-controls .halo-map-presentation button[aria-pressed="true"] { background:var(--halo-tint); color:var(--halo-primary); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--halo-primary) 20%,transparent); }
 .halo-map-inline-key { position:absolute; top:179px; left:12px; width:230px; max-width:calc(100% - 80px); }
 .halo-map-stage:not([data-layer="water"]) .halo-map-inline-key { top:129px; }
@@ -223,7 +223,7 @@
 .halo-map-right-controls button:last-child { border-bottom:0; }
 .halo-map-app .halo-map-left-controls, .halo-map-app[data-text-scale="150"] .halo-map-stage .halo-map-left-controls { inset:12px auto auto 12px; z-index:2; flex-direction:row; align-items:center; }
 .halo-map-presentation { padding:2px; border-radius:6px; box-shadow:0 2px 12px #00162410; }
-.halo-map-left-controls .halo-map-presentation button { min-height:40px; border-radius:4px; }
+.halo-map-left-controls .halo-map-presentation button { min-height:44px; border-radius:4px; }
 .halo-map-left-controls > button { border-radius:6px; }
 .halo-map-app .halo-map-inline-key, .halo-map-app[data-text-scale="150"] .halo-map-stage .halo-map-inline-key { position:static; width:auto; max-width:none; }
 .halo-map-key { border:0; border-bottom:1px solid var(--halo-border); padding:14px 16px; border-radius:0; box-shadow:none; grid-template-columns:1fr; gap:14px; background:var(--ph-page); }
